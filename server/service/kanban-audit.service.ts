@@ -37,7 +37,7 @@ function safeProject(project: Record<string, any>) {
 
 function safeTask(task: Record<string, any>) {
   const snapshot: Record<string, unknown> = {};
-  for (const field of ["title", "status", "priority", "assigneeUid", "dueDate"] as const) {
+  for (const field of ["title", "status", "priority", "assigneeUid", "dueDate", "progress", "progressNote", "helpRequested", "helpReason", "helpers"] as const) {
     if (task[field] !== undefined) snapshot[field] = task[field];
   }
   return snapshot;

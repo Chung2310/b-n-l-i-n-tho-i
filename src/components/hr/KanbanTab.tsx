@@ -1,3 +1,4 @@
+import { KanbanTaskProgress, TaskProgressSummary } from "./KanbanTaskProgress";
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect, @typescript-eslint/no-unused-vars */
 import React, { useState, useEffect } from "react";
 import {
@@ -517,7 +518,7 @@ function TaskTable({
                 <tr
                   key={task.id}
                   onClick={() => onSelectTask(task)}
-                  className="hover:bg-slate-50/70 cursor-pointer transition-colors bg-white"
+                  className={`hover:bg-slate-50/70 cursor-pointer transition-colors bg-white ${task.helpRequested ? "task-needs-help" : ""}`}
                 >
                   {/* Công việc */}
                   <td className="px-4 py-3 font-semibold text-slate-800">
@@ -533,6 +534,7 @@ function TaskTable({
                         <div className="font-semibold text-xs text-slate-850 truncate" title={task.title}>
                           {task.title}
                         </div>
+                        <TaskProgressSummary task={task} />
                         <div className="text-[10px] text-gray-400 truncate mt-0.5" title={task.description}>
                           {task.description || "Không có mô tả chi tiết."}
                         </div>
@@ -770,8 +772,8 @@ export default function KanbanTab({
         `Bạn có task mới từ quy trình «${data?.workflowName || ""}»: ${data?.title || ""}`
       );
     });
-    const offTaskUpdated = socketService.on("kanban:task-updated", fetchProjects);
-    const offTaskDeleted = socketService.on("kanban:task-deleted", fetchProjects);
+    const offTaskUpdated = socketService.on("kanban:task-updated", () => { fetchTasks(); fetchProjects(); });
+    const offTaskDeleted = socketService.on("kanban:task-deleted", () => { fetchTasks(); fetchProjects(); });
     const offProjectUpdated = socketService.on("kanban:project-updated", fetchProjects);
     return () => { off(); offTaskUpdated(); offTaskDeleted(); offProjectUpdated(); };
   }, [fetchTasks, fetchProjects, selectedCompanyCode]);
@@ -1074,7 +1076,7 @@ export default function KanbanTab({
             "Content-Type": "application/json",
             "Authorization": `Bearer ${getAccessToken()}`,
           },
-          body: JSON.stringify(updatedFields),
+          body: JSON.stringify({ ...updatedFields, revision: selectedKanbanTask.revision || 0 }),
         });
 
         if (!res.ok) {
@@ -1083,7 +1085,8 @@ export default function KanbanTab({
         }
 
         toast.success("Đã lưu thay đổi công việc!");
-        applyTaskMutation((current) => current.map(t => t.id === selectedKanbanTask.id ? { ...t, ...updatedFields } as HRTask : t), [selectedKanbanTask.projectId, updatedFields.projectId]);
+        const saved = (await res.json()).data;
+        applyTaskMutation((current) => current.map(t => t.id === selectedKanbanTask.id ? { ...saved, id: saved._id } as HRTask : t), [selectedKanbanTask.projectId, updatedFields.projectId]);
       }
       setSelectedKanbanTask(null);
     } catch (error: any) {
@@ -1204,7 +1207,7 @@ export default function KanbanTab({
           "Content-Type": "application/json",
           "Authorization": `Bearer ${getAccessToken()}`,
         },
-        body: JSON.stringify(updateData),
+        body: JSON.stringify({ ...updateData, revision: taskObj?.revision || 0 }),
       });
 
       if (!res.ok) {
@@ -1212,7 +1215,8 @@ export default function KanbanTab({
         throw new Error(err.message || "Cập nhật trạng thái thất bại");
       }
 
-      applyTaskMutation((current) => current.map(t => t.id === id ? { ...t, ...updateData } : t), [taskObj?.projectId]);
+      const saved = (await res.json()).data;
+      applyTaskMutation((current) => current.map(t => t.id === id ? { ...saved, id: saved._id } : t), [taskObj?.projectId]);
       toast.success("Đã cập nhật trạng thái công việc!");
     } catch (error: any) {
       console.error("Lỗi khi cập nhật trạng thái công việc:", error);
@@ -1275,14 +1279,15 @@ export default function KanbanTab({
           "Content-Type": "application/json",
           "Authorization": `Bearer ${getAccessToken()}`,
         },
-        body: JSON.stringify(updateData),
+        body: JSON.stringify({ ...updateData, revision: t.revision || 0 }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || "Cập nhật trạng thái thất bại");
       }
 
-      applyTaskMutation((current) => current.map(x => (x.id === t.id ? { ...x, ...updateData } : x)), [t.projectId]);
+      const saved = (await res.json()).data;
+      applyTaskMutation((current) => current.map(x => (x.id === t.id ? { ...saved, id: saved._id } : x)), [t.projectId]);
       setQuickDone(null);
       toast.success("Đã hoàn thành công việc!");
     } catch (error) {
@@ -1610,6 +1615,7 @@ export default function KanbanTab({
                       onMove={(newSt) => moveTaskStatus(task.id, newSt)}
                       onDelete={() => deleteTask(task.id)}
                       canDelete={isManager || task.creatorUid === userProfile?.uid}
+                      canMove={isManager || task.assigneeUid === userProfile?.uid}
                       onClick={() => setSelectedKanbanTask(task)}
                       projects={projects}
                     />
@@ -1636,6 +1642,7 @@ export default function KanbanTab({
                       onMove={(newSt) => moveTaskStatus(task.id, newSt)}
                       onDelete={() => deleteTask(task.id)}
                       canDelete={isManager || task.creatorUid === userProfile?.uid}
+                      canMove={isManager || task.assigneeUid === userProfile?.uid}
                       onClick={() => setSelectedKanbanTask(task)}
                       projects={projects}
                     />
@@ -1662,6 +1669,7 @@ export default function KanbanTab({
                       onMove={(newSt) => moveTaskStatus(task.id, newSt)}
                       onDelete={() => deleteTask(task.id)}
                       canDelete={isManager || task.creatorUid === userProfile?.uid}
+                      canMove={isManager || task.assigneeUid === userProfile?.uid}
                       onClick={() => setSelectedKanbanTask(task)}
                       projects={projects}
                     />
@@ -1688,6 +1696,7 @@ export default function KanbanTab({
                       onMove={(newSt) => moveTaskStatus(task.id, newSt)}
                       onDelete={() => deleteTask(task.id)}
                       canDelete={isManager || task.creatorUid === userProfile?.uid}
+                      canMove={isManager || task.assigneeUid === userProfile?.uid}
                       onClick={() => setSelectedKanbanTask(task)}
                       projects={projects}
                     />
@@ -1835,6 +1844,15 @@ export default function KanbanTab({
               </button>
             </div>
 
+            {selectedKanbanTask.id !== "new" && <KanbanTaskProgress
+              key={selectedKanbanTask.id}
+              task={tasks.find(task => task.id === selectedKanbanTask.id) || selectedKanbanTask}
+              uid={userProfile?.uid || userProfile?.id || ""}
+              manager={isManager}
+              onReload={fetchTasks}
+              onSaved={updated => { setSelectedKanbanTask(updated); fetchTasks(); fetchProjects(); }}
+            />}
+            <fieldset disabled={selectedKanbanTask.id !== "new" && !isManager && selectedKanbanTask.assigneeUid !== userProfile?.uid}>
             {/* Editable Title Input */}
             <div className="mb-5">
               <input
@@ -2069,6 +2087,7 @@ export default function KanbanTab({
               </div>
             )}
 
+            </fieldset>
             {/* Action buttons */}
             <div className="pt-6 border-t flex justify-between items-center text-xs font-bold shrink-0">
               <div>
@@ -2095,6 +2114,7 @@ export default function KanbanTab({
                 </button>
                 <button
                   type="button"
+                  disabled={selectedKanbanTask.id !== "new" && !isManager && selectedKanbanTask.assigneeUid !== userProfile?.uid}
                   onClick={(e) => handleSaveTask(e)}
                   className="px-5 py-2 bg-indigo-650 hover:bg-indigo-700 text-white rounded-xl shadow-xs cursor-pointer transition-all active:scale-95 font-sans"
                 >
@@ -2210,6 +2230,7 @@ function KanbanCard({
   onMove,
   onDelete,
   canDelete,
+  canMove,
   onClick,
   projects,
 }: {
@@ -2218,13 +2239,14 @@ function KanbanCard({
   onMove: (status: "Not Started" | "In Progress" | "Review/Testing" | "Done" | "Archived") => void;
   onDelete: () => void;
   canDelete: boolean;
+  canMove: boolean;
   onClick: () => void;
   projects: Project[];
 }) {
   return (
     <div
       onClick={onClick}
-      className="p-4 bg-white border border-gray-200 rounded-2xl shadow-2xs hover:shadow-md hover:border-indigo-300 transition-all duration-300 text-left cursor-pointer group space-y-3"
+      className={`p-4 bg-white border border-gray-200 rounded-2xl shadow-2xs hover:shadow-md hover:border-indigo-300 transition-all duration-300 text-left cursor-pointer group space-y-3 ${task.helpRequested ? "task-needs-help" : ""}`}
     >
       <div className="space-y-1.5">
         <div className="flex justify-between items-start gap-2 select-none">
@@ -2258,6 +2280,7 @@ function KanbanCard({
         <span className="text-gray-400 font-mono font-medium">Hạn: {formatDatetime(task.dueDate)}</span>
       </div>
 
+      <TaskProgressSummary task={task} />
       {/* Show KPI Badge on Card if available */}
       {(() => {
         const kpi = calculateKPI(task);
@@ -2294,7 +2317,7 @@ function KanbanCard({
           <div />
         )}
         <div className="flex gap-2">
-          {task.status !== "Not Started" && task.status !== "todo" && (
+          {canMove && task.status !== "Archived" && task.status !== "Not Started" && task.status !== "todo" && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -2310,7 +2333,7 @@ function KanbanCard({
               ←
             </button>
           )}
-          {task.status !== "Done" && task.status !== "done" && (
+          {canMove && task.status !== "Archived" && task.status !== "Done" && task.status !== "done" && (
             <button
               onClick={(e) => {
                 e.stopPropagation();

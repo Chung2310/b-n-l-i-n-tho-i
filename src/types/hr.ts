@@ -138,6 +138,11 @@ export interface HRTask {
   endTime?: string;
   actualTime?: number;
   completedAt?: string;
+  progress?: number;
+  progressNote?: string;
+  helpRequested?: boolean;
+  helpReason?: string;
+  helpers?: { uid: string; name: string }[];
   revision?: number;
   tags?: string[];
   linkNote?: string;
