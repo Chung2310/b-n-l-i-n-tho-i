@@ -141,7 +141,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         env:
           IMAGE_NAME: ${{ needs.build-image.outputs.image-name }}
-          ENV_FILE_CONTENT: ${{ secrets.ENV_FILE }}
+          ENV_FILE_CONTENT: ${{ vars.ENV_FILE }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -193,7 +193,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         env:
           IMAGE_NAME: ${{ needs.build-image.outputs.image-name }}
-          ENV_FILE_CONTENT: ${{ secrets.ENV_FILE_PROD }}
+          ENV_FILE_CONTENT: ${{ vars.ENV_FILE_PROD }}
         with:
           host: ${{ secrets.SSH_HOST_PROD }}
           username: ${{ secrets.SSH_USER_PROD }}
