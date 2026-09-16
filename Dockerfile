@@ -34,7 +34,7 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=3011
 
 # Copy package files first to leverage Docker build cache for node_modules
 COPY --from=builder /app/package.json /app/yarn.lock ./
@@ -51,7 +51,7 @@ COPY --from=builder /app/dist-server ./dist-server
 COPY --from=builder /app/server/assets/fonts ./server/assets/fonts
 
 # Expose Express server port
-EXPOSE 3000
+EXPOSE 3011
 
 # Run the bundled production server
 CMD ["node", "dist-server/server.cjs"]

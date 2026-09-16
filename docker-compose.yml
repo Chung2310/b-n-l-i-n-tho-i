@@ -2,11 +2,13 @@ version: '3.8'
 
 services:
   igen-erp:
-    image: ghcr.io/chung2310/igen-erp:${IMAGE_TAG:-latest}
+    image: ghcr.io/${IMAGE_NAME:-chung2310/b-n-l-i-n-tho-i}:${IMAGE_TAG:-develop}
     container_name: ${CONTAINER_NAME:-igen-erp}
     restart: always
     ports:
-      - "3000:3000"
+      - "${PORT:-3011}:${PORT:-3011}"
+    environment:
+      PORT: ${PORT:-3011}
     env_file:
       - .env
     volumes:

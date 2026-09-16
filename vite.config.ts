@@ -1,9 +1,12 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import {loadEnv} from 'vite';
 import {configDefaults, defineConfig} from 'vitest/config';
 
-export default defineConfig(() => {
+export default defineConfig(({mode}) => {
+  const env = loadEnv(mode, process.cwd(), 'PORT');
+  const backendUrl = `http://localhost:${process.env.PORT || env.PORT || '3011'}`;
   return {
     plugins: [react(), tailwindcss()],
     // Tailwind CSS v4 is handled by @tailwindcss/vite. Defining PostCSS here
@@ -30,16 +33,16 @@ export default defineConfig(() => {
       allowedHosts: true as const,
       proxy: {
         '/api': {
-          target: 'http://localhost:3000',
+          target: backendUrl,
           changeOrigin: true,
         },
         '/socket.io': {
-          target: 'http://localhost:3000',
+          target: backendUrl,
           changeOrigin: true,
           ws: true,
         },
         '/uploads': {
-          target: 'http://localhost:3000',
+          target: backendUrl,
           changeOrigin: true,
         },
       },

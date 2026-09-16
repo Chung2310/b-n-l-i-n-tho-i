@@ -49,6 +49,8 @@ jobs:
     needs: ci-checks
     if: github.event_name == 'push'
     timeout-minutes: 30
+    outputs:
+      image-name: ${{ steps.image.outputs.name }}
     permissions:
       contents: read
       packages: write
@@ -57,7 +59,10 @@ jobs:
 
       # Tên image trên registry bắt buộc viết thường; github.repository có chữ hoa
       - name: Set lowercase image name
-        run: echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+        id: image
+        run: |
+          echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+          echo "name=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
       # Giải phóng ~25-30GB dung lượng runner (xóa toolchain không dùng đến)
       # để BuildKit đủ chỗ build image + chuẩn bị cache export
@@ -80,7 +85,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
             type=sha
@@ -109,6 +114,9 @@ jobs:
   deploy:
     name: Step 3 - Deploy to VPS
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     needs: build-image
     if: github.event_name == 'push'
     timeout-minutes: 15
@@ -132,14 +140,16 @@ jobs:
         if: github.ref_name == 'develop'
         uses: appleboy/ssh-action@v1.0.3
         env:
+          IMAGE_NAME: ${{ needs.build-image.outputs.image-name }}
           ENV_FILE_CONTENT: ${{ secrets.ENV_FILE }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || '22' }}
-          envs: ENV_FILE_CONTENT
+          envs: ENV_FILE_CONTENT,IMAGE_NAME
           script: |
+            set -eu
             TARGET_DIR="/opt/igen-erp/staging"
             IMAGE_TAG="develop"
             CONTAINER_NAME="igen-erp-staging"
@@ -156,10 +166,11 @@ jobs:
 
             # Tải (pull) image mới trước khi tắt container cũ để giảm tối đa downtime
             export COMPOSE_PROJECT_NAME="$CONTAINER_NAME"
-            IMAGE_TAG="$IMAGE_TAG" CONTAINER_NAME="$CONTAINER_NAME" docker compose pull
+            export IMAGE_NAME
+            IMAGE_TAG="$IMAGE_TAG" CONTAINER_NAME="$CONTAINER_NAME" docker compose -f docker-compose.yml pull
 
             # Khởi động lại container mới (Docker compose tự động recreate và restart với downtime tối thiểu)
-            IMAGE_TAG="$IMAGE_TAG" CONTAINER_NAME="$CONTAINER_NAME" docker compose up -d --remove-orphans
+            IMAGE_TAG="$IMAGE_TAG" CONTAINER_NAME="$CONTAINER_NAME" docker compose -f docker-compose.yml up -d --remove-orphans
 
             # Giải phóng dung lượng ổ đĩa bằng cách xóa các image dangling/rác cũ và build cache
             docker image prune -f
@@ -181,14 +192,16 @@ jobs:
         if: github.ref_name == 'production'
         uses: appleboy/ssh-action@v1.0.3
         env:
+          IMAGE_NAME: ${{ needs.build-image.outputs.image-name }}
           ENV_FILE_CONTENT: ${{ secrets.ENV_FILE_PROD }}
         with:
           host: ${{ secrets.SSH_HOST_PROD }}
           username: ${{ secrets.SSH_USER_PROD }}
           key: ${{ secrets.SSH_KEY_PROD }}
           port: ${{ secrets.SSH_PORT_PROD || '22' }}
-          envs: ENV_FILE_CONTENT
+          envs: ENV_FILE_CONTENT,IMAGE_NAME
           script: |
+            set -eu
             TARGET_DIR="/opt/igen-erp/production"
             IMAGE_TAG="production"
             CONTAINER_NAME="igen-erp-production"
@@ -205,10 +218,11 @@ jobs:
 
             # Tải (pull) image mới trước khi tắt container cũ để giảm tối đa downtime
             export COMPOSE_PROJECT_NAME="$CONTAINER_NAME"
-            IMAGE_TAG="$IMAGE_TAG" CONTAINER_NAME="$CONTAINER_NAME" docker compose pull
+            export IMAGE_NAME
+            IMAGE_TAG="$IMAGE_TAG" CONTAINER_NAME="$CONTAINER_NAME" docker compose -f docker-compose.yml pull
 
             # Khởi động lại container mới
-            IMAGE_TAG="$IMAGE_TAG" CONTAINER_NAME="$CONTAINER_NAME" docker compose up -d --remove-orphans
+            IMAGE_TAG="$IMAGE_TAG" CONTAINER_NAME="$CONTAINER_NAME" docker compose -f docker-compose.yml up -d --remove-orphans
 
             # Giải phóng dung lượng ổ đĩa bằng cách xóa các image dangling/rác cũ và build cache
             docker image prune -f
