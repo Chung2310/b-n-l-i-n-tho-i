@@ -4,8 +4,8 @@ import { filterEnabledTabs } from "../config/modules";
 
 describe("Finance navigation registration", () => {
   it("keeps Finance only for tenants that enable it", () => {
-    expect(filterEnabledTabs(["TÀI CHÍNH"], [], "general")).toEqual([]);
-    expect(filterEnabledTabs(["TÀI CHÍNH"], ["finance"], "general")).toEqual(["TÀI CHÍNH"]);
+    expect(filterEnabledTabs(["TÀI CHÍNH"], [])).toEqual([]);
+    expect(filterEnabledTabs(["TÀI CHÍNH"], ["finance"])).toEqual(["TÀI CHÍNH"]);
   });
 
   it("registers Finance in both Sidebar and Header catalogs", () => {

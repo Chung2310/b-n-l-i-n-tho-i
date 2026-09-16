@@ -41,8 +41,8 @@ describe("Finance workspace routing and permissions", () => {
   });
 
   it("only exposes the application tab when the tenant enables Finance", () => {
-    expect(filterEnabledTabs(["TÀI CHÍNH"], [], "general")).toEqual([]);
-    expect(filterEnabledTabs(["TÀI CHÍNH"], ["finance"], "general")).toEqual(["TÀI CHÍNH"]);
+    expect(filterEnabledTabs(["TÀI CHÍNH"], [])).toEqual([]);
+    expect(filterEnabledTabs(["TÀI CHÍNH"], ["finance"])).toEqual(["TÀI CHÍNH"]);
   });
 
   it("keeps valid deep links and falls back to the first allowed sub-route", () => {

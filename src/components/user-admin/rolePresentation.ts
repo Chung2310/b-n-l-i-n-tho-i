@@ -10,9 +10,9 @@ const SYSTEM_ROLE_TITLES: Record<string, string> = {
 };
 
 const GROUP_ORDER = [
-  "Học viên & Lao động",
+  "Nhân sự",
   "Đào tạo",
-  "Tài chính học viên",
+  "Tài chính",
   "Nội dung & Liên lạc",
   "Cấu hình dữ liệu",
   "Cấu hình hệ thống",

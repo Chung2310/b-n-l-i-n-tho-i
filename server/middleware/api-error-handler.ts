@@ -1,7 +1,7 @@
 import type { ErrorRequestHandler, Request } from "express";
 import { serializeError } from "../errors/error-response";
 import { normalizeError } from "../errors/normalize-error";
-import { logger } from "../modules/student-management/config/logger";
+import { logger } from "../config/logger";
 import { getRequestContext } from "./request-context";
 
 interface ErrorLogger {

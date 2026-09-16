@@ -1,10 +1,9 @@
-﻿import jwt from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import { UserModel } from "../model/user.model";
 import { normalizeBirthDate } from "./birth-date";
 import { BranchModel } from "../model/branch.model";
-import { ModuleSettings } from "../modules/student-management/models/module-settings.model";
 import { CompanyModel } from "../model/company.model";
 import { SuperAdminSessionModel } from "../model/super-admin-session.model";
 import { RolePermissionModel } from "../model/role-permission.model";
@@ -289,7 +288,7 @@ export const authService = {
    * Đăng ký doanh nghiệp mới và tài khoản admin tương ứng
    */
   async registerCompanyAndAdmin(data: any): Promise<any> {
-    const { companyName, companyCode, ownerName, ownerEmail, ownerPassword, enabledModules, businessType: businessTypeInput, entityPreset } = data;
+    const { companyName, companyCode, ownerName, ownerEmail, ownerPassword, enabledModules, businessType: businessTypeInput } = data;
     const normalizedCode = companyCode.toUpperCase().trim();
     const emailLower = ownerEmail.toLowerCase().trim();
 
@@ -306,7 +305,7 @@ export const authService = {
     }
 
     // 3. Tạo doanh nghiệp
-    const businessType = resolveBusinessType(businessTypeInput, entityPreset);
+    const businessType = resolveBusinessType(businessTypeInput);
     const newCompany = new CompanyModel({
       code: normalizedCode,
       name: companyName.trim(),
@@ -480,15 +479,8 @@ export const authService = {
     const newCode = updateData.code ? updateData.code.toUpperCase().trim() : undefined;
     const newName = updateData.name ? updateData.name.trim() : undefined;
     const newOwnerEmail = updateData.ownerEmail ? updateData.ownerEmail.toLowerCase().trim() : undefined;
-    const legacyEntityPreset = updateData.enabledModules !== undefined && !company.businessType
-      ? (await ModuleSettings.findOne({ tenantId: company.code }).select("entityPreset").lean())?.entityPreset
-      : undefined;
-    const businessType = resolveBusinessType(company.businessType, legacyEntityPreset);
-    const newEnabledModules = resolveCompanyModuleUpdate({
-      ...updateData,
-      businessType: company.businessType,
-      legacyEntityPreset,
-    });
+    const businessType = resolveBusinessType(company.businessType);
+    const newEnabledModules = resolveCompanyModuleUpdate({ ...updateData, businessType });
 
     // 1. Nếu có thay đổi mã doanh nghiệp, kiểm tra tính duy nhất
     if (newCode && newCode !== oldCode) {

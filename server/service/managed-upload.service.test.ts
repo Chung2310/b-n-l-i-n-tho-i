@@ -55,17 +55,17 @@ describe("ManagedUploadService", () => {
     });
 
     const pending = await service.recordPendingStoredAsset(actor, {
-      sourceType: "student.custom-field",
+      sourceType: "hr.employee",
       fileName: "photo.png",
       fileUrl: "https://cdn.test/photo.png",
       mimeType: "image/png",
       size: 12,
       storageProvider: "cloudinary",
-      storagePublicId: "student/photo-1",
+      storagePublicId: "employee/photo-1",
       storageResourceType: "image",
     });
 
-    expect(pending).toMatchObject({ token: "stored-token", sourceType: "student.custom-field", storagePublicId: "student/photo-1" });
+    expect(pending).toMatchObject({ token: "stored-token", sourceType: "hr.employee", storagePublicId: "employee/photo-1" });
   });
 
   it("uploads into a server-derived folder and persists tenant-bound metadata", async () => {
@@ -225,8 +225,8 @@ describe("ManagedUploadService", () => {
     });
 
     await expect(service.finalizeManagedUpload("token-1", actor, {
-      expectedSourceType: "import.worker",
-      entityType: "import-run", entityId: "run-1", entityLabel: "workers.xlsx", sourceRecordId: "run-1",
+      expectedSourceType: "import.inventory-product",
+      entityType: "import-run", entityId: "run-1", entityLabel: "inventory.xlsx", sourceRecordId: "run-1",
     })).rejects.toThrow(/không khớp chức năng nguồn/i);
   });
 });

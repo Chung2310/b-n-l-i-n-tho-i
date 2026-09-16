@@ -9,9 +9,8 @@ import {
 } from "./permission-catalog";
 
 const EXPECTED_FEATURES = [
-  "access", "chat", "customer", "dashboard", "finance-receivable", "finance-wallet", "hr",
-  "inventory", "labor-partner", "labor-partner-payout", "labor-partner-policy",
-  "labor-partner-settlement", "marketing", "payroll-payment", "payroll-period", "payroll-policy",
+  "access", "asset", "chat", "commission-payment", "commission-policy", "customer", "dashboard", "finance-receivable", "finance-wallet", "hr",
+  "inventory", "marketing", "partner", "partner-self", "payroll-payment", "payroll-period", "payroll-policy",
   "people", "recruitment", "relationship", "repair", "resource", "retail",
   "settings", "timekeeping", "work",
 ];
@@ -34,7 +33,6 @@ it("recognizes only registered read/manage codes", () => {
   expect(isPermissionCode("payroll-period:read")).toBe(true);
   expect(isPermissionCode("payroll-period:manage")).toBe(true);
   expect(isPermissionCode("payroll-payment:manage")).toBe(true);
-  expect(isPermissionCode("labor-partner-settlement:manage")).toBe(true);
   expect(isPermissionCode("payroll:pay")).toBe(false);
   expect(isPermissionCode("unknown:manage")).toBe(false);
 });
@@ -51,10 +49,10 @@ it("compacts redundant read while returning effective permissions", () => {
 });
 
 it("rejects every invalid code instead of silently dropping it", () => {
-  expect(() => compactStoredPermissions(["hr:read", "student:manage", "finance:collect"]))
+  expect(() => compactStoredPermissions(["hr:read", "legacy-module:manage", "finance:collect"]))
     .toThrowError(expect.objectContaining({
       name: PermissionValidationError.name,
-      invalidCodes: ["finance:collect", "student:manage"],
+      invalidCodes: ["finance:collect", "legacy-module:manage"],
     }));
 });
 

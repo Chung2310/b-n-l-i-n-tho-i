@@ -104,7 +104,7 @@ export const analyticsService = {
     const res = await fetch("/api/v1/analytics/operating-expenses", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${getAccessToken()}` }, body: JSON.stringify(input) });
     if (!res.ok) throw new Error("Không thể ghi nhận chi phí vận hành.");
   },
-  /** Doanh thu học phí theo thời gian, kèm tổng kỳ liền trước để so sánh. */
+  /** Doanh thu đào tạo theo thời gian, kèm tổng kỳ liền trước để so sánh. */
   async getRevenue(params: {
     from: string;
     to: string;

@@ -49,7 +49,7 @@ function shouldSkipRoutineAuthLog(method: string, url: string) {
  */
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   superadmin: ["*"],
-  admin: ["dashboard:manage", "people:manage", "relationship:manage", "hr:manage", "timekeeping:manage", "payroll-period:manage", "payroll-policy:manage", "payroll-payment:manage", "finance-wallet:manage", "finance-receivable:manage", "asset:manage", "labor-partner:manage", "labor-partner-policy:manage", "labor-partner-settlement:manage", "labor-partner-payout:manage", "work:manage", "inventory:manage", "retail:manage", "resource:manage", "chat:manage", "recruitment:manage", "settings:manage", "access:manage"],
+  admin: ["dashboard:manage", "people:manage", "relationship:manage", "hr:manage", "timekeeping:manage", "payroll-period:manage", "payroll-policy:manage", "payroll-payment:manage", "finance-wallet:manage", "finance-receivable:manage", "asset:manage", "work:manage", "inventory:manage", "retail:manage", "resource:manage", "chat:manage", "recruitment:manage", "settings:manage", "access:manage"],
   branch_owner: [
     "dashboard:read", "access:manage", "hr:read", "timekeeping:manage", "people:manage", "resource:read", "chat:read", "work:manage"
   ],
@@ -60,7 +60,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   user: [
     "access:read", "work:manage", "inventory:read", "hr:read", "people:read", "timekeeping:read", "chat:read", "resource:read"
   ],
-  // Giảng viên chỉ làm việc trong khu vực học viên. Quyền people:manage
+  // Vai trò đào tạo nội bộ dùng quyền quản lý nhân sự.
   // được middleware kiểm tra thêm theo lớp mà tài khoản được phân công.
   teacher: ["people:manage"]
 };
@@ -70,7 +70,7 @@ DEFAULT_ROLE_PERMISSIONS.admin.push("repair:manage");
 DEFAULT_ROLE_PERMISSIONS.admin.push("repair:read");
 DEFAULT_ROLE_PERMISSIONS.manager.push("repair:read");
 DEFAULT_ROLE_PERMISSIONS.admin.push("customer:manage");
-DEFAULT_ROLE_PERMISSIONS.admin.push("marketing:manage");
+DEFAULT_ROLE_PERMISSIONS.admin.push("marketing:manage", "partner:manage", "commission-policy:manage", "commission-payment:manage");
 
 /**
  * Cấp bậc mặc định của các vai trò hệ thống (Số nhỏ hơn = cấp cao hơn)

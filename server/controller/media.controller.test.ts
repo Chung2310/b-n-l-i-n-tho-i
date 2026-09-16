@@ -94,14 +94,14 @@ describe("mediaController managed upload", () => {
     });
     const req: any = {
       user: { id: "super-1", role: "superadmin", companyCode: "SYSTEM", email: "root@example.com" },
-      body: { file: "data:base64,QQ==", sourceType: "import.student", companyCode: "ACME", fileName: "students.xlsx" },
+      body: { file: "data:base64,QQ==", sourceType: "import.inventory-product", companyCode: "ACME", fileName: "inventory.xlsx" },
     };
 
     await controller.upload(req, response());
 
     expect(createPendingUpload).toHaveBeenCalledWith(
       expect.objectContaining({ companyCode: "ACME", actorId: "super-1" }),
-      expect.objectContaining({ sourceType: "import.student" }),
+      expect.objectContaining({ sourceType: "import.inventory-product" }),
     );
   });
 });

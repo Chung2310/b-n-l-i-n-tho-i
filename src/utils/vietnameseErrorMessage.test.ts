@@ -60,7 +60,7 @@ describe("toVietnameseErrorMessage", () => {
 
   it("ẩn mã quyền kỹ thuật trong thông báo không có quyền", () => {
     expect(toVietnameseErrorMessage(
-      "Tài khoản của bạn không có mã quyền [worker:manage, payroll:read] cần thiết để thực hiện thao tác này.",
+      "Tài khoản của bạn không có mã quyền [hr:manage, payroll:read] cần thiết để thực hiện thao tác này.",
     )).toBe("Bạn không có quyền thực hiện thao tác này.");
   });
 

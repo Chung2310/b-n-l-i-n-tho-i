@@ -107,16 +107,6 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
     priority: "0.8",
     changeFrequency: "weekly",
   },
-  "ĐỐI TÁC": {
-    title: "Quản lý đối tác & cộng tác viên - Hoa hồng và giới thiệu",
-    description:
-      "Quản lý tập trung hồ sơ đối tác, cộng tác viên, lượt giới thiệu, cấp bậc hoa hồng và lịch sử chi trả trên iGen ERP.",
-    keywords:
-      "quản lý đối tác, cộng tác viên, hoa hồng, giới thiệu khách hàng, đối tác tuyển dụng, iGen ERP",
-    path: "/doi-tac",
-    priority: "0.7",
-    changeFrequency: "weekly",
-  },
   "KHO & SẢN PHẨM": {
     title: "Quản lý kho & Sản phẩm - Quản lý tồn kho theo mã sản phẩm, xuất nhập kho",
     description:
@@ -145,26 +135,6 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
       "chat nội bộ, chat nhóm, chat 1-1, trò chuyện nội bộ, nhắn tin realtime, socket.io chat, igen erp",
     path: "/tro-chuyen",
     priority: "0.7",
-    changeFrequency: "weekly",
-  },
-  "QUẢN LÝ HỌC VIÊN": {
-    title: "Quản lý học viên - Đào tạo, lớp học, lịch thi và học phí",
-    description:
-      "Phân khu quản lý học viên trong iGen ERP giúp theo dõi hồ sơ học viên, khóa học, lớp học, lịch thi, học phí, thông báo và đối tác tuyển sinh trên cùng một nền tảng.",
-    keywords:
-      "quản lý học viên, quản lý đào tạo, lớp học, lịch thi, học phí, đối tác tuyển sinh, erp giáo dục",
-    path: "/quan-ly-hoc-vien",
-    priority: "0.8",
-    changeFrequency: "weekly",
-  },
-  "QUẢN LÝ LAO ĐỘNG": {
-    title: "Quản lý lao động - Hồ sơ, ca làm và theo dõi nhân công",
-    description:
-      "Phân khu quản lý lao động trong iGen ERP giúp doanh nghiệp theo dõi hồ sơ người lao động, phân công công việc, ca làm và hiệu suất nhân công tập trung.",
-    keywords:
-      "quản lý lao động, quản lý nhân công, hồ sơ người lao động, ca làm việc, phân công công việc, ERP lao động",
-    path: "/quan-ly-lao-dong",
-    priority: "0.8",
     changeFrequency: "weekly",
   },
   "QUẢN LÝ KHÁCH HÀNG": {
@@ -198,6 +168,7 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
     priority: "0.2",
     changeFrequency: "weekly",
   },
+  "ĐỐI TÁC": { title: "Đối tác & hoa hồng", description: "Quản lý CTV, đại lý, nhà cung cấp và sao kê hoa hồng.", keywords: "đối tác, hoa hồng, CTV", path: "/doi-tac", robots: "noindex, nofollow", priority: "0.2", changeFrequency: "daily" },
   "TÀI CHÍNH": {
     title: "Tài chính - Quản lý công nợ và nhắc nợ",
     description:
@@ -282,7 +253,6 @@ export const PUBLIC_SEO_PAGES: SeoMeta[] = [
   TAB_SEO_MAP["TỔNG QUAN"],
   TAB_SEO_MAP["NHÂN SỰ"],
   TAB_SEO_MAP["KHO & SẢN PHẨM"],
-  TAB_SEO_MAP["QUẢN LÝ HỌC VIÊN"],
 ];
 
 export function getSeoForTab(tab: TabType): SeoMeta {

@@ -13,7 +13,7 @@ test("parses the standard API error envelope", async () => {
   assert.equal(error.requestId, "req-1");
 });
 
-test("parses worker-management success=false error objects", async () => {
+test("parses policy success=false error objects", async () => {
   const response = new Response(JSON.stringify({ success: false, error: { code: "POLICY_NOT_ACTIVE", message: "Chính sách hoa hồng chưa hoạt động." } }), { status: 409, headers: { "content-type": "application/json" } });
   const error = await parseApiErrorResponse(response);
   assert.equal(error.code, "POLICY_NOT_ACTIVE");

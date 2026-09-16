@@ -7,7 +7,6 @@ const NOISY = [/\/health(?:\/|$)/, /\/users\/:userId\/activity$/, /\/telegram-li
 
 const moduleName = (route: string) => {
   const entries: Array<[RegExp, string, string]> = [
-    [/student|course|batch|exam|assignment/, "học viên", "student"], [/worker/, "lao động", "worker"],
     [/order/, "đơn hàng", "order"], [/product|inventory|warehouse|stock/, "kho và sản phẩm", "inventory"],
     [/payroll/, "tiền lương", "payroll"], [/timekeeping|attendance|shift/, "chấm công", "timekeeping"],
     [/user|role|permission/, "người dùng", "user"], [/chat|message/, "trò chuyện", "chat"],

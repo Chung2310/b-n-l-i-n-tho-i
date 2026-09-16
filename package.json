@@ -12,21 +12,14 @@
     "typecheck": "node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit",
     "lint": "eslint src/App.tsx src/components/hr/KanbanTab.tsx src/pages/DashboardTab.tsx src/pages/Header.tsx src/pages/Sidebar.tsx",
     "reset:superadmin-totp": "tsx server/scripts/reset-superadmin-totp.ts",
-    "backfill:batch-enrollments": "tsx server/scripts/backfill-batch-enrollments.ts",
-    "migrate:canonical-enrollments": "tsx tools/migrate-canonical-batch-enrollments.ts",
     "migrate:legacy-products-to-catalog": "tsx server/scripts/migrate-legacy-products-to-catalog.ts",
     "migrate:inventory-foundation": "tsx server/scripts/migrate-legacy-products-to-catalog.ts",
-    "backfill:partner-scheme-policies": "tsx server/scripts/backfill-labor-partner-scheme-policies.ts",
-    "backfill:payment-paid-on": "tsx server/scripts/backfill-payment-paid-on.ts",
     "backfill:customer-tiers": "tsx server/scripts/backfill-customer-tiers.ts",
     "backfill:serial-tracking": "tsx server/scripts/backfill-serial-tracking.ts",
     "backfill:warranty-serials": "tsx server/scripts/backfill-warranty-serials.ts",
     "backfill:repair-ticket-lookup-keys": "tsx server/scripts/backfill-repair-ticket-lookup-keys.ts",
     "stress:staging": "tsx tools/controlled-staging-stress-test.ts",
-    "load:production": "tsx tools/production-stepped-load-test.ts",
-    "load:setup": "tsx tools/comprehensive-load/setup-command.ts",
-    "load:run": "tsx tools/comprehensive-load/run-command.ts",
-    "load:cleanup": "tsx tools/comprehensive-load/cleanup-command.ts"
+    "load:production": "tsx tools/production-stepped-load-test.ts"
   },
   "dependencies": {
     "@fontsource/noto-sans": "^5.3.0",

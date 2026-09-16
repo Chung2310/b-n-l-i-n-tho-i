@@ -34,6 +34,10 @@ export const PERMISSION_FEATURES: PermissionFeatureDefinition[] = [
   feature("timekeeping", "Chấm công", "Nhân sự"),
   feature("work", "Công việc", "Công việc"),
   feature("inventory", "Kho và sản phẩm", "Kho và sản phẩm"),
+  feature("partner", "Đối tác", "Đối tác"),
+  feature("partner-self", "Tra cứu hoa hồng cá nhân", "Đối tác"),
+  feature("commission-policy", "Chính sách hoa hồng", "Đối tác"),
+  feature("commission-payment", "Chi trả hoa hồng", "Đối tác"),
   feature("customer", "Khách hàng", "Khách hàng"),
   feature("retail", "Bán lẻ", "Bán lẻ"),
   feature("resource", "Tài nguyên", "Tài nguyên"),
@@ -47,10 +51,6 @@ export const PERMISSION_FEATURES: PermissionFeatureDefinition[] = [
   feature("finance-wallet", "Ví tài chính", "Tài chính"),
   feature("finance-receivable", "Công nợ phải thu", "Tài chính"),
   feature("asset", "Tài sản cố định", "Tài chính"),
-  feature("labor-partner", "Đối tác lao động", "Đối tác lao động"),
-  feature("labor-partner-policy", "Chính sách hoa hồng lao động", "Đối tác lao động"),
-  feature("labor-partner-settlement", "Đối soát hoa hồng lao động", "Đối tác lao động"),
-  feature("labor-partner-payout", "Chi trả hoa hồng lao động", "Đối tác lao động"),
 ];
 
 PERMISSION_FEATURES.push(feature("repair", "Sửa chữa & bảo hành", "Sửa chữa"));

@@ -1,37 +1,10 @@
 import type { ModuleKey } from "./modules";
 
-export const BUSINESS_TYPES = ["education", "labor"] as const;
+export const BUSINESS_TYPES = ["education", "labor", "service", "recruitment", "general"] as const;
 export type BusinessType = (typeof BUSINESS_TYPES)[number];
-
-export const DEFAULT_BUSINESS_TYPE: BusinessType = "education";
-
-export const BUSINESS_TYPE_LABELS: Record<BusinessType, string> = {
-  education: "Giáo dục",
-  labor: "Lao động",
-};
-
-const REQUIRED_BUSINESS_MODULE: Record<BusinessType, ModuleKey | null> = {
-  education: "student",
-  labor: "worker",
-};
-
-export function isBusinessType(value: unknown): value is BusinessType {
-  return typeof value === "string" && (BUSINESS_TYPES as readonly string[]).includes(value);
-}
-
-export function resolveBusinessType(value: unknown): BusinessType {
-  return isBusinessType(value) ? value : DEFAULT_BUSINESS_TYPE;
-}
-
-export function getRequiredBusinessModule(type: BusinessType): ModuleKey | null {
-  return REQUIRED_BUSINESS_MODULE[type];
-}
-
-/**
- * Loại hình chỉ loại bỏ nghiệp vụ lõi của loại hình còn lại (giáo dục ⇄ lao động).
- * Không ép bật nghiệp vụ lõi nào — công ty vẫn có thể tắt cả học viên lẫn lao động.
- */
-export function isModuleAllowedForBusinessType(key: ModuleKey, type: BusinessType): boolean {
-  const excluded = BUSINESS_TYPES.filter((item) => item !== type).map((item) => REQUIRED_BUSINESS_MODULE[item]);
-  return !excluded.includes(key);
-}
+export const DEFAULT_BUSINESS_TYPE: BusinessType = "general";
+export const BUSINESS_TYPE_LABELS: Record<BusinessType, string> = { education: "Giáo dục (đã ngừng)", labor: "Lao động (đã ngừng)", service: "Dịch vụ", recruitment: "Tuyển dụng", general: "Chung" };
+export function isBusinessType(value: unknown): value is BusinessType { return typeof value === "string" && (BUSINESS_TYPES as readonly string[]).includes(value); }
+export function resolveBusinessType(value: unknown): BusinessType { return isBusinessType(value) ? value : DEFAULT_BUSINESS_TYPE; }
+export function getRequiredBusinessModule(_type: BusinessType): ModuleKey | null { return null; }
+export function isModuleAllowedForBusinessType(_key: ModuleKey, _type: BusinessType): boolean { return true; }

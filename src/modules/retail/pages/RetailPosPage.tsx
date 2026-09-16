@@ -1,4 +1,5 @@
 import React from "react";
+import CollaboratorPicker from "../../partners/CollaboratorPicker";
 import { Camera, Check, ChevronDown, Pause, Search, ShoppingCart, X } from "lucide-react";
 import { customerApi } from "../../customer-management/customerApi";
 import { ShiftScheduleNotice } from "../components/ShiftScheduleNotice";
@@ -301,6 +302,7 @@ export default function RetailPosPage() {
     setDraft(value);
     dispatch({
       type: "load",
+      collaboratorId: value.collaboratorId,
       lines: value.items.map((item) => ({
         product: {
           _id: item.productId,
@@ -702,6 +704,7 @@ function CartPanel({
         Giỏ hàng ({cart.lines.reduce((sum, line) => sum + line.quantity, 0)})
       </h2>
       <div className="mt-3">
+        <CollaboratorPicker value={cart.collaboratorId} onChange={collaboratorId => dispatch({ type: "collaborator", collaboratorId })} />
         <CustomerPicker
           scope={scope}
           value={cart.customer}

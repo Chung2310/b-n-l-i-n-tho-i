@@ -8,10 +8,10 @@ import { googleDriveRouter } from "./google-drive.router";
 import { chatRouter } from "./chat.router";
 import { chatbotRouter } from "./chatbot.router";
 import { resourceRouter } from "./resource.router";
-import { studentManagementRouter } from "../modules/student-management/router";
-import { workerManagementRouter } from "../modules/worker-management/router";
-import { laborPartnerRoutes } from "../modules/worker-management/labor-partners/routes/labor-partner.routes";
-import { workerQrAttendancePublicRoutes } from "../modules/worker-management/routes/worker-qr-attendance.routes";
+
+
+
+
 import { timekeepingRouter } from "./timekeeping.router";
 import { dashboardRouter } from "./dashboard.router";
 import { analyticsRouter } from "./analytics.router";
@@ -43,7 +43,9 @@ import { repairFeedbackRoutes } from "../modules/repair/repair-feedback.routes";
 import { financeRouter } from "../modules/finance/router";
 import { customerRouter } from "../modules/customer-management/router";
 import { marketingRouter } from "../modules/marketing/router";
+import { partnerRouter } from "../modules/partners/router";
 export const apiRouter = Router();
+apiRouter.use("/partners", partnerRouter);
 
 // Webhooks
 apiRouter.use("/webhook", webhookRouter);
@@ -118,8 +120,6 @@ apiRouter.use("/chat", requireAuth as any, requireModule("chat"), chatRouter);
 // Trợ lý ảo AI — chatbot ngữ cảnh dữ liệu doanh nghiệp
 apiRouter.use("/chatbot", expensiveApiRateLimiter, requireAuth as any, requireModule("chat"), chatbotRouter);
 
-// Module Quản lý Học viên
-apiRouter.use("/", studentManagementRouter);
 
 // Module Bán lẻ & POS
 apiRouter.use("/inventory/catalog", requireAuth as any, requireModule("inventory"), productCatalogRouter);
@@ -130,19 +130,6 @@ apiRouter.use("/inventory/serials", requireAuth as any, requireModule("inventory
 apiRouter.use("/repair/feedback", publicApiRateLimiter, repairFeedbackRoutes);
 apiRouter.use("/repair", requireAuth as any, requireModule("repair"), repairRouter);
 apiRouter.use("/customers", requireAuth as any, requireModule("customer"), customerRouter);
-// Guard gắn theo tiền tố thật của router: nếu đặt guard ngay tại mount "/" thì mọi
-// request chưa khớp route phía trên đều bị guard này chặn (403) và không bao giờ rơi
-// xuống các router bên dưới — ví dụ /worker-management/* của doanh nghiệp lao động.
-apiRouter.use("/retail", requireAuth as any, requireModule("retail"));
 apiRouter.use("/", retailRouter);
 apiRouter.use("/finance", requireAuth as any, requireModule("finance"), financeRouter);
 apiRouter.use("/marketing", requireAuth as any, requireModule("marketing"), marketingRouter);
-
-
-// Public QR attendance routes cho lao động (không yêu cầu đăng nhập)
-// Lao động quét mã QR từ điện thoại cá nhân — không có session đăng nhập.
-apiRouter.use("/worker-management/qr-attendance", workerQrAttendancePublicRoutes);
-
-apiRouter.use("/worker-management/partners", requireAuth as any, requireModule("partner"), laborPartnerRoutes);
-apiRouter.use("/worker-management", requireAuth as any, requireModule("worker"));
-apiRouter.use("/", workerManagementRouter);

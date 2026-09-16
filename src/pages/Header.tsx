@@ -5,7 +5,7 @@ import {
   Package, Megaphone, Sparkles, CheckCheck, ShoppingCart, AlertTriangle, Send, Sun, Moon,
   Briefcase, GraduationCap, LayoutGrid, LayoutDashboard, Users, MessageSquareShare,
   FolderOpen, MessageSquare, Shield, LineChart, Menu, FolderTree, GitBranch, Calendar, Clock, User,
-  LogIn, LogOut as LogOutIcon, Handshake, BriefcaseBusiness, ChevronDown, Landmark, ContactRound
+  LogIn, LogOut as LogOutIcon, ChevronDown, Landmark, ContactRound
 } from "lucide-react";
 import { TabType } from "../types";
 import { useAuth } from "../context/AuthContext";
@@ -537,14 +537,6 @@ export default function Header({ currentTab, onSearchSelect, onMenuClick }: Head
                         { label: "Tài liệu cục bộ", subTab: "TÀI LIỆU KHÁC" },
                         { label: "Google Drive", subTab: "GOOGLE DRIVE" },
                       ],
-                      "QUẢN LÝ HỌC VIÊN": [
-                        { label: "Tổng quan", subTab: "TỔNG QUAN" },
-                        { label: "Khóa học", subTab: "KHÓA HỌC" },
-                        { label: "Lớp học", subTab: "LỚP HỌC" },
-                        { label: "Chất lượng học viên", subTab: "CHẤT LƯỢNG HỌC VIÊN" },
-                        { label: "Học viên", subTab: "HỌC VIÊN" },
-                        { label: "Học phí", subTab: "HỌC PHÍ" },
-                      ],
                       "CÀI ĐẶT": [
                         { label: "Hồ sơ cá nhân", subTab: "profile" },
                         { label: "Cấu hình ERP", subTab: "erp" },
@@ -553,12 +545,10 @@ export default function Header({ currentTab, onSearchSelect, onMenuClick }: Head
                     };
 
                     const tabConfig: Record<TabType, { title: string; icon: React.ElementType }> = {
+                      "ĐỐI TÁC": { title: "Đối tác & hoa hồng", icon: Users },
                       "TỔNG QUAN": { title: "Tổng quan", icon: LayoutDashboard },
                       "NHÂN SỰ": { title: "Nhân sự", icon: Users },
-                      "ĐỐI TÁC": { title: "Đối tác", icon: Handshake },
                       "KHO & SẢN PHẨM": { title: "Kho hàng", icon: Package },
-                      "QUẢN LÝ HỌC VIÊN": { title: "Học viên", icon: GraduationCap },
-                      "QUẢN LÝ LAO ĐỘNG": { title: "Lao động", icon: BriefcaseBusiness },
                       "QUẢN LÝ KHÁCH HÀNG": { title: "Khách hàng", icon: ContactRound },
                       "BÁN LẺ": { title: "Bán lẻ", icon: ShoppingCart },
                       "TÀI CHÍNH": { title: "Tài chính", icon: Landmark },
@@ -572,10 +562,7 @@ export default function Header({ currentTab, onSearchSelect, onMenuClick }: Head
                     const allTabs: TabType[] = [
                       "TỔNG QUAN",
                       "NHÂN SỰ",
-                      "ĐỐI TÁC",
                       "KHO & SẢN PHẨM",
-                      "QUẢN LÝ HỌC VIÊN",
-                      "QUẢN LÝ LAO ĐỘNG",
                       "QUẢN LÝ KHÁCH HÀNG",
                       "BÁN LẺ",
                       "TÀI CHÍNH",
@@ -590,9 +577,7 @@ export default function Header({ currentTab, onSearchSelect, onMenuClick }: Head
 
                     const enabledTabs = filterEnabledTabs(
                       allTabs.filter(t => !isTabHidden(t)),
-                      userProfile?.enabledModules,
-                      userProfile?.businessType
-                    );
+                      userProfile?.enabledModules);
 
                     return enabledTabs.map((tab, index) => {
                       const normalizedTab = tab.normalize("NFC");

@@ -8,7 +8,6 @@ import { parseFirebaseError } from "../utils/firebaseErrorParser";
 import { isModuleEnabled as checkModule, type ModuleKey } from "../config/modules";
 import { socketService } from "../services/socketService";
 import { normalizeCompanyModulesEvent, normalizeCompanyStatusEvent } from "./companyModuleSync";
-import { ensureEntityPresetLoaded } from "../modules/student-management/hooks/entityPresetStore";
 
 export type ErpLoginOutcome = { status: "authenticated"; role?: string };
 
@@ -75,13 +74,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearInterval(refreshInterval);
   }, []);
 
-  useEffect(() => {
-    if (!userProfile) return;
-    const shouldLoadStudentSettings = userProfile.businessType === "education"
-      || (userProfile.businessType === undefined && checkModule(userProfile.enabledModules, "student"));
-    if (!shouldLoadStudentSettings) return;
-    void ensureEntityPresetLoaded();
-  }, [userProfile?.uid, userProfile?.companyCode, userProfile?.businessType, userProfile?.enabledModules]);
   useEffect(() => {
     if (!userProfile?.companyCode) return;
     const companyCode = userProfile.companyCode.trim().toUpperCase();

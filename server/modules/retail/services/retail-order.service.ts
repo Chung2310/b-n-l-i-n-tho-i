@@ -1,4 +1,6 @@
-﻿import type { RetailPaymentStatus } from "../interfaces/retail-order.interface";
+﻿import { resolveCollaborator, snapshotRetail } from "../../partners/commission-snapshot";
+import { reconcileCommission } from "../../partners/commission.service";
+import type { RetailPaymentStatus } from "../interfaces/retail-order.interface";
 import { RETAIL_PAYMENT_METHODS } from "../models/retail-order.model";
 import mongoose, { Types } from "mongoose";
 import { ProductModel } from "../../../model/product.model";
@@ -229,6 +231,7 @@ export const RetailOrderService = {
     const currentBusinessDate = businessDateInVietnam(new Date());
     await expireHeldDrafts(scope, currentBusinessDate);
     const creator = actorId(actor);
+    const collaborator = await resolveCollaborator(scope.companyCode, input.collaboratorId);
     const used = await RetailOrderModel.find({ ...scope, status: "draft", createdBy: creator }).select("heldSlot").lean();
     assertHeldDraftCapacity(used.length);
     const occupied = new Set(used.map((item: any) => Number(item.heldSlot)));
@@ -237,7 +240,7 @@ export const RetailOrderService = {
     for (let slot = 1; slot <= 5; slot += 1) {
       if (occupied.has(slot)) continue;
       try {
-        return await RetailOrderModel.create({ ...scope, items: pricing.lines, subtotal: pricing.subtotal, orderDiscount: pricing.orderDiscount, taxRate: pricing.taxRate, taxAmount: pricing.taxAmount, shippingFee: pricing.shippingFee, grandTotal: pricing.grandTotal, totalCost: pricing.totalCost, payments: [], refunds: [], paidAmount: 0, refundedAmount: 0, dueAmount: pricing.grandTotal, paymentStatus: "unpaid", status: "draft", businessDate: currentBusinessDate, heldAt: new Date(), heldSlot: slot, salespersonId: String(input.salespersonId || creator), salespersonName: String(input.salespersonName || actorName(actor)), createdBy: creator, createdByName: actorName(actor), stockApplied: false, version: 0, ...(customerSnapshot || {}), dueDate: input.dueDate });
+        return await RetailOrderModel.create({ ...scope, collaboratorId: collaborator ? String(collaborator._id) : undefined, items: pricing.lines, subtotal: pricing.subtotal, orderDiscount: pricing.orderDiscount, taxRate: pricing.taxRate, taxAmount: pricing.taxAmount, shippingFee: pricing.shippingFee, grandTotal: pricing.grandTotal, totalCost: pricing.totalCost, payments: [], refunds: [], paidAmount: 0, refundedAmount: 0, dueAmount: pricing.grandTotal, paymentStatus: "unpaid", status: "draft", businessDate: currentBusinessDate, heldAt: new Date(), heldSlot: slot, salespersonId: String(input.salespersonId || creator), salespersonName: String(input.salespersonName || actorName(actor)), createdBy: creator, createdByName: actorName(actor), stockApplied: false, version: 0, ...(customerSnapshot || {}), dueDate: input.dueDate });
       } catch (error) {
         if (!duplicate(error)) throw error;
       }
@@ -250,9 +253,10 @@ export const RetailOrderService = {
     const existing: any = await RetailOrderModel.findOne({ _id: id, ...scope, status: "draft" }).lean();
     if (!existing) throw retailError("Đơn hàng không thể chỉnh sửa hoặc đã hết hạn.", "HELD_DRAFT_EXPIRED");
     assertHeldDraftAccess(String(existing.createdBy), actorId(actor), canManage);
+    const collaborator = await resolveCollaborator(scope.companyCode, input.collaboratorId === undefined ? existing.collaboratorId : input.collaboratorId);
     const expectedVersion = Number(input.version);
     if (!Number.isSafeInteger(expectedVersion)) throw retailError("Phiên bản đơn hàng là bắt buộc.", "ORDER_VERSION_CONFLICT");
-    const [{ pricing }, customerSnapshot] = await Promise.all([priceInput(scope, input), resolveOrderCustomerSnapshots(scope, input.customerId, input.billingProfileId)]); const order = await RetailOrderModel.findOneAndUpdate({ _id: id, ...scope, status: "draft", version: expectedVersion }, { $set: { items: pricing.lines, subtotal: pricing.subtotal, orderDiscount: pricing.orderDiscount, taxRate: pricing.taxRate, taxAmount: pricing.taxAmount, shippingFee: pricing.shippingFee, grandTotal: pricing.grandTotal, totalCost: pricing.totalCost, dueAmount: pricing.grandTotal, ...(customerSnapshot || { customerId: undefined, customerName: undefined, customerPhone: undefined, billingProfileId: undefined, customerSnapshot: undefined, billingSnapshot: undefined }), dueDate: input.dueDate }, $inc: { version: 1 } }, { returnDocument: 'after' }); if (!order) throw retailError("Đơn đã được thay đổi ở màn hình khác.", "ORDER_VERSION_CONFLICT"); return order;
+    const [{ pricing }, customerSnapshot] = await Promise.all([priceInput(scope, input), resolveOrderCustomerSnapshots(scope, input.customerId, input.billingProfileId)]); const order = await RetailOrderModel.findOneAndUpdate({ _id: id, ...scope, status: "draft", version: expectedVersion }, { $set: { collaboratorId: collaborator ? String(collaborator._id) : null, items: pricing.lines, subtotal: pricing.subtotal, orderDiscount: pricing.orderDiscount, taxRate: pricing.taxRate, taxAmount: pricing.taxAmount, shippingFee: pricing.shippingFee, grandTotal: pricing.grandTotal, totalCost: pricing.totalCost, dueAmount: pricing.grandTotal, ...(customerSnapshot || { customerId: undefined, customerName: undefined, customerPhone: undefined, billingProfileId: undefined, customerSnapshot: undefined, billingSnapshot: undefined }), dueDate: input.dueDate }, $inc: { version: 1 } }, { returnDocument: 'after' }); if (!order) throw retailError("Đơn đã được thay đổi ở màn hình khác.", "ORDER_VERSION_CONFLICT"); return order;
   },
   async confirm(scope: RetailBranchScope, id: string, input: any, actor: any, shift: any, canManage = false) {
     const key = String(input.idempotencyKey || "").trim(); if (!key) throw new Error("Idempotency key là bắt buộc.");
@@ -276,6 +280,9 @@ export const RetailOrderService = {
       await claimSerialsForOrder(scope, draft.items as any, String(draft._id), String(draft.customerId), actorId(actor), session, actorName(actor), { businessDate: shift.businessDate, orderCode }); await draft.save({ session });
       await enqueueOrderTierRefresh(scope, "confirm", draft, session);
       const invoice = await issueRetailInvoice(draft, settings.invoicePrefix, branch.code, scopeKey, actor, session);
+      draft.commissionSnapshot = await snapshotRetail(draft, session);
+      await draft.save({ session });
+      if (draft.commissionSnapshot) await reconcileCommission("retail", String(draft._id), scope.companyCode, session);
       await publishRetailOrderEvent("confirmed", scope, draft, actor, { session });
       await RetailIdempotencyModel.updateOne({ companyCode: scope.companyCode, key }, { $set: { status: "completed", orderId: String(draft._id), invoiceId: String(invoice._id) } }, { session }); result = { order: draft, invoice };
     }); } catch (error) { if (duplicate(error)) { const prior = await RetailIdempotencyModel.findOne({ companyCode: scope.companyCode, key, status: "completed" }).lean(); if (prior?.orderId) return { order: await RetailOrderModel.findById(prior.orderId).lean(), invoice: await RetailInvoiceModel.findById(prior.invoiceId).lean() }; } throw error; } finally { await session.endSession(); }
@@ -283,7 +290,7 @@ export const RetailOrderService = {
     return result;
   },
   async collect(scope: RetailBranchScope, id: string, input: any, actor: any, shift: any) {
-    const session = await mongoose.startSession(); let result: any; try { await session.withTransaction(async () => { const order: any = await RetailOrderModel.findOne({ _id: id, ...scope, status: "confirmed" }).session(session); if (!order) throw new Error("Đơn không thể thu thêm."); const normalized = normalizePayments(input.payments || [], order.dueAmount); const transactionKey = String(input.idempotencyKey || `v${order.version}:${normalized.total}:${order.dueAmount}`); order.payments.push(...normalized.payments.map((payment) => snapshotPayment(payment, shift, actor))); order.paidAmount += normalized.total; order.dueAmount = order.grandTotal - order.paidAmount; order.paymentStatus = paymentStatusFor(order.paidAmount, order.grandTotal, order.refundedAmount); if (order.dueAmount === 0) { order.status = "completed"; order.completedAt = new Date(); } order.version += 1; await order.save({ session }); await publishRetailOrderEvent("paid", scope, order, actor, { session, amount: normalized.total, transactionKey }); result = order; }); } finally { await session.endSession(); } return result;
+    const session = await mongoose.startSession(); let result: any; try { await session.withTransaction(async () => { const order: any = await RetailOrderModel.findOne({ _id: id, ...scope, status: "confirmed" }).session(session); if (!order) throw new Error("Đơn không thể thu thêm."); const normalized = normalizePayments(input.payments || [], order.dueAmount); const transactionKey = String(input.idempotencyKey || `v${order.version}:${normalized.total}:${order.dueAmount}`); order.payments.push(...normalized.payments.map((payment) => snapshotPayment(payment, shift, actor))); order.paidAmount += normalized.total; order.dueAmount = order.grandTotal - order.paidAmount; order.paymentStatus = paymentStatusFor(order.paidAmount, order.grandTotal, order.refundedAmount); if (order.dueAmount === 0) { order.status = "completed"; order.completedAt = new Date(); } order.version += 1; await order.save({ session }); if (order.commissionSnapshot) await reconcileCommission("retail", String(order._id), scope.companyCode, session); await publishRetailOrderEvent("paid", scope, order, actor, { session, amount: normalized.total, transactionKey }); result = order; }); } finally { await session.endSession(); } return result;
   },
   async cancel(scope: RetailBranchScope, id: string, input: any, actor: any, shift: any | undefined, canManage: boolean) {
     const reason = String(input.reason || "").trim();
@@ -319,6 +326,7 @@ export const RetailOrderService = {
         order.refunds.push(...refunds.payments.map((item: any) => ({ method: item.method, amount: item.amount, reference: item.reference, refundedAt: new Date(), refundedBy: actorId(actor), refundedByName: actorName(actor), shiftId: String(shift?._id || ""), businessDate: shift?.businessDate || order.businessDate, reason })));
         order.refundedAmount += refunds.total; order.paymentStatus = paymentStatusFor(order.paidAmount, order.grandTotal, order.refundedAmount); order.status = "cancelled"; order.cancelReason = reason; order.cancelledAt = new Date(); order.version += 1;
         await order.save({ session });
+        if (order.commissionSnapshot) await reconcileCommission("retail", String(order._id), scope.companyCode, session);
         await publishRetailOrderEvent("cancelled", scope, order, actor, { session });
         await RetailInvoiceModel.updateOne({ orderId: String(order._id), ...scope, status: "issued" }, { $set: { status: "void", voidedAt: new Date(), voidReason: reason } }, { session });
         result = order;

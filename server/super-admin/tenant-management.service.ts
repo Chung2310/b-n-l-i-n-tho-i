@@ -3,7 +3,6 @@ import { UserModel } from "../model/user.model";
 import { ModuleKey } from "../config/module-keys";
 import { filterModulesForBusinessType, resolveBusinessType, type BusinessType } from "../config/business-types";
 import { createCompanyAdminUser } from "../utils/company-admin-user";
-import { ModuleSettings } from "../modules/student-management/models/module-settings.model";
 import { ensureDefaultPayrollPolicy } from "../service/payroll-policy-operations.service";
 export type TenantLifecycleStatus = "active" | "suspended" | "archived" | "scheduled-deletion";
 export interface TenantRecord { code:string; name:string; ownerEmail:string; createdAt:Date; lifecycleStatus:TenantLifecycleStatus; lifecycleChangedAt?:Date; deletionScheduledAt?:Date|null; retentionEndsAt?:Date|null; deletionReason?:string; businessType?:BusinessType; enabledModules?:ModuleKey[]; }
@@ -27,7 +26,7 @@ export class TenantManagementService {
     if(await this.tenants.get(c)) throw Error(`Tenant ${c} already exists`);
     if(await UserModel.findOne({ email: ownerEmail })) throw Error(`Owner email "${ownerEmail}" is already in use`);
 
-    const businessType = resolveBusinessType(v.businessType, v.entityPreset);
+    const businessType = resolveBusinessType(v.businessType);
     const enabledModules = filterModulesForBusinessType(v.enabledModules, businessType);
     const now=new Date();
     const tenant = await this.tenants.create({code:c,name,ownerEmail,createdAt:now,lifecycleStatus:"active",lifecycleChangedAt:now,deletionScheduledAt:null,retentionEndsAt:null,deletionReason:"",businessType,enabledModules});
@@ -46,10 +45,7 @@ export class TenantManagementService {
   async updateModules(v:string, input:{ enabledModules?:unknown; businessType?:unknown }){
     const c=code(v);
     const tenant=needed(await this.tenants.get(c),c);
-    const legacyEntityPreset = tenant.businessType
-      ? undefined
-      : (await ModuleSettings.findOne({ tenantId: c }).select("entityPreset").lean())?.entityPreset;
-    const businessType = resolveBusinessType(input.businessType ?? tenant.businessType, legacyEntityPreset);
+    const businessType = resolveBusinessType(input.businessType ?? tenant.businessType);
     const enabledModules = filterModulesForBusinessType(input.enabledModules, businessType);
     return needed(await this.tenants.update(c,{businessType,enabledModules}),c);
   }

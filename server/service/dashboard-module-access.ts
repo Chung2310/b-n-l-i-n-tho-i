@@ -26,7 +26,6 @@ export function resolveDashboardModuleAccess(user: DashboardModuleUser) {
 
   return {
     hr: hasModule("hr") && hasPermission("hr:read"),
-    student: hasModule("student") && hasPermission("people:read"),
     chat: hasModule("chat") && hasPermission("chat:read"),
     resource: hasModule("resource") && hasPermission("resource:read"),
     inventory: hasModule("inventory") && hasPermission("inventory:read"),

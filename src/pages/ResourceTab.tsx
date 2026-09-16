@@ -10,7 +10,7 @@ import {
   ExternalLink, Link, SlidersHorizontal, Calendar, List, LayoutGrid, Mic, Undo2, Redo2
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { cn } from "../modules/student-management/lib/utils";
+import { cn } from "../utils/cn";
 import { toast } from "./Toast";
 import { getAccessToken, authService } from "../services/authService";
 import { FileExplorer } from "../components/resource/FileExplorer";

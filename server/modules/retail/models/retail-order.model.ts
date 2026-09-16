@@ -14,4 +14,5 @@ RetailOrderSchema.index(
   { companyCode: 1, branchId: 1, createdBy: 1, heldSlot: 1 },
   { unique: true, partialFilterExpression: { status: "draft", heldSlot: { $type: "number" } } },
 );
+RetailOrderSchema.add({ collaboratorId: String, commissionSnapshot: Schema.Types.Mixed });
 export const RetailOrderModel = model<IRetailOrder>("RetailOrder", RetailOrderSchema);

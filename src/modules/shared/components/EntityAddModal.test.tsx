@@ -9,7 +9,7 @@ afterEach(() => cleanup());
 describe("EntityAddModal", () => {
   it("renders nothing while closed", () => {
     render(
-      <EntityAddModal isOpen={false} title="Thêm lao động mới" onClose={vi.fn()}>
+      <EntityAddModal isOpen={false} title="Thêm hồ sơ nhân sự" onClose={vi.fn()}>
         <div>nội dung</div>
       </EntityAddModal>,
     );
@@ -22,13 +22,13 @@ describe("EntityAddModal", () => {
     const onClose = vi.fn();
 
     render(
-      <EntityAddModal isOpen title="Thêm lao động mới" onClose={onClose}>
+      <EntityAddModal isOpen title="Thêm hồ sơ nhân sự" onClose={onClose}>
         <label htmlFor="name">Họ và tên</label>
         <input id="name" />
       </EntityAddModal>,
     );
 
-    expect(screen.getByRole("heading", { name: "Thêm lao động mới" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Thêm hồ sơ nhân sự" })).toBeTruthy();
     expect(screen.getByRole("dialog").getAttribute("aria-modal")).toBe("true");
     expect(screen.getByLabelText("Họ và tên")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
@@ -41,7 +41,7 @@ describe("EntityAddModal", () => {
     const onClose = vi.fn();
 
     render(
-      <EntityAddModal isOpen title="Thêm lao động mới" onClose={onClose}>
+      <EntityAddModal isOpen title="Thêm hồ sơ nhân sự" onClose={onClose}>
         <div />
       </EntityAddModal>,
     );
@@ -54,7 +54,7 @@ describe("EntityAddModal", () => {
     const onSubmit = vi.fn((event: React.FormEvent<HTMLFormElement>) => event.preventDefault());
 
     render(
-      <EntityAddModal isOpen title="Thêm lao động mới" onClose={vi.fn()} onSubmit={onSubmit} submitLabel="Tạo hồ sơ">
+      <EntityAddModal isOpen title="Thêm hồ sơ nhân sự" onClose={vi.fn()} onSubmit={onSubmit} submitLabel="Tạo hồ sơ">
         <div />
       </EntityAddModal>,
     );
@@ -67,7 +67,7 @@ describe("EntityAddModal", () => {
     render(
       <EntityAddModal
         isOpen
-        title="Thêm lao động mới"
+        title="Thêm hồ sơ nhân sự"
         onClose={vi.fn()}
         error="Số điện thoại đã tồn tại"
         submitting

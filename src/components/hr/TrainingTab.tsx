@@ -856,7 +856,7 @@ export default function TrainingTab({
                       <div className="grid grid-cols-2 gap-3 text-[10px] text-slate-650 bg-slate-50 p-3 rounded-2xl select-none font-medium border border-gray-150">
                         <div>⏱️ Thời lượng: <strong className="text-slate-800">{course.duration}</strong></div>
                         <div>👨‍🏫 Trình bày: <strong className="text-slate-800">{course.instructor}</strong></div>
-                        <div>👥 Học viên: <strong className="text-indigo-650 font-bold">{course.enrolledCount || 0}</strong></div>
+                        <div>👥 Nhân viên: <strong className="text-indigo-650 font-bold">{course.enrolledCount || 0}</strong></div>
                         <div>📖 Bài giảng: <strong className="text-slate-800">{(course.lessons || []).length} bài</strong></div>
                       </div>
 

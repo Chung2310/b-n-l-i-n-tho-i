@@ -45,9 +45,9 @@ test("categorizes communication and failed security mutations", () => {
 });
 
 test("describes searches without storing query values", () => {
-  const event = buildUserActivityFromRequest({ method: "GET", baseUrl: "/api/v1", route: { path: "/students" }, query: { search: "private-name" }, user: { id: "u1", companyCode: "ACME" }, get: () => undefined } as any, 200);
-  assert.equal(event?.actionType, "student.search");
-  assert.equal(event?.description, "Tìm kiếm học viên");
+  const event = buildUserActivityFromRequest({ method: "GET", baseUrl: "/api/v1", route: { path: "/products" }, query: { search: "private-name" }, user: { id: "u1", companyCode: "ACME" }, get: () => undefined } as any, 200);
+  assert.equal(event?.actionType, "inventory.search");
+  assert.equal(event?.description, "Tìm kiếm kho và sản phẩm");
   assert.equal(JSON.stringify(event).includes("private-name"), false);
 });
 

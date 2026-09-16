@@ -57,7 +57,7 @@ export function RevenueChart({
   return (
     <div className="relative">
       <div className="mb-4 flex flex-wrap gap-4 text-xs font-semibold text-slate-600" aria-label="Chú giải biểu đồ">
-        <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-[#2a78d6]" />Học phí</span>
+        <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-[#2a78d6]" />Đào tạo</span>
         <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-sm border border-amber-700 bg-[#d97706]" />Bán hàng</span>
       </div>
       <div className="flex">
@@ -175,7 +175,7 @@ export function RevenueChart({
           {" — "}
           {formatVnd(series[hovered].amount)} ₫
           <span className="text-slate-400">
-            {" · Học phí "}{formatVnd(series[hovered].tuitionAmount)} ₫
+            {" · Đào tạo "}{formatVnd(series[hovered].tuitionAmount)} ₫
             {" · Bán hàng "}{formatVnd(series[hovered].goodsAmount)} ₫
             {" · "}{series[hovered].count} giao dịch
           </span>

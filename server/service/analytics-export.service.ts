@@ -15,10 +15,10 @@ const money = (value: unknown) => typeof value === "number" ? value : "Chưa đ�
 function revenueRows(report: any) {
   return report.series.map((row: any) => ({
     "Kỳ": row.bucket,
-    "Doanh thu học phí": row.tuitionAmount,
+    "Doanh thu đào tạo": row.tuitionAmount,
     "Doanh thu bán hàng": row.goodsAmount,
     "Tổng doanh thu": row.amount,
-    "Số giao dịch học phí": row.tuitionCount,
+    "Số giao dịch đào tạo": row.tuitionCount,
     "Số dòng bán hàng": row.goodsCount,
   }));
 }
@@ -39,7 +39,7 @@ function expenseRows(report: any) {
 
 function pnlRows(report: any) {
   return [
-    { "Chỉ tiêu": "Doanh thu học phí", "Số tiền": report.tuitionRevenue },
+    { "Chỉ tiêu": "Doanh thu đào tạo", "Số tiền": report.tuitionRevenue },
     { "Chỉ tiêu": "Doanh thu bán hàng", "Số tiền": report.goodsRevenue },
     { "Chỉ tiêu": "Lãi gộp hàng hóa", "Số tiền": money(report.goodsGrossProfit) },
     { "Chỉ tiêu": "Lương đã thanh toán", "Số tiền": -report.payrollExpense },

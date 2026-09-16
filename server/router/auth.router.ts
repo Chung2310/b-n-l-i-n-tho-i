@@ -212,7 +212,6 @@ const registerCompanySchema = {
     }),
     enabledModules: Joi.array().items(Joi.string()).optional(),
     businessType: Joi.string().valid("education", "labor", "service", "recruitment", "general").optional(),
-    entityPreset: Joi.string().valid("student", "worker", "customer", "candidate").optional(),
   }),
 };
 

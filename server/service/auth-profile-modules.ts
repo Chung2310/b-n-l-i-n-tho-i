@@ -3,9 +3,9 @@ import { filterModulesForBusinessType, resolveBusinessType, type BusinessType } 
 
 /** Normalize tenant module data before exposing it in an authenticated profile. */
 export function resolveProfileEnabledModules(input: unknown, businessTypeInput?: unknown, legacyPreset?: unknown): ModuleKey[] {
-  return filterModulesForBusinessType(input, resolveBusinessType(businessTypeInput, legacyPreset));
+  return filterModulesForBusinessType(input, resolveBusinessType(businessTypeInput));
 }
 
 export function resolveProfileBusinessType(input: unknown, legacyPreset?: unknown): BusinessType {
-  return resolveBusinessType(input, legacyPreset);
+  return resolveBusinessType(input);
 }

@@ -9,7 +9,6 @@ import { chatSwagger } from "./chat.swagger";
 import { notificationSwagger } from "./notification.swagger";
 import { superAdminSwagger } from "./super-admin.swagger";
 import { analyticsSwagger } from "./analytics.swagger";
-import { workerProjectSwagger } from "./worker-project.swagger";
 import { customerSettingsSwagger } from "./customer-settings.swagger";
 
 const swaggerDocument = {
@@ -35,7 +34,6 @@ const swaggerDocument = {
     ...notificationSwagger.paths,
     ...superAdminSwagger.paths,
     ...analyticsSwagger.paths,
-    ...workerProjectSwagger.paths,
     ...customerSettingsSwagger.paths,
   },
   components: {

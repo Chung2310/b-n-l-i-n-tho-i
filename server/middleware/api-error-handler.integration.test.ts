@@ -7,7 +7,7 @@ import { ConflictError, InternalError } from "../errors/app-error";
 import { createApiErrorHandler } from "./api-error-handler";
 import { apiNotFound } from "./api-not-found";
 import { requestContextMiddleware } from "./request-context";
-import { redactLogData } from "../modules/student-management/config/logger";
+import { redactLogData } from "../config/logger";
 
 test("terminal middleware returns the exact correlated error envelope", async () => {
   const logs: Array<{ level: string; event: unknown }> = [];

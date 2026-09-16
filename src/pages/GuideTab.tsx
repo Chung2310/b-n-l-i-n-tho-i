@@ -56,7 +56,7 @@ export default function GuideTab() {
       steps: [
         {
           title: "Xem nhanh số liệu trong ngày",
-          desc: "Ngay khi đăng nhập, bạn sẽ thấy các ô thẻ hiển thị tổng doanh thu, số nhân viên đi làm hôm nay, số hàng hóa trong kho và học viên mới. Các con số này được cập nhật liên tục theo thời gian thực."
+          desc: "Ngay khi đăng nhập, bạn sẽ thấy các ô thẻ hiển thị tổng doanh thu, số nhân viên đi làm hôm nay, số hàng hóa trong kho và các cảnh báo cần xử lý. Các con số này được cập nhật liên tục theo thời gian thực."
         },
         {
           title: "Xem phân tích doanh thu chi tiết",
@@ -187,43 +187,6 @@ export default function GuideTab() {
       warning: "Nội dung tin nhắn trò chuyện được lưu trữ phục vụ công việc của doanh nghiệp, hãy giao tiếp lịch sự, chuyên nghiệp và tránh chia sẻ các thông tin cá nhân ngoài công việc."
     },
     {
-      id: "quan-ly-hoc-vien",
-      tabName: "QUẢN LÝ HỌC VIÊN",
-      title: "Quản lý Học viên & Đào tạo Trung tâm",
-      shortDesc: "Quản lý hồ sơ học viên, lịch học, lịch thi, công nợ học phí, QR check-in và gửi email tự động.",
-      icon: GraduationCap,
-      tone: "blue",
-      purpose: "Phân hệ cốt lõi cho các trung tâm đào tạo, giúp quản lý toàn bộ vòng đời của học viên từ lúc tuyển sinh, xếp lớp, thi cử, đóng học phí cho đến khi tốt nghiệp.",
-      steps: [
-        {
-          title: "Đăng ký học viên mới và Xếp lớp",
-          desc: "Vào tab HỌC VIÊN, chọn 'Thêm học viên', nhập thông tin cá nhân. Tại đây bạn có thể chọn khóa học và xếp lớp học phù hợp cho học viên đó."
-        },
-        {
-          title: "Chuyển cơ sở/trung tâm học tập",
-          desc: "Nếu học viên muốn chuyển sang cơ sở học khác, click vào hồ sơ học viên, chọn 'Chuyển cơ sở', chọn địa điểm mới và xác nhận. Toàn bộ thông tin học tập và học phí của học viên sẽ được chuyển giao tự động."
-        },
-        {
-          title: "Quản lý Lịch thi & Kết quả",
-          desc: "Tại tab LỊCH THI, bạn có thể tạo ca thi mới, phân phòng thi và cập nhật điểm số sau khi có kết quả thi của học viên."
-        },
-        {
-          title: "Xem và Theo dõi Học phí & Công nợ",
-          desc: "Tab HỌC PHÍ sẽ liệt kê danh sách học viên cùng trạng thái đóng học phí. Bạn sẽ biết ngay học viên nào đã hoàn thành, ai còn nợ bao nhiêu để tiến hành gửi nhắc nhở."
-        },
-        {
-          title: "Điểm danh nhanh bằng mã QR (QR Check-in)",
-          desc: "Mỗi buổi học, giảng viên chỉ cần trình chiếu hoặc in mã QR của lớp học đó. Học viên sử dụng điện thoại quét mã QR này để điểm danh tự động. Hệ thống sẽ ngay lập tức ghi nhận trạng thái đi học của học viên vào sổ điểm danh điện tử."
-        },
-        {
-          title: "Gửi Email tự động cho Giáo viên & Trợ giảng",
-          desc: "Khi có lịch dạy mới, lịch thi mới hoặc có thay đổi thời gian lớp học, hệ thống sẽ tự động soạn và gửi email thông báo chi tiết đến hộp thư cá nhân của giảng viên phụ trách mà bạn không cần viết email thủ công."
-        }
-      ],
-      protip: "Sử dụng QR Check-in giúp tiết kiệm 10-15 phút đầu giờ của mỗi lớp học và tránh hoàn toàn tình trạng điểm danh hộ hay ghi chép sai lệch bằng giấy tờ.",
-      warning: "Để tính năng gửi email tự động cho giảng viên hoạt động chính xác, hãy đảm bảo email trong hồ sơ của Giảng viên đã được nhập đúng định dạng và không bị viết sai chính tả."
-    },
-    {
       id: "cai-dat",
       tabName: "CÀI ĐẶT",
       title: "Cài đặt cá nhân & Cấu hình hòm thư điện tử",
@@ -286,7 +249,6 @@ export default function GuideTab() {
       "KHO & SẢN PHẨM": "/kho-san-pham",
       "QUẢN TRỊ USER": "/quan-tri-user",
       "CÀI ĐẶT": "/cai-dat",
-      "QUẢN LÝ HỌC VIÊN": "/quan-ly-hoc-vien",
       "TRÒ CHUYỆN": "/tro-chuyen",
       "QUẢN LÝ TÀI NGUYÊN": "/quan-ly-tai-nguyen",
     };

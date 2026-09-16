@@ -1,3 +1,4 @@
+import { reconcileCommission } from "../../partners/commission.service";
 import mongoose, { Types } from "mongoose";
 import { writeStockMovement } from "../../../integrations/shared/stock-movement.service";
 import { ProductVariantModel } from "../../../model/product-variant.model";
@@ -57,6 +58,7 @@ export const RetailAfterSaleService = {
       await writeStockMovement({ ...scope, direction: "in", purpose: input.type === "return" ? "sales-return" : "purchase", sourceType: "retail-after-sale", sourceId: String(doc._id), sourceCode: code, idempotencyKey: `after-sale:${doc._id}:in`, operatorName: actorName(actor), items: items.map((i: any) => { const v: any = map.get(i.productId); return { ...i, productId: v ? String(v.productId) : i.productId, ...(v ? { variantId: String(v._id) } : { legacyProductId: i.productId }) }; }), reason, session }); await restoreSerials(scope, order, doc, actor, session);
       if (input.type === "return") { order.refunds.push({ method: paymentMethod, amount: totalAmount, reference: doc.paymentReference, refundedAt: new Date(), refundedBy: actorId(actor), refundedByName: actorName(actor), shiftId: String(shift._id), businessDate: shift.businessDate, reason }); order.refundedAmount += totalAmount; order.paymentStatus = order.refundedAmount >= order.grandTotal ? "refunded" : "paid"; order.version += 1; await order.save({ session }); }
       if (input.type === "buyback" && paymentMethod === "cash") await CashierShiftModel.updateOne({ _id: shift._id, ...scope, status: "open" }, { $push: { cashMovements: { type: "out", amount: totalAmount, reason: `Thu mua ${code}: ${reason}`, at: new Date(), by: actorId(actor), byName: actorName(actor) } } }, { session });
+      if (input.type === "return" && order.commissionSnapshot) await reconcileCommission("retail", String(order._id), scope.companyCode, session);
       result = doc;
     }); } finally { await session.endSession(); } return result;
   },

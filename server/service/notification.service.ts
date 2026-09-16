@@ -182,7 +182,7 @@ export const notificationService = {
   },
 
   /**
-   * Giao khóa đào tạo mới: gửi tới học viên được gán
+   * Giao khóa đào tạo mới cho nhân viên được gán
    */
   async notifyTaskReassigned(task: any, previousAssigneeUid?: string) {
     if (!task.assigneeUid || task.assigneeUid === previousAssigneeUid) return;

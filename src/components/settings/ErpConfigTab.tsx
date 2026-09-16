@@ -5,7 +5,6 @@ import { getApiErrorMessage } from "../../utils/errorMessage";
 import { useAuth } from "../../context/AuthContext";
 import EmployeeWorkHoursTab from "./EmployeeWorkHoursTab";
 import CompanyWorkCalendarTab from "./CompanyWorkCalendarTab";
-import StudentManagementErpSettings from "./StudentManagementErpSettings";
 import CompanySmtpSettingsTab from "./CompanySmtpSettingsTab";
 import CompanyPaymentSettingsTab from "./CompanyPaymentSettingsTab";
 import WorkShiftsTab from "./WorkShiftsTab";
@@ -35,11 +34,8 @@ export default function ErpConfigTab() {
     userProfile?.role === "superadmin" ||
     userProfile?.role === "admin" ||
     hasPermission("timekeeping:manage");
-  // Loại hình doanh nghiệp chỉ SuperAdmin sửa được; doanh nghiệp chỉ xem (chỉ-đọc)
-  const canViewStudentSettings =
-    userProfile?.role === "superadmin" || userProfile?.role === "admin";
   const canManageSmtp = hasPermission("settings:manage");
-  const canManageCompanyModules = canViewStudentSettings || canManageSmtp || hasPermission("settings:manage");
+  const canManageCompanyModules = canManageSmtp || hasPermission("settings:manage");
 
   useEffect(() => {
     if (canManageLocation) {
@@ -183,7 +179,7 @@ export default function ErpConfigTab() {
             <button type="button" onClick={() => setActiveTab("companyModules")}
               className={`flex items-center gap-1.5 shrink-0 whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition cursor-pointer ${activeTab === "companyModules" ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/10" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
               <GraduationCap className="h-3.5 w-3.5" />
-              Học viên & Email
+              Thanh toán & Email
             </button>
           )}
         </div>
@@ -196,7 +192,6 @@ export default function ErpConfigTab() {
       {/* Preferences Section */}
       {activeTab === "companyModules" && canManageCompanyModules && (
         <div className="space-y-5">
-          {canViewStudentSettings && <StudentManagementErpSettings />}
           {hasPermission("settings:manage") && <CompanyPaymentSettingsTab />}
           {canManageSmtp && <CompanySmtpSettingsTab />}
         </div>

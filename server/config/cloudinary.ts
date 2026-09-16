@@ -15,7 +15,7 @@ const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: async () => {
     return {
-      folder: "student_management",
+      folder: "igen_erp",
       allowed_formats: ["jpg", "png", "pdf", "jpeg", "webp"],
       resource_type: "auto", // supports pdf and images
     };

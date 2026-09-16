@@ -1,4 +1,4 @@
-﻿import { ProductModel } from "../model/product.model";
+import { ProductModel } from "../model/product.model";
 import { ProductCatalogModel } from "../model/product-catalog.model";
 import { CategoryModel } from "../model/category.model";
 import { StockLogModel } from "../model/stock-log.model";
@@ -254,7 +254,8 @@ function sanitizeInventoryResult(modelName: string, item: any) {
   return plainItem;
 }
 
-/**`r`n * Model chỉ được đọc qua router CRUD chung; mọi thao tác ghi (tạo/sửa/xóa)
+/**
+ * Model chỉ được đọc qua router CRUD chung; mọi thao tác ghi (tạo/sửa/xóa)
  * phải đi qua router chuyên biệt có kiểm tra phân quyền & phân cấp đầy đủ.
  * Chặn ở đây để tránh leo thang đặc quyền (vd tự set role/permissions qua /crud/users).
  */

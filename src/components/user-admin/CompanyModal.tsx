@@ -100,7 +100,8 @@ export function CompanyModal({
                   />
                 </div>
               </div>
-`r`n            </div>
+
+            </div>
           ) : (
             <div className="my-4 space-y-4 border-t border-gray-100 pt-4">
               <div className="text-left">

@@ -28,10 +28,6 @@ const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const UserDataDeletion = lazy(() => import("./pages/UserDataDeletion"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
-const QRCheckinPage = lazy(() => import("./modules/student-management/pages/QRCheckin/QRCheckinPage"));
-const WorkerQRCheckinPage = lazy(() => import("./modules/worker-management/pages/WorkerQRCheckinPage"));
-const SubmitProofPage = lazy(() => import("./pages/SubmitProofPage"));
-const PublicRegisterPage = lazy(() => import("./pages/PublicRegisterPage"));
 const PublicRepairFeedbackPage = lazy(() => import("./modules/repair/pages/PublicRepairFeedbackPage"));
 
 function AppContent() {
@@ -43,21 +39,14 @@ function AppContent() {
   const isPrivacyPage = currentPath === "/privacy-policy" || currentPath === "/privacy-policy.html";
   const isTermsPage = currentPath === "/terms-of-service" || currentPath === "/terms-of-service.html";
   const isDeletionPage = currentPath === "/user-data-deletion" || currentPath === "/user-data-deletion.html";
-  const isSubmitProofPage = currentPath.startsWith("/public/submit-proof");
-  const isPublicRegisterPage = currentPath.startsWith("/public/dang-ky");
   const isLegalPublicPage = isPrivacyPage || isTermsPage || isDeletionPage;
-  const isPublicPage = isLandingGuestPage || isLegalPublicPage || isSubmitProofPage || isPublicRegisterPage;
+  const isPublicPage = isLandingGuestPage || isLegalPublicPage;
 
   const { activeTab, setActiveTab } = useTabRouter({
 
     enabled: !isPublicPage && !loading && Boolean(user && userProfile),
   });
-  // Giảng viên chỉ làm việc tại Lớp học. Nếu gõ/thăm lại URL Nhân sự cũ,
-  // chuyển thẳng về Quản lý học viên thay vì để trang HR gọi API không có quyền.
-  const teacherSafeTab = userProfile?.role === "teacher" && activeTab === "NHÂN SỰ"
-    ? "QUẢN LÝ HỌC VIÊN" as TabType
-    : activeTab;
-  const resolvedActiveTab = resolveEnabledTab(teacherSafeTab, userProfile?.enabledModules, userProfile?.businessType);
+  const resolvedActiveTab = resolveEnabledTab(activeTab, userProfile?.enabledModules);
 
   React.useEffect(() => {
     if (resolvedActiveTab !== activeTab) setActiveTab(resolvedActiveTab);
@@ -146,21 +135,7 @@ function AppContent() {
     );
   }
 
-  if (isSubmitProofPage) {
-    return (
-      <Suspense fallback={<AuthLoader />}>
-        <SubmitProofPage />
-      </Suspense>
-    );
-  }
 
-  if (isPublicRegisterPage) {
-    return (
-      <Suspense fallback={<AuthLoader />}>
-        <PublicRegisterPage />
-      </Suspense>
-    );
-  }
 
 
   if (isLegalPublicPage) {
@@ -324,36 +299,6 @@ export default function App() {
     );
   }
 
-  // Các trang chấm công công khai chạy trên máy lao động, không có ai xem console
-  // để báo lỗi. Thiếu ErrorBoundary thì mọi exception (kể cả lỗi tải chunk sau khi
-  // deploy) chỉ để lại màn hình trắng câm, không lần ra được nguyên nhân.
-  if (window.location.pathname.startsWith("/worker/checkin/")) {
-    return (
-      <AppErrorBoundary>
-        <Suspense fallback={
-          <div className="min-h-screen bg-gradient-to-br from-slate-900 via-amber-950 to-orange-950 flex justify-center items-center text-xs font-semibold text-slate-400">
-            Đang tải trang chấm công...
-          </div>
-        }>
-          <WorkerQRCheckinPage />
-        </Suspense>
-      </AppErrorBoundary>
-    );
-  }
-
-  if (window.location.pathname.startsWith("/attendance/checkin/")) {
-    return (
-      <AppErrorBoundary>
-        <Suspense fallback={
-          <div className="min-h-screen bg-slate-900 flex justify-center items-center text-xs font-semibold text-slate-400">
-            Đang tải trang điểm danh...
-          </div>
-        }>
-          <QRCheckinPage />
-        </Suspense>
-      </AppErrorBoundary>
-    );
-  }
 
   if (isSuperAdminPath(window.location.pathname)) {
     return <><SuperAdminShell /><ToastContainer /></>;

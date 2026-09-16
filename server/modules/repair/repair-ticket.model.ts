@@ -29,4 +29,5 @@ RepairTicketSchema.pre("validate", function normalizeLookupKeys(this: any) {
   }
   this.normalizedCustomerPhone = normalizePhone(this.customerPhone);
 });
+RepairTicketSchema.add({ collaboratorId: String, commissionSnapshot: Schema.Types.Mixed, commissionRefunds: { type: Schema.Types.Mixed, default: [] } });
 export const RepairTicketModel = model<RepairTicketDocument>("RepairTicket", RepairTicketSchema);

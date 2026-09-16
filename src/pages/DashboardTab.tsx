@@ -20,7 +20,6 @@ export default function DashboardTab() {
   const canSeeInventory = isModuleEnabled(userProfile?.enabledModules, "inventory");
   const canSeeResource = isModuleEnabled(userProfile?.enabledModules, "resource");
   const canSeeChat = isModuleEnabled(userProfile?.enabledModules, "chat");
-  const canSeeStudent = isModuleEnabled(userProfile?.enabledModules, "student");
 
   const [activeView, setActiveView] = useState<DashboardView>("overview");
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -129,7 +128,6 @@ export default function DashboardTab() {
           summary={summary}
           actionItems={actionItems}
           canSeeHr={canSeeHr}
-          canSeeStudent={canSeeStudent}
         />
       ) : (
         <RevenueAnalysisPanel />

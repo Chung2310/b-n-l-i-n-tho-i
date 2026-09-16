@@ -210,7 +210,7 @@ export default function AnalyticsTab() {
               value={`${formatVnd(revenue.total)} ₫`}
               growthPct={revenue.growthPct}
             />
-            <StatTile label="Doanh thu học phí" value={`${formatVnd(revenue.tuitionTotal)} ₫`} />
+            <StatTile label="Doanh thu đào tạo" value={`${formatVnd(revenue.tuitionTotal)} ₫`} />
             <StatTile label="Doanh thu bán hàng" value={`${formatVnd(revenue.goodsTotal)} ₫`} />
             <StatTile label="Công nợ phải thu" value={`${formatVnd(receivables.total)} ₫`} />
             <StatTile label="Chi phí đã chi" value={`${formatVnd(expenses.total)} ₫`} />
@@ -258,7 +258,7 @@ export default function AnalyticsTab() {
                   {revenue.excludedRecords > 0 && (
                     <p className="text-amber-800">
                       {revenue.excludedRecords} giao dịch chưa xác định được ngày thu tiền nên không
-                      xếp được vào kỳ nào. Chạy <code>yarn backfill:payment-paid-on</code> để bổ sung.
+                      xếp được vào kỳ nào.
                     </p>
                   )}
 
@@ -344,7 +344,7 @@ function ExpenseBreakdown({ report }: { report: ExpensesReport }) {
 
 function PnlBridge({ report }: { report: ProfitAndLossReport }) {
   const rows = [
-    { label: "Doanh thu học phí", value: report.tuitionRevenue, sign: "+" },
+    { label: "Doanh thu đào tạo", value: report.tuitionRevenue, sign: "+" },
     { label: "Lãi gộp hàng hóa", value: report.goodsGrossProfit, sign: "+" },
     { label: "Lương đã thanh toán", value: report.payrollExpense, sign: "−" },
     { label: "Hoa hồng đã chi", value: report.commissionExpense, sign: "−" },
@@ -353,7 +353,7 @@ function PnlBridge({ report }: { report: ProfitAndLossReport }) {
   return (
     <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
       <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Đối chiếu kết quả vận hành</h2>
-      <p className="mt-1 text-xs text-slate-400">Học phí + lãi gộp hàng hóa − lương − hoa hồng − chi phí vận hành chung</p>
+      <p className="mt-1 text-xs text-slate-400">Đào tạo + lãi gộp hàng hóa − lương − hoa hồng − chi phí vận hành chung</p>
       <div className="mt-5 divide-y divide-slate-100">
         {rows.map((row) => (
           <div key={row.label} className="flex items-center justify-between gap-4 py-3 text-sm">

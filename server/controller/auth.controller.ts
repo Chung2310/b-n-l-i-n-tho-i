@@ -6,7 +6,6 @@ import { BranchModel } from "../model/branch.model";
 import { googleOAuthService } from "../service/google-oauth.service";
 import { getSuperAdminRequestMetadata } from "../security/super-admin-request-context";
 import { CompanyModel } from "../model/company.model";
-import { ModuleSettings } from "../modules/student-management/models/module-settings.model";
 import { resolveProfileEnabledModules } from "../service/auth-profile-modules";
 import { recordUserActivity } from "../middleware/user-activity";
 import { clearModuleCache } from "../middleware/require-module";
@@ -243,11 +242,8 @@ export const authController = {
       const company = userObj.companyCode && userObj.companyCode !== "SYSTEM"
         ? await CompanyModel.findOne({ code: userObj.companyCode }).select("enabledModules businessType driveOAuth driveFolderId").lean()
         : null;
-      const legacyEntityPreset = company && !company.businessType
-        ? (await ModuleSettings.findOne({ tenantId: userObj.companyCode }).select("entityPreset").lean())?.entityPreset
-        : undefined;
       userObj.businessType = company?.businessType ?? "general";
-      userObj.enabledModules = resolveProfileEnabledModules(company?.enabledModules, company?.businessType, legacyEntityPreset);
+      userObj.enabledModules = resolveProfileEnabledModules(company?.enabledModules, company?.businessType);
       userObj.permissions = await resolveProfilePermissions(userId, userObj.role, userObj.companyCode);
 
       if (company && company.driveOAuth?.refreshToken) {

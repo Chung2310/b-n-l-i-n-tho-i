@@ -85,7 +85,7 @@ analyticsRouter.use(requireAuth as any);
 // Metadata: báo cáo nào đang dùng được, nguồn dữ liệu nào còn thiếu điều kiện
 analyticsRouter.get("/meta", readPermissionGuard as any, analyticsController.getMeta as any);
 
-// Doanh thu học phí + bán hàng theo thời gian, kèm so sánh kỳ trước
+// Doanh thu đào tạo + bán hàng theo thời gian, kèm so sánh kỳ trước
 analyticsRouter.get(
   "/revenue",
   readPermissionGuard as any,

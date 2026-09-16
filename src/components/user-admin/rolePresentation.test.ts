@@ -17,7 +17,7 @@ test("system roles have clear Vietnamese titles without changing slugs", () => {
 test("role editor orders read before manage within each business area", () => {
   const sorted = sortPermissionsForRoleEditor([
     { code: "people:manage", group: "Đào tạo" },
-    { code: "people:read", group: "Tài chính học viên" },
+    { code: "people:read", group: "Tài chính" },
     { code: "people:read", group: "Đào tạo" },
   ]);
   expect(sorted.map((item) => item.code)).toEqual(["people:read", "people:manage", "people:read"]);

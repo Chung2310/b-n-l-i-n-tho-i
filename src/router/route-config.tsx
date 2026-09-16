@@ -11,6 +11,7 @@ export type AppRoute = {
 };
 
 export const APP_ROUTES: AppRoute[] = [
+  { tab: "ĐỐI TÁC", component: lazy(() => import("../modules/partners/PartnersPage")), canAccess: (user) => ["admin", "superadmin"].includes(user.role) || Boolean(user.permissions?.some(p => ["*", "partner:read", "partner:manage", "partner-self:read", "partner-self:manage"].includes(p))) },
   {
     tab: "TỔNG QUAN",
     component: lazy(() => import("../pages/DashboardTab")),
@@ -25,21 +26,6 @@ export const APP_ROUTES: AppRoute[] = [
   {
     tab: "NHÂN SỰ",
     component: lazy(() => import("../pages/HRTab")),
-  },
-  {
-    tab: "ĐỐI TÁC",
-    component: lazy(() => import("../pages/PartnersTab")),
-    canAccess: (userProfile) =>
-      userProfile.role === "superadmin" ||
-      userProfile.role === "admin" ||
-      Boolean(
-        userProfile.permissions?.includes("*") ||
-        userProfile.permissions?.some((permission) =>
-          userProfile.businessType === "labor"
-            ? ["labor-partner:read", "labor-partner:manage"].includes(permission)
-            : ["relationship:read", "relationship:manage"].includes(permission),
-        ),
-      ),
   },
   {
     tab: "KHO & SẢN PHẨM",
@@ -60,14 +46,6 @@ export const APP_ROUTES: AppRoute[] = [
   {
     tab: "TRÒ CHUYỆN",
     component: lazy(() => import("../pages/ChatTab")),
-  },
-  {
-    tab: "QUẢN LÝ HỌC VIÊN",
-    component: lazy(() => import("../modules/student-management/StudentManagementTab")),
-  },
-  {
-    tab: "QUẢN LÝ LAO ĐỘNG",
-    component: lazy(() => import("../modules/worker-management/WorkerWorkspace")),
   },
   {
     tab: "QUẢN LÝ KHÁCH HÀNG",

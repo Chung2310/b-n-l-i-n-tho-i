@@ -1,8 +1,9 @@
 import type { RetailCustomer, RetailCustomerBillingProfile, RetailDiscountInput, RetailProduct } from "../types";
 export type RetailCartLine = { product: RetailProduct; quantity: number; discount: RetailDiscountInput; serialNumbers?: string[]; internalBarcodes?: string[] };
 export type RetailQuote = { subtotal: number; grandTotal: number; [key: string]: unknown };
-export type RetailCartState = { lines: RetailCartLine[]; customer: RetailCustomer | null; billingProfile: RetailCustomerBillingProfile | null; orderDiscount: RetailDiscountInput; taxRate: number; shippingFee: number; quote: RetailQuote | null; quoteDirty: boolean };
+export type RetailCartState = { collaboratorId?: string; lines: RetailCartLine[]; customer: RetailCustomer | null; billingProfile: RetailCustomerBillingProfile | null; orderDiscount: RetailDiscountInput; taxRate: number; shippingFee: number; quote: RetailQuote | null; quoteDirty: boolean };
 type Action =
+  | { type: "collaborator"; collaboratorId: string }
   | { type: "add"; product: RetailProduct }
   | { type: "quantity"; productId: string; quantity: number }
   | { type: "remove"; productId: string }
@@ -13,7 +14,7 @@ type Action =
   | { type: "customer"; customer: RetailCustomer | null }
   | { type: "billingProfile"; billingProfile: RetailCustomerBillingProfile | null }
   | { type: "quote"; quote: RetailQuote }
-  | { type: "load"; lines: RetailCartLine[]; customer?: RetailCustomer | null; billingProfile?: RetailCustomerBillingProfile | null; orderDiscount?: RetailDiscountInput; taxRate?: number; shippingFee?: number }
+  | { type: "load"; collaboratorId?: string; lines: RetailCartLine[]; customer?: RetailCustomer | null; billingProfile?: RetailCustomerBillingProfile | null; orderDiscount?: RetailDiscountInput; taxRate?: number; shippingFee?: number }
   | { type: "reset" };
 const noDiscount: RetailDiscountInput = { type: "amount", value: 0 };
 const normalizeDiscount = (discount?: RetailDiscountInput): RetailDiscountInput => ({
@@ -23,7 +24,8 @@ const normalizeDiscount = (discount?: RetailDiscountInput): RetailDiscountInput 
 export const initialRetailCart: RetailCartState = { lines: [], customer: null, billingProfile: null, orderDiscount: noDiscount, taxRate: 0, shippingFee: 0, quote: null, quoteDirty: false };
 export function retailCartReducer(state: RetailCartState, action: Action): RetailCartState {
   if (action.type === "reset") return initialRetailCart;
-  if (action.type === "load") return { lines: action.lines.map((line) => ({ ...line, discount: normalizeDiscount(line.discount) })), customer: action.customer || null, billingProfile: action.billingProfile || null, orderDiscount: normalizeDiscount(action.orderDiscount), taxRate: action.taxRate || 0, shippingFee: action.shippingFee || 0, quote: null, quoteDirty: true };
+  if (action.type === "collaborator") return { ...state, collaboratorId: action.collaboratorId };
+  if (action.type === "load") return { collaboratorId: action.collaboratorId, lines: action.lines.map((line) => ({ ...line, discount: normalizeDiscount(line.discount) })), customer: action.customer || null, billingProfile: action.billingProfile || null, orderDiscount: normalizeDiscount(action.orderDiscount), taxRate: action.taxRate || 0, shippingFee: action.shippingFee || 0, quote: null, quoteDirty: true };
   if (action.type === "quote") return { ...state, quote: action.quote, quoteDirty: false };
   if (action.type === "customer") return { ...state, customer: action.customer, billingProfile: null, quoteDirty: true };
   if (action.type === "billingProfile") return { ...state, billingProfile: action.billingProfile, quoteDirty: true };

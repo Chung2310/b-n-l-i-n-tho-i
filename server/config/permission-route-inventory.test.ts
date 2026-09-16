@@ -71,7 +71,7 @@ describe("permission route inventory", () => {
 
     expect(route.diagnostics).toEqual([]);
     expect(scanPermissionRouteSource(`webhookRouter.post("/payment", handler);`, "server/router/webhook.router.ts", {}, { mounts: { webhookRouter: "/private" } })[0].diagnostics).not.toEqual([]);
-    expect(scanPermissionRouteSource(`router.post("/payment", handler);`, "server/modules/student-management/routes/webhook.routes.ts")[0].diagnostics).toEqual([]);
+    expect(scanPermissionRouteSource(`router.post("/payment", handler);`, "server/router/webhook.router.ts")[0].diagnostics).toEqual([]);
   });
 
   it("documents the signed Google Drive OAuth callback as a public protocol exception", () => {
@@ -100,7 +100,7 @@ describe("permission route inventory", () => {
   });
 
   it("records nested webhook router identity and resolved mount", () => {
-    const [route] = scanPermissionRouteSource(`router.post("/payment", handler);`, "server/modules/student-management/routes/webhook.routes.ts");
+    const [route] = scanPermissionRouteSource(`router.post("/payment", handler);`, "server/router/webhook.router.ts");
     expect(route).toMatchObject({ router: "router", mount: "/webhook" });
   });
 
