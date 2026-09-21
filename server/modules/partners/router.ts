@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { Types } from "mongoose";
+import bcrypt from "bcryptjs";
 import { requireAuth, requirePermission } from "../../middleware/auth";
 import { UserModel } from "../../model/user.model";
 import { SupplierModel } from "../../model/supplier.model";
@@ -39,15 +40,38 @@ export async function partnerStatement(companyCode: string, partnerId: string, p
   ]);
   const machines = Math.max(0, sums.reduce((s, r) => s + r.machines, 0));
   const pending = [...pendingOrders.map((o: any) => ({ code: o.orderCode, amount: o.commissionSnapshot.lines.reduce((s: number, l: any) => s + l.amount, 0), reason: "Chưa thu đủ tiền" })), ...pendingRepairs.map((r: any) => ({ code: r.ticketCode, amount: repairLines(r, r.commissionSnapshot.policy).reduce((s,l) => s+l.amount,0), reason: "Chưa giao máy và thu đủ tiền" }))];
-  return { partner: { _id: partner._id, code: partner.code, name: partner.name, balance: partner.balance }, period, entries, total, page, sums, pending, kpi: { machines, bonus: kpiBonus(machines), provisional: period >= monthKey(new Date()), nextThreshold: machines < 10 ? 10 : machines < 20 ? 20 : null } };
+  return {
+    partner: {
+      _id: partner._id,
+      code: partner.code,
+      name: partner.name,
+      roles: partner.roles || [],
+      status: partner.status,
+      phone: partner.phone,
+      email: partner.email,
+      address: partner.address,
+      supplierId: partner.supplierId,
+      balance: partner.balance,
+    },
+    period,
+    entries,
+    total,
+    page,
+    sums,
+    pending,
+    kpi: { machines, bonus: kpiBonus(machines), provisional: period >= monthKey(new Date()), nextThreshold: machines < 10 ? 10 : machines < 20 ? 20 : null },
+  };
 }
 
 partnerRouter.get("/collaborators", picker, route(async req => PartnerModel.find({ companyCode: partnerCompany(req), roles: "collaborator", status: "active" }).select("code name").sort({ name: 1 }).limit(1000).lean()));
 partnerRouter.get("/me/statement", own, route(async req => {
   const companyCode = partnerCompany(req);
-  const partner = await PartnerModel.findOne({ companyCode, userId: String(req.user.id), roles: "collaborator" }).select("_id").lean();
+  const partner = await PartnerModel.findOne({ companyCode, userId: String(req.user.id), roles: "collaborator" }).select("_id").lean()
+    || await PartnerModel.findOne({ companyCode, userId: String(req.user.id) }).select("_id").lean();
   if (!partner) throw invalid("Tài khoản chưa được liên kết với hồ sơ CTV.", 404);
-  return partnerStatement(companyCode, String(partner._id), periodOf(req.query.period), Math.max(1, Math.floor(Number(req.query.page) || 1)));
+  const statement = await partnerStatement(companyCode, String(partner._id), periodOf(req.query.period), Math.max(1, Math.floor(Number(req.query.page) || 1)));
+  if (statement.partner.status === "inactive") throw invalid("Hồ sơ đối tác đã ngừng hoạt động.", 403);
+  return statement;
 }));
 partnerRouter.get("/policies", read, route(async req => ({ defaults: defaultPolicy, items: await CommissionPolicyModel.find({ companyCode: partnerCompany(req) }).sort({ effectiveAt: -1 }).limit(100).lean() })));
 partnerRouter.post("/policies", policies, route(async req => {
@@ -84,7 +108,74 @@ async function partnerInput(req: any) {
   if (body.status && !["active", "inactive"].includes(body.status)) throw invalid("Trạng thái không hợp lệ.");
   return { companyCode, code, name, roles: [...new Set(body.roles)] as Array<"collaborator" | "dealer" | "supplier">, phone: String(body.phone || "").trim().slice(0, 30), email: String(body.email || "").trim().slice(0, 200), address: String(body.address || "").trim().slice(0, 500), userId, supplierId, status: body.status || "active", updatedBy: req.user.id };
 }
-partnerRouter.post("/", manage, route(async req => PartnerModel.create({ ...await partnerInput(req), createdBy: req.user.id })));
+async function provisionPartnerAccount(req: any, partner: any, password: string, emailOverride?: string) {
+  if (partner.status === "inactive") throw invalid("Chỉ có thể cấp tài khoản cho đối tác đang hoạt động.");
+  const email = String(emailOverride || partner.email || "").trim().toLowerCase();
+  const displayName = String(req.body?.displayName || partner.name || "").trim();
+  if (!/^\S+@\S+\.\S+$/.test(email) || email.length > 200) throw invalid("Email tài khoản không hợp lệ.");
+  if (password.length < 6 || password.length > 128) throw invalid("Mật khẩu phải có từ 6 đến 128 ký tự.");
+  if (!displayName || displayName.length > 200) throw invalid("Tên hiển thị không hợp lệ.");
+  if (await UserModel.exists({ email })) throw invalid("Email này đã được sử dụng cho tài khoản khác.", 409);
+
+  const companyCode = String(partner.companyCode);
+  const partnerId = String(partner._id);
+  const group = partner.roles?.[0] || "collaborator";
+  const groupLabels: Record<string, string> = { collaborator: "Cộng tác viên", dealer: "Đại lý", supplier: "Nhà cung cấp" };
+  let user: any;
+  try {
+    user = await UserModel.create({
+      email,
+      password: await bcrypt.hash(password, 10),
+      displayName,
+      role: "user",
+      companyCode,
+      permissions: ["partner-self:read"],
+      department: "Đối tác",
+      division: groupLabels[group] || "Đối tác",
+      jobTitle: groupLabels[group] || "Đối tác",
+      phone: partner.phone || undefined,
+      status: "offline",
+      isActive: true,
+    });
+    const linked = await PartnerModel.findOneAndUpdate(
+      { companyCode, _id: partnerId, userId: { $exists: false } },
+      { $set: { userId: String(user._id), updatedBy: req.user.id } },
+      { returnDocument: "after" },
+    ).lean();
+    if (!linked) throw invalid("Đối tác vừa được cấp tài khoản bởi người khác.", 409);
+  } catch (error: any) {
+    if (user?._id) await UserModel.deleteOne({ _id: user._id }).catch(() => undefined);
+    if (error?.code === 11000) throw invalid("Email này đã được sử dụng cho tài khoản khác.", 409);
+    throw error;
+  }
+  return { partnerId, userId: String(user._id), email, displayName, permissions: ["partner-self:read"] };
+}
+
+partnerRouter.post("/", manage, route(async req => {
+  const input = await partnerInput(req);
+  const partner = await PartnerModel.create({ ...input, createdBy: req.user.id });
+  const accountPassword = Object.prototype.hasOwnProperty.call(req.body || {}, "accountPassword")
+    ? String(req.body.accountPassword || "")
+    : "";
+  if (!Object.prototype.hasOwnProperty.call(req.body || {}, "accountPassword")) return partner;
+  try {
+    const account = await provisionPartnerAccount(req, partner, accountPassword);
+    const result = typeof partner.toObject === "function" ? partner.toObject() : partner;
+    return { ...result, userId: account.userId };
+  } catch (error) {
+    await PartnerModel.deleteOne({ _id: partner._id, companyCode: input.companyCode }).catch(() => undefined);
+    throw error;
+  }
+}));
+partnerRouter.post("/:id/account", manage, route(async req => {
+  const companyCode = partnerCompany(req);
+  const partnerId = id(req.params.id);
+  const partner = await PartnerModel.findOne({ companyCode, _id: partnerId }).lean();
+  if (!partner) throw invalid("Không tìm thấy đối tác.", 404);
+  if (partner.status === "inactive") throw invalid("Chỉ có thể cấp tài khoản cho đối tác đang hoạt động.");
+  if (partner.userId) throw invalid("Đối tác đã được cấp tài khoản.", 409);
+  return provisionPartnerAccount(req, partner, String(req.body?.password || ""), String(req.body?.email || ""));
+}));
 partnerRouter.patch("/:id", manage, route(async req => {
   const input = await partnerInput(req), partnerId = id(req.params.id);
   const existing = await PartnerModel.findOne({ companyCode: input.companyCode, _id: partnerId }).lean();

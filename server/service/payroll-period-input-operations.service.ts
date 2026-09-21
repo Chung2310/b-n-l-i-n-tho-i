@@ -26,7 +26,32 @@ return updated;
 }
 export async function bulkSavePayrollPeriodInputs(scope:{companyCode:string;branchId:string},periodKey:string,actorId:string,rows:any[]){const results=[];for(const row of rows){try{results.push({employeeId:row.employeeId,status:"success",data:await savePayrollPeriodInput(scope,periodKey,row.employeeId,actorId,row)});}catch(error:any){results.push({employeeId:row.employeeId,status:"error",code:error.code,message:error.message});}}return results;}
 export async function listPayrollCustomVariables(companyCode:string){return PayrollCustomVariableModel.find({companyCode}).sort({code:1}).lean();}
-export async function createPayrollCustomVariable(companyCode:string,actorId:string,input:any){if(!input.code?.trim()||!input.name?.trim())failure("PAYROLL_CUSTOM_VARIABLE_REQUIRED","Mã và tên biến là bắt buộc");if(input.unit==="percent"&&input.defaultValue!==undefined&&(input.defaultValue<0||input.defaultValue>100))failure("PAYROLL_CUSTOM_VARIABLE_VALUE_INVALID","Phần trăm phải từ 0 đến 100");return PayrollCustomVariableModel.create({...input,code:input.code.trim(),companyCode,status:"draft",createdBy:actorId});}
-export async function updatePayrollCustomVariable(companyCode:string,id:string,expectedVersion:number,input:any){const current:any=await PayrollCustomVariableModel.findOne({_id:id,companyCode}).lean();if(!current)failure("PAYROLL_CUSTOM_VARIABLE_NOT_FOUND","Không tìm thấy biến",404);if(current.status!=="draft"&&input.code&&input.code!==current.code)failure("PAYROLL_CUSTOM_VARIABLE_CODE_IMMUTABLE","Không thể đổi mã biến đang dùng",409);const updated:any=await PayrollCustomVariableModel.findOneAndUpdate({_id:id,companyCode,version:expectedVersion,status:{$in:["draft","active"]}},{$set:input,$inc:{version:1}},{new:true,runValidators:true}).lean();if(!updated)failure("PAYROLL_CUSTOM_VARIABLE_VERSION_CONFLICT","Biến đã thay đổi",409);return updated;}
+export async function createPayrollCustomVariable(companyCode:string,actorId:string,input:any){
+  if(!input.code?.trim()||!input.name?.trim())failure("PAYROLL_CUSTOM_VARIABLE_REQUIRED","Mã và tên biến là bắt buộc");
+  if(input.unit==="percent"&&input.defaultValue!==undefined&&(input.defaultValue<0||input.defaultValue>100))failure("PAYROLL_CUSTOM_VARIABLE_VALUE_INVALID","Phần trăm phải từ 0 đến 100");
+  if(input.columnType==="calculated"){
+    const calc = input.calculation;
+    const hasExpr = Boolean(calc?.expression?.trim());
+    const hasBinary = Boolean(calc?.leftSource?.trim() && calc?.operator?.trim());
+    if(!hasExpr && !hasBinary) failure("PAYROLL_CUSTOM_VARIABLE_CALCULATION_INVALID","Công thức tính hoặc nguồn dữ liệu là bắt buộc");
+    if(!hasExpr && calc?.rightType==="source" && !calc?.rightSource?.trim()) failure("PAYROLL_CUSTOM_VARIABLE_CALCULATION_INVALID","Nguồn dữ liệu (vế 2) là bắt buộc");
+  }
+  return PayrollCustomVariableModel.create({...input,code:input.code.trim(),companyCode,status:"draft",createdBy:actorId});
+}
+export async function updatePayrollCustomVariable(companyCode:string,id:string,expectedVersion:number,input:any){
+  const current:any=await PayrollCustomVariableModel.findOne({_id:id,companyCode}).lean();
+  if(!current)failure("PAYROLL_CUSTOM_VARIABLE_NOT_FOUND","Không tìm thấy biến",404);
+  if(current.status!=="draft"&&input.code&&input.code!==current.code)failure("PAYROLL_CUSTOM_VARIABLE_CODE_IMMUTABLE","Không thể đổi mã biến đang dùng",409);
+  if(input.columnType==="calculated"||(current.columnType==="calculated"&&input.calculation)){
+    const calc = input.calculation || current.calculation;
+    const hasExpr = Boolean(calc?.expression?.trim());
+    const hasBinary = Boolean(calc?.leftSource?.trim() && calc?.operator?.trim());
+    if(!hasExpr && !hasBinary) failure("PAYROLL_CUSTOM_VARIABLE_CALCULATION_INVALID","Công thức tính hoặc nguồn dữ liệu là bắt buộc");
+    if(!hasExpr && calc?.rightType==="source" && !calc?.rightSource?.trim()) failure("PAYROLL_CUSTOM_VARIABLE_CALCULATION_INVALID","Nguồn dữ liệu (vế 2) là bắt buộc");
+  }
+  const updated:any=await PayrollCustomVariableModel.findOneAndUpdate({_id:id,companyCode,version:expectedVersion,status:{$in:["draft","active"]}},{$set:input,$inc:{version:1}},{new:true,runValidators:true}).lean();
+  if(!updated)failure("PAYROLL_CUSTOM_VARIABLE_VERSION_CONFLICT","Biến đã thay đổi",409);
+  return updated;
+}
 export async function activatePayrollCustomVariable(companyCode:string,id:string,actorId:string){const value:any=await PayrollCustomVariableModel.findOneAndUpdate({_id:id,companyCode,status:{$in:["draft","retired"]}},{$set:{status:"active",activatedBy:actorId},$unset:{retiredBy:1}},{new:true}).lean();if(!value)failure("PAYROLL_CUSTOM_VARIABLE_INVALID_STATE","Không thể áp dụng biến",409);return value;}
 export async function retirePayrollCustomVariable(companyCode:string,id:string,actorId:string){const value:any=await PayrollCustomVariableModel.findOneAndUpdate({_id:id,companyCode,status:"active"},{$set:{status:"retired",retiredBy:actorId}},{new:true}).lean();if(!value)failure("PAYROLL_CUSTOM_VARIABLE_INVALID_STATE","Không thể ngưng biến",409);return value;}

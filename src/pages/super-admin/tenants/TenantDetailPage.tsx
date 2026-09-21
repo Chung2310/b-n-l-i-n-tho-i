@@ -2,7 +2,7 @@ import React from "react";
 import { superAdminTenantService, type Tenant, type TenantSummary, type TenantUser } from "../../../services/superAdminTenantService";
 import { TenantLifecycleDialog } from "./TenantLifecycleDialog";
 import { MODULE_KEYS, MODULE_OPTIONS, type ModuleKey } from "../../../config/modules";
-import { BUSINESS_TYPES, BUSINESS_TYPE_LABELS, getRequiredBusinessModule, isModuleAllowedForBusinessType, resolveBusinessType, type BusinessType } from "../../../config/businessTypes";
+import { ACTIVE_BUSINESS_TYPES, BUSINESS_TYPES, BUSINESS_TYPE_LABELS, getRequiredBusinessModule, isModuleAllowedForBusinessType, resolveBusinessType, type BusinessType } from "../../../config/businessTypes";
 
 function ModulesEditor({ code, current, businessType, onSaved }: { code: string; current: string[]; businessType: BusinessType; onSaved: () => void }) {
   const normalizeModules = React.useCallback((modules: string[], type: BusinessType) => {
@@ -48,7 +48,7 @@ function ModulesEditor({ code, current, businessType, onSaved }: { code: string;
       <label className="block text-xs font-semibold text-slate-400">
         Loại hình doanh nghiệp
         <select aria-label="Loại hình doanh nghiệp" value={selectedBusinessType} onChange={(e) => changeBusinessType(e.target.value as BusinessType)} className="mt-1 w-full rounded-lg border border-white/10 bg-slate-800 px-3 py-2 text-xs text-slate-100 outline-none focus:border-cyan-400">
-          {BUSINESS_TYPES.map((type) => <option key={type} value={type}>{BUSINESS_TYPE_LABELS[type]}</option>)}
+          {BUSINESS_TYPES.filter((type) => (ACTIVE_BUSINESS_TYPES as readonly string[]).includes(type) || type === selectedBusinessType).map((type) => <option key={type} value={type}>{BUSINESS_TYPE_LABELS[type]}</option>)}
         </select>
       </label>
       <div className="grid grid-cols-2 gap-2">

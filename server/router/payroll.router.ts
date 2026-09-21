@@ -1,11 +1,19 @@
 import { Router } from "express";
-import { requireAuth, requirePermission } from "../middleware/auth";
+import { requireAuth, requirePermission, requireRole } from "../middleware/auth";
+import { payrollReconciliationController } from "../controller/payroll-reconciliation.controller";
 import { payrollController } from "../controller/payroll.controller";
 import { payrollFormulaController } from "../controller/payroll-formula.controller";
 import { payrollPeriodInputController } from "../controller/payroll-period-input.controller";
 import { payrollLineOverrideController } from "../controller/payroll-line-override.controller";
 export const payrollRouter = Router();
 payrollRouter.use(requireAuth as any);
+payrollRouter.get("/reconciliation-schedule", requirePermission("payroll-period:read") as any, payrollReconciliationController.getSchedule as any);
+payrollRouter.put("/reconciliation-schedule", requirePermission("payroll-period:manage") as any, payrollReconciliationController.saveSchedule as any);
+payrollRouter.get("/runs/:id/reconciliation", requirePermission("payroll-period:read") as any, payrollReconciliationController.list as any);
+payrollRouter.post("/runs/:id/reconciliation/publish", requirePermission("payroll-period:manage") as any, payrollReconciliationController.publish as any);
+payrollRouter.post("/runs/:id/reconciliation/:employeeId/actions", requirePermission("payroll-period:manage") as any, payrollReconciliationController.staffAction as any);
+payrollRouter.get("/employee/me/reconciliation", payrollReconciliationController.mine as any);
+payrollRouter.post("/employee/me/reconciliation/:id/actions", payrollReconciliationController.employeeAction as any);
 payrollRouter.get("/period-input-variables", requirePermission("payroll-period:read") as any, payrollPeriodInputController.variables as any);
 payrollRouter.post("/period-input-variables", requirePermission("payroll-period:manage") as any, payrollPeriodInputController.createVariable as any);
 payrollRouter.patch("/period-input-variables/:id", requirePermission("payroll-period:manage") as any, payrollPeriodInputController.updateVariable as any);
@@ -33,7 +41,7 @@ payrollRouter.patch("/policies/:id", requirePermission("payroll-policy:manage") 
 payrollRouter.post("/policies/:id/clone", requirePermission("payroll-policy:manage") as any, payrollController.clonePolicy as any);
 payrollRouter.delete("/policies/:id", requirePermission("payroll-policy:manage") as any, payrollController.deletePolicy as any);
 payrollRouter.post("/runs/:id/review", requirePermission("payroll-period:manage") as any, payrollController.reviewOperationalRun as any);
-payrollRouter.post("/runs/:id/close", requirePermission("payroll-period:manage") as any, payrollController.closeOperationalRun as any);
+payrollRouter.post("/runs/:id/close", requirePermission("payroll-period:manage") as any, requireRole(["admin", "superadmin", "manager"]) as any, payrollController.closeOperationalRun as any);
 payrollRouter.post("/runs/:id/reopen", requirePermission("payroll-period:manage") as any, payrollController.reopenOperationalRun as any);
 payrollRouter.post("/runs/:id/mark-paid", requirePermission("payroll-payment:manage") as any, payrollController.markOperationalRunPaid as any);
 payrollRouter.get("/runs/:id/audit", requirePermission("payroll-period:read") as any, payrollController.listRunAudit as any);
@@ -65,6 +73,6 @@ payrollRouter.delete("/periods/:periodKey", requirePermission("payroll-period:ma
 payrollRouter.post("/periods/:periodKey/adjustments/:adjustmentId/approve", requirePermission("payroll-period:manage") as any, payrollController.approveAdjustment as any);
 payrollRouter.post("/periods/:periodKey/adjustments/:adjustmentId/reject", requirePermission("payroll-period:manage") as any, payrollController.rejectAdjustment as any);
 payrollRouter.post("/periods/:periodKey/approve", requirePermission("payroll-period:manage") as any, payrollController.approveRun as any);
-payrollRouter.post("/periods/:periodKey/close", requirePermission("payroll-period:manage") as any, payrollController.closeRun as any);
+payrollRouter.post("/periods/:periodKey/close", requirePermission("payroll-period:manage") as any, requireRole(["admin", "superadmin", "manager"]) as any, payrollController.closeRun as any);
 payrollRouter.get("/periods/:periodKey/adjustments", requirePermission("payroll-period:read") as any, payrollController.listAdjustments as any);
 payrollRouter.post("/periods/:periodKey/adjustments", requirePermission("payroll-period:manage") as any, payrollController.createAdjustment as any);

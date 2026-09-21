@@ -98,6 +98,7 @@ describe("run calculation with an active policy", () => {
 
     expect((night.lines[0].vietnam as any).overtime.total)
       .toBeGreaterThan((day.lines[0].vietnam as any).overtime.total);
+    expect(night.lines[0].calculation.overtime).toBe((night.lines[0].vietnam as any).overtime.total);
   });
 
   it("surfaces the carry-forward warning on the line", () => {

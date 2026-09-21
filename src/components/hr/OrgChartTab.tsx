@@ -24,8 +24,9 @@ import {
   List,
   Network
 } from "lucide-react";
-import { EmployeeNode, UserProfile, TrainingCourse } from "../../types";
+import { EmployeeNode, UserProfile, TrainingCourse, DepartmentRecord } from "../../types";
 import { authService, getAccessToken } from "../../services/authService";
+import { departmentService } from "../../services/departmentService";
 import { toast } from "../../pages/Toast";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { getApiErrorMessage } from "../../utils/errorMessage";
@@ -378,22 +379,34 @@ export default function OrgChartTab({
   const [addEmail, setAddEmail] = useState("");
   const [addPassword, setAddPassword] = useState("");
   const [addPhone, setAddPhone] = useState("");
-  const [addDepartment, setAddDepartment] = useState("Phòng Kỹ Thuật");
+  const [addDepartment, setAddDepartment] = useState("");
   const [addParentId, setAddParentId] = useState("");
   const [addRole, setAddRole] = useState<"user" | "manager" | "branch_owner" | "admin">("user");
   const [addJobDescriptionLink, setAddJobDescriptionLink] = useState("");
   const [addJobDescriptionUploadToken, setAddJobDescriptionUploadToken] = useState("");
-  const [addQualification, setAddQualification] = useState("");
   const [addMonthlySalary, setAddMonthlySalary] = useState("");
   const [uploadingAddJobDescription, setUploadingAddJobDescription] = useState(false);
   const addJobDescriptionFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Department API list for creation & editing
+  const [availableDepartments, setAvailableDepartments] = useState<DepartmentRecord[]>([]);
+
+  useEffect(() => {
+    const compCode = selectedCompanyCode || userProfile?.companyCode;
+    departmentService
+      .list(compCode)
+      .then((data) => {
+        setAvailableDepartments(data || []);
+      })
+      .catch((err) => {
+        console.error("Lỗi khi tải danh sách phòng ban:", err);
+      });
+  }, [selectedCompanyCode, userProfile?.companyCode]);
+
   // Edit Employee States
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState("");
-  const [editRoleText, setEditRoleText] = useState("");
   const [editQualification, setEditQualification] = useState("");
-  const [editDivision, setEditDivision] = useState("");
   const [editDepartment, setEditDepartment] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editPhone, setEditPhone] = useState("");
@@ -416,9 +429,7 @@ export default function OrgChartTab({
   const startEditing = () => {
     if (!selectedEmp) return;
     setEditName(selectedEmp.name || "");
-    setEditRoleText(selectedEmp.role || "");
     setEditQualification(selectedEmp.qualification || "");
-    setEditDivision(selectedEmp.division || "Khối Vận Hành");
     setEditDepartment(selectedEmp.department || "");
     setEditMonthlySalary(selectedEmp.monthlySalary == null ? "" : String(selectedEmp.monthlySalary));
     setEditEmail(selectedEmp.email || "");
@@ -504,9 +515,7 @@ export default function OrgChartTab({
     try {
       const updateData = {
         displayName: editName.trim(),
-        jobTitle: editRoleText.trim(),
         qualification: editQualification.trim(),
-        division: editDivision,
         department: editDepartment.trim(),
         phone: editPhone.trim() || "",
         parentId: editParentId || null,
@@ -524,9 +533,7 @@ export default function OrgChartTab({
       const updatedNode = {
         ...selectedEmp,
         name: updateData.displayName,
-        role: updateData.jobTitle,
         qualification: updateData.qualification,
-        division: updateData.division,
         department: updateData.department,
         phone: updateData.phone || "Chưa cập nhật",
         parentId: updateData.parentId || undefined,
@@ -715,7 +722,7 @@ export default function OrgChartTab({
   // Reset addDepartment when modal closes
   useEffect(() => {
     if (!isAddModalOpen) {
-      setAddDepartment("Phòng Kỹ Thuật");
+      setAddDepartment("");
       setAddJobDescriptionLink("");
       setAddJobDescriptionUploadToken("");
     }
@@ -841,7 +848,7 @@ export default function OrgChartTab({
         addJobDescriptionLink.trim() || undefined,
         activeBranchId || undefined,
         undefined,
-        addQualification.trim() || undefined,
+        undefined,
         addMonthlySalary.trim() === "" ? undefined : Number(addMonthlySalary),
         addJobDescriptionUploadToken || undefined,
       );
@@ -860,10 +867,9 @@ export default function OrgChartTab({
       setAddPhone("");
       setAddParentId("");
       setAddRole("user");
-      setAddDepartment("Phòng Kỹ Thuật");
+      setAddDepartment("");
       setAddJobDescriptionLink("");
       setAddJobDescriptionUploadToken("");
-      setAddQualification("");
       setAddMonthlySalary("");
 
       await fetchUsers();
@@ -1319,7 +1325,7 @@ export default function OrgChartTab({
                 className="col-span-full flex w-full items-center justify-center gap-1.5 rounded-xl bg-indigo-650 px-4 py-2 text-xs font-bold text-white shadow-xs transition-all hover:bg-indigo-700 active:scale-95 cursor-pointer min-[768px]:col-span-1 min-[1200px]:w-auto"
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>Thêm Nhân Sự hoặc Phòng ban</span>
+                <span>Thêm nhân sự</span>
               </button>
             </>
           )}
@@ -1601,44 +1607,26 @@ export default function OrgChartTab({
                   />
                 </div>
 
-                <div>
-                  <label className="block font-bold text-gray-500 mb-1">Trình độ</label>
-                  <input type="text" value={editQualification} onChange={(e) => setEditQualification(e.target.value)} placeholder="Ví dụ: TESOL, Cử nhân Sư phạm" className="w-full px-3.5 py-2 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 bg-white" />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-gray-500 mb-1">Chức danh</label>
-                    <input
-                      type="text"
-                      value={editRoleText}
-                      onChange={(e) => setEditRoleText(e.target.value)}
-                      className="w-full px-3.5 py-2 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-bold text-gray-500 mb-1">Phân khối</label>
-                    <select
-                      value={editDivision}
-                      onChange={(e) => setEditDivision(e.target.value)}
-                      className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 bg-white cursor-pointer text-slate-700"
-                    >
-                      {uniqueDivisions.map(div => (
-                        <option key={div} value={div}>{div}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block font-bold text-gray-500 mb-1">Phòng ban</label>
-                    <input
-                      type="text"
+                    <select
                       value={editDepartment}
                       onChange={(e) => setEditDepartment(e.target.value)}
-                      className="w-full px-3.5 py-2 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 bg-white"
-                    />
+                      className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 bg-white cursor-pointer text-slate-700 text-xs"
+                    >
+                      <option value="">— Chọn phòng ban —</option>
+                      {availableDepartments
+                        .filter((d) => d.isActive !== false)
+                        .map((dept) => (
+                          <option key={dept._id || dept.code} value={dept.name}>
+                            {dept.name}
+                          </option>
+                        ))}
+                      {editDepartment && !availableDepartments.some((d) => d.name === editDepartment) && (
+                        <option value={editDepartment}>{editDepartment}</option>
+                      )}
+                    </select>
                   </div>
                   <div>
                     <label className="block font-bold text-gray-500 mb-1">Số điện thoại</label>
@@ -1646,7 +1634,7 @@ export default function OrgChartTab({
                       type="text"
                       value={editPhone}
                       onChange={(e) => setEditPhone(e.target.value)}
-                      className="w-full px-3.5 py-2 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 bg-white"
+                      className="w-full px-3.5 py-2 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 bg-white text-xs"
                     />
                   </div>
                 </div>
@@ -1785,10 +1773,6 @@ export default function OrgChartTab({
               <div className="text-center pb-4 border-b border-gray-200">
                 <div className="mb-2.5 mx-auto flex justify-center">{renderAvatar(selectedEmp.avatar, "w-24 h-24", "text-5xl")}</div>
                 <h3 className="font-extrabold text-lg text-slate-900 font-sans leading-snug">{selectedEmp.name}</h3>
-                <p className="text-xs font-extrabold font-mono uppercase tracking-wide mt-1 text-indigo-600">{selectedEmp.role}</p>
-                <span className={`inline-block text-[10px] font-bold border px-2.5 py-0.5 rounded-lg uppercase tracking-wider font-mono mt-2 ${getDivisionBadgeStyles(selectedEmp.division)}`}>
-                  {selectedEmp.division}
-                </span>
               </div>
 
               {selectedLeaveBalance && (
@@ -1888,9 +1872,11 @@ export default function OrgChartTab({
                                     <span className="block text-xs font-bold text-slate-800 truncate">
                                       {sub.name}
                                     </span>
-                                    <span className="block text-[10px] text-slate-500 truncate mt-0.5">
-                                      {sub.role}
-                                    </span>
+                                    {sub.department && (
+                                      <span className="block text-[10px] text-slate-500 truncate mt-0.5">
+                                        {sub.department}
+                                      </span>
+                                    )}
                                   </div>
                                 </button>
                               ))}
@@ -1989,20 +1975,18 @@ export default function OrgChartTab({
                 />
               </div>
 
-              <div>
-                <label className="block font-bold text-gray-500 mb-1">Trình độ</label>
-                <input
-                  type="text"
-                  placeholder="Ví dụ: TESOL, Cử nhân Sư phạm"
-                  value={addQualification}
-                  onChange={(e) => setAddQualification(e.target.value)}
-                  className="w-full px-3.5 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
               <div className="grid grid-cols-2 gap-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div><label className="block font-bold text-gray-500 mb-1">Lương tháng (VND)</label><input type="number" min="0" step="1000" value={addMonthlySalary} onChange={(e) => setAddMonthlySalary(e.target.value)} className="w-full px-3.5 py-2 border border-gray-200 rounded-xl outline-none" placeholder="26000000" /></div>
+                <div>
+                  <label className="block font-bold text-gray-500 mb-1">Lương tháng (VND)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={addMonthlySalary}
+                    onChange={(e) => setAddMonthlySalary(e.target.value)}
+                    className="w-full px-3.5 py-2 border border-gray-200 rounded-xl outline-none"
+                    placeholder="26000000"
+                  />
                 </div>
                 <div>
                   <label className="block font-bold text-gray-500 mb-1">Email *</label>
@@ -2015,16 +1999,17 @@ export default function OrgChartTab({
                     className="w-full px-3.5 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
-                <div>
-                  <label className="block font-bold text-gray-500 mb-1">Số điện thoại</label>
-                  <input
-                    type="text"
-                    placeholder="090XXXXXXXX"
-                    value={addPhone}
-                    onChange={(e) => setAddPhone(e.target.value)}
-                    className="w-full px-3.5 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-gray-500 mb-1">Số điện thoại</label>
+                <input
+                  type="text"
+                  placeholder="090XXXXXXXX"
+                  value={addPhone}
+                  onChange={(e) => setAddPhone(e.target.value)}
+                  className="w-full px-3.5 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                />
               </div>
 
               <div>
@@ -2104,15 +2089,25 @@ export default function OrgChartTab({
                   <label className="block font-bold text-gray-500 mb-1">
                     {addRole === "manager" ? "Phòng ban quản lý *" : "Phòng ban *"}
                   </label>
-                  <input
-                    type="text"
+                  <select
                     required
                     disabled={addRole === "user" && !!addParentId}
-                    placeholder="Ví dụ: Phòng Kỹ Thuật"
                     value={addDepartment}
                     onChange={(e) => setAddDepartment(e.target.value)}
-                    className="w-full px-3.5 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400"
-                  />
+                    className="w-full p-2 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 bg-white cursor-pointer text-slate-700 disabled:bg-gray-50 disabled:text-gray-400 text-xs"
+                  >
+                    <option value="">— Chọn phòng ban —</option>
+                    {availableDepartments
+                      .filter((d) => d.isActive !== false)
+                      .map((dept) => (
+                        <option key={dept._id || dept.code} value={dept.name}>
+                          {dept.name}
+                        </option>
+                      ))}
+                    {addDepartment && !availableDepartments.some((d) => d.name === addDepartment) && (
+                      <option value={addDepartment}>{addDepartment}</option>
+                    )}
+                  </select>
                   {addRole === "user" && !!addParentId && (
                     <p className="text-[10px] text-indigo-650 font-mono mt-0.5">
                       Tự động điền theo phòng ban của quản lý trực tiếp.

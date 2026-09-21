@@ -6,6 +6,23 @@ import {
   RefreshCw,
   Search,
   Upload,
+  Calendar,
+  Clock,
+  AlertTriangle,
+  CheckCircle2,
+  FileText,
+  Image as ImageIcon,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  User,
+  History,
+  X,
+  Loader2,
+  Sparkles,
+  ArrowRight,
+  Eye,
 } from "lucide-react";
 import { getAccessToken } from "../../services/authService";
 import { toast } from "../../pages/Toast";
@@ -59,6 +76,7 @@ type Extension = {
   signedImageSize?: number;
   signedImageResourceId?: string;
 };
+
 const headers = () => ({
   "Content-Type": "application/json",
   Authorization: `Bearer ${getAccessToken()}`,
@@ -70,7 +88,7 @@ const isoDate = (value?: string) =>
 const fileNameFromUrl = (url: string, fallback: string) => {
   try {
     const name = decodeURIComponent(
-      new URL(url).pathname.split("/").pop() || "",
+      new URL(url).pathname.split("/").pop() || ""
     );
     return name.includes(".") ? name : fallback;
   } catch {
@@ -93,7 +111,7 @@ const daysUntilExpiry = (value: string, now = new Date()) => {
   const expiryUtc = Date.UTC(
     expiry.getFullYear(),
     expiry.getMonth(),
-    expiry.getDate(),
+    expiry.getDate()
   );
   return Math.ceil((expiryUtc - todayUtc) / 86_400_000);
 };
@@ -139,19 +157,45 @@ const emptyExtension = {
   signedImageResourceId: "",
   extensionSignedImageUploadToken: "",
 };
-const input =
-  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/15";
+
+const inputClass =
+  "h-10 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-xs sm:text-sm font-medium text-slate-800 placeholder-slate-400 outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100";
+
 const statusLabel: Record<ContractStatus, string> = {
   draft: "Bản nháp",
   active: "Còn hiệu lực",
   expired: "Hết hạn",
   terminated: "Đã chấm dứt",
 };
-const statusStyle: Record<ContractStatus, string> = {
-  draft: "bg-slate-100 text-slate-600",
-  active: "bg-emerald-50 text-emerald-700",
-  expired: "bg-amber-50 text-amber-700",
-  terminated: "bg-rose-50 text-rose-700",
+
+const statusBadgeStyle: Record<
+  ContractStatus,
+  { bg: string; text: string; border: string; dot: string }
+> = {
+  draft: {
+    bg: "bg-slate-100",
+    text: "text-slate-700",
+    border: "border-slate-200",
+    dot: "bg-slate-400",
+  },
+  active: {
+    bg: "bg-emerald-50",
+    text: "text-emerald-700",
+    border: "border-emerald-200",
+    dot: "bg-emerald-500",
+  },
+  expired: {
+    bg: "bg-amber-50",
+    text: "text-amber-700",
+    border: "border-amber-200",
+    dot: "bg-amber-500",
+  },
+  terminated: {
+    bg: "bg-rose-50",
+    text: "text-rose-700",
+    border: "border-rose-200",
+    dot: "bg-rose-500",
+  },
 };
 
 export default function ContractsTab({
@@ -170,6 +214,7 @@ export default function ContractsTab({
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const [total, setTotal] = useState(0);
@@ -182,12 +227,19 @@ export default function ContractsTab({
     "contract" | "signed" | "extension" | "extensionSigned" | null
   >(null);
   const [previewItem, setPreviewItem] = useState<ResourceItem | null>(null);
-  const suffix = `?companyCode=${encodeURIComponent(companyCode)}${branchId ? `&branchId=${encodeURIComponent(branchId)}` : ""}`;
+  const suffix = `?companyCode=${encodeURIComponent(companyCode)}${
+    branchId ? `&branchId=${encodeURIComponent(branchId)}` : ""
+  }`;
 
-  const load = async (currentPage = page, currentSearch = debouncedSearch) => {
+  const load = async (
+    currentPage = page,
+    currentSearch = debouncedSearch
+  ) => {
     setLoading(true);
     try {
-      const contractSuffix = `${suffix}&page=${currentPage}&limit=${limit}${currentSearch ? `&search=${encodeURIComponent(currentSearch)}` : ""}`;
+      const contractSuffix = `${suffix}&page=${currentPage}&limit=${limit}${
+        currentSearch ? `&search=${encodeURIComponent(currentSearch)}` : ""
+      }`;
       const [a, b] = await Promise.all([
         fetch(`/api/v1/hr-contracts${contractSuffix}`, { headers: headers() }),
         fetch(`/api/v1/hr-contracts/extensions/list${suffix}`, {
@@ -212,37 +264,36 @@ export default function ContractsTab({
     const handler = setTimeout(() => {
       setDebouncedSearch(search);
       setPage(1);
-    }, 500);
+    }, 400);
     return () => clearTimeout(handler);
   }, [search]);
 
   useEffect(() => {
     load(page, debouncedSearch);
   }, [companyCode, branchId, page, debouncedSearch]);
-  const contractsByEmployee = useMemo(
-    () =>
-      new Map(
-        employees.map((e) => [
-          e._id,
-          contracts.filter((c) => c.employeeId === e._id),
-        ]),
-      ),
-    [employees, contracts],
-  );
+
   const expiringContracts = useMemo(
     () =>
       contracts
         .filter(isExpiringSoon)
         .sort(
-          (a, b) => daysUntilExpiry(a.endDate) - daysUntilExpiry(b.endDate),
+          (a, b) => daysUntilExpiry(a.endDate) - daysUntilExpiry(b.endDate)
         ),
-    [contracts],
+    [contracts]
   );
-  const visibleEmployees = employees.filter((e) =>
-    `${e.displayName || ""} ${e.email} ${e.department || ""}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
+
+  const activeCount = useMemo(
+    () => contracts.filter((c) => c.status === "active").length,
+    [contracts]
   );
+
+  // Client-side status filtered contracts
+  const displayedContracts = useMemo(() => {
+    if (statusFilter === "all") return contracts;
+    if (statusFilter === "expiring") return expiringContracts;
+    return contracts.filter((c) => c.status === statusFilter);
+  }, [contracts, statusFilter, expiringContracts]);
+
   const openContract = (contract?: Contract) => {
     setEditing(contract || "new");
     setContractForm(
@@ -267,9 +318,10 @@ export default function ContractsTab({
             signedImageUploadToken: "",
             note: contract.note || "",
           }
-        : emptyContract,
+        : emptyContract
     );
   };
+
   const saveContract = async () => {
     setSaving(true);
     try {
@@ -293,6 +345,7 @@ export default function ContractsTab({
       setSaving(false);
     }
   };
+
   const openExtension = (contract?: Contract) => {
     setExtensionForm({
       ...emptyExtension,
@@ -302,13 +355,14 @@ export default function ContractsTab({
     setExtOpen(true);
     setTab("extensions");
   };
+
   const saveExtension = async () => {
     setSaving(true);
     try {
       const { contractId, ...body } = extensionForm;
       const res = await fetch(
         `/api/v1/hr-contracts/${contractId}/extensions${suffix}`,
-        { method: "POST", headers: headers(), body: JSON.stringify(body) },
+        { method: "POST", headers: headers(), body: JSON.stringify(body) }
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
@@ -321,9 +375,10 @@ export default function ContractsTab({
       setSaving(false);
     }
   };
+
   const uploadContractFile = async (
     file: File,
-    target: "contract" | "signed",
+    target: "contract" | "signed"
   ) => {
     const allowed =
       target === "signed"
@@ -337,7 +392,7 @@ export default function ContractsTab({
       return toast.error(
         target === "signed"
           ? "Ảnh đã ký phải là tệp hình ảnh."
-          : "Hợp đồng chỉ hỗ trợ PDF, DOC hoặc DOCX.",
+          : "Hợp đồng chỉ hỗ trợ PDF, DOC hoặc DOCX."
       );
     if (file.size > 10 * 1024 * 1024)
       return toast.error("Tệp tải lên không được vượt quá 10 MB.");
@@ -381,7 +436,7 @@ export default function ContractsTab({
               contractFileSize: file.size,
               contractResourceId: "",
               contractFileUploadToken: data.data.uploadToken,
-            },
+            }
       );
       toast.success(`Đã tải lên ${file.name}.`);
     } catch (e) {
@@ -390,23 +445,24 @@ export default function ContractsTab({
       setUploading(null);
     }
   };
+
   const uploadExtensionFile = async (
     file: File,
-    target: "extension" | "extensionSigned",
+    target: "extension" | "extensionSigned"
   ) => {
     const isSigned = target === "extensionSigned";
     const allowed = isSigned
       ? file.type.startsWith("image/")
       : [
-          "application/pdf",
-          "application/msword",
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        ].includes(file.type);
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          ].includes(file.type);
     if (!allowed)
       return toast.error(
         isSigned
           ? "Ảnh đã ký phải là tệp hình ảnh."
-          : "Phụ lục gia hạn chỉ hỗ trợ PDF, DOC hoặc DOCX.",
+          : "Phụ lục gia hạn chỉ hỗ trợ PDF, DOC hoặc DOCX."
       );
     if (file.size > 10 * 1024 * 1024)
       return toast.error("Tệp tải lên không được vượt quá 10 MB.");
@@ -450,17 +506,18 @@ export default function ContractsTab({
               extensionFileSize: file.size,
               extensionResourceId: "",
               extensionFileUploadToken: result.data.uploadToken,
-            },
+            }
       );
       toast.success(`Đã tải lên ${file.name}.`);
     } catch (error) {
       toast.error(
-        getApiErrorMessage(error, "Không thể tải tệp gia hạn hợp đồng."),
+        getApiErrorMessage(error, "Không thể tải tệp gia hạn hợp đồng.")
       );
     } finally {
       setUploading(null);
     }
   };
+
   const preview = async (contract: Contract, kind: "contract" | "signed") => {
     const signed = kind === "signed";
     const fileUrl = signed ? contract.signedImageUrl : contract.contractFileUrl;
@@ -481,7 +538,7 @@ export default function ContractsTab({
       } catch (error) {
         console.warn(
           "Không tải được ResourceItem của hợp đồng, dùng metadata dự phòng:",
-          error,
+          error
         );
       }
     }
@@ -492,7 +549,7 @@ export default function ContractsTab({
       storedName ||
       fileNameFromUrl(
         fileUrl,
-        signed ? "anh-hop-dong-da-ky.jpg" : "hop-dong.pdf",
+        signed ? "anh-hop-dong-da-ky.jpg" : "hop-dong.pdf"
       );
     setPreviewItem({
       _id: resourceId || `${contract._id}-${kind}`,
@@ -511,314 +568,521 @@ export default function ContractsTab({
       updatedAt: "",
     });
   };
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
   return (
-    <div className="min-h-0 flex-1 overflow-auto bg-slate-50 p-5 text-left">
-      <div className="mx-auto max-w-7xl space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/50 p-4 sm:p-6 text-left space-y-5">
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-teal-600 text-white shadow-md shadow-cyan-600/20">
+            <FileSignature className="h-5 w-5" />
+          </div>
           <div>
-            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
-              <FileSignature className="text-cyan-600" />
-              Quản lý hợp đồng
-            </h2>
-            <p className="text-xs text-slate-500">
-              Theo dõi hợp đồng và lịch sử gia hạn của từng nhân viên.
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-slate-900">
+                Quản lý hợp đồng lao động
+              </h2>
+              <span className="inline-flex items-center gap-1 rounded-full bg-cyan-50 border border-cyan-200/80 px-2.5 py-0.5 text-[10px] font-bold text-cyan-700">
+                <Sparkles className="h-3 w-3" />
+                Hồ sơ pháp lý
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Theo dõi tình trạng hợp đồng lao động, thời hạn và lịch sử gia hạn của nhân viên.
             </p>
           </div>
-          {canManage && tab === "contracts" && (
-            <button
-              onClick={() => openContract()}
-              className="flex items-center gap-1.5 rounded-xl bg-cyan-600 px-4 py-2 text-xs font-bold text-white"
-            >
-              <Plus size={15} />
-              Tạo hợp đồng
-            </button>
-          )}
         </div>
-        <div className="flex gap-1 rounded-xl border bg-white p-1 w-fit">
-          <button
-            onClick={() => setTab("contracts")}
-            className={`px-4 py-2 rounded-lg text-xs font-bold ${tab === "contracts" ? "bg-cyan-600 text-white" : "text-slate-600"}`}
-          >
-            Danh sách hợp đồng
-          </button>
-          <button
-            onClick={() => setTab("extensions")}
-            className={`px-4 py-2 rounded-lg text-xs font-bold ${tab === "extensions" ? "bg-cyan-600 text-white" : "text-slate-600"}`}
-          >
-            Gia hạn hợp đồng
-          </button>
-        </div>
-        {loading ? (
-          <div className="p-12 text-center text-xs text-slate-500">
-            Đang tải hợp đồng...
-          </div>
-        ) : tab === "contracts" ? (
-          <>
-            {expiringContracts.length > 0 && (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
-                <p className="text-xs font-bold">
-                  Có {expiringContracts.length} hợp đồng sắp hết hạn trong 20
-                  ngày tới
-                </p>
-                <p className="mt-1 text-[11px] text-amber-700">
-                  {expiringContracts
-                    .slice(0, 5)
-                    .map(
-                      (contract) =>
-                        `${contract.employeeName} (${daysUntilExpiry(contract.endDate)} ngày)`,
-                    )
-                    .join(" · ")}
-                  {expiringContracts.length > 5
-                    ? ` · và ${expiringContracts.length - 5} hợp đồng khác`
-                    : ""}
-                </p>
-              </div>
+
+        {canManage && (
+          <div className="flex items-center gap-2">
+            {tab === "contracts" ? (
+              <button
+                onClick={() => openContract()}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white px-4 py-2.5 text-xs font-bold transition-all cursor-pointer shadow-sm shadow-cyan-600/20 active:scale-95"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Tạo hợp đồng</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => openExtension()}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white px-4 py-2.5 text-xs font-bold transition-all cursor-pointer shadow-sm shadow-cyan-600/20 active:scale-95"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Tạo gia hạn</span>
+              </button>
             )}
-            <div className="relative max-w-sm">
-              <Search
-                className="absolute left-3 top-2.5 text-slate-400"
-                size={15}
-              />
-              <input
-                className={input + " pl-9"}
-                placeholder="Tìm nhân viên, email, phòng ban..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+          </div>
+        )}
+      </div>
+
+      {/* KPI Stats Cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Tổng hợp đồng
+            </span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700">
+              <FileText className="h-4 w-4" />
             </div>
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-              <table className="w-full text-xs">
-                <thead className="bg-slate-50 text-slate-500">
-                  <tr>
-                    <th className="p-3 text-left">Nhân viên</th>
-                    <th className="p-3 text-left">Loại hợp đồng</th>
-                    <th className="p-3">Bắt đầu</th>
-                    <th className="p-3">Hết hạn</th>
-                    <th className="p-3">Trạng thái</th>
-                    <th className="p-3">Tài liệu</th>
-                    <th className="p-3"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {contracts.map((c) => {
-                    const remainingDays = daysUntilExpiry(c.endDate);
-                    const expiringSoon = isExpiringSoon(c);
-                    const emp = employees.find((e) => e._id === c.employeeId);
-                    return (
-                      <tr
-                        key={c._id}
-                        className={expiringSoon ? "bg-amber-50/60" : ""}
-                      >
-                        <td className="p-3">
-                          <b>{c.employeeName}</b>
-                          {emp && (
-                            <div className="text-[10px] text-slate-400">
-                              {emp.department}
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-3">{c.contractType}</td>
-                        <td className="p-3 text-center">
-                          {date(c.startDate)}
-                        </td>
-                        <td className="p-3 text-center">
-                          <div>{date(c.endDate)}</div>
-                          {expiringSoon && (
-                            <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                              Sắp hết hạn · Còn {remainingDays} ngày
+          </div>
+          <p className="mt-2 text-2xl font-black text-cyan-800">{total}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Đã tạo trên hệ thống</p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Còn hiệu lực
+            </span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+              <CheckCircle2 className="h-4 w-4" />
+            </div>
+          </div>
+          <p className="mt-2 text-2xl font-black text-emerald-600">{activeCount}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Hợp đồng đang áp dụng</p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Sắp hết hạn
+            </span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+              <AlertTriangle className="h-4 w-4" />
+            </div>
+          </div>
+          <p className="mt-2 text-2xl font-black text-amber-600">
+            {expiringContracts.length}
+          </p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Trong 20 ngày tới</p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Lượt gia hạn
+            </span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700">
+              <RefreshCw className="h-4 w-4" />
+            </div>
+          </div>
+          <p className="mt-2 text-2xl font-black text-indigo-700">
+            {extensions.length}
+          </p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Phụ lục đã ký</p>
+        </div>
+      </div>
+
+      {/* Subtabs Switcher */}
+      <div className="flex gap-1.5 rounded-xl border border-slate-200/80 bg-white p-1.5 w-fit shadow-2xs">
+        <button
+          type="button"
+          onClick={() => setTab("contracts")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            tab === "contracts"
+              ? "bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-xs"
+              : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+          }`}
+        >
+          <FileSignature className="h-4 w-4" />
+          <span>Danh sách hợp đồng</span>
+          <span
+            className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+              tab === "contracts"
+                ? "bg-white/20 text-white"
+                : "bg-slate-100 text-slate-600"
+            }`}
+          >
+            {total}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setTab("extensions")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            tab === "extensions"
+              ? "bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-xs"
+              : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+          }`}
+        >
+          <RefreshCw className="h-4 w-4" />
+          <span>Lịch sử gia hạn</span>
+          <span
+            className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+              tab === "extensions"
+                ? "bg-white/20 text-white"
+                : "bg-slate-100 text-slate-600"
+            }`}
+          >
+            {extensions.length}
+          </span>
+        </button>
+      </div>
+
+      {/* Main Tab Content */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center p-14 rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+          <Loader2 className="h-7 w-7 animate-spin text-cyan-600 mb-2" />
+          <p className="text-xs font-bold text-slate-600">Đang tải dữ liệu hợp đồng...</p>
+        </div>
+      ) : tab === "contracts" ? (
+        <div className="space-y-4">
+          {/* Expiring Warning Alert */}
+          {expiringContracts.length > 0 && (
+            <div className="flex items-start gap-3.5 rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-amber-900 shadow-2xs">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold">
+                  Có {expiringContracts.length} hợp đồng sắp hết hạn trong 20 ngày tới
+                </p>
+                <div className="mt-1 flex flex-wrap gap-2 text-xs">
+                  {expiringContracts.slice(0, 5).map((c) => (
+                    <span
+                      key={c._id}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300/80 bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-800"
+                    >
+                      <span>{c.employeeName}</span>
+                      <span className="text-rose-600 font-bold">
+                        (còn {daysUntilExpiry(c.endDate)} ngày)
+                      </span>
+                    </span>
+                  ))}
+                  {expiringContracts.length > 5 && (
+                    <span className="text-[11px] font-semibold text-amber-700 self-center">
+                      và {expiringContracts.length - 5} hợp đồng khác...
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Action and Filter Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Search Box */}
+              <div className="relative w-full sm:w-72 md:w-80">
+                <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  className={inputClass + " pl-9"}
+                  placeholder="Tìm nhân viên, email, phòng ban..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+
+              {/* Status Filter */}
+              <div className="w-full sm:w-44 shrink-0">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs sm:text-sm font-medium text-slate-700 outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100 cursor-pointer"
+                >
+                  <option value="all">Tất cả trạng thái</option>
+                  <option value="active">Còn hiệu lực</option>
+                  <option value="expiring">Sắp hết hạn (≤ 20 ngày)</option>
+                  <option value="draft">Bản nháp</option>
+                  <option value="expired">Hết hạn</option>
+                  <option value="terminated">Đã chấm dứt</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Contracts Table */}
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+            <table className="w-full text-xs">
+              <thead className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="p-3.5 text-left">Nhân viên</th>
+                  <th className="p-3.5 text-left">Loại hợp đồng</th>
+                  <th className="p-3.5 text-center">Bắt đầu</th>
+                  <th className="p-3.5 text-center">Hết hạn</th>
+                  <th className="p-3.5 text-center">Trạng thái</th>
+                  <th className="p-3.5 text-center">Tài liệu</th>
+                  <th className="p-3.5 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {displayedContracts.map((c) => {
+                  const remainingDays = daysUntilExpiry(c.endDate);
+                  const expiringSoon = isExpiringSoon(c);
+                  const emp = employees.find((e) => e._id === c.employeeId);
+                  const badge = statusBadgeStyle[c.status] || statusBadgeStyle.draft;
+
+                  return (
+                    <tr
+                      key={c._id}
+                      className={`hover:bg-slate-50/80 transition-colors ${
+                        expiringSoon ? "bg-amber-50/40" : ""
+                      }`}
+                    >
+                      {/* Employee */}
+                      <td className="p-3.5">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-cyan-100 text-cyan-800 font-bold text-xs shrink-0">
+                            {c.employeeName?.charAt(0)?.toUpperCase() || "NV"}
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-800 text-xs sm:text-sm">
+                              {c.employeeName}
+                            </p>
+                            {emp && (
+                              <p className="text-[11px] text-slate-400">
+                                {emp.department ? `${emp.department} · ` : ""}
+                                {emp.email}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Contract Type */}
+                      <td className="p-3.5">
+                        <span className="font-medium text-slate-700">
+                          {c.contractType}
+                        </span>
+                      </td>
+
+                      {/* Start Date */}
+                      <td className="p-3.5 text-center text-slate-600 font-medium">
+                        {date(c.startDate)}
+                      </td>
+
+                      {/* End Date */}
+                      <td className="p-3.5 text-center">
+                        <span className="font-medium text-slate-700">
+                          {date(c.endDate)}
+                        </span>
+                        {expiringSoon && (
+                          <div className="mt-1">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                              <AlertTriangle className="h-3 w-3 text-amber-600" />
+                              Còn {remainingDays} ngày
                             </span>
-                          )}
-                        </td>
-                        <td className="p-3 text-center">
-                          <span
-                            className={`rounded-full px-2 py-1 font-bold ${statusStyle[c.status]}`}
-                          >
-                            {statusLabel[c.status]}
-                          </span>
-                        </td>
-                        <td className="p-3 text-center space-x-2">
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Status */}
+                      <td className="p-3.5 text-center">
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold border ${badge.bg} ${badge.text} ${badge.border}`}
+                        >
+                          <span className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
+                          {statusLabel[c.status]}
+                        </span>
+                      </td>
+
+                      {/* Document Chips */}
+                      <td className="p-3.5 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
                           {c.contractFileUrl && (
                             <button
                               type="button"
-                              className="font-bold text-cyan-700 hover:underline"
                               onClick={() => preview(c, "contract")}
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-cyan-700 hover:bg-cyan-50 hover:border-cyan-200 transition-colors cursor-pointer shadow-2xs"
+                              title="Xem tệp hợp đồng PDF/DOCX"
                             >
-                              Xem file
+                              <FileText className="h-3.5 w-3.5" />
+                              <span>Hợp đồng</span>
                             </button>
                           )}
                           {c.signedImageUrl && (
                             <button
                               type="button"
-                              className="font-bold text-cyan-700 hover:underline"
                               onClick={() => preview(c, "signed")}
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-cyan-700 hover:bg-cyan-50 hover:border-cyan-200 transition-colors cursor-pointer shadow-2xs"
+                              title="Xem ảnh bản ký"
                             >
-                              Xem ảnh ký
+                              <ImageIcon className="h-3.5 w-3.5" />
+                              <span>Ảnh ký</span>
                             </button>
                           )}
-                        </td>
-                        <td className="p-3">
-                          <div className="flex gap-2">
-                            {canManage && (
-                              <>
-                                <button
-                                  title="Sửa"
-                                  onClick={() => openContract(c)}
-                                >
-                                  <Pencil size={14} />
-                                </button>
-                                <button
-                                  title="Gia hạn"
-                                  onClick={() => openExtension(c)}
-                                >
-                                  <RefreshCw size={14} />
-                                </button>
-                              </>
-                            )}
+                          {!c.contractFileUrl && !c.signedImageUrl && (
+                            <span className="text-slate-400 text-[11px]">—</span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="p-3.5 text-right">
+                        {canManage && (
+                          <div className="inline-flex items-center gap-1 justify-end">
+                            <button
+                              title="Sửa thông tin hợp đồng"
+                              onClick={() => openContract(c)}
+                              className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 hover:text-cyan-700 transition-colors cursor-pointer"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              title="Gia hạn hợp đồng này"
+                              onClick={() => openExtension(c)}
+                              className="rounded-lg p-1.5 text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors cursor-pointer"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </button>
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {!contracts.length && (
-                    <tr>
-                      <td
-                        colSpan={7}
-                        className="p-10 text-center text-slate-400"
-                      >
-                        Chưa có hợp đồng nào.
+                        )}
                       </td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  );
+                })}
+
+                {displayedContracts.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-slate-400">
+                      <div className="flex flex-col items-center justify-center">
+                        <FileSignature className="h-9 w-9 text-slate-300 mb-2" />
+                        <p className="font-bold text-slate-600 text-xs">
+                          Không tìm thấy hợp đồng nào
+                        </p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc trạng thái.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
 
             {/* Pagination Controls */}
             {total > limit && (
-              <div className="flex items-center justify-between border-t border-slate-100 bg-white px-4 py-3 sm:px-6 rounded-b-2xl">
-                <div className="flex flex-1 justify-between sm:hidden">
+              <div className="flex items-center justify-between border-t border-slate-100 bg-white px-4 py-3 sm:px-6">
+                <div className="text-xs text-slate-500 font-medium">
+                  Hiển thị từ{" "}
+                  <span className="font-bold text-slate-800">
+                    {(page - 1) * limit + 1}
+                  </span>{" "}
+                  đến{" "}
+                  <span className="font-bold text-slate-800">
+                    {Math.min(page * limit, total)}
+                  </span>{" "}
+                  trong tổng số{" "}
+                  <span className="font-bold text-slate-800">{total}</span> hợp đồng
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={page === 1}
+                    onClick={() => setPage(1)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer"
+                    title="Trang đầu"
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </button>
                   <button
                     disabled={page === 1}
                     onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                    className="relative inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer"
+                    title="Trang trước"
                   >
-                    Trước
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+
+                  <div className="flex items-center gap-1 px-1">
+                    {Array.from({ length: totalPages }).map((_, idx) => {
+                      const p = idx + 1;
+                      if (Math.abs(page - p) > 2 && p !== 1 && p !== totalPages)
+                        return null;
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => setPage(p)}
+                          className={`h-8 min-w-[32px] px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            page === p
+                              ? "bg-cyan-600 text-white shadow-xs"
+                              : "border border-slate-200 text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer"
+                    title="Trang sau"
+                  >
+                    <ChevronRight className="h-4 w-4" />
                   </button>
                   <button
-                    disabled={page * limit >= total}
-                    onClick={() => setPage((p) => p + 1)}
-                    className="relative ml-3 inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage(totalPages)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer"
+                    title="Trang cuối"
                   >
-                    Sau
+                    <ChevronsRight className="h-4 w-4" />
                   </button>
-                </div>
-                <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs text-slate-700">
-                      Hiển thị từ <span className="font-medium">{(page - 1) * limit + 1}</span> đến{" "}
-                      <span className="font-medium">{Math.min(page * limit, total)}</span> trong tổng số{" "}
-                      <span className="font-medium">{total}</span> hợp đồng
-                    </p>
-                  </div>
-                  <div>
-                    <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-                      <button
-                        disabled={page === 1}
-                        onClick={() => setPage(1)}
-                        className="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:z-20 focus:outline-offset-0 disabled:opacity-30"
-                      >
-                        «
-                      </button>
-                      <button
-                        disabled={page === 1}
-                        onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                        className="relative inline-flex items-center px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:z-20 focus:outline-offset-0 disabled:opacity-30"
-                      >
-                        ‹
-                      </button>
-                      {Array.from({ length: Math.ceil(total / limit) }).map((_, idx) => {
-                        const pageNum = idx + 1;
-                        if (Math.abs(page - pageNum) > 2) return null;
-                        return (
-                          <button
-                            key={pageNum}
-                            onClick={() => setPage(pageNum)}
-                            className={`relative inline-flex items-center px-4 py-2 text-xs font-semibold focus:z-20 ${
-                              page === pageNum
-                                ? "z-10 bg-cyan-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-600"
-                                : "text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:outline-offset-0"
-                            }`}
-                          >
-                            {pageNum}
-                          </button>
-                        );
-                      })}
-                      <button
-                        disabled={page * limit >= total}
-                        onClick={() => setPage((p) => p + 1)}
-                        className="relative inline-flex items-center px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:z-20 focus:outline-offset-0 disabled:opacity-30"
-                      >
-                        ›
-                      </button>
-                      <button
-                        disabled={page * limit >= total}
-                        onClick={() => setPage(Math.ceil(total / limit))}
-                        className="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:z-20 focus:outline-offset-0 disabled:opacity-30"
-                      >
-                        »
-                      </button>
-                    </nav>
-                  </div>
                 </div>
               </div>
             )}
-          </>
-        ) : (
-          <div className="space-y-3">
-            {canManage && (
-              <button
-                onClick={() => openExtension()}
-                className="flex items-center gap-1.5 rounded-xl bg-cyan-600 px-4 py-2 text-xs font-bold text-white"
-              >
-                <Plus size={15} />
-                Tạo gia hạn
-              </button>
-            )}
-            <div className="overflow-hidden rounded-2xl border bg-white">
-              <table className="w-full text-xs">
-                <thead className="bg-slate-50 text-slate-500">
-                  <tr>
-                    <th className="p-3 text-left">Nhân viên</th>
-                    <th className="p-3">Ngày gia hạn</th>
-                    <th className="p-3">Hạn cũ</th>
-                    <th className="p-3">Hạn mới</th>
-                    <th className="p-3 text-left">Lý do</th>
-                    <th className="p-3">Tài liệu</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {extensions.map((x) => (
-                    <tr key={x._id}>
-                      <td className="p-3 font-bold">{x.employeeName}</td>
-                      <td className="p-3 text-center">
-                        {date(x.extensionDate)}
-                      </td>
-                      <td className="p-3 text-center">
-                        {date(x.previousEndDate)}
-                      </td>
-                      <td className="p-3 text-center font-bold text-emerald-700">
-                        {date(x.newEndDate)}
-                      </td>
-                      <td className="p-3">{x.reason || "—"}</td>
-                      <td className="p-3 text-center space-x-2">
+          </div>
+        </div>
+      ) : (
+        /* Extensions History Tab */
+        <div className="space-y-4">
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+            <table className="w-full text-xs">
+              <thead className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="p-3.5 text-left">Nhân viên</th>
+                  <th className="p-3.5 text-center">Ngày gia hạn</th>
+                  <th className="p-3.5 text-center">Hạn cũ</th>
+                  <th className="p-3.5 text-center">Hạn mới</th>
+                  <th className="p-3.5 text-left">Lý do gia hạn</th>
+                  <th className="p-3.5 text-center">Tài liệu</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {extensions.map((x) => (
+                  <tr key={x._id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="p-3.5 font-bold text-slate-800 text-xs sm:text-sm">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-indigo-800 font-bold text-[11px]">
+                          {x.employeeName?.charAt(0)?.toUpperCase() || "NV"}
+                        </div>
+                        <span>{x.employeeName}</span>
+                      </div>
+                    </td>
+                    <td className="p-3.5 text-center text-slate-600 font-medium">
+                      {date(x.extensionDate)}
+                    </td>
+                    <td className="p-3.5 text-center text-slate-500 font-medium">
+                      {date(x.previousEndDate)}
+                    </td>
+                    <td className="p-3.5 text-center font-bold text-emerald-700">
+                      <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5">
+                        <ArrowRight className="h-3 w-3 text-emerald-600" />
+                        <span>{date(x.newEndDate)}</span>
+                      </div>
+                    </td>
+                    <td className="p-3.5 text-slate-700 max-w-xs truncate">
+                      {x.reason || "—"}
+                    </td>
+                    <td className="p-3.5 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
                         {x.extensionFileUrl && (
                           <a
                             href={x.extensionFileUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-cyan-700"
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-cyan-700 hover:bg-cyan-50 hover:border-cyan-200 transition-colors shadow-2xs"
                           >
-                            File
+                            <FileText className="h-3.5 w-3.5" />
+                            <span>File</span>
                           </a>
                         )}
                         {x.signedImageUrl && (
@@ -826,48 +1090,61 @@ export default function ContractsTab({
                             href={x.signedImageUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-cyan-700"
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-cyan-700 hover:bg-cyan-50 hover:border-cyan-200 transition-colors shadow-2xs"
                           >
-                            Ảnh ký
+                            <ImageIcon className="h-3.5 w-3.5" />
+                            <span>Ảnh ký</span>
                           </a>
                         )}
-                      </td>
-                    </tr>
-                  ))}
-                  {!extensions.length && (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="p-10 text-center text-slate-400"
-                      >
-                        Chưa có lịch sử gia hạn hợp đồng.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                        {!x.extensionFileUrl && !x.signedImageUrl && (
+                          <span className="text-slate-400 text-[11px]">—</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+
+                {!extensions.length && (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-slate-400">
+                      <div className="flex flex-col items-center justify-center">
+                        <RefreshCw className="h-9 w-9 text-slate-300 mb-2" />
+                        <p className="font-bold text-slate-600 text-xs">
+                          Chưa có lịch sử gia hạn hợp đồng
+                        </p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Các phụ lục gia hạn hợp đồng sẽ được lưu vết và thống kê tại đây.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Contract Create / Edit Modal */}
       {editing && (
         <Modal
-          title={editing === "new" ? "Tạo hợp đồng" : "Cập nhật hợp đồng"}
+          title={editing === "new" ? "Tạo hợp đồng lao động mới" : "Cập nhật hợp đồng lao động"}
+          subtitle="Điền thông tin hợp đồng và tải lên tệp tài liệu đính kèm"
           close={() => setEditing(null)}
           save={saveContract}
           saving={saving || uploading !== null}
           valid={Boolean(
             contractForm.employeeId &&
-            contractForm.contractType &&
-            contractForm.startDate &&
-            contractForm.endDate,
+              contractForm.contractType &&
+              contractForm.startDate &&
+              contractForm.endDate
           )}
         >
-          <div className="grid grid-cols-2 gap-3">
-            <label className="col-span-2 text-xs">
-              Nhân viên
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className="sm:col-span-2 text-xs font-semibold text-slate-700">
+              Nhân viên áp dụng <span className="text-rose-500">*</span>
               <select
-                className={input}
+                className={inputClass + " mt-1.5"}
                 value={contractForm.employeeId}
                 onChange={(e) =>
                   setContractForm({
@@ -876,18 +1153,20 @@ export default function ContractsTab({
                   })
                 }
               >
-                <option value="">Chọn nhân viên</option>
+                <option value="">-- Chọn nhân viên --</option>
                 {employees.map((e) => (
                   <option key={e._id} value={e._id}>
-                    {e.displayName || e.email}
+                    {e.displayName || e.email} {e.department ? `(${e.department})` : ""}
                   </option>
                 ))}
               </select>
             </label>
-            <label className="col-span-2 text-xs">
-              Loại hợp đồng
+
+            <label className="sm:col-span-2 text-xs font-semibold text-slate-700">
+              Loại hợp đồng <span className="text-rose-500">*</span>
               <input
-                className={input}
+                className={inputClass + " mt-1.5"}
+                placeholder="VD: Hợp đồng xác định thời hạn 12 tháng"
                 value={contractForm.contractType}
                 onChange={(e) =>
                   setContractForm({
@@ -897,11 +1176,12 @@ export default function ContractsTab({
                 }
               />
             </label>
-            <label className="text-xs">
-              Ngày bắt đầu
+
+            <label className="text-xs font-semibold text-slate-700">
+              Ngày bắt đầu hiệu lực <span className="text-rose-500">*</span>
               <input
                 type="date"
-                className={input}
+                className={inputClass + " mt-1.5"}
                 value={contractForm.startDate}
                 onChange={(e) =>
                   setContractForm({
@@ -911,21 +1191,23 @@ export default function ContractsTab({
                 }
               />
             </label>
-            <label className="text-xs">
-              Ngày hết hạn
+
+            <label className="text-xs font-semibold text-slate-700">
+              Ngày hết hạn <span className="text-rose-500">*</span>
               <input
                 type="date"
-                className={input}
+                className={inputClass + " mt-1.5"}
                 value={contractForm.endDate}
                 onChange={(e) =>
                   setContractForm({ ...contractForm, endDate: e.target.value })
                 }
               />
             </label>
-            <label className="text-xs">
-              Trạng thái
+
+            <label className="sm:col-span-2 text-xs font-semibold text-slate-700">
+              Trạng thái hợp đồng
               <select
-                className={input}
+                className={inputClass + " mt-1.5"}
                 value={contractForm.status}
                 onChange={(e) =>
                   setContractForm({
@@ -941,15 +1223,17 @@ export default function ContractsTab({
                 ))}
               </select>
             </label>
-            <div className="text-xs">
-              <span>File hợp đồng (PDF, DOC, DOCX)</span>
-              <label
-                className={`${input} mt-1 flex cursor-pointer items-center justify-center gap-2 font-bold text-cyan-700`}
-              >
-                <Upload size={14} />
-                {uploading === "contract"
-                  ? "Đang tải lên..."
-                  : "Chọn file hợp đồng"}
+
+            {/* Contract File Upload */}
+            <div className="rounded-xl border border-dashed border-slate-300 p-3 bg-slate-50/50">
+              <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                Tệp hợp đồng (PDF, DOC, DOCX)
+              </span>
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50/60 px-3 py-2 text-xs font-bold text-cyan-700 hover:bg-cyan-100 transition-colors">
+                <Upload className="h-4 w-4" />
+                <span>
+                  {uploading === "contract" ? "Đang tải lên..." : "Chọn file hợp đồng"}
+                </span>
                 <input
                   type="file"
                   className="hidden"
@@ -963,23 +1247,25 @@ export default function ContractsTab({
                 />
               </label>
               {contractForm.contractFileUrl && (
-                <a
-                  href={contractForm.contractFileUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-1 block truncate text-cyan-700"
-                >
-                  Đã tải file — xem tài liệu
-                </a>
+                <div className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">
+                    {contractForm.contractFileName || "Đã tải file hợp đồng"}
+                  </span>
+                </div>
               )}
             </div>
-            <div className="text-xs">
-              <span>Ảnh hợp đồng đã ký</span>
-              <label
-                className={`${input} mt-1 flex cursor-pointer items-center justify-center gap-2 font-bold text-cyan-700`}
-              >
-                <Upload size={14} />
-                {uploading === "signed" ? "Đang tải lên..." : "Chọn ảnh đã ký"}
+
+            {/* Signed Image Upload */}
+            <div className="rounded-xl border border-dashed border-slate-300 p-3 bg-slate-50/50">
+              <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                Ảnh hợp đồng đã ký
+              </span>
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50/60 px-3 py-2 text-xs font-bold text-cyan-700 hover:bg-cyan-100 transition-colors">
+                <Upload className="h-4 w-4" />
+                <span>
+                  {uploading === "signed" ? "Đang tải lên..." : "Chọn ảnh đã ký"}
+                </span>
                 <input
                   type="file"
                   className="hidden"
@@ -993,20 +1279,21 @@ export default function ContractsTab({
                 />
               </label>
               {contractForm.signedImageUrl && (
-                <a
-                  href={contractForm.signedImageUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-1 block truncate text-cyan-700"
-                >
-                  Đã tải ảnh — xem ảnh
-                </a>
+                <div className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">
+                    {contractForm.signedImageName || "Đã tải ảnh hợp đồng"}
+                  </span>
+                </div>
               )}
             </div>
-            <label className="col-span-2 text-xs">
-              Ghi chú
+
+            <label className="sm:col-span-2 text-xs font-semibold text-slate-700">
+              Ghi chú thêm
               <textarea
-                className={input}
+                rows={2}
+                className="w-full mt-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs sm:text-sm font-medium text-slate-800 placeholder-slate-400 outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100"
+                placeholder="Ghi chú về phụ cấp, điều khoản đặc biệt..."
                 value={contractForm.note}
                 onChange={(e) =>
                   setContractForm({ ...contractForm, note: e.target.value })
@@ -1016,23 +1303,26 @@ export default function ContractsTab({
           </div>
         </Modal>
       )}
+
+      {/* Extension Create Modal */}
       {extOpen && (
         <Modal
-          title="Gia hạn hợp đồng"
+          title="Gia hạn hợp đồng lao động"
+          subtitle="Tạo phụ lục gia hạn hợp đồng cho nhân viên"
           close={() => setExtOpen(false)}
           save={saveExtension}
           saving={saving || uploading !== null}
           valid={Boolean(
             extensionForm.contractId &&
-            extensionForm.newEndDate &&
-            extensionForm.extensionDate,
+              extensionForm.newEndDate &&
+              extensionForm.extensionDate
           )}
         >
-          <div className="space-y-3">
-            <label className="text-xs">
-              Hợp đồng
+          <div className="space-y-4">
+            <label className="block text-xs font-semibold text-slate-700">
+              Hợp đồng cần gia hạn <span className="text-rose-500">*</span>
               <select
-                className={input}
+                className={inputClass + " mt-1.5"}
                 value={extensionForm.contractId}
                 onChange={(e) =>
                   setExtensionForm({
@@ -1041,23 +1331,23 @@ export default function ContractsTab({
                   })
                 }
               >
-                <option value="">Chọn hợp đồng</option>
+                <option value="">-- Chọn hợp đồng --</option>
                 {contracts
                   .filter((c) => c.status !== "terminated")
                   .map((c) => (
                     <option key={c._id} value={c._id}>
-                      {c.employeeName} — {c.contractType} — hạn{" "}
-                      {date(c.endDate)}
+                      {c.employeeName} — {c.contractType} (hạn: {date(c.endDate)})
                     </option>
                   ))}
               </select>
             </label>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="text-xs">
-                Ngày gia hạn
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="text-xs font-semibold text-slate-700">
+                Ngày thực hiện gia hạn <span className="text-rose-500">*</span>
                 <input
                   type="date"
-                  className={input}
+                  className={inputClass + " mt-1.5"}
                   value={extensionForm.extensionDate}
                   onChange={(e) =>
                     setExtensionForm({
@@ -1067,11 +1357,12 @@ export default function ContractsTab({
                   }
                 />
               </label>
-              <label className="text-xs">
-                Ngày hết hạn mới
+
+              <label className="text-xs font-semibold text-slate-700">
+                Ngày hết hạn mới <span className="text-rose-500">*</span>
                 <input
                   type="date"
-                  className={input}
+                  className={inputClass + " mt-1.5"}
                   value={extensionForm.newEndDate}
                   onChange={(e) =>
                     setExtensionForm({
@@ -1082,73 +1373,94 @@ export default function ContractsTab({
                 />
               </label>
             </div>
-            <label className="text-xs">
-              Lý do
+
+            <label className="block text-xs font-semibold text-slate-700">
+              Lý do gia hạn
               <textarea
-                className={input}
+                rows={2}
+                className="w-full mt-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs sm:text-sm font-medium text-slate-800 placeholder-slate-400 outline-none transition-all focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100"
+                placeholder="VD: Gia hạn thời gian công tác theo thỏa thuận..."
                 value={extensionForm.reason}
                 onChange={(e) =>
                   setExtensionForm({ ...extensionForm, reason: e.target.value })
                 }
               />
             </label>
-            <div className="text-xs">
-              <span>File phụ lục/gia hạn (PDF, DOC, DOCX)</span>
-              <label
-                className={`${input} mt-1 flex cursor-pointer items-center justify-center gap-2 font-bold text-cyan-700`}
-              >
-                <Upload size={14} />
-                {uploading === "extension"
-                  ? "Đang tải lên..."
-                  : "Chọn file gia hạn"}
-                <input
-                  type="file"
-                  className="hidden"
-                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                  disabled={uploading !== null}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) void uploadExtensionFile(file, "extension");
-                    event.currentTarget.value = "";
-                  }}
-                />
-              </label>
-              {extensionForm.extensionFileUrl && (
-                <span className="mt-1 block truncate text-emerald-700">
-                  Đã tải: {extensionForm.extensionFileName}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Extension File */}
+              <div className="rounded-xl border border-dashed border-slate-300 p-3 bg-slate-50/50">
+                <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  File phụ lục (PDF, DOC, DOCX)
                 </span>
-              )}
-            </div>
-            <div className="text-xs">
-              <span>Ảnh phụ lục đã ký</span>
-              <label
-                className={`${input} mt-1 flex cursor-pointer items-center justify-center gap-2 font-bold text-cyan-700`}
-              >
-                <Upload size={14} />
-                {uploading === "extensionSigned"
-                  ? "Đang tải lên..."
-                  : "Chọn ảnh đã ký"}
-                <input
-                  type="file"
-                  className="hidden"
-                  accept="image/*"
-                  disabled={uploading !== null}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) void uploadExtensionFile(file, "extensionSigned");
-                    event.currentTarget.value = "";
-                  }}
-                />
-              </label>
-              {extensionForm.signedImageUrl && (
-                <span className="mt-1 block truncate text-emerald-700">
-                  Đã tải: {extensionForm.signedImageName}
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50/60 px-3 py-2 text-xs font-bold text-cyan-700 hover:bg-cyan-100 transition-colors">
+                  <Upload className="h-4 w-4" />
+                  <span>
+                    {uploading === "extension"
+                      ? "Đang tải lên..."
+                      : "Chọn file gia hạn"}
+                  </span>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    disabled={uploading !== null}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void uploadExtensionFile(file, "extension");
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+                {extensionForm.extensionFileUrl && (
+                  <div className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">
+                      {extensionForm.extensionFileName || "Đã tải file phụ lục"}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Signed Extension Image */}
+              <div className="rounded-xl border border-dashed border-slate-300 p-3 bg-slate-50/50">
+                <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Ảnh phụ lục đã ký
                 </span>
-              )}
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50/60 px-3 py-2 text-xs font-bold text-cyan-700 hover:bg-cyan-100 transition-colors">
+                  <Upload className="h-4 w-4" />
+                  <span>
+                    {uploading === "extensionSigned"
+                      ? "Đang tải lên..."
+                      : "Chọn ảnh đã ký"}
+                  </span>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    disabled={uploading !== null}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void uploadExtensionFile(file, "extensionSigned");
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+                {extensionForm.signedImageUrl && (
+                  <div className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">
+                      {extensionForm.signedImageName || "Đã tải ảnh phụ lục"}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </Modal>
       )}
+
+      {/* File Preview Modal */}
       <FilePreviewModal
         item={previewItem}
         onClose={() => setPreviewItem(null)}
@@ -1160,6 +1472,7 @@ export default function ContractsTab({
 
 function Modal({
   title,
+  subtitle,
   children,
   close,
   save,
@@ -1167,6 +1480,7 @@ function Modal({
   valid,
 }: {
   title: string;
+  subtitle?: string;
   children: React.ReactNode;
   close: () => void;
   save: () => void;
@@ -1174,20 +1488,51 @@ function Modal({
   valid: boolean;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-      <div className="w-full max-w-xl rounded-2xl bg-white p-5 shadow-2xl max-h-[90dvh] overflow-y-auto overscroll-contain">
-        <h3 className="mb-4 font-bold text-slate-900">{title}</h3>
-        {children}
-        <div className="mt-5 flex justify-end gap-2">
-          <button onClick={close} className="px-4 py-2 text-xs">
-            Hủy
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+      <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl border border-slate-100 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 overflow-hidden">
+        {/* Modal Header */}
+        <div className="flex items-center justify-between border-b border-slate-200/80 bg-slate-50/80 px-5 py-3.5">
+          <div>
+            <h3 className="font-bold text-sm text-slate-900">{title}</h3>
+            {subtitle && (
+              <p className="text-[11px] text-slate-400 mt-0.5">{subtitle}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={close}
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/80 hover:text-slate-700 transition-colors cursor-pointer"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <div className="p-5 overflow-y-auto flex-1">{children}</div>
+
+        {/* Modal Footer */}
+        <div className="flex items-center justify-end gap-2.5 border-t border-slate-200/80 bg-slate-50/50 px-5 py-3.5">
+          <button
+            type="button"
+            onClick={close}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors cursor-pointer shadow-2xs"
+          >
+            Hủy bỏ
           </button>
           <button
+            type="button"
             disabled={!valid || saving}
             onClick={save}
-            className="rounded-xl bg-cyan-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 px-5 py-2 text-xs font-bold text-white shadow-sm shadow-cyan-600/20 active:scale-95 disabled:opacity-50 cursor-pointer transition-all"
           >
-            {saving ? "Đang lưu..." : "Lưu"}
+            {saving ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span>Đang lưu...</span>
+              </>
+            ) : (
+              <span>Lưu thông tin</span>
+            )}
           </button>
         </div>
       </div>

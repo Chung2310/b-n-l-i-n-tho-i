@@ -258,7 +258,6 @@ const registerUserSchema = {
     branchId: Joi.string().regex(/^[0-9a-fA-F]{24}$/).optional().allow("", null),
     jobDescriptionLink: Joi.string().uri().optional().allow(""),
     jobDescriptionUploadToken: Joi.string().trim().optional(),
-    qualification: Joi.string().max(200).optional().allow(""),
   }),
 };
 

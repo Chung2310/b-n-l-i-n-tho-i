@@ -42,3 +42,49 @@ it('clears old statement data when a new month cannot be loaded', async () => {
   await screen.findByRole('alert');
   await waitFor(() => expect(screen.queryByText('19 máy')).toBeNull());
 });
+
+it('only permits selecting a single partner group in the add partner form', async () => {
+  auth.permissions = ['partner:manage'];
+  vi.mocked(partnerRequest).mockResolvedValue([]);
+  render(<PartnersPage />);
+  const addBtn = await screen.findByRole('button', { name: /Thêm đối tác/i });
+  await userEvent.click(addBtn);
+
+  const ctvRadio = screen.getByRole('radio', { name: 'CTV' });
+  const dealerRadio = screen.getByRole('radio', { name: 'Đại lý' });
+  const supplierRadio = screen.getByRole('radio', { name: 'Nhà cung cấp' });
+
+  // Initially CTV is default selected
+  expect((ctvRadio as HTMLInputElement).checked).toBe(true);
+  expect((dealerRadio as HTMLInputElement).checked).toBe(false);
+  expect((supplierRadio as HTMLInputElement).checked).toBe(false);
+
+  // Clicking Dealer unchecks CTV and selects only Dealer
+  await userEvent.click(dealerRadio);
+  expect((ctvRadio as HTMLInputElement).checked).toBe(false);
+  expect((dealerRadio as HTMLInputElement).checked).toBe(true);
+  expect((supplierRadio as HTMLInputElement).checked).toBe(false);
+
+  // Clicking Supplier unchecks Dealer and selects only Supplier
+  await userEvent.click(supplierRadio);
+  expect((ctvRadio as HTMLInputElement).checked).toBe(false);
+  expect((dealerRadio as HTMLInputElement).checked).toBe(false);
+  expect((supplierRadio as HTMLInputElement).checked).toBe(true);
+});
+
+it('submits a password to provision the partner account when adding a partner', async () => {
+  auth.permissions = ['partner:manage'];
+  vi.mocked(partnerRequest).mockResolvedValueOnce([]).mockResolvedValueOnce({});
+  render(<PartnersPage />);
+  await userEvent.click(await screen.findByRole('button', { name: /Thêm đối tác/i }));
+  await userEvent.type(screen.getByLabelText(/Mã đối tác/i), 'CTV-002');
+  await userEvent.type(screen.getByLabelText(/Tên đối tác/i), 'CTV Bình');
+  await userEvent.type(screen.getByLabelText(/^Email$/i), 'binh@example.com');
+  await userEvent.type(screen.getByLabelText(/Mật khẩu tài khoản/i), 'secret123');
+  await userEvent.click(screen.getByRole('button', { name: /Lưu hồ sơ/i }));
+  await waitFor(() => expect(vi.mocked(partnerRequest).mock.calls[1]).toEqual([
+    '/',
+    'POST',
+    expect.objectContaining({ email: 'binh@example.com', accountPassword: 'secret123' }),
+  ]));
+});

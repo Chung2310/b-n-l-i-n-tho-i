@@ -20,6 +20,7 @@ import { setFaviconBadge } from "./utils/faviconBadge";
 import SuperAdminShell from "./pages/super-admin/SuperAdminShell";
 import { isSuperAdminPath } from "./router/superAdminRoute";
 import { resolveEnabledTab } from "./config/modules";
+import { isPartnerPortalProfile } from "./modules/partners/partnerAccess";
 
 const UNREAD_TITLE_PREFIX_RE = /^\(\d+\+?\d*\)\s/;
 
@@ -47,6 +48,15 @@ function AppContent() {
     enabled: !isPublicPage && !loading && Boolean(user && userProfile),
   });
   const resolvedActiveTab = resolveEnabledTab(activeTab, userProfile?.enabledModules);
+
+  const partnerPortal = isPartnerPortalProfile(userProfile);
+  React.useEffect(() => {
+    if (!partnerPortal || isLegalPublicPage || loading || !user || !userProfile) return;
+    if (normalizePublicPath(window.location.pathname) === "/doi-tac") return;
+    window.history.replaceState(null, "", "/doi-tac");
+    setActiveTab("ĐỐI TÁC");
+    window.dispatchEvent(new Event("popstate"));
+  }, [partnerPortal, isLegalPublicPage, loading, user, userProfile, setActiveTab]);
 
   React.useEffect(() => {
     if (resolvedActiveTab !== activeTab) setActiveTab(resolvedActiveTab);

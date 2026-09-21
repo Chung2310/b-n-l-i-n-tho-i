@@ -1,4 +1,4 @@
-export interface PayrollAttendanceLog { date: string; checkIn?: string; checkOut?: string; status: "Present" | "Late" | "Left-Early" | "Half-Day" | "Late-Left-Early" | "Absent" | "Approved-Leave"; }
+export interface PayrollAttendanceLog { date: string; checkIn?: string; checkOut?: string; regularWorkedMinutes?: number; status: "Present" | "Late" | "Left-Early" | "Half-Day" | "Late-Left-Early" | "Absent" | "Approved-Leave"; }
 export interface PayrollPaidLeave { date: string; payRate: number; }
 export interface PayrollOvertime { minutes: number; category: "weekday" | "restDay" | "holiday"; night?: boolean; }
 export interface AttendancePayrollSummary { workedMinutes: number; shortageMinutes: number; workedDays: number; shortageDays: number; paidLeaveMinutesByRate: { minutes: number; payRate: number }[]; overtime: PayrollOvertime[]; }
@@ -36,7 +36,7 @@ export function summarizeAttendanceForPayroll(input: { standardDailyMinutes: num
     const breakMinutes = log.checkIn && log.checkOut && log.status !== "Half-Day"
       ? overlappingBreakMinutes(log.checkIn, log.checkOut, input.lunchBreakStart, input.lunchBreakEnd)
       : 0;
-    const worked = Math.max(0, rawWorked - breakMinutes);
+    const worked = Math.max(0, log.regularWorkedMinutes ?? (rawWorked - breakMinutes));
     workedMinutes += worked;
     cappedWorkedMinutes += Math.min(input.standardDailyMinutes, worked);
     shortageMinutes += Math.max(0, input.standardDailyMinutes - worked);

@@ -6,7 +6,7 @@ import {
   calculatePayrollChecksum,
   normalizePayrollSnapshotForPersistence,
 } from "./payroll-checksum.service";
-import { projectPayrollRevisionWithOverrides } from "./payroll-run-calculate-operations.service";
+import { projectPayrollRevisionWithOverrides } from "./payroll-line-projection.service";
 import { PAYROLL_LINE_OVERRIDE_FIELDS } from "../interface/payroll-line-override.interface";
 
 type EffectivePayrollLineLoaderDependencies = {

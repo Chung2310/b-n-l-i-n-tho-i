@@ -5,24 +5,20 @@ import {
   Calendar,
   Image as ImageIcon,
   Sliders,
-  Building2,
   Shield,
   HardDrive,
-  UserCheck
-  , ChevronLeft, ChevronRight
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "./Toast";
 import { useSubTabRouter } from "../hooks/useSubTabRouter";
 import { SETTINGS_SUB_TAB_ROUTES, type SettingsSubTabType } from "../router/subTabRoutes";
-import { canManageFaces } from "../services/faceManagementService";
 
 // Lazy-loaded subcomponents
 const ProfileTab = lazy(() => import("../components/settings/ProfileTab"));
 const SecurityTab = lazy(() => import("../components/settings/SecurityTab"));
 const ErpConfigTab = lazy(() => import("../components/settings/ErpConfigTab"));
 const GoogleDriveTab = lazy(() => import("../components/settings/GoogleDriveTab"));
-const FaceRecognitionSettingsTab = lazy(() => import("../components/settings/FaceRecognitionSettingsTab"));
-const BranchManagementTab = lazy(() => import("../components/settings/BranchManagementTab"));
 
 export default function SettingsTab() {
   const subTabsRef = React.useRef<HTMLDivElement>(null);
@@ -36,15 +32,17 @@ export default function SettingsTab() {
 
   // Sub-tabs in Settings
   const [activeSubTab, setActiveSubTab] = useSubTabRouter<SettingsSubTabType>(SETTINGS_SUB_TAB_ROUTES, "profile");
-  const faceManagementAllowed = canManageFaces(userProfile);
 
-  // Deep links to the face tab fall back to profile when unauthorized
+  // Tab Nhận diện khuôn mặt đã ẩn -> điều hướng về profile nếu truy cập
   React.useEffect(() => {
-    if (activeSubTab === "face-recognition" && !faceManagementAllowed) {
+    if (activeSubTab === "face-recognition") {
       setActiveSubTab("profile");
     }
-    if (activeSubTab === "branches" && userProfile?.role !== "admin") setActiveSubTab("profile");
-  }, [activeSubTab, faceManagementAllowed, userProfile?.role, setActiveSubTab]);
+    if (activeSubTab === "branches") {
+      window.history.replaceState(null, "", "/nhan-su?sub=chi-nhanh");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    }
+  }, [activeSubTab, setActiveSubTab]);
 
 
   // Synchronize display name and photo url from context if it updates
@@ -135,10 +133,6 @@ export default function SettingsTab() {
               { id: "security", label: "Bảo mật", icon: Shield },
               { id: "erp", label: "Cấu hình ERP", icon: Sliders },
               { id: "google-drive", label: "Google Drive", icon: HardDrive },
-              ...(faceManagementAllowed
-                ? [{ id: "face-recognition", label: "Nhận diện khuôn mặt", icon: UserCheck }]
-                : []),
-              ...(userProfile?.role === "admin" ? [{ id: "branches", label: "Chi nhánh", icon: Building2 }] : []),
             ].map((tab) => {
               const isActive = activeSubTab === tab.id;
               const Icon = tab.icon;
@@ -232,8 +226,6 @@ export default function SettingsTab() {
             {activeSubTab === "security" && <SecurityTab />}
             {activeSubTab === "erp" && <ErpConfigTab />}
             {activeSubTab === "google-drive" && <GoogleDriveTab />}
-            {activeSubTab === "face-recognition" && faceManagementAllowed && <FaceRecognitionSettingsTab />}
-            {activeSubTab === "branches" && userProfile?.role === "admin" && <BranchManagementTab />}
           </Suspense>
         </div>
 

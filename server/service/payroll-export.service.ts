@@ -29,6 +29,7 @@ export function buildPayrollWorkbook(type: PayrollExportType, lines: PayrollLine
           "Lương cơ bản": Number(line.calculation?.monthlySalary ?? line.calculation?.baseSalary ?? 0),
           "Lương điều chỉnh": Number(line.calculation?.adjustedBase ?? 0),
           "Tăng ca": Number(line.calculation?.overtime ?? 0),
+          "Hoa hồng": Number(line.calculation?.commission ?? 0),
           "BHXH": socialInsurance,
           "BHYT": healthInsurance,
           "BHTN": unemploymentInsurance,

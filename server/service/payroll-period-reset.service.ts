@@ -79,6 +79,7 @@ export function createPayrollPeriodResetService(
     const run: any = await withSession(runQuery, session).lean();
 
     if (run?.activeRevisionId) operationalRunFailure();
+    if (run?.reconciliationRequired) throw Object.assign(new Error("Kỳ đã phát hành đối soát không được xóa; cần giữ lịch sử hỏi đáp và xác nhận."), { code: "PAYROLL_RECONCILIATION_HISTORY_REQUIRED", status: 409 });
 
     const options = sessionOptions(session);
     const deletedRun = run

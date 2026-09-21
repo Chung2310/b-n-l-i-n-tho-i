@@ -8,8 +8,9 @@ import { parseFirebaseError } from "../utils/firebaseErrorParser";
 import { isModuleEnabled as checkModule, type ModuleKey } from "../config/modules";
 import { socketService } from "../services/socketService";
 import { normalizeCompanyModulesEvent, normalizeCompanyStatusEvent } from "./companyModuleSync";
+import { isPartnerPortalProfile } from "../modules/partners/partnerAccess";
 
-export type ErpLoginOutcome = { status: "authenticated"; role?: string };
+export type ErpLoginOutcome = { status: "authenticated"; role?: string; partnerPortal?: boolean };
 
 interface AuthContextType {
   user: User | null;
@@ -144,7 +145,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       toast.success("Đăng nhập tài khoản thành công!");
-      return { status: "authenticated", role: meProfile?.role || profile.role };
+      const effectiveProfile = meProfile || profile;
+      return {
+        status: "authenticated",
+        role: effectiveProfile.role,
+        partnerPortal: isPartnerPortalProfile(effectiveProfile),
+      };
     } catch (error: any) {
       console.error("[loginWithEmail] Error:", error);
       const friendlyMsg = parseFirebaseError(error, "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");

@@ -8,10 +8,6 @@ import { googleDriveRouter } from "./google-drive.router";
 import { chatRouter } from "./chat.router";
 import { chatbotRouter } from "./chatbot.router";
 import { resourceRouter } from "./resource.router";
-
-
-
-
 import { timekeepingRouter } from "./timekeeping.router";
 import { dashboardRouter } from "./dashboard.router";
 import { analyticsRouter } from "./analytics.router";
@@ -30,6 +26,7 @@ import { hrContractRouter } from "./hr-contract.router";
 import { companyEmailRouter } from "./company-email.router";
 import { companyPaymentRouter } from "./company-payment.router";
 import { recruitmentRouter } from "./recruitment.router";
+import { departmentRouter } from "./department.router";
 import { webhookRouter } from "./webhook.router";
 import { resourceImportRouter } from "./resource-import.router";
 import { retailRouter } from "../modules/retail/router";
@@ -44,6 +41,7 @@ import { financeRouter } from "../modules/finance/router";
 import { customerRouter } from "../modules/customer-management/router";
 import { marketingRouter } from "../modules/marketing/router";
 import { partnerRouter } from "../modules/partners/router";
+
 export const apiRouter = Router();
 apiRouter.use("/partners", partnerRouter);
 
@@ -83,7 +81,6 @@ apiRouter.use("/permissions", permissionRouter);
 apiRouter.use("/role-permissions", rolePermissionRouter);
 apiRouter.use("/face-management", faceManagementRouter);
 
-
 // Gắn kết router CRUD đa năng (MongoDB)
 apiRouter.use("/crud", crudRouter);
 
@@ -95,6 +92,7 @@ apiRouter.use("/hr-contracts", hrContractRouter);
 apiRouter.use("/company-email", companyEmailRouter);
 apiRouter.use("/company-payment", companyPaymentRouter);
 apiRouter.use("/recruitment", recruitmentRouter);
+apiRouter.use("/departments", departmentRouter);
 
 // Gắn kết router tổng hợp số liệu trang tổng quan
 apiRouter.use("/dashboard", dashboardRouter);
@@ -119,7 +117,6 @@ apiRouter.use("/chat", requireAuth as any, requireModule("chat"), chatRouter);
 
 // Trợ lý ảo AI — chatbot ngữ cảnh dữ liệu doanh nghiệp
 apiRouter.use("/chatbot", expensiveApiRateLimiter, requireAuth as any, requireModule("chat"), chatbotRouter);
-
 
 // Module Bán lẻ & POS
 apiRouter.use("/inventory/catalog", requireAuth as any, requireModule("inventory"), productCatalogRouter);

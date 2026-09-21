@@ -46,6 +46,11 @@ export interface DashboardSummary {
 }
 
 export interface DashboardActionItems {
+  bulletin?: {
+    role: "sales" | "technical" | "manager";
+    cards: { title: string; value: string; detail: string; href?: string }[];
+    updatedAt: string;
+  };
   overdueTasks: { id: string; title: string; dueDate: string }[];
   pendingApprovals: { id: string; type: "leave"; employeeName: string; since: string }[];
   lowStockAlerts: { id: string; name: string; sku: string; stock: number; minStockAlert: number }[];

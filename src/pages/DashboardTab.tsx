@@ -9,6 +9,8 @@ import { dashboardService } from "../services/dashboardService";
 import { DashboardSummary, DashboardActionItems } from "../types/dashboard";
 import { OverviewPanel } from "../components/dashboard/OverviewPanel";
 import { RevenueAnalysisPanel } from "../components/dashboard/RevenueAnalysisPanel";
+import { DailyBulletin } from "../components/dashboard/DailyBulletin";
+import { getEnergyGreeting } from "../components/dashboard/energyGreeting";
 
 type DashboardView = "overview" | "revenue";
 
@@ -23,7 +25,13 @@ export default function DashboardTab() {
 
   const [activeView, setActiveView] = useState<DashboardView>("overview");
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [actionItems, setActionItems] = useState<DashboardActionItems | null>(null);
+  const bulletinKey = `${userProfile?.uid}:${userProfile?.role}:${activeBranchId}`;
+  const [bulletinResult, setBulletinResult] = useState<{ key: string; data: DashboardActionItems | null; error: boolean } | null>(null);
+  const actionItems = bulletinResult?.key === bulletinKey ? bulletinResult.data : null;
+  const bulletinError = bulletinResult?.key === bulletinKey && bulletinResult.error;
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const timer = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(timer); }, []);
+  const greeting = getEnergyGreeting(Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: "Asia/Ho_Chi_Minh" }).format(now)));
 
   // Poll summary data
   useEffect(() => {
@@ -48,7 +56,7 @@ export default function DashboardTab() {
       cancelled = true;
       clearInterval(intervalId);
     };
-  }, [userProfile?.uid]);
+  }, [userProfile?.uid, activeBranchId]);
 
   // Poll action items
   useEffect(() => {
@@ -59,9 +67,10 @@ export default function DashboardTab() {
       dashboardService
         .getActionItems()
         .then((data) => {
-          if (!cancelled) setActionItems(data);
+          if (!cancelled) setBulletinResult({ key: bulletinKey, data, error: false });
         })
         .catch((err) => {
+          if (!cancelled) setBulletinResult({ key: bulletinKey, data: null, error: true });
           console.error("Lỗi tải việc cần xử lý hôm nay:", err);
         });
     };
@@ -72,7 +81,7 @@ export default function DashboardTab() {
       cancelled = true;
       clearInterval(intervalId);
     };
-  }, [userProfile?.uid]);
+  }, [userProfile?.uid, userProfile?.role, activeBranchId]);
 
   const todayLabel = new Date().toLocaleDateString("vi-VN", {
     weekday: "long",
@@ -88,9 +97,10 @@ export default function DashboardTab() {
             <div className="h-8 w-1.5 bg-cyan-600 rounded-full shrink-0" />
             <div>
               <h1 className="font-extrabold text-xl md:text-2xl tracking-tight text-cyan-700 dark:text-cyan-400">
-                Tổng quan Doanh nghiệp
+                {greeting.greeting}, {userProfile?.displayName || "bạn"}!
               </h1>
               <p className="text-xs text-slate-500 font-medium">Hôm nay, {todayLabel}</p>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{greeting.message}</p>
             </div>
           </div>
         </div>
@@ -124,11 +134,14 @@ export default function DashboardTab() {
       </div>
 
       {activeView === "overview" ? (
+        <>
+        <DailyBulletin data={actionItems?.bulletin} error={bulletinError} />
         <OverviewPanel
           summary={summary}
           actionItems={actionItems}
-          canSeeHr={canSeeHr}
+          canSeeHr={canSeeHr && actionItems?.bulletin?.role === "manager"}
         />
+        </>
       ) : (
         <RevenueAnalysisPanel />
       )}

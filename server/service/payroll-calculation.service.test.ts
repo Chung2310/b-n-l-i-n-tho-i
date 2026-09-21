@@ -122,6 +122,10 @@ describe("calculatePayroll", () => {
     expect(() => calculatePayroll({ ...base, bonuses: -1 })).toThrow("bonuses");
     expect(() => calculatePayroll({ ...base, paidLeaveMinutesByRate: [{ minutes: 60, payRate: 1.5 }] })).toThrow("payRate");
     expect(() => calculatePayroll({ ...base, adjustments: Number.NaN })).toThrow("adjustments");
+    for (const commission of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => calculatePayroll({ ...base, commission })).toThrow("commission");
+    }
+    expect(() => calculatePayroll({ ...base, overtime: [{ minutes: 60, category: "toString" as any }] })).toThrow("category");
   });
 
   it("pays zero base salary when no worked time is recorded", () => {

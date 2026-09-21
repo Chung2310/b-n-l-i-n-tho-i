@@ -1849,6 +1849,7 @@ export default function KanbanTab({
               task={tasks.find(task => task.id === selectedKanbanTask.id) || selectedKanbanTask}
               uid={userProfile?.uid || userProfile?.id || ""}
               manager={isManager}
+              employees={employees}
               onReload={fetchTasks}
               onSaved={updated => { setSelectedKanbanTask(updated); fetchTasks(); fetchProjects(); }}
             />}

@@ -5,6 +5,7 @@ import type { TabType } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { useIsMobile } from "../hooks/useMediaQuery";
 import { filterEnabledTabs, MODULE_READ_PERMISSIONS } from "../config/modules";
+import { isPartnerPortalProfile } from "../modules/partners/partnerAccess";
 
 interface SidebarProps { activeTab: TabType; setActiveTab: (tab: TabType) => void; mobileOpen: boolean; onMobileClose: () => void; }
 interface MenuItem { label: TabType; title: string; icon: React.ElementType; group: "main" | "operations" | "tools" | "system"; locked?: boolean; }
@@ -28,9 +29,11 @@ export default function Sidebar({ activeTab, setActiveTab, mobileOpen, onMobileC
   const [isCollapsedState, setIsCollapsed] = useState(false);
   const isMobile = useIsMobile();
   const isCollapsed = isCollapsedState && !isMobile;
+  const partnerPortal = isPartnerPortalProfile(userProfile);
   useEffect(() => { if (!isMobile || !mobileOpen) return; const previousOverflow = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { document.body.style.overflow = previousOverflow; }; }, [isMobile, mobileOpen]);
-  const enabledTabs = new Set(filterEnabledTabs(baseMenuItems.map((item) => item.label), userProfile?.enabledModules));
-  const menuItems: MenuItem[] = baseMenuItems.filter((item) => enabledTabs.has(item.label)).map((item) => { const requiredPerms = MODULE_READ_PERMISSIONS[item.label]; return { ...item, locked: requiredPerms ? !requiredPerms.some((code) => hasPermission(code)) : false }; });
+  const visibleBaseMenuItems = partnerPortal ? baseMenuItems.filter((item) => item.label === "ĐỐI TÁC") : baseMenuItems;
+  const enabledTabs = new Set(filterEnabledTabs(visibleBaseMenuItems.map((item) => item.label), userProfile?.enabledModules));
+  const menuItems: MenuItem[] = visibleBaseMenuItems.filter((item) => enabledTabs.has(item.label)).map((item) => { const requiredPerms = MODULE_READ_PERMISSIONS[item.label]; return { ...item, locked: requiredPerms ? !requiredPerms.some((code) => hasPermission(code)) : false }; });
   if (userProfile?.role === "superadmin" || userProfile?.role === "admin") menuItems.push({ label: "QUẢN TRỊ USER", title: "Quản lý người dùng", icon: Shield, group: "system" });
   menuItems.push({ label: "CÀI ĐẶT", title: "Cài đặt hệ thống", icon: Settings, group: "system" });
   menuItems.push({ label: "HƯỚNG DẪN", title: "Hướng dẫn sử dụng", icon: BookOpen, group: "system" });

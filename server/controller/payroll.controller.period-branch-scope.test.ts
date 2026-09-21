@@ -96,6 +96,51 @@ const sortedLean = <T>(value: T) => ({
 });
 
 describe("legacy payroll period branch scope", () => {
+  it("calculates and displays overtime using the active policy multiplier", async () => {
+    mocks.attendanceFind.mockReturnValue(lean([{
+      employeeId: "employee-a", monthlySalary: 20800000, standardDays: 26, standardHours: 208,
+      workedDays: 26, workedMinutes: 12480, shortageMinutes: 0, paidLeaveMinutesByRate: [],
+      overtime: [{ minutes: 120, category: "weekday" }], status: "locked",
+    }]));
+    mocks.policyFind.mockReturnValue(lean([{ ...DEFAULT_VIETNAM_PAYROLL_POLICY,
+      overtime: { ...DEFAULT_VIETNAM_PAYROLL_POLICY.overtime, weekday: 2 },
+    }]));
+    mocks.runCreate.mockImplementation(async value => value);
+    await payrollController.createRun(branchRequest(), response());
+    const line = mocks.runCreate.mock.calls[0][0].lines[0];
+    expect(line.calculation.overtime).toBe(400000);
+    expect(line.vietnam.overtime.total).toBe(400000);
+    expect(line.calculation.gross).toBe(21200000);
+  });
+  it("uses the recorded shift rather than the current company hours", async () => {
+    mocks.timekeepingFind.mockReturnValue(lean([{
+      uid: "employee-a", date: "2026-07-01", status: "Present",
+      checkIn: { time: "2026-07-01T07:00:00Z" }, checkOut: { time: "2026-07-01T16:00:00Z" },
+      scheduledStartAt: new Date("2026-07-01T07:00:00Z"), scheduledEndAt: new Date("2026-07-01T15:00:00Z"),
+      standardMinutes: 480, breakPeriods: [],
+    }]));
+    await payrollController.createSnapshot(branchRequest(), response());
+    expect(mocks.attendanceFindOneAndUpdate.mock.calls[0][1].$set).toMatchObject({
+      workedMinutes: 480, overtime: [{ minutes: 60, category: "weekday", night: true }],
+    });
+  });
+  it("syncs weekday, holiday and rest-day overtime from attendance", async () => {
+    mocks.companyFindOne.mockReturnValue({ select: vi.fn().mockReturnValue(lean({ locationConfig: {
+      workingDays: [1, 2, 3, 4, 5], checkInLimit: "08:00", checkOutLimit: "17:00", lunchBreakStart: "12:00", lunchBreakEnd: "13:00",
+    } })) });
+    mocks.timekeepingFind.mockReturnValue(lean(["2026-07-01", "2026-07-02", "2026-07-05"].map(date => ({
+      uid: "employee-a", date, status: "Present", checkIn: { time: `${date}T01:00:00Z` }, checkOut: { time: `${date}T12:00:00Z` },
+    }))));
+    mocks.calendarFind.mockReturnValue(lean([{ date: "2026-07-02", dayType: "holiday", isApplied: true }]));
+    await payrollController.createSnapshot(branchRequest(), response());
+    const saved = mocks.attendanceFindOneAndUpdate.mock.calls[0][1].$set;
+    expect(saved.workedMinutes).toBe(480);
+    expect(saved.overtime).toEqual([
+      { minutes: 120, category: "weekday" },
+      { minutes: 600, category: "holiday" },
+      { minutes: 600, category: "restDay" },
+    ]);
+  });
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.runFindOne.mockReturnValue(sortedLean(null));
@@ -182,7 +227,8 @@ describe("legacy payroll period branch scope", () => {
       expect.objectContaining({
         $set: expect.objectContaining({
           workedDays: 1,
-          workedMinutes: 540,
+          workedMinutes: 480,
+          overtime: [{ minutes: 30, category: "weekday" }],
         }),
       }),
       expect.any(Object),
