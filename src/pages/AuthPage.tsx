@@ -62,6 +62,10 @@ export default function AuthPage() {
         window.location.href = "/super-admin";
         return;
       }
+      if (result.partnerPortal) {
+        window.location.href = "/doi-tac";
+        return;
+      }
     } catch (err: any) {
       console.error(err);
       const msg = parseFirebaseError(err, "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");

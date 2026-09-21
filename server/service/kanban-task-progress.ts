@@ -31,6 +31,11 @@ export function taskActivityUpdate(task: any, input: any, actor: { uid: string; 
       if (!owner) fail(403, "Chỉ người phụ trách hoặc quản lý được gửi trợ giúp.");
       if (taskProgress(task) === 100 || task.helpRequested || !note) fail(400, "Cần công việc chưa hoàn thành, chưa gửi trợ giúp và có lý do.");
       update = { helpRequested: true, helpReason: note };
+      if (input.helper && typeof input.helper === "object" && input.helper.uid && input.helper.name) {
+        update.helpers = [{ uid: input.helper.uid, name: input.helper.name }];
+      } else if (Array.isArray(input.helpers) && input.helpers.length > 0) {
+        update.helpers = input.helpers.filter((h: any) => h && h.uid && h.name);
+      }
       action = `Gửi trợ giúp: ${note}`;
       break;
     case "join":

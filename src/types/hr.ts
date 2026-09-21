@@ -1,4 +1,5 @@
-export type HRSubTabType = "SƠ ĐỒ TỔ CHỨC" | "Giao Việc" | "ĐÀO TẠO" | "QUY TRÌNH" | "LỊCH" | "PAYROLL" | "HỢP ĐỒNG" | "EMAIL CHÚC MỪNG" | "TUYỂN DỤNG";
+export type HRSubTabType = "SƠ ĐỒ TỔ CHỨC" | "PHÒNG BAN" | "Giao Việc" | "ĐÀO TẠO" | "QUY TRÌNH" | "LỊCH" | "PAYROLL" | "HỢP ĐỒNG" | "EMAIL CHÚC MỪNG" | "TUYỂN DỤNG" | "CHI NHÁNH" | "NGHỈ LỄ" | "CA LÀM VIỆC" | "GIỜ LÀM VIỆC" | "CA & LỊCH LÀM VIỆC";
+
 
 /** File/đường dẫn đính kèm vào task: ghi âm, hình ảnh, video, tài liệu, link… */
 export interface TaskAttachment {
@@ -204,4 +205,30 @@ export interface TrainingEnrollment {
   createdAt: any;
   completedLessons?: string[];
   quizPassed?: boolean;
+}
+
+export interface DepartmentRecord {
+  _id: string;
+  companyCode: string;
+  code: string;
+  name: string;
+  description?: string;
+  managerUid?: string;
+  managerName?: string;
+  sortOrder: number;
+  isActive: boolean;
+  employeeCount: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface DepartmentInput {
+  companyCode?: string;
+  code: string;
+  name: string;
+  description?: string;
+  managerUid?: string;
+  managerName?: string;
+  sortOrder?: number;
+  isActive?: boolean;
 }

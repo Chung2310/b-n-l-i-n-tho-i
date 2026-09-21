@@ -41,7 +41,7 @@ export function OverviewPanel({
 
   return (
     <div className="space-y-8 pb-10">
-      {actionItems && <ActionItemsWidget actionItems={actionItems} onGoToTasks={() => goToTab("NHÂN SỰ", "kanban")} onGoToApprovals={() => goToTab("NHÂN SỰ", "lich")} onGoToInventory={() => {}} />}
+      {actionItems && <ActionItemsWidget actionItems={actionItems} onGoToTasks={() => goToTab("NHÂN SỰ", "kanban")} onGoToApprovals={() => goToTab("NHÂN SỰ", "lich")} onGoToInventory={() => { window.history.pushState(null, "", "/kho-san-pham?sub=nhap-hang"); window.dispatchEvent(new PopStateEvent("popstate")); }} />}
       {canSeeHr && (
         <DashboardSectionCard title="Nhân sự & Chấm công" icon={Users} gradientFrom="from-emerald-500" gradientTo="to-teal-600">
           <SimpleMetric icon={CheckCircle2} tone="emerald" title="Đi làm" value={summary ? String(summary.timekeeping.checkedInToday) : "..."} unit={`/ ${summary ? summary.timekeeping.totalEmployees : "..."} Người`} onClick={() => goToTab("NHÂN SỰ", "lich")} />

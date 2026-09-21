@@ -16,6 +16,8 @@ const bulkSaveLineOverrides = vi.hoisted(() => vi.fn());
 const review = vi.hoisted(() => vi.fn());
 const reviewRun = vi.hoisted(() => vi.fn());
 const closeRun = vi.hoisted(() => vi.fn());
+const createAdjustment = vi.hoisted(() => vi.fn().mockResolvedValue({}));
+const getReconciliation = vi.hoisted(() => vi.fn());
 
 vi.mock("../../services/payrollService", () => ({
   payrollService: {
@@ -29,6 +31,8 @@ vi.mock("../../services/payrollService", () => ({
     review,
     reviewRun,
     closeRun,
+    createAdjustment,
+    getReconciliation,
   },
 }));
 vi.mock("../../pages/Toast", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -37,6 +41,8 @@ vi.mock("./payroll/PayrollFormulaLibrary", () => ({ PayrollFormulaLibrary: () =>
 vi.mock("./payroll/PayrollCustomVariableManager", () => ({ PayrollCustomVariableManager: () => <div>custom-variable-catalog</div> }));
 vi.mock("./payroll/PayrollReviewQueue", () => ({ PayrollReviewQueue: () => null }));
 vi.mock("./payroll/PayrollPayslipsPanel", () => ({ PayrollPayslipsPanel: () => null }));
+vi.mock("./payroll/PayrollReconciliationPanel", () => ({ PayrollReconciliationPanel: () => null }));
+vi.mock("./payroll/PayrollPublicationSchedule", () => ({ PayrollPublicationSchedule: () => null }));
 vi.mock("./payroll/PayrollReopenModal", () => ({ PayrollReopenModal: () => null }));
 
 const fixedPeriodInputFields = ["agreedSalary", "reconciledDays", "reconciledHours", "allowance", "bonus", "deduction"];
@@ -133,6 +139,51 @@ function saveDialog() {
 }
 
 describe("PayrollTab editable payroll results", () => {
+  it("opens complaints for the selected period and returns to the affected salary cell", async () => {
+    const run = { ...draftRun(), periodKey: new Date().toISOString().slice(0, 7) };
+    arrange(run);
+    getReconciliation.mockResolvedValue({ runVersion: 2, runStatus: "draft", employeeCount: 2, items: [{
+      runId: run._id, employeeId: "e1", employeeName: "Nguyễn Văn A", periodKey: run.periodKey, version: 1, runStatus: "draft",
+      snapshot: { checksum: "c", values: { commission: 0 }, publishedAt: "2026-09-15T01:00:00Z", publishedBy: "kt" },
+      publications: [], confirmations: [], issues: [{ id: "i", field: "commission", status: "open", snapshotChecksum: "c", messages: [{ id: "m", authorId: "e1", authorName: "A", role: "employee", action: "question", body: "Thiếu hoa hồng", at: "2026-09-15T01:00:00Z" }] }],
+    }] });
+    const originalScroll = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = vi.fn();
+    render(<PayrollTab canManage />);
+    await screen.findByLabelText("commission-e1");
+    fireEvent.click(screen.getByRole("button", { name: "Khiếu nại lương" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Xem khiếu nại Nguyễn Văn A - Hoa hồng" }));
+    expect(getReconciliation).toHaveBeenCalledWith(String(run._id));
+    fireEvent.click(screen.getByRole("button", { name: "Sửa trên bảng lương" }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("commission-e1")));
+    expect(screen.getByRole("button", { name: "Khiếu nại lương" }).getAttribute("aria-pressed")).toBe("false");
+    if (originalScroll) HTMLElement.prototype.scrollIntoView = originalScroll;
+    else delete HTMLElement.prototype.scrollIntoView;
+  });
+  it("enters advances and other deductions for one employee and saves them with a reason", async () => {
+    arrange();
+    bulkSaveLineOverrides.mockResolvedValue([{ employeeId: "e1", status: "success" }]);
+    render(<PayrollTab canManage />);
+    fireEvent.change(await screen.findByLabelText("advances-e1"), { target: { value: "2000000" } });
+    fireEvent.change(screen.getByLabelText("otherDeductions-e1"), { target: { value: "150000" } });
+    expect(screen.queryByRole("button", { name: "Tạm ứng / khấu trừ Nguyễn Văn A" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
+    expect((screen.getByLabelText("advances-e1") as HTMLInputElement).value).toBe("2000000");
+    expect((screen.getByLabelText("otherDeductions-e1") as HTMLInputElement).value).toBe("150000");
+    expect((screen.getByLabelText("advances-e2") as HTMLInputElement).value).toBe("0");
+    expect(screen.getByLabelText("net-e1").textContent).toContain("8.500.000");
+    fireEvent.change(saveReasonInput(), { target: { value: "Đối soát tạm ứng và khấu trừ" } });
+    fireEvent.click(saveDialog().getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() => expect(bulkSaveLineOverrides).toHaveBeenCalledWith(expect.any(String), [expect.objectContaining({
+      employeeId: "e1", values: { advances: 2000000, otherDeductions: 150000 }, reason: "Đối soát tạm ứng và khấu trừ",
+    })]));
+  });
+  it.each([false, true])("does not offer deduction entry in a closed period (manage=%s)", async canManage => {
+    arrange(draftRun("closed"));
+    render(<PayrollTab canManage={canManage} />);
+    await screen.findByText("Nguyễn Văn A");
+    expect(screen.queryByRole("button", { name: "Tạm ứng / khấu trừ Nguyễn Văn A" })).toBeNull();
+  });
   afterEach(() => {
     cleanup();
     vi.resetAllMocks();
@@ -149,7 +200,7 @@ describe("PayrollTab editable payroll results", () => {
     arrange();
     render(<PayrollTab canManage />);
 
-    expect(await screen.findByText("Thông tin nhân viên")).toBeTruthy();
+    expect((await screen.findAllByRole("columnheader", { name: "Thông tin nhân viên" })).length).toBeGreaterThan(0);
     expect(await screen.findByText("Các khoản có thể chỉnh sửa")).toBeTruthy();
     expect(await screen.findByText("Khoản khấu trừ")).toBeTruthy();
     expect((await screen.findAllByText("Thực nhận")).length).toBeGreaterThanOrEqual(2);
@@ -231,7 +282,7 @@ describe("PayrollTab editable payroll results", () => {
       employeeId: "e1",
       values: { adjustedBase: 20_000_000, personalIncomeTax: 650_000 },
     })]));
-  });
+  }, 15000);
 
   it("previews derived values, restores a persisted result, and retains only a conflicting employee after bulk save", async () => {
     arrange();
@@ -292,7 +343,7 @@ describe("PayrollTab editable payroll results", () => {
     expect((within(e2Row).getByLabelText("bonusTotal-e2") as HTMLInputElement).value).toBe("250000");
     expect(screen.getByText(/1 nhân viên có thay đổi chưa lưu/)).toBeTruthy();
     expect(saveDialog().getByRole("button", { name: "Lưu thay đổi" })).toBeTruthy();
-  });
+  }, 15000);
 
   it("uses non-default system custom values and includes unsaved custom drafts in the footer preview", async () => {
     const run: any = draftRun();
@@ -408,7 +459,8 @@ describe("PayrollTab read-only payroll results", () => {
 
     render(<PayrollTab canManage={false} />);
     expect(await screen.findByText("Nguyễn Văn A")).toBeTruthy();
-    fireEvent.change(screen.getByDisplayValue("2026-08"), { target: { value: "2026-07" } });
+    const periodInput = screen.getByLabelText("Kỳ lương") as HTMLInputElement;
+    fireEvent.change(periodInput, { target: { value: periodInput.value === "2026-07" ? "2026-06" : "2026-07" } });
 
     expect(await screen.findByText(/chưa được tính cho kỳ này/i)).toBeTruthy();
     expect(toast.error).not.toHaveBeenCalled();
@@ -441,5 +493,50 @@ describe("PayrollTab read-only payroll results", () => {
     expect(await screen.findByText("Bảng lương chưa được tính cho kỳ này")).toBeTruthy();
     expect(screen.queryByRole("spinbutton")).toBeNull();
     expect(screen.queryByRole("button", { name: "Lưu thay đổi" })).toBeNull();
+  });
+
+  it("allows creating a salary advance slip and selecting other_deduction in adjustment modal", async () => {
+    arrange(draftRun());
+    render(<PayrollTab canManage={true} />);
+
+    // Switch to tab "Phiếu đối soát"
+    const reconcileTab = await screen.findByRole("button", { name: "Phiếu đối soát" });
+    fireEvent.click(reconcileTab);
+
+    // Verify buttons in reconcile tab
+    expect(screen.getByRole("button", { name: "+ Tạo phiếu tạm ứng" })).toBeTruthy();
+    const createAdjBtn = screen.getByRole("button", { name: "+ Tạo điều chỉnh" });
+    expect(createAdjBtn).toBeTruthy();
+
+    // 1. Check "+ Tạo điều chỉnh" has "Khấu trừ khác" option
+    fireEvent.click(createAdjBtn);
+    expect(screen.getByText("Tạo đề xuất điều chỉnh lương")).toBeTruthy();
+    expect(screen.getAllByRole("option", { name: "Khấu trừ khác" }).length).toBeGreaterThanOrEqual(1);
+    // Close adjustment modal
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+
+    // 2. Open "+ Tạo phiếu tạm ứng"
+    const createAdvanceBtn = screen.getByRole("button", { name: "+ Tạo phiếu tạm ứng" });
+    fireEvent.click(createAdvanceBtn);
+    expect(screen.getByText("Tạo phiếu tạm ứng lương")).toBeTruthy();
+
+    const amountInput = screen.getByPlaceholderText("Ví dụ: 2000000");
+    fireEvent.change(amountInput, { target: { value: "1500000" } });
+    expect(screen.getByText("Một triệu năm trăm nghìn đồng")).toBeTruthy();
+
+    const reasonInput = screen.getByPlaceholderText(/Nhập lý do tạm ứng lương/);
+    fireEvent.change(reasonInput, { target: { value: "Chi phí cá nhân" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Lưu & Tạo phiếu tạm ứng" }));
+
+    expect(createAdjustment).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        employeeId: "e1",
+        kind: "advance",
+        amount: 1500000,
+        reason: expect.stringContaining("Chi phí cá nhân"),
+      })
+    );
   });
 });

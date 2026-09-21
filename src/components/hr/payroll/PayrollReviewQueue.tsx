@@ -1,4 +1,4 @@
-import { Check, X } from "lucide-react";
+import { Check, Printer, X } from "lucide-react";
 
 type Adjustment = {
   _id: string;
@@ -10,10 +10,11 @@ type Adjustment = {
   status: string;
 };
 
-export function PayrollReviewQueue({ adjustments, onApprove, onReject }: {
+export function PayrollReviewQueue({ adjustments, onApprove, onReject, onPrintAdvance }: {
   adjustments: Adjustment[];
   onApprove: (adjustment: Adjustment) => void;
   onReject: (adjustment: Adjustment) => void;
+  onPrintAdvance?: (adjustment: Adjustment) => void;
 }) {
   if (!adjustments.length) return <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Không có điều chỉnh nào trong kỳ.</p>;
 
@@ -24,6 +25,16 @@ export function PayrollReviewQueue({ adjustments, onApprove, onReject }: {
     return 0;
   });
 
+  const getKindLabel = (kind: string) => {
+    if (kind === "bonus") return "Thưởng / Cộng thêm";
+    if (kind === "deduction") return "Khấu trừ / Phạt";
+    if (kind === "other_deduction") return "Khấu trừ khác";
+    if (kind === "advance") return "Tạm ứng lương";
+    return kind;
+  };
+
+  const isDeduction = (kind: string) => kind === "deduction" || kind === "other_deduction" || kind === "advance";
+
   return (
     <div className="space-y-2">
       {sorted.map((item) => (
@@ -31,13 +42,25 @@ export function PayrollReviewQueue({ adjustments, onApprove, onReject }: {
           <div className="min-w-0">
             <p className="font-semibold text-slate-800">{item.employeeName || item.employeeId}</p>
             <p className="text-xs text-slate-500">
-              {item.kind === "bonus" ? "Thưởng / Cộng thêm" : item.kind === "deduction" ? "Khấu trừ / Phạt" : item.kind} · {item.reason}
+              <span className={`inline-block font-medium ${item.kind === "advance" ? "text-indigo-600 font-semibold" : ""}`}>
+                {getKindLabel(item.kind)}
+              </span> · {item.reason}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-4">
-            <strong className={item.kind === "deduction" ? "text-rose-600" : "text-slate-850"}>
-              {item.kind === "deduction" ? "-" : ""}{item.amount.toLocaleString()} đ
+            <strong className={isDeduction(item.kind) ? "text-rose-600" : "text-slate-850"}>
+              {isDeduction(item.kind) ? "-" : ""}{item.amount.toLocaleString()} đ
             </strong>
+            {onPrintAdvance && item.kind === "advance" && (
+              <button
+                type="button"
+                title="In phiếu tạm ứng"
+                onClick={() => onPrintAdvance(item)}
+                className="rounded-md p-1.5 text-indigo-600 hover:bg-indigo-50 cursor-pointer"
+              >
+                <Printer size={16} />
+              </button>
+            )}
             {item.status === "pending" ? (
               <div className="flex items-center gap-2">
                 <button

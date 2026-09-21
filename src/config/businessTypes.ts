@@ -3,6 +3,7 @@ import type { ModuleKey } from "./modules";
 export const BUSINESS_TYPES = ["education", "labor", "service", "recruitment", "general"] as const;
 export type BusinessType = (typeof BUSINESS_TYPES)[number];
 export const DEFAULT_BUSINESS_TYPE: BusinessType = "general";
+export const ACTIVE_BUSINESS_TYPES: readonly BusinessType[] = ["service", "recruitment", "general"] as const;
 export const BUSINESS_TYPE_LABELS: Record<BusinessType, string> = { education: "Giáo dục (đã ngừng)", labor: "Lao động (đã ngừng)", service: "Dịch vụ", recruitment: "Tuyển dụng", general: "Chung" };
 export function isBusinessType(value: unknown): value is BusinessType { return typeof value === "string" && (BUSINESS_TYPES as readonly string[]).includes(value); }
 export function resolveBusinessType(value: unknown): BusinessType { return isBusinessType(value) ? value : DEFAULT_BUSINESS_TYPE; }

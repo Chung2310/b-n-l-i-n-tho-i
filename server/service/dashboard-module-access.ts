@@ -25,10 +25,12 @@ export function resolveDashboardModuleAccess(user: DashboardModuleUser) {
   };
 
   return {
+    retail: hasModule("retail") && hasPermission("retail:read"),
+    repair: hasModule("repair") && hasPermission("repair:read"),
     hr: hasModule("hr") && hasPermission("hr:read"),
     chat: hasModule("chat") && hasPermission("chat:read"),
     resource: hasModule("resource") && hasPermission("resource:read"),
     inventory: hasModule("inventory") && hasPermission("inventory:read"),
-    timekeeping: hasModule("timekeeping") && hasPermission("timekeeping:read"),
+    timekeeping: (hasModule("hr") || hasModule("timekeeping")) && hasPermission("timekeeping:read"),
   };
 }

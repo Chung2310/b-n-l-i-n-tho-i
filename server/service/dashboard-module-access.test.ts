@@ -8,7 +8,9 @@ test("dashboard enables only the tenant modules selected by the company", () => 
     chat: true,
     resource: false,
     inventory: false,
-    timekeeping: false,
+    timekeeping: true,
+    retail: false,
+    repair: false,
   });
 });
 
@@ -19,6 +21,8 @@ test("legacy tenants and superadmins retain access to every dashboard module", (
     resource: true,
     inventory: true,
     timekeeping: true,
+    retail: true,
+    repair: true,
   });
   assert.deepEqual(resolveDashboardModuleAccess({ role: "superadmin", enabledModules: [] }), {
     hr: true,
@@ -26,5 +30,7 @@ test("legacy tenants and superadmins retain access to every dashboard module", (
     resource: true,
     inventory: true,
     timekeeping: true,
+    retail: true,
+    repair: true,
   });
 });

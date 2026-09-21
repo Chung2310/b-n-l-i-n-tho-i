@@ -1,4 +1,4 @@
-﻿import type { Response } from "express";
+import type { Response } from "express";
 import { AttendancePeriodResultModel } from "../model/attendance-period-result.model";
 import { TimekeepingLogModel } from "../model/timekeeping.model";
 import { HRLeaveApplicationModel } from "../model/hr-leave-application.model";
@@ -551,13 +551,14 @@ export const payrollController = {
     const profilesByEmployee = byEmployee(profiles as any[]);
     const dependentsByEmployee = byEmployee(dependents as any[]);
 
-    const adjustmentsMap = new Map<string, { allowances: number; bonuses: number; deductions: number; adjustments: number }>();
+    const adjustmentsMap = new Map<string, { allowances: number; bonuses: number; deductions: number; advances: number; adjustments: number }>();
     const periodInputMap = new Map((periodInputs as any[]).map((item:any)=>[String(item.employeeId),item]));
     for (const adj of adjustmentsData) {
       const empId = String(adj.employeeId);
-      const cur = adjustmentsMap.get(empId) ?? { allowances: 0, bonuses: 0, deductions: 0, adjustments: 0 };
+      const cur = adjustmentsMap.get(empId) ?? { allowances: 0, bonuses: 0, deductions: 0, advances: 0, adjustments: 0 };
       if (adj.kind === "bonus") cur.bonuses += Number(adj.amount || 0);
-      else if (adj.kind === "deduction") cur.deductions += Number(adj.amount || 0);
+      else if (adj.kind === "deduction" || adj.kind === "other_deduction") cur.deductions += Number(adj.amount || 0);
+      else if (adj.kind === "advance") cur.advances += Number(adj.amount || 0);
       else if (adj.kind === "allowance") cur.allowances += Number(adj.amount || 0);
       else cur.adjustments += Number(adj.amount || 0);
       adjustmentsMap.set(empId, cur);
@@ -565,7 +566,7 @@ export const payrollController = {
 
     const lines = rows.map((row) => {
       const workedMinutes = row.workedMinutes ?? ((row.workedDays || 0) * row.standardHours * 60) / row.standardDays;
-      const empAdjustments = adjustmentsMap.get(String(row.employeeId)) ?? { allowances: 0, bonuses: 0, deductions: 0, adjustments: 0 };
+      const empAdjustments = adjustmentsMap.get(String(row.employeeId)) ?? { allowances: 0, bonuses: 0, deductions: 0, advances: 0, adjustments: 0 };
       const periodInput:any=periodInputMap.get(String(row.employeeId));
       const sourceDays=(row.workedDays??(row.standardDays>0?workedMinutes/(row.standardHours*60/row.standardDays):0));
       const resolvedPeriod=resolvePayrollPeriodInputs({agreedSalary:row.monthlySalary,reconciledDays:sourceDays,reconciledHours:workedMinutes/60,allowance:empAdjustments.allowances,bonus:empAdjustments.bonuses,deduction:empAdjustments.deductions},periodInput,customVariables as any[]);
@@ -575,7 +576,7 @@ export const payrollController = {
       const customContext=Object.fromEntries(Object.entries(resolvedPeriod.customValues).map(([key,item])=>[key,item.value]));
       const formulaContext = { monthlySalary: effectiveSalary, attendanceSalary: row.standardDays > 0 ? effectiveSalary * resolvedPeriod.values.reconciledDays / row.standardDays : 0, standardWorkDays: row.standardDays, actualWorkDays: resolvedPeriod.values.reconciledDays, standardWorkHours: row.standardHours, actualWorkHours: resolvedPeriod.values.reconciledHours, shortageMinutes: row.shortageMinutes ?? 0, lateMinutes: Number((row as any).lateMinutes || 0), earlyLeaveMinutes: Number((row as any).earlyLeaveMinutes || 0), paidLeaveDays: (row.paidLeaveMinutesByRate ?? []).reduce((sum: number, item: any) => sum + Number(item.minutes || 0), 0) / Math.max(1, dailyMinutes), weekdayOvertimeHours: overtimeHours("weekday"), restDayOvertimeHours: overtimeHours("restDay"), holidayOvertimeHours: overtimeHours("holiday"), tenureMonths: 0,...customContext };
       const library = PAYROLL_FORMULA_LIBRARY_ENABLED ? evaluatePayrollFormulas(formulas as any[], formulaContext) : emptyPayrollFormulaLibraryResult();
-      const appliedAdjustments = { allowances: resolvedPeriod.values.allowance + library.totals.allowance, bonuses: resolvedPeriod.values.bonus + library.totals.bonus, deductions: resolvedPeriod.values.deduction + library.totals.deduction, adjustments: empAdjustments.adjustments + library.totals.adjustment };
+      const appliedAdjustments = { allowances: resolvedPeriod.values.allowance + library.totals.allowance, bonuses: resolvedPeriod.values.bonus + library.totals.bonus, deductions: resolvedPeriod.values.deduction + library.totals.deduction, advances: empAdjustments.advances, adjustments: empAdjustments.adjustments + library.totals.adjustment };
       const calculation = calculatePayroll({
         monthlySalary: effectiveSalary,
         standardDays: row.standardDays,
@@ -598,6 +599,7 @@ export const payrollController = {
         taxableAllowances: appliedAdjustments.allowances,
         bonuses: appliedAdjustments.bonuses + (appliedAdjustments.adjustments > 0 ? appliedAdjustments.adjustments : 0),
         otherDeductions: appliedAdjustments.deductions + (appliedAdjustments.adjustments < 0 ? -appliedAdjustments.adjustments : 0),
+        advances: appliedAdjustments.advances,
         // Chưa khai báo mức đóng riêng thì lấy lương tháng; trần đóng vẫn được áp.
         insuranceSalary: effectiveSalary,
         participatesInsurance: profile?.participatesInsurance ?? true,
@@ -614,6 +616,7 @@ export const payrollController = {
           allowances: appliedAdjustments.allowances,
           bonuses: appliedAdjustments.bonuses,
           otherDeductions: appliedAdjustments.deductions,
+          advances: appliedAdjustments.advances,
           adjustments: appliedAdjustments.adjustments,
           gross: vietnam.income.totalIncome,
           deductions: vietnam.deductions.total,
@@ -835,19 +838,20 @@ export const payrollController = {
           }, new Map<string, T[]>());
           const profilesByEmployee = byEmployee(profiles as any[]);
           const dependentsByEmployee = byEmployee(dependents as any[]);
-          const adjustmentsMap = new Map<string, { allowances: number; bonuses: number; deductions: number; adjustments: number }>();
+          const adjustmentsMap = new Map<string, { allowances: number; bonuses: number; deductions: number; advances: number; adjustments: number }>();
           for (const adj of adjustmentsData) {
             const empId = String(adj.employeeId);
-            const cur = adjustmentsMap.get(empId) ?? { allowances: 0, bonuses: 0, deductions: 0, adjustments: 0 };
+            const cur = adjustmentsMap.get(empId) ?? { allowances: 0, bonuses: 0, deductions: 0, advances: 0, adjustments: 0 };
             if (adj.kind === "bonus") cur.bonuses += Number(adj.amount || 0);
-            else if (adj.kind === "deduction") cur.deductions += Number(adj.amount || 0);
+            else if (adj.kind === "deduction" || adj.kind === "other_deduction") cur.deductions += Number(adj.amount || 0);
+            else if (adj.kind === "advance") cur.advances += Number(adj.amount || 0);
             else if (adj.kind === "allowance") cur.allowances += Number(adj.amount || 0);
             else cur.adjustments += Number(adj.amount || 0);
             adjustmentsMap.set(empId, cur);
           }
           const lines = rows.map((row) => {
             const workedMinutes = row.workedMinutes ?? ((row.workedDays || 0) * row.standardHours * 60) / row.standardDays;
-            const empAdjustments = adjustmentsMap.get(String(row.employeeId)) ?? { allowances: 0, bonuses: 0, deductions: 0, adjustments: 0 };
+            const empAdjustments = adjustmentsMap.get(String(row.employeeId)) ?? { allowances: 0, bonuses: 0, deductions: 0, advances: 0, adjustments: 0 };
             const calculation = calculatePayroll({
               monthlySalary: row.monthlySalary,
               standardDays: row.standardDays,
@@ -870,6 +874,7 @@ export const payrollController = {
               taxableAllowances: empAdjustments.allowances,
               bonuses: empAdjustments.bonuses + (empAdjustments.adjustments > 0 ? empAdjustments.adjustments : 0),
               otherDeductions: empAdjustments.deductions + (empAdjustments.adjustments < 0 ? -empAdjustments.adjustments : 0),
+              advances: empAdjustments.advances,
               insuranceSalary: row.monthlySalary,
               participatesInsurance: profile?.participatesInsurance ?? true,
               taxMethod: resolveTaxMethod(profile),
@@ -885,6 +890,7 @@ export const payrollController = {
                 allowances: empAdjustments.allowances,
                 bonuses: empAdjustments.bonuses,
                 otherDeductions: empAdjustments.deductions,
+                advances: empAdjustments.advances,
                 adjustments: empAdjustments.adjustments,
                 gross: vietnam.income.totalIncome,
                 deductions: vietnam.deductions.total,
@@ -962,19 +968,20 @@ export const payrollController = {
           }, new Map<string, T[]>());
           const profilesByEmployee = byEmployee(profiles as any[]);
           const dependentsByEmployee = byEmployee(dependents as any[]);
-          const adjustmentsMap = new Map<string, { allowances: number; bonuses: number; deductions: number; adjustments: number }>();
+          const adjustmentsMap = new Map<string, { allowances: number; bonuses: number; deductions: number; advances: number; adjustments: number }>();
           for (const adj of adjustmentsData) {
             const empId = String(adj.employeeId);
-            const cur = adjustmentsMap.get(empId) ?? { allowances: 0, bonuses: 0, deductions: 0, adjustments: 0 };
+            const cur = adjustmentsMap.get(empId) ?? { allowances: 0, bonuses: 0, deductions: 0, advances: 0, adjustments: 0 };
             if (adj.kind === "bonus") cur.bonuses += Number(adj.amount || 0);
-            else if (adj.kind === "deduction") cur.deductions += Number(adj.amount || 0);
+            else if (adj.kind === "deduction" || adj.kind === "other_deduction") cur.deductions += Number(adj.amount || 0);
+            else if (adj.kind === "advance") cur.advances += Number(adj.amount || 0);
             else if (adj.kind === "allowance") cur.allowances += Number(adj.amount || 0);
             else cur.adjustments += Number(adj.amount || 0);
             adjustmentsMap.set(empId, cur);
           }
           const lines = rows.map((row) => {
             const workedMinutes = row.workedMinutes ?? ((row.workedDays || 0) * row.standardHours * 60) / row.standardDays;
-            const empAdjustments = adjustmentsMap.get(String(row.employeeId)) ?? { allowances: 0, bonuses: 0, deductions: 0, adjustments: 0 };
+            const empAdjustments = adjustmentsMap.get(String(row.employeeId)) ?? { allowances: 0, bonuses: 0, deductions: 0, advances: 0, adjustments: 0 };
             const calculation = calculatePayroll({
               monthlySalary: row.monthlySalary,
               standardDays: row.standardDays,
@@ -997,6 +1004,7 @@ export const payrollController = {
               taxableAllowances: empAdjustments.allowances,
               bonuses: empAdjustments.bonuses + (empAdjustments.adjustments > 0 ? empAdjustments.adjustments : 0),
               otherDeductions: empAdjustments.deductions + (empAdjustments.adjustments < 0 ? -empAdjustments.adjustments : 0),
+              advances: empAdjustments.advances,
               insuranceSalary: row.monthlySalary,
               participatesInsurance: profile?.participatesInsurance ?? true,
               taxMethod: resolveTaxMethod(profile),
@@ -1012,6 +1020,7 @@ export const payrollController = {
                 allowances: empAdjustments.allowances,
                 bonuses: empAdjustments.bonuses,
                 otherDeductions: empAdjustments.deductions,
+                advances: empAdjustments.advances,
                 adjustments: empAdjustments.adjustments,
                 gross: vietnam.income.totalIncome,
                 deductions: vietnam.deductions.total,

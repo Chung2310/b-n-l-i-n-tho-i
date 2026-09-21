@@ -604,7 +604,6 @@ export const authService = {
       jobDescriptionLink,
       branchId,
       birthDate,
-      qualification,
       monthlySalary,
     } = data;
 
@@ -667,7 +666,7 @@ export const authService = {
       level: level || (role === "admin" ? 1 : (role === "branch_owner" ? 2 : (role === "manager" ? 3 : 4))),
       department: finalDept,
       division: division || (role === "admin" ? "Ban Giám Đốc" : (role === "branch_owner" ? "Quản lý chi nhánh" : (role === "manager" ? "Quản lý" : "Nhân sự"))),
-      qualification: qualification?.trim() || "",
+      qualification: "",
       monthlySalary: salaryValue,
       jobTitle: role === "admin" ? "CEO" : (role === "branch_owner" ? "Chủ chi nhánh" : (role === "manager" ? "Quản lý phòng ban" : "Nhân viên")),
       phone: phone || "Chưa cập nhật",

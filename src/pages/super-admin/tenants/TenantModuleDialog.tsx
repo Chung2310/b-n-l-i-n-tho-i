@@ -1,7 +1,7 @@
 import React from "react";
 import { X } from "lucide-react";
 import { DEFAULT_MODULE_KEYS, MODULE_KEYS, MODULE_OPTIONS, type ModuleKey } from "../../../config/modules";
-import { BUSINESS_TYPES, BUSINESS_TYPE_LABELS, getRequiredBusinessModule, isModuleAllowedForBusinessType, resolveBusinessType, type BusinessType } from "../../../config/businessTypes";
+import { ACTIVE_BUSINESS_TYPES, BUSINESS_TYPES, BUSINESS_TYPE_LABELS, DEFAULT_BUSINESS_TYPE, getRequiredBusinessModule, isModuleAllowedForBusinessType, resolveBusinessType, type BusinessType } from "../../../config/businessTypes";
 import { superAdminTenantService, type Tenant, type TenantSummary } from "../../../services/superAdminTenantService";
 
 type Props = {
@@ -14,7 +14,7 @@ export function TenantModuleDialog({ code, onClose, onSaved }: Props) {
   const [tenant, setTenant] = React.useState<Tenant>();
   const [summary, setSummary] = React.useState<TenantSummary>();
   const [selected, setSelected] = React.useState<ModuleKey[]>([]);
-  const [businessType, setBusinessType] = React.useState<BusinessType>("education");
+  const [businessType, setBusinessType] = React.useState<BusinessType>(DEFAULT_BUSINESS_TYPE);
   const [error, setError] = React.useState("");
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -156,7 +156,7 @@ export function TenantModuleDialog({ code, onClose, onSaved }: Props) {
                 disabled={saving}
                 className="mt-2.5 w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-xs text-slate-100 outline-none focus:border-cyan-400 cursor-pointer font-medium"
               >
-                {BUSINESS_TYPES.map((type) => (
+                {BUSINESS_TYPES.filter((type) => (ACTIVE_BUSINESS_TYPES as readonly string[]).includes(type) || type === businessType).map((type) => (
                   <option key={type} value={type}>
                     {BUSINESS_TYPE_LABELS[type]}
                   </option>

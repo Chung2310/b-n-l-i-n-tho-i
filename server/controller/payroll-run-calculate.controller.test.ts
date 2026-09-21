@@ -267,6 +267,8 @@ describe("payroll calculate endpoint", () => {
     expect(line.calculation.monthlySalary).toBe(30_000_000);
     expect(line.vietnam.insurance.funds[0].base).toBe(20_000_000);
     expect(line.vietnam.tax.deductions.dependents).toBe(4_400_000);
+    expect(mocks.revisionFindOneAndUpdate.mock.calls[0][1].$set.issues)
+      .not.toEqual(expect.arrayContaining([expect.objectContaining({ code: "PAYROLL_POLICY_MISSING" })]));
   });
 
   it("stores the selected payroll profile payment instructions on the immutable revision line", async () => {

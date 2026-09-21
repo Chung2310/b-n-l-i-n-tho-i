@@ -33,6 +33,7 @@ export function calculatePayroll(input: PayrollCalculationInput): PayrollCalcula
   assertNonNegative("allowances", input.allowances);
   assertNonNegative("bonuses", input.bonuses);
   assertNonNegative("deductions", input.deductions);
+  assertNonNegative("commission", input.commission ?? 0);
   if (!Number.isFinite(input.adjustments)) throw new Error("adjustments must be a finite number");
   input.paidLeaveMinutesByRate.forEach((leave, index) => {
     assertNonNegative(`paidLeaveMinutesByRate[${index}].minutes`, leave.minutes);
@@ -40,7 +41,7 @@ export function calculatePayroll(input: PayrollCalculationInput): PayrollCalcula
   });
   input.overtime.forEach((item, index) => {
     assertNonNegative(`overtime[${index}].minutes`, item.minutes);
-    if (!(item.category in OVERTIME_MULTIPLIERS)) throw new Error(`overtime[${index}].category is invalid`);
+    if (!Object.prototype.hasOwnProperty.call(OVERTIME_MULTIPLIERS, item.category)) throw new Error(`overtime[${index}].category is invalid`);
   });
   if (input.standardHours === 0) throw new Error("standardHours must be greater than zero");
 

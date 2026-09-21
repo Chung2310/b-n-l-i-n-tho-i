@@ -27,7 +27,20 @@ const permissionOf = (method: string, path: string) => {
 };
 
 describe("payroll workflow route guards", () => {
+  it.each(["/runs/:id/close", "/periods/:periodKey/close"])("requires a manager role to finalize %s", path => {
+    const layer = (payrollRouter as any).stack.find((item: any) => item.route?.path === path && item.route?.methods?.post);
+    const roleGuard = layer.route.stack[1].handle;
+    const next = vi.fn();
+    const res: any = { json: vi.fn() }; res.status = vi.fn(() => res);
+    roleGuard({ user: { role: "accountant" } }, res, next);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+    roleGuard({ user: { role: "manager" } }, res, next);
+    expect(next).toHaveBeenCalledOnce();
+  });
   it.each([
+    ["PUT", "/reconciliation-schedule"],
+    ["POST", "/runs/:id/reconciliation/:employeeId/actions"],
     ["POST", "/periods/:periodKey/process"],
     ["POST", "/runs/:id/review"],
     ["POST", "/runs/:id/close"],
@@ -60,6 +73,8 @@ describe("payroll workflow route guards", () => {
   });
 
   it.each([
+    ["GET", "/reconciliation-schedule"],
+    ["GET", "/runs/:id/reconciliation"],
     ["GET", "/runs/:id/audit"],
   ])("lets payroll readers call %s %s", (method, path) => {
     expect(permissionOf(method, path)).toBe("payroll-period:read");

@@ -2,7 +2,7 @@ import React from "react";
 import { X } from "lucide-react";
 import { superAdminTenantService } from "../../../services/superAdminTenantService";
 import { DEFAULT_MODULE_KEYS, MODULE_OPTIONS, type ModuleKey } from "../../../config/modules";
-import { BUSINESS_TYPES, BUSINESS_TYPE_LABELS, getRequiredBusinessModule, isModuleAllowedForBusinessType, type BusinessType } from "../../../config/businessTypes";
+import { ACTIVE_BUSINESS_TYPES, BUSINESS_TYPE_LABELS, DEFAULT_BUSINESS_TYPE, getRequiredBusinessModule, isModuleAllowedForBusinessType, type BusinessType } from "../../../config/businessTypes";
 
 export function TenantCreateDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (code: string) => void }) {
   const [code, setCode] = React.useState("");
@@ -10,8 +10,8 @@ export function TenantCreateDialog({ onClose, onCreated }: { onClose: () => void
   const [ownerName, setOwnerName] = React.useState("");
   const [ownerEmail, setOwnerEmail] = React.useState("");
   const [ownerPassword, setOwnerPassword] = React.useState("");
-  const [enabledModules, setEnabledModules] = React.useState<ModuleKey[]>(DEFAULT_MODULE_KEYS.filter((key) => isModuleAllowedForBusinessType(key, "education")));
-  const [businessType, setBusinessType] = React.useState<BusinessType>("education");
+  const [enabledModules, setEnabledModules] = React.useState<ModuleKey[]>(DEFAULT_MODULE_KEYS.filter((key) => isModuleAllowedForBusinessType(key, DEFAULT_BUSINESS_TYPE)));
+  const [businessType, setBusinessType] = React.useState<BusinessType>(DEFAULT_BUSINESS_TYPE);
   const [error, setError] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
 
@@ -91,7 +91,7 @@ export function TenantCreateDialog({ onClose, onCreated }: { onClose: () => void
                 onChange={(e) => changeBusinessType(e.target.value as BusinessType)}
                 className="mt-1 w-full rounded-lg border border-white/10 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-cyan-400 text-slate-100 cursor-pointer"
               >
-                {BUSINESS_TYPES.map((type) => (
+                {ACTIVE_BUSINESS_TYPES.map((type) => (
                   <option key={type} value={type}>{BUSINESS_TYPE_LABELS[type]}</option>
                 ))}
               </select>

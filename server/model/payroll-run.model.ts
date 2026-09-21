@@ -21,6 +21,7 @@ type PayrollRunDocument = IPayrollRun & {
     netPay: number;
   };
   effectiveSnapshot?: any;
+  reconciliationRequired?: boolean;
 };
 
 const schema = new Schema<PayrollRunDocument>({
@@ -34,6 +35,7 @@ const schema = new Schema<PayrollRunDocument>({
   activeRevisionId: String,
   activeRevisionChecksum: String,
   effectiveSnapshot: { type: Schema.Types.Mixed },
+  reconciliationRequired: { type: Boolean, default: false },
   supplementalReason: String,
   status: { type: String, enum: ["draft", "review", "closed", "paid"], default: "draft", index: true },
   needsInputRefresh: { type: Boolean, default: false },

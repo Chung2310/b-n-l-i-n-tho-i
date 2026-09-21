@@ -41,6 +41,7 @@ export function resolvePayrollLineOverride(
     otherDeductions: "system",
     advances: "system",
     hiddenIncome: "system",
+    commission: "system",
     customValues: Object.fromEntries(
       Object.keys(system.customValues ?? {}).map((code) => [code, "system"]),
     ),
@@ -62,7 +63,7 @@ export function resolvePayrollLineOverride(
     DEDUCTION_FIELDS.reduce((total, field) => total + values[field], 0),
   );
   const net = Math.max(0, Math.round(
-    values.adjustedBase + values.overtime + values.bonusTotal + values.hiddenIncome - deductionTotal,
+    values.adjustedBase + Number(values.commission ?? 0) + values.overtime + values.bonusTotal + values.hiddenIncome - deductionTotal,
   ));
 
   return { values, deductionTotal, net, provenance };

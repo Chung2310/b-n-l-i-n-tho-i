@@ -28,33 +28,20 @@ describe("SettingsTab face recognition navigation", () => {
     vi.clearAllMocks();
   });
 
-  it("shows the tab button for admins", async () => {
+  it("does not show the tab button for admins", async () => {
     authState.userProfile = { role: "admin", permissions: [] };
     render(<SettingsTab />);
-    expect(screen.getByRole("button", { name: "Nhận diện khuôn mặt" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Nhận diện khuôn mặt" })).toBeNull();
   });
 
-  it("shows the tab button with the access:manage permission", () => {
-    authState.userProfile = { role: "user", permissions: ["access:manage"] };
-    render(<SettingsTab />);
-    expect(screen.getByRole("button", { name: "Nhận diện khuôn mặt" })).toBeTruthy();
-  });
-
-  it("hides the tab button for unauthorized users", () => {
+  it("does not show the tab button for unauthorized users", () => {
     authState.userProfile = { role: "user", permissions: [] };
     render(<SettingsTab />);
     expect(screen.queryByRole("button", { name: "Nhận diện khuôn mặt" })).toBeNull();
   });
 
-  it("deep link renders the face tab for admins", async () => {
+  it("deep link falls back to profile", async () => {
     authState.userProfile = { role: "admin", permissions: [] };
-    window.history.replaceState(null, "", "/?sub=nhan-dien-khuon-mat");
-    render(<SettingsTab />);
-    expect(await screen.findByText("FACE_TAB")).toBeTruthy();
-  });
-
-  it("deep link falls back to profile for unauthorized users", async () => {
-    authState.userProfile = { role: "user", permissions: [] };
     window.history.replaceState(null, "", "/?sub=nhan-dien-khuon-mat");
     render(<SettingsTab />);
     expect(await screen.findByText("PROFILE_TAB")).toBeTruthy();

@@ -36,6 +36,35 @@ describe("calculateDetailedPayrollBatch", () => {
     const result = calculateDetailedPayrollBatch([employee("emp-1", 10_000_000), withIssue]);
     expect(result.issues).toEqual([{ code: "SALARY_TERM_MISSING", message: "missing", employeeId: "emp-3", severity: "blocking" }]);
   });
+
+  it("routes salary advances to advances and leaves otherDeductions clean", () => {
+    const policy: any = {
+      code: "standard",
+      version: 1,
+      funds: [],
+      taxBrackets: [{ upTo: 5_000_000, rate: 0.05 }],
+      personalDeduction: 11_000_000,
+      dependentDeduction: 4_400_000,
+      overtime: { weekday: 1.5, restDay: 2, holiday: 3, nightPremium: 0.3, nightOvertimeBonus: 0.2 },
+    };
+    const withAdvance = {
+      ...employee("emp-advance", 10_000_000),
+      advances: 2_000_000,
+      deductions: 500_000,
+      vietnam: {
+        policy,
+        insuranceSalary: 10_000_000,
+        participatesInsurance: false,
+        taxMethod: "progressive" as const,
+        dependentCount: 0,
+      },
+    };
+    const result = calculateDetailedPayrollBatch([withAdvance]);
+    const line = result.lines[0];
+    expect(line.calculation.advances).toBe(2_000_000);
+    expect(line.calculation.otherDeductions).toBe(500_000);
+    expect(line.vietnam?.deductions).toMatchObject({ advances: 2_000_000, other: 500_000 });
+  });
 });
 
 describe("calculateRun for a whole run", () => {

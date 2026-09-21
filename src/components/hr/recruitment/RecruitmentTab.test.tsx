@@ -44,7 +44,7 @@ describe("RecruitmentTab", () => {
     render(<RecruitmentTab />);
     expect(await screen.findByText("Developer")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Ứng viên" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Quy trình" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Quy trình" })).toBeNull();
     expect(screen.getByRole("button", { name: "Phỏng vấn" })).toBeTruthy();
   });
 

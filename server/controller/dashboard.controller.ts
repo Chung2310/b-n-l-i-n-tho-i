@@ -113,6 +113,7 @@ export const dashboardController = {
 
       const data = await dashboardService.getActionItems({
         id: req.user.id,
+        branchId: req.user.branchId,
         role: req.user.role,
         companyCode: req.user.companyCode,
         enabledModules,

@@ -65,6 +65,13 @@ const injectedRunner = () => {
 };
 
 describe("payroll period reset", () => {
+  it("preserves published employee reconciliation history", async () => {
+    mocks.runFindOne.mockReturnValue(sessionQuery({ _id: "run-a", status: "draft", reconciliationRequired: true }));
+    const reset = createPayrollPeriodResetService({ transactionRunner: injectedRunner().runner });
+    await expect(reset(scope, periodKey, "actor-a")).rejects.toMatchObject({ code: "PAYROLL_RECONCILIATION_HISTORY_REQUIRED" });
+    expect(mocks.runDeleteOne).not.toHaveBeenCalled();
+    expect(mocks.auditDeleteMany).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.runFindOne.mockReturnValue(sessionQuery({ _id: "run-a", status: "draft" }));

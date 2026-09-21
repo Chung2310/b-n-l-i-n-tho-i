@@ -3,7 +3,7 @@ import type { Document } from "mongoose";
 export const PAYROLL_LINE_OVERRIDE_FIELDS = [
   "baseSalary", "adjustedBase", "overtime", "bonusTotal", "penaltyTotal",
   "socialInsurance", "healthInsurance", "unemploymentInsurance",
-  "personalIncomeTax", "otherDeductions", "advances",
+  "personalIncomeTax", "otherDeductions", "advances", "commission",
 ] as const;
 
 export type PayrollLineOverrideField = typeof PAYROLL_LINE_OVERRIDE_FIELDS[number];
@@ -11,15 +11,17 @@ export type PayrollLineOverrideValues = Partial<Record<PayrollLineOverrideField,
   customValues?: Record<string, number>;
 };
 
-export type PayrollLineSystemValues = Record<PayrollLineOverrideField, number> & {
+export type PayrollLineSystemValues = Record<Exclude<PayrollLineOverrideField, "commission">, number> & {
+  commission?: number;
   hiddenIncome: number;
   customValues?: Record<string, number>;
 };
 
 export type PayrollLineOverrideProvenance = Record<
-  PayrollLineOverrideField | "hiddenIncome",
+  Exclude<PayrollLineOverrideField, "commission"> | "hiddenIncome",
   "manual_override" | "system"
 > & {
+  commission?: "manual_override" | "system";
   customValues: Record<string, "manual_override" | "system">;
 };
 

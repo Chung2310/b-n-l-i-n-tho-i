@@ -15,4 +15,59 @@ describe("resolvePayrollPeriodInputs", () => {
     expect(result.customValues["custom.sales"]).toEqual({ value: 0, provenance: "period_override" });
     expect(result.missing).toEqual(["custom.quality"]);
   });
+
+  it("dynamically evaluates calculated custom variables from employee context and prior variables", () => {
+    const variables: any[] = [
+      { code: "sales", defaultValue: 10_000_000, columnType: "manual" },
+      {
+        code: "bonus_commission",
+        columnType: "calculated",
+        calculation: {
+          leftSource: "custom.sales",
+          operator: "percent",
+          rightType: "value",
+          rightValue: 10, // 10% of sales = 1_000_000
+        },
+      },
+      {
+        code: "daily_pay",
+        columnType: "calculated",
+        calculation: {
+          leftSource: "monthlySalary",
+          operator: "divide",
+          rightType: "source",
+          rightSource: "standardDays",
+          roundingMode: "nearest",
+          roundingUnit: 1000,
+        },
+      },
+    ];
+
+    const context = { monthlySalary: 26_000_000, standardDays: 26 };
+    const result = resolvePayrollPeriodInputs(source, {}, variables, context);
+
+    expect(result.customValues["custom.sales"]).toEqual({ value: 10_000_000, provenance: "default" });
+    expect(result.customValues["custom.bonus_commission"]).toEqual({ value: 1_000_000, provenance: "system" });
+    expect(result.customValues["custom.daily_pay"]).toEqual({ value: 1_000_000, provenance: "system" });
+  });
+
+  it("evaluates complex multi-term formula expressions in resolver", () => {
+    const variables: any[] = [
+      {
+        code: "real_salary",
+        columnType: "calculated",
+        calculation: {
+          expression: "(monthlySalary / standardDays) * workedDays + 500000",
+          roundingMode: "nearest",
+          roundingUnit: 1000,
+        },
+      },
+    ];
+
+    const context = { monthlySalary: 26_000_000, standardDays: 26, workedDays: 20 };
+    const result = resolvePayrollPeriodInputs(source, {}, variables, context);
+
+    // 26M / 26 * 20 + 500k = 20M + 500k = 20_500_000
+    expect(result.customValues["custom.real_salary"]).toEqual({ value: 20_500_000, provenance: "system" });
+  });
 });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
-import { Activity, Building2, FolderTree, Briefcase, GraduationCap, Layers, Calendar, FileSignature, Mail, UserSearch, ChevronLeft, ChevronRight } from "lucide-react";
+import { Building2, FolderTree, Briefcase, GraduationCap, Layers, Calendar, CalendarDays, Clock3, Clock, FileSignature, Mail, UserSearch, ChevronLeft, ChevronRight } from "lucide-react";
 import { HRSubTabType, EmployeeNode, TrainingCourse, UserProfile } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { useBranch } from "../context/BranchContext";
@@ -20,8 +20,17 @@ const ContractsTab = lazy(() => import("../components/hr/ContractsTab"));
 const CelebrationEmailTab = lazy(() => import("../components/hr/CelebrationEmailTab"));
 const EmployeePayslips = lazy(() => import("../components/hr/EmployeePayslips"));
 const RecruitmentTab = lazy(() => import("../components/hr/recruitment/RecruitmentTab"));
+const DepartmentManagementTab = lazy(() => import("../components/hr/DepartmentManagementTab"));
+const BranchManagementTab = lazy(() => import("../components/settings/BranchManagementTab"));
+const WorkScheduleManagementTab = lazy(() => import("../components/hr/WorkScheduleManagementTab"));
 const CELEBRATION_TAB = "EMAIL CHÚC MỪNG" as HRSubTabType;
 const RECRUITMENT_TAB = "TUYỂN DỤNG" as HRSubTabType;
+const DEPARTMENTS_TAB = "PHÒNG BAN" as HRSubTabType;
+const BRANCHES_TAB = "CHI NHÁNH" as HRSubTabType;
+const SCHEDULE_TAB = "CA & LỊCH LÀM VIỆC" as HRSubTabType;
+const HOLIDAYS_TAB = "NGHỈ LỄ" as HRSubTabType;
+const SHIFTS_TAB = "CA LÀM VIỆC" as HRSubTabType;
+const WORK_HOURS_TAB = "GIỜ LÀM VIỆC" as HRSubTabType;
 
 export function canAccessRecruitment(role: string | undefined, hasPermission: (code: string) => boolean) {
   return role === "superadmin" || role === "admin" || hasPermission("recruitment:read") || hasPermission("recruitment:manage");
@@ -40,11 +49,15 @@ export default function HRTab() {
   // must also be able to view/manage everyone's attendance, not just their own -
   // scoped to CalendarTab only, so it doesn't leak "manager" rights into other HR tabs.
   const isCompanyAdmin = userProfile?.role === "superadmin" || userProfile?.role === "admin";
+  const canManageTimekeeping = isCompanyAdmin || hasPermission("timekeeping:manage");
+  // Calendar management has an additional server-side admin/superadmin guard.
+  const canManageCompanyCalendar = isCompanyAdmin;
   const hasContractPermissions = false;
   const canViewAllAttendance = (isManager || hasPermission("timekeeping:read") || hasPermission("timekeeping:manage") || hasPermission("payroll-period:manage")) && !hasContractPermissions;
   const canManageAttendance = (isManager || hasPermission("timekeeping:manage")) && !hasContractPermissions;
   const canEditAttendance = (canManageAttendance || hasPermission("payroll-period:manage")) && !hasContractPermissions;
   const canManageOrgChart = isManager || hasPermission("access:manage");
+  const canManageDepartments = isManager || hasPermission("access:manage") || hasPermission("hr:manage");
   const canManageKanban = isManager || hasPermission("work:manage");
   const isPayrollManager = userProfile?.role === "superadmin" || userProfile?.role === "admin";
   const canViewPayroll = isPayrollManager || hasPermission("payroll-period:read") || hasPermission("payroll-period:manage");
@@ -59,7 +72,11 @@ export default function HRTab() {
 
   useEffect(() => {
     if (subTab === RECRUITMENT_TAB && !hasRecruitmentAccess) setSubTab("SƠ ĐỒ TỔ CHỨC");
-  }, [subTab, hasRecruitmentAccess, setSubTab]);
+    if (subTab === BRANCHES_TAB && userProfile?.role !== "admin") setSubTab("SƠ ĐỒ TỔ CHỨC");
+    if ((subTab === SCHEDULE_TAB || subTab === HOLIDAYS_TAB || subTab === SHIFTS_TAB || subTab === WORK_HOURS_TAB) && !canManageCompanyCalendar && !canManageTimekeeping) {
+      setSubTab("SƠ ĐỒ TỔ CHỨC");
+    }
+  }, [subTab, hasRecruitmentAccess, canManageCompanyCalendar, canManageTimekeeping, userProfile?.role, setSubTab]);
 
   // SaaS States
   const [companies, setCompanies] = useState<any[]>([]);
@@ -187,10 +204,12 @@ export default function HRTab() {
           <div ref={subTabsRef} className="flex min-w-0 max-w-full flex-1 gap-1 overflow-x-auto select-none scrollbar-none -mb-px">
             {[
               { id: "SƠ ĐỒ TỔ CHỨC", label: "Sơ đồ tổ chức", icon: FolderTree },
+              { id: DEPARTMENTS_TAB, label: "Phòng ban", icon: Building2 },
+              ...(userProfile?.role === "admin" ? [{ id: BRANCHES_TAB, label: "Chi nhánh", icon: Building2 }] : []),
               { id: "ĐÀO TẠO", label: "Đào tạo", icon: GraduationCap },
               { id: "QUY TRÌNH", label: "Quy trình", icon: Layers },
               { id: "Giao Việc", label: "Giao việc", icon: Briefcase },
-              { id: "LỊCH", label: "Lịch làm việc", icon: Calendar },
+              { id: SCHEDULE_TAB, label: "Lịch & Ca làm việc", icon: CalendarDays },
               { id: "HỢP ĐỒNG", label: "Hợp đồng", icon: FileSignature },
               { id: "PAYROLL", label: "Bảng lương", icon: Briefcase },
               ...(canManageCelebration ? [{ id: CELEBRATION_TAB, label: "Email chúc mừng", icon: Mail }] : []),
@@ -258,12 +277,24 @@ export default function HRTab() {
           />
         )}
 
+        {subTab === DEPARTMENTS_TAB && (
+          <DepartmentManagementTab
+            userProfile={userProfile}
+            selectedCompanyCode={selectedCompanyCode}
+            usersList={usersList}
+            canManage={canManageDepartments}
+          />
+        )}
+
+        {subTab === BRANCHES_TAB && userProfile?.role === "admin" && <BranchManagementTab />}
+
         {subTab === "Giao Việc" && (
           <KanbanTab
             userProfile={userProfile}
             selectedCompanyCode={selectedCompanyCode}
             employees={employees}
             isManager={canManageKanban}
+
             usersList={usersList}
             activeBranchId={activeBranchId || undefined}
           />
@@ -292,7 +323,7 @@ export default function HRTab() {
 
         {subTab === "PAYROLL" && (
           canViewPayroll ? (
-            <PayrollTab canManage={isPayrollManager || hasPermission("payroll-period:manage")} />
+            <PayrollTab canManage={isPayrollManager || hasPermission("payroll-period:manage")} canFinalize={isManager && (isPayrollManager || hasPermission("payroll-period:manage"))} />
           ) : (
             <EmployeePayslips />
           )
@@ -300,17 +331,32 @@ export default function HRTab() {
         {subTab === CELEBRATION_TAB && canManageCelebration && <CelebrationEmailTab />}
         {subTab === RECRUITMENT_TAB && hasRecruitmentAccess && <RecruitmentTab key={activeBranchId} canManage={canManageRecruitment} />}
         {subTab === "HỢP ĐỒNG" && <ContractsTab canManage={canManageOrgChart} companyCode={selectedCompanyCode} branchId={activeBranchId || undefined} />}
-        {subTab === "LỊCH" && (
-          <CalendarTab
-            userProfile={userProfile}
-            selectedCompanyCode={selectedCompanyCode}
-            isManager={canViewAllAttendance}
-            canManage={canManageAttendance}
-            canEditAttendance={canEditAttendance}
-            usersList={usersList}
-            employees={employees}
-            canApproveLeave={canManageAttendance}
-          />
+        {(subTab === "LỊCH" || subTab === SCHEDULE_TAB || subTab === HOLIDAYS_TAB || subTab === SHIFTS_TAB || subTab === WORK_HOURS_TAB) && (
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+            <WorkScheduleManagementTab
+              userProfile={userProfile}
+              selectedCompanyCode={selectedCompanyCode}
+              isManager={canViewAllAttendance}
+              canManageAttendance={canManageAttendance}
+              canEditAttendance={canEditAttendance}
+              usersList={usersList}
+              employees={employees}
+              canApproveLeave={canManageAttendance}
+              canManageCalendar={canManageCompanyCalendar}
+              canManageTimekeeping={canManageTimekeeping}
+              initialSubTab={
+                subTab === "LỊCH"
+                  ? "attendance"
+                  : subTab === HOLIDAYS_TAB
+                  ? "holidays"
+                  : subTab === SHIFTS_TAB
+                  ? "shifts"
+                  : subTab === WORK_HOURS_TAB
+                  ? "hours"
+                  : "attendance"
+              }
+            />
+          </div>
         )}
       </Suspense>
     </div>

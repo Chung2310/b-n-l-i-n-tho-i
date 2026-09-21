@@ -2,6 +2,7 @@ export const PAYROLL_RESULT_FIELDS = [
   { key: "baseSalary", label: "Lương cơ bản" },
   { key: "adjustedBase", label: "Lương điều chỉnh" },
   { key: "overtime", label: "Tăng ca" },
+  { key: "commission", label: "Hoa hồng" },
   { key: "bonusTotal", label: "Tổng thưởng" },
   { key: "penaltyTotal", label: "Phạt" },
   { key: "socialInsurance", label: "BHXH" },
@@ -22,7 +23,8 @@ export type PayrollLineOverrideDraft = {
 
 export type PayrollLineOverrideDrafts = Record<string, PayrollLineOverrideDraft>;
 
-export type PayrollLineValues = Record<PayrollResultField, number> & {
+export type PayrollLineValues = Record<Exclude<PayrollResultField, "commission">, number> & {
+  commission?: number;
   hiddenIncome: number;
   customValues?: Record<string, number>;
 };
@@ -154,7 +156,7 @@ export function previewPayrollLine(
     else values[field as PayrollResultField] = value;
   }
   const taxDrivingFields: PayrollResultField[] = [
-    "adjustedBase", "overtime", "bonusTotal",
+    "adjustedBase", "commission", "overtime", "bonusTotal",
     "socialInsurance", "healthInsurance", "unemploymentInsurance",
   ];
   const taxWasEdited = Object.prototype.hasOwnProperty.call(draft?.values ?? {}, "personalIncomeTax");
@@ -167,7 +169,7 @@ export function previewPayrollLine(
     const deductions = line.vietnam?.tax?.deductions ?? {};
     const insurance = values.socialInsurance + values.healthInsurance + values.unemploymentInsurance;
     const assessableIncome = Math.max(0,
-      values.adjustedBase + values.overtime + values.bonusTotal
+      values.adjustedBase + Number(values.commission ?? 0) + values.overtime + values.bonusTotal
       + Number(line.vietnam?.income?.taxableAllowances ?? 0)
       - Number(deductions.personal ?? 0) - Number(deductions.dependents ?? 0)
       - Number(deductions.other ?? 0) - insurance,
@@ -187,7 +189,7 @@ export function previewPayrollLine(
     DEDUCTION_FIELDS.reduce((total, field) => total + values[field], 0),
   );
   const net = Math.max(0, Math.round(
-    values.adjustedBase + values.overtime + values.bonusTotal + values.hiddenIncome - deductionTotal,
+    values.adjustedBase + Number(values.commission ?? 0) + values.overtime + values.bonusTotal + values.hiddenIncome - deductionTotal,
   ));
   return { values, deductionTotal, net };
 }

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { getDashboardBulletin } from "./dashboard-bulletin";
 import { ProjectModel } from "../model/project.model";
 import { KanbanTaskModel } from "../model/kanban-task.model";
 import { TimekeepingLogModel } from "../model/timekeeping.model";
@@ -224,6 +225,7 @@ async function getActionItems(user: DashboardUser) {
   ]);
 
   return {
+    bulletin: await getDashboardBulletin(user),
     overdueTasks: overdueTasksRaw.map((t: any) => ({ id: String(t._id), title: t.title, dueDate: t.dueDate })),
     pendingApprovals: pendingApprovalsRaw.map((a: any) => ({
       id: String(a._id),

@@ -3,6 +3,7 @@ import { Printer, Eye, X } from "lucide-react";
 import { payrollService } from "../../services/payrollService";
 import { buildPayrollDetails } from "./payrollDetails";
 import { getApiErrorMessage } from "../../utils/errorMessage";
+import { EmployeePayrollReconciliation } from "./payroll/EmployeePayrollReconciliation";
 
 type Payslip = { runId: string; periodKey?: string; employeeId: string; employeeName?: string; netPay: number; paidAmount: number; balance: number };
 const formatVnd = (value: number) => new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(Number(value) || 0);
@@ -46,11 +47,11 @@ export default function EmployeePayslips() {
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
   };
 
-  if (loading) return <div className="p-5 text-sm text-slate-500">Đang tải phiếu lương...</div>;
-  if (error) return <div className="p-5 text-sm text-rose-600">{error}</div>;
-
   return (
     <section className="space-y-4 p-5">
+      <EmployeePayrollReconciliation />
+      {loading && <p className="text-sm text-slate-500">Đang tải phiếu lương chính thức...</p>}
+      {error && <p className="text-sm text-rose-600">{error}</p>}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-slate-900">Phiếu lương của tôi</h2>
       </div>
@@ -155,6 +156,7 @@ export default function EmployeePayslips() {
                         <span>Tăng ca</span>
                         <b>{money(detail.overtimeValue)}</b>
                       </div>
+                      <div className="flex justify-between"><span>Hoa hồng</span><b>{money(detail.commission)}</b></div>
                       <div className="flex justify-between">
                         <span>Phụ cấp</span>
                         <b>{money(detail.allowances)}</b>

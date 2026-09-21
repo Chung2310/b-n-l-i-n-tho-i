@@ -1,8 +1,9 @@
 import React from "react";
 import { User, Mail, Lock, X, RefreshCw, Link2, Upload, Eye } from "lucide-react";
-import { CompanyProfile, UserProfile } from "../../types";
+import { CompanyProfile, UserProfile, DepartmentRecord } from "../../types";
 import { BranchRecord } from "../../services/branchService";
 import { authService } from "../../services/authService";
+import { departmentService } from "../../services/departmentService";
 import { toast } from "../../pages/Toast";
 
 export interface UserFormModalProps {
@@ -94,7 +95,22 @@ export function UserFormModal({
 }: UserFormModalProps) {
   const [uploadingJobDescription, setUploadingJobDescription] = React.useState(false);
   const [showJobDescriptionPreview, setShowJobDescriptionPreview] = React.useState(false);
+  const [availableDepartments, setAvailableDepartments] = React.useState<DepartmentRecord[]>([]);
   const jobDescriptionFileInputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const compCode = userCompanyCode && userCompanyCode !== "SYSTEM" ? userCompanyCode : undefined;
+    departmentService
+      .list(compCode)
+      .then((data) => {
+        setAvailableDepartments(data || []);
+      })
+      .catch((err) => {
+        console.error("Lỗi khi tải danh sách phòng ban:", err);
+        setAvailableDepartments([]);
+      });
+  }, [open, userCompanyCode]);
 
   if (!open) return null;
 
@@ -321,15 +337,25 @@ export function UserFormModal({
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">
                   {userRole === "manager" ? "Phòng ban quản lý *" : "Phòng ban *"}
                 </label>
-                <input
-                  type="text"
+                <select
                   required
                   disabled={userRole === "user" && !!userParentId}
-                  placeholder="Ví dụ: Phòng Kỹ Thuật"
                   value={userDepartment}
                   onChange={(e) => setUserDepartment(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none disabled:bg-gray-50 disabled:text-gray-450"
-                />
+                  className="w-full p-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 bg-white cursor-pointer outline-none disabled:bg-gray-50 disabled:text-gray-450"
+                >
+                  <option value="">— Chọn phòng ban —</option>
+                  {availableDepartments
+                    .filter((d) => d.isActive !== false)
+                    .map((dept) => (
+                      <option key={dept._id || dept.code} value={dept.name}>
+                        {dept.name}
+                      </option>
+                    ))}
+                  {userDepartment && !availableDepartments.some((d) => d.name === userDepartment) && (
+                    <option value={userDepartment}>{userDepartment}</option>
+                  )}
+                </select>
                 {userRole === "user" && !!userParentId && (
                   <p className="text-[10px] text-indigo-650 font-mono mt-0.5">
                     Tự động điền theo phòng ban của quản lý trực tiếp.
@@ -338,10 +364,7 @@ export function UserFormModal({
               </div>
             )}
 
-            <div className="space-y-1.5 text-left">
-              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Trình độ</label>
-              <input type="text" value={userQualification} onChange={(e) => setUserQualification(e.target.value)} placeholder="Ví dụ: TESOL, Cử nhân Sư phạm" className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 outline-none" />
-            </div>            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5 text-left"><label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Lương tháng (VNĐ)</label><input type="number" min="0" step="1000" value={userMonthlySalary} onChange={(e) => setUserMonthlySalary(e.target.value)} className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-xs outline-none" placeholder="26000000" /></div>
             </div>
 

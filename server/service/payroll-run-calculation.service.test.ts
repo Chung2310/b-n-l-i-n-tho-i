@@ -2,6 +2,16 @@ import { describe, expect, it } from "vitest";
 import { calculateDetailedPayroll } from "./payroll-run-calculation.service";
 
 describe("calculateDetailedPayroll", () => {
+  it("includes negative corrections in deduction totals", () => {
+    const result = calculateDetailedPayroll({
+      employeeId: "employee-1", standardDays: 26, standardHours: 208,
+      workedMinutes: 12480, shortageMinutes: 0, paidLeaveMinutesByRate: [], overtime: [],
+      allowances: 0, bonuses: 0, deductions: 100000, adjustments: -200000,
+      segments: [{ sourceId: "salary", start: "2026-07-01", end: "2026-07-31", monthlySalary: 10000000 }],
+    });
+    expect(result.totals).toEqual({ grossPay: 10000000, deductions: 300000, netPay: 9700000 });
+    expect(result.lines[0].calculation.otherDeductions).toBe(100000);
+  });
   it("calculates each effective segment and returns typed totals", () => {
     const result = calculateDetailedPayroll({
       employeeId: "employee-1",

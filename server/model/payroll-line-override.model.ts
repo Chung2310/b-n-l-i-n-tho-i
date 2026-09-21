@@ -9,6 +9,7 @@ const schema = new Schema<IPayrollLineOverride>({
   baseSalary: Number,
   adjustedBase: Number,
   overtime: Number,
+  commission: Number,
   bonusTotal: Number,
   penaltyTotal: Number,
   socialInsurance: Number,
