@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 import * as tierService from "./retail-customer-tier.service";
 
 test("builds company-wide order filters for all tier evaluation windows", () => {
@@ -17,6 +17,38 @@ test("tier sales filter is not scoped to a single branch", () => {
 test("net tier sales exclude cancelled orders and subtract refunds", () => {
   const total = (tierService as any).calculateTierNetSales;
   assert.equal(total([{ status: "completed", grandTotal: 100, refundedAmount: 30 }, { status: "confirmed", grandTotal: 50, refundedAmount: 0 }, { status: "cancelled", grandTotal: 999, refundedAmount: 0 }]), 120);
+});
+
+test("tính Lợi nhuận gộp kết hợp cả đơn bán lẻ và phiếu sửa chữa", () => {
+  const calculateGrossProfit = (tierService as any).calculateTierGrossProfit;
+  const orders = [
+    // Bán lẻ 50 củ sạc: thu 15tr, vốn 7.5tr -> lãi 7.5tr
+    { status: "completed", grandTotal: 15000000, totalCost: 7500000, refundedAmount: 0 },
+  ];
+  const repairTickets = [
+    // Sửa máy: thu 1tr, vốn linh kiện 400k -> lãi 600k
+    { status: "delivered", totalAmount: 1000000, partCost: 400000 },
+  ];
+  const totalProfit = calculateGrossProfit(orders, repairTickets);
+  assert.equal(totalProfit, 8100000); // 7.5tr + 600k = 8.1tr
+});
+
+test("phân hạng VIP theo LỢI NHUẬN GỘP: khách mua phụ kiện lãi 7.5tr đạt Kim Cương > khách mua 15 Pro Max lãi 700k đạt Hạng Đồng", () => {
+  const resolve = (tierService as any).resolveTier;
+  const tiers = [
+    { code: "bronze", name: "Hạng Đồng", minGrossProfit: 0 },
+    { code: "silver", name: "Hạng Bạc", minGrossProfit: 1500000 },
+    { code: "gold", name: "Hạng Vàng", minGrossProfit: 4000000 },
+    { code: "diamond", name: "Kim Cương", minGrossProfit: 7000000 },
+  ];
+
+  // Khách 1: Mua 50 củ sạc lãi 7.5tr
+  const tierCustomer1 = resolve(7500000, tiers, "gross_profit");
+  assert.equal(tierCustomer1.code, "diamond");
+
+  // Khách 2: Mua 1 máy iPhone 15 Pro Max lãi 700k (doanh thu 35tr)
+  const tierCustomer2 = resolve(700000, tiers, "gross_profit");
+  assert.equal(tierCustomer2.code, "bronze");
 });
 
 test("retry sweep only picks up unfinished jobs with attempts left", async () => {

@@ -150,7 +150,7 @@ export function Dropdown<T = string>({
         id={id}
         type="button"
         disabled={disabled}
-        aria-label={ariaLabel || label || (selectedOption ? selectedOption.label : placeholder)}
+        aria-label={ariaLabel ? undefined : (label || (selectedOption ? selectedOption.label : placeholder))}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         onClick={() => !disabled && setIsOpen(!isOpen)}
@@ -174,14 +174,14 @@ export function Dropdown<T = string>({
         />
       </button>
 
-      {/* Hidden select for form submissions and accessible references */}
-      {name && (
+      {/* Hidden select for form submissions, automated tests, and accessible references */}
+      {(name || ariaLabel) && (
         <select
           name={name}
+          aria-label={ariaLabel}
           value={value as any}
           onChange={(e) => onChange(e.target.value as T)}
           tabIndex={-1}
-          aria-hidden="true"
           className="sr-only pointer-events-none absolute h-0 w-0 opacity-0"
         >
           {normalizedOptions.map((opt) => (

@@ -123,12 +123,24 @@ export default function RepairReportsPanel() {
   const load = async () => {
     setBusy(true);
     try {
-      const [revenueReport, technicianReport] = await Promise.all([
+      const [revResult, techResult] = await Promise.allSettled([
         repairExtras.revenueReport({ ...range, groupBy }),
         repairExtras.technicianReport(range),
       ]);
-      setRevenue(revenueReport);
-      setTechnicians(technicianReport);
+
+      if (revResult.status === "fulfilled") {
+        setRevenue(revResult.value);
+      } else {
+        console.error("Lỗi tải báo cáo doanh thu:", revResult.reason);
+        toast.error("Không tải được báo cáo doanh thu.");
+      }
+
+      if (techResult.status === "fulfilled") {
+        setTechnicians(techResult.value);
+      } else {
+        console.error("Lỗi tải báo cáo kỹ thuật viên:", techResult.reason);
+        toast.error("Không tải được báo cáo kỹ thuật viên.");
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Không tải được báo cáo.");
     } finally {

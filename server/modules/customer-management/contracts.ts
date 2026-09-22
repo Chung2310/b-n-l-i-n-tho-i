@@ -73,16 +73,40 @@ export function createCustomerContracts(service: CustomerContractService) {
 
 export const { searchActiveCustomers, getCustomerBrief, getCustomerContact, quickCreateCustomer } = createCustomerContracts(CustomerService);
 
+export { CustomerPointService } from "./services/customer-point.service";
+
 /** Bậc phân hạng của công ty — nguồn duy nhất là cài đặt module Khách hàng. */
 export async function getCustomerTiers(companyCode: string): Promise<ICustomerTierState[]> {
   const settings = await CustomerSettingsService.getSettings(companyCode);
-  return settings.customerTiers.map((tier) => ({ code: tier.code, name: tier.name, minSpend: Number(tier.minSpend) }));
+  return settings.customerTiers.map((tier) => ({
+    code: tier.code,
+    name: tier.name,
+    minGrossProfit: Number(tier.minGrossProfit ?? tier.minSpend ?? 0),
+    minSpend: Number(tier.minSpend ?? tier.minGrossProfit ?? 0),
+    color: tier.color,
+    pointMultiplier: tier.pointMultiplier,
+    discountPercent: tier.discountPercent,
+  }));
 }
 
 /** Ghi hạng đã tính lại lên hồ sơ khách. Không đụng `version` vì đây không phải sửa đổi của người dùng. */
-export async function applyCustomerTier(companyCode: string, customerId: string, tier: ICustomerTierState, totalSales: number, now = new Date()): Promise<void> {
+export async function applyCustomerTier(
+  companyCode: string,
+  customerId: string,
+  tier: ICustomerTierState,
+  tierGrossProfit: number,
+  totalSales: number,
+  now = new Date()
+): Promise<void> {
   await CustomerModel.updateOne(
     { _id: customerId, companyCode: companyCode.toUpperCase() },
-    { $set: { tier, tierTotalSales: totalSales, tierUpdatedAt: now } },
+    {
+      $set: {
+        tier,
+        tierGrossProfit: Number(tierGrossProfit || 0),
+        tierTotalSales: Number(totalSales || 0),
+        tierUpdatedAt: now,
+      },
+    },
   );
 }

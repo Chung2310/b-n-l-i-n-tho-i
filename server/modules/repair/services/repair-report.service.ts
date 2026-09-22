@@ -86,10 +86,15 @@ function applyCostVisibility(rows: any[], includeCost: boolean) {
 
 export async function repairRevenueReport(scope: RepairReportScope, range: RepairReportRange, options: { groupBy?: RepairRevenueGroupBy; includeCost?: boolean } = {}) {
   // Backfill completedAt = deliveredAt cho phiếu delivered cũ nếu chưa có completedAt
-  await RepairTicketModel.updateMany(
-    { companyCode: scope.companyCode, status: "delivered", completedAt: null, deliveredAt: { $ne: null } },
-    [{ $set: { completedAt: "$deliveredAt" } }]
-  ).catch(() => {});
+  try {
+    await RepairTicketModel.updateMany(
+      { companyCode: scope.companyCode, status: "delivered", completedAt: null, deliveredAt: { $ne: null } },
+      [{ $set: { completedAt: "$deliveredAt" } }],
+      { updatePipeline: true }
+    );
+  } catch {
+    // Không để lỗi đồng bộ làm gián đoạn báo cáo
+  }
 
   const groupBy = options.groupBy || "branch";
   const rows: any[] = await RepairTicketModel.aggregate(buildRepairRevenuePipeline(scope, range, groupBy));
@@ -164,9 +169,21 @@ export function activeRepairMinutes(ticket: { receivedAt?: unknown; completedAt?
 export async function repairTechnicianPerformanceReport(scope: RepairReportScope, range: RepairReportRange) {
   const from = parseStartOfDay(range.from);
   const to = parseEndOfDay(range.to);
+  try {
+    await RepairTicketModel.updateMany(
+      { companyCode: scope.companyCode, status: "delivered", completedAt: null, deliveredAt: { $ne: null } },
+      [{ $set: { completedAt: "$deliveredAt" } }],
+      { updatePipeline: true }
+    );
+  } catch {}
+
   const tickets: any[] = await RepairTicketModel.find({
     companyCode: scope.companyCode, ...(scope.branchId ? { branchId: scope.branchId } : {}),
-    status: { $in: COUNTED_STATUSES }, completedAt: { $gte: from, $lte: to }, technicianId: { $nin: [null, ""] },
+    status: { $in: COUNTED_STATUSES }, completedAt: { $gte: from, $lte: to },
+    $or: [
+      { technicianId: { $nin: [null, ""] } },
+      { technicianName: { $nin: [null, ""] } },
+    ],
   }).select("technicianId technicianName branchId receivedAt completedAt statusHistory totalAmount").lean();
 
   const ticketIds = tickets.map((ticket) => String(ticket._id));
@@ -175,8 +192,20 @@ export async function repairTechnicianPerformanceReport(scope: RepairReportScope
 
   const rows = new Map<string, any>();
   for (const ticket of tickets) {
-    const key = String(ticket.technicianId);
-    const row = rows.get(key) || { technicianId: key, technicianName: String(ticket.technicianName || ""), ticketCount: 0, revenue: 0, totalMinutes: 0, reworkCount: 0, ratingSum: 0, ratingCount: 0, criteria: { skill: 0, attitude: 0, speed: 0 }, criteriaCount: 0 };
+    const key = String(ticket.technicianId || ticket.technicianName || "unknown");
+    const name = String(ticket.technicianName || ticket.technicianId || "Chưa gán tên");
+    const row = rows.get(key) || {
+      technicianId: String(ticket.technicianId || key),
+      technicianName: name,
+      ticketCount: 0,
+      revenue: 0,
+      totalMinutes: 0,
+      reworkCount: 0,
+      ratingSum: 0,
+      ratingCount: 0,
+      criteria: { skill: 0, attitude: 0, speed: 0 },
+      criteriaCount: 0,
+    };
     row.ticketCount += 1;
     row.revenue += Number(ticket.totalAmount || 0);
     row.totalMinutes += activeRepairMinutes(ticket);

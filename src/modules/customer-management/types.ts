@@ -2,6 +2,34 @@ export type CustomerStatus = "active" | "inactive";
 export type CustomerType = "regular" | "vat";
 export type CustomerGender = "male" | "female" | "other";
 
+export interface CustomerTier {
+  code: string;
+  name: string;
+  minSpend: number;
+  minGrossProfit?: number;
+  pointMultiplier?: number;
+  discountPercent?: number;
+  color?: string;
+}
+
+export interface CustomerPointsPolicy {
+  enabled: boolean;
+  grossProfitPerPoint: number;
+  pointRedeemValue: number;
+  maxRedeemPercent: number;
+  minOrderTotalForRedeem: number;
+  allowRepairRedeem: boolean;
+  allowRetailRedeem: boolean;
+}
+
+export interface CustomerSettings {
+  companyCode: string;
+  tierEvaluationMetric?: "gross_profit" | "sales";
+  evaluationWindow?: "rolling12Months" | "allTime";
+  customerTiers: CustomerTier[];
+  pointsPolicy?: CustomerPointsPolicy;
+}
+
 export interface Customer {
   _id: string;
   companyCode: string;
@@ -10,15 +38,23 @@ export interface Customer {
   name: string;
   phone: string;
   email?: string;
+  avatarUrl?: string;
   dateOfBirth?: string;
   gender?: CustomerGender;
   address?: string;
   notes?: string;
   status: CustomerStatus;
   source: "manual" | "pos" | "import";
-  tier?: { code: string; name: string; minSpend: number };
+  tier?: CustomerTier;
+  tierGrossProfit?: number;
   tierTotalSales?: number;
   tierUpdatedAt?: string;
+
+  // Loyalty Points
+  pointsBalance?: number;
+  totalPointsEarned?: number;
+  totalPointsRedeemed?: number;
+
   createdBy: string;
   createdByName: string;
   version: number;
@@ -26,7 +62,7 @@ export interface Customer {
   updatedAt?: string;
 }
 
-export type CustomerInput = Pick<Customer, "name" | "phone"> & Partial<Pick<Customer, "type" | "email" | "dateOfBirth" | "gender" | "address" | "notes">>;
+export type CustomerInput = Pick<Customer, "name" | "phone"> & Partial<Pick<Customer, "type" | "email" | "avatarUrl" | "dateOfBirth" | "gender" | "address" | "notes">>;
 export type CustomerListQuery = {
   companyCode?: string;
   q?: string;
@@ -65,3 +101,40 @@ export interface CustomerPurchaseHistory {
 }
 
 export type CustomerPurchaseHistoryScope = { companyCode: string; branchId: string };
+
+export type PointTransactionType =
+  | "EARN_ORDER"
+  | "EARN_REPAIR"
+  | "REDEEM_ORDER"
+  | "REDEEM_REPAIR"
+  | "MANUAL_GRANT"
+  | "MANUAL_DEDUCT"
+  | "REFUND_REVERT";
+
+export interface CustomerPointLedgerItem {
+  _id: string;
+  companyCode: string;
+  branchId?: string;
+  customerId: string;
+  transactionCode: string;
+  type: PointTransactionType;
+  points: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  sourceType: "retail_order" | "repair_ticket" | "manual";
+  sourceId?: string;
+  sourceCode?: string;
+  reasonCategory?: "purchase" | "repair" | "birthday" | "compensation" | "loyalty_gift" | "refund" | "correction";
+  reason: string;
+  actorId?: string;
+  actorName?: string;
+  createdAt: string;
+}
+
+export type PaginatedPointLedger = {
+  items: CustomerPointLedgerItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};

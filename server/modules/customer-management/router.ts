@@ -3,6 +3,7 @@ import { requirePermission } from "../../middleware/auth";
 import { validateRequest } from "../../middleware/validation";
 import { customerController } from "./customer.controller";
 import { customerSettingsController } from "./controllers/customer-settings.controller";
+import { customerPointController } from "./controllers/customer-point.controller";
 import { updateCustomerSettingsSchema } from "./validations/customer-settings.validation";
 
 export const customerRouter = Router();
@@ -17,6 +18,8 @@ customerRouter.get("/search", read, customerController.search as any);
 customerRouter.post("/", manage, customerController.create as any);
 customerRouter.post("/quick", manage, customerController.quickCreate as any);
 customerRouter.get("/:id/purchase-history", read, customerController.purchaseHistory as any);
+customerRouter.get("/:id/points/ledger", read, customerPointController.getLedger as any);
+customerRouter.post("/:id/points/adjust", manage, customerPointController.adjust as any);
 customerRouter.get("/:id", read, customerController.detail as any);
 customerRouter.patch("/:id", manage, customerController.update as any);
 customerRouter.post("/:id/activate", manage, customerController.activate as any);

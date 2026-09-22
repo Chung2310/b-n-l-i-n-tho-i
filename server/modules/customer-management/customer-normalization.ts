@@ -51,6 +51,7 @@ export function normalizeCustomerInput(input: CustomerInput | Record<string, unk
   if (source && !CUSTOMER_SOURCES.has(source)) throw new CustomerError("CUSTOMER_SOURCE_INVALID", "Nguồn khách hàng không hợp lệ.");
 
   const email = optional(input.email)?.toLowerCase();
+  const avatarUrl = optional(input.avatarUrl);
   const dateOfBirth = normalizeDateOfBirth(input.dateOfBirth);
   const address = optional(input.address);
   const notes = optional(input.notes);
@@ -59,6 +60,7 @@ export function normalizeCustomerInput(input: CustomerInput | Record<string, unk
     name,
     phone,
     normalizedPhone,
+    ...(avatarUrl !== undefined ? { avatarUrl } : {}),
     ...(email ? { email } : {}),
     ...(dateOfBirth ? { dateOfBirth } : {}),
     ...(gender ? { gender } : {}),
