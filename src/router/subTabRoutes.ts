@@ -60,6 +60,25 @@ export const SETTINGS_SUB_TAB_ROUTES: SubTabRouteMap<SettingsSubTabType> = [
   { slug: "chi-nhanh", value: "branches" },
 ];
 
+export type RepairSubTabType = "repair" | "warranty" | "reports";
+
+export const REPAIR_SUB_TAB_ROUTES: SubTabRouteMap<RepairSubTabType> = [
+  { slug: "sua-chua", value: "repair" },
+  { slug: "phieu-sua-chua", value: "repair" },
+  { slug: "bao-hanh", value: "warranty" },
+  { slug: "tra-cuu-bao-hanh", value: "warranty" },
+  { slug: "bao-cao", value: "reports" },
+  { slug: "bao-cao-ktv", value: "reports" },
+];
+
+export type CustomerSubTabType = "list" | "settings";
+
+export const CUSTOMER_SUB_TAB_ROUTES: SubTabRouteMap<CustomerSubTabType> = [
+  { slug: "danh-sach", value: "list" },
+  { slug: "khach-hang", value: "list" },
+  { slug: "cau-hinh", value: "settings" },
+  { slug: "phan-hang", value: "settings" },
+];
 
 const SUB_TAB_ROUTES_BY_TAB: Partial<Record<TabType, SubTabRouteMap<string>>> = {
   "NHÂN SỰ": HR_SUB_TAB_ROUTES,
@@ -67,6 +86,8 @@ const SUB_TAB_ROUTES_BY_TAB: Partial<Record<TabType, SubTabRouteMap<string>>> = 
   "QUẢN LÝ TÀI NGUYÊN": RESOURCE_SUB_TAB_ROUTES,
   "TÀI NGUYÊN": RESOURCE_SUB_TAB_ROUTES,
   "CÀI ĐẶT": SETTINGS_SUB_TAB_ROUTES,
+  "SỬA CHỮA & BẢO HÀNH": REPAIR_SUB_TAB_ROUTES,
+  "QUẢN LÝ KHÁCH HÀNG": CUSTOMER_SUB_TAB_ROUTES,
 };
 
 /** Tra slug ?sub= cho một sub-tab; trả "" nếu tab/sub-tab không có slug. */
@@ -74,3 +95,4 @@ export function subTabToSlug(tab: TabType, subTab: string): string {
   const routes = SUB_TAB_ROUTES_BY_TAB[tab];
   return routes?.find((entry) => entry.value === subTab)?.slug || "";
 }
+

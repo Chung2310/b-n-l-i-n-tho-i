@@ -63,6 +63,9 @@ export class RedisRateLimitStore implements Store {
   }
 
   async increment(key: string) {
+    if (this.client && typeof (this.client as any).status === "string" && (this.client as any).status !== "ready") {
+      return { totalHits: 1, resetTime: new Date(Date.now() + this.windowMs) };
+    }
     const result = await this.client.eval(
       INCREMENT_SCRIPT,
       1,
@@ -81,11 +84,17 @@ export class RedisRateLimitStore implements Store {
   }
 
   async decrement(key: string): Promise<void> {
-    await this.client.decr(this.prefixed(key));
+    if (this.client && typeof (this.client as any).status === "string" && (this.client as any).status !== "ready") return;
+    try {
+      await this.client.decr(this.prefixed(key));
+    } catch {}
   }
 
   async resetKey(key: string): Promise<void> {
-    await this.client.del(this.prefixed(key));
+    if (this.client && typeof (this.client as any).status === "string" && (this.client as any).status !== "ready") return;
+    try {
+      await this.client.del(this.prefixed(key));
+    } catch {}
   }
 
   private prefixed(key: string): string {

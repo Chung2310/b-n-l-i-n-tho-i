@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 import { CustomerError } from "./customer-errors";
 import { createCustomerPurchaseHistoryService } from "./customer-purchase-history.service";
 
