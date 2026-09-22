@@ -29,6 +29,7 @@ import { toast } from "../../pages/Toast";
 import { getApiErrorMessage } from "../../utils/errorMessage";
 import { FilePreviewModal } from "../resource/FilePreviewModal";
 import type { ResourceItem } from "../../types";
+import { readContractSearch } from "../../utils/contractExpiryNavigation";
 
 type ContractStatus = "draft" | "active" | "expired" | "terminated";
 const CONTRACT_TYPES = [
@@ -83,6 +84,15 @@ type Extension = {
   signedImageMimeType?: string;
   signedImageSize?: number;
   signedImageResourceId?: string;
+};
+type ContractExpiryAlert = {
+  id: string;
+  contractType: string;
+  employeeId: string;
+  employeeName: string;
+  endDate: string;
+  daysRemaining: number;
+  reminderDays: 3 | 7;
 };
 
 const headers = () => ({
@@ -219,9 +229,11 @@ export default function ContractsTab({
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [extensions, setExtensions] = useState<Extension[]>([]);
+  const [expiryAlerts, setExpiryAlerts] = useState<ContractExpiryAlert[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const initialSearch = readContractSearch(window.location.search);
+  const [search, setSearch] = useState(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
@@ -259,6 +271,7 @@ export default function ContractsTab({
       if (!a.ok || !b.ok) throw new Error(ar.message || br.message);
       setContracts(ar.data?.contracts || []);
       setEmployees(ar.data?.employees || []);
+      setExpiryAlerts(ar.data?.expiryAlerts || []);
       setTotal(ar.data?.total || 0);
       setExtensions(br.data || []);
     } catch (e) {
@@ -735,6 +748,49 @@ export default function ContractsTab({
       </div>
 
       {/* Main Tab Content */}
+      {tab === "contracts" && expiryAlerts.length > 0 && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 shadow-xs">
+          <div className="mb-3 flex items-center gap-2">
+            <FileSignature className="h-5 w-5 text-amber-700" />
+            <div>
+              <h3 className="text-sm font-bold text-amber-900">Nhắc hạn hợp đồng</h3>
+              <p className="text-[11px] text-amber-700">Các hợp đồng còn tối đa 7 ngày trước khi hết hạn.</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {expiryAlerts.map((alert) => (
+              <button
+                key={alert.id}
+                type="button"
+                onClick={() => {
+                  setSearch(alert.employeeName);
+                  setDebouncedSearch(alert.employeeName);
+                  setPage(1);
+                }}
+                className={`flex w-full items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2.5 text-left transition hover:shadow-sm ${
+                  alert.reminderDays === 3 ? "border-rose-200" : "border-amber-200"
+                }`}
+              >
+                <span className="min-w-0 text-xs font-semibold text-slate-700">
+                  {alert.contractType} của <strong>{alert.employeeName}</strong>{" "}
+                  {alert.daysRemaining === 0
+                    ? "hết hạn hôm nay"
+                    : `${alert.daysRemaining} ngày nữa hết hạn`}
+                  .
+                </span>
+                <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                  alert.reminderDays === 3
+                    ? "bg-rose-100 text-rose-700"
+                    : "bg-amber-100 text-amber-700"
+                }`}>
+                  Mốc {alert.reminderDays} ngày
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex flex-col items-center justify-center p-14 rounded-2xl border border-slate-200/80 bg-white shadow-xs">
           <Loader2 className="h-7 w-7 animate-spin text-cyan-600 mb-2" />

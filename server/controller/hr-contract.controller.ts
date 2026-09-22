@@ -18,7 +18,13 @@ const tenant = (req: AuthenticatedRequest) =>
     ? String(req.query.companyCode)
     : req.user?.companyCode || "SYSTEM";
 const canViewAll = (req: AuthenticatedRequest) =>
-  ["superadmin", "admin", "manager"].includes(req.user?.role || "");
+  ["superadmin", "admin", "branch_owner", "manager"].includes(req.user?.role || "");
+export const resolveContractBranchId = (req: AuthenticatedRequest) => {
+  const canSelectBranch = ["superadmin", "admin"].includes(req.user?.role || "");
+  return canSelectBranch && req.query.branchId
+    ? String(req.query.branchId)
+    : req.user?.branchId;
+};
 
 type FinalizeUpload = (
   token: string,
@@ -130,10 +136,10 @@ export const hrContractController = {
         ? String(req.query.employeeId || "")
         : req.user!.id;
       await hrContractService.updateExpiredStatus(companyCode);
-      const branchId = req.query.branchId ? String(req.query.branchId) : req.user?.branchId;
+      const branchId = resolveContractBranchId(req);
       const page = Number(req.query.page) || 1;
       const limit = Number(req.query.limit) || 10;
-      const [paginationResult, employees] = await Promise.all([
+      const [paginationResult, employees, expiryAlerts] = await Promise.all([
         hrContractService.list({
           companyCode,
           branchId,
@@ -150,6 +156,11 @@ export const hrContractController = {
           : UserModel.find({ _id: req.user!.id, companyCode })
               .select("_id displayName email department")
               .lean(),
+        hrContractService.listExpiryAlerts({
+          companyCode,
+          branchId,
+          employeeId: employeeFilter || undefined,
+        }),
       ]);
       return res.json({
         status: "success",
@@ -159,6 +170,7 @@ export const hrContractController = {
           page: paginationResult.page,
           limit: paginationResult.limit,
           employees,
+          expiryAlerts,
         },
       });
     } catch (error: any) {
@@ -282,7 +294,7 @@ export const hrContractController = {
   async listExtensions(req: AuthenticatedRequest, res: Response) {
     try {
       const companyCode = tenant(req);
-      const branchId = req.query.branchId ? String(req.query.branchId) : req.user?.branchId;
+      const branchId = resolveContractBranchId(req);
       const query: any = { companyCode };
       if (branchId) query.branchId = branchId;
       if (!canViewAll(req)) query.employeeId = req.user!.id;

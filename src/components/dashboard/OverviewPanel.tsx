@@ -2,6 +2,7 @@ import { Users, Clock, UserX, CheckCircle2 } from "lucide-react";
 import { DashboardSummary, DashboardActionItems } from "../../types/dashboard";
 import { ActionItemsWidget } from "./ActionItemsWidget";
 import { DashboardSectionCard } from "./DashboardSectionCard";
+import { buildContractReviewUrl } from "../../utils/contractExpiryNavigation";
 
 export function OverviewPanel({
   summary,
@@ -16,6 +17,11 @@ export function OverviewPanel({
     const path = tab === "NHÂN SỰ" ? "/nhan-su" : "/tong-quan";
     const url = subTab ? `${path}?sub=${subTab}` : path;
     window.history.pushState(null, "", url);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  };
+
+  const goToContract = (employeeName: string) => {
+    window.history.pushState(null, "", buildContractReviewUrl(employeeName));
     window.dispatchEvent(new PopStateEvent("popstate"));
   };
 
@@ -41,7 +47,7 @@ export function OverviewPanel({
 
   return (
     <div className="space-y-8 pb-10">
-      {actionItems && <ActionItemsWidget actionItems={actionItems} onGoToTasks={() => goToTab("NHÂN SỰ", "kanban")} onGoToApprovals={() => goToTab("NHÂN SỰ", "lich")} onGoToInventory={() => { window.history.pushState(null, "", "/kho-san-pham?sub=nhap-hang"); window.dispatchEvent(new PopStateEvent("popstate")); }} />}
+      {actionItems && <ActionItemsWidget actionItems={actionItems} onGoToTasks={() => goToTab("NHÂN SỰ", "kanban")} onGoToApprovals={() => goToTab("NHÂN SỰ", "lich")} onGoToInventory={() => { window.history.pushState(null, "", "/kho-san-pham?sub=nhap-hang"); window.dispatchEvent(new PopStateEvent("popstate")); }} onGoToContract={(alert) => goToContract(alert.employeeName)} />}
       {canSeeHr && (
         <DashboardSectionCard title="Nhân sự & Chấm công" icon={Users} gradientFrom="from-emerald-500" gradientTo="to-teal-600">
           <SimpleMetric icon={CheckCircle2} tone="emerald" title="Đi làm" value={summary ? String(summary.timekeeping.checkedInToday) : "..."} unit={`/ ${summary ? summary.timekeeping.totalEmployees : "..."} Người`} onClick={() => goToTab("NHÂN SỰ", "lich")} />

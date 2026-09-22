@@ -4,6 +4,7 @@ import {
   finalizeContractPendingUploads,
   finalizeExtensionPendingUploads,
   hrContractController,
+  resolveContractBranchId,
 } from "./hr-contract.controller";
 
 afterEach(() => vi.restoreAllMocks());
@@ -19,6 +20,18 @@ function response() {
 }
 
 describe("hrContractController managed uploads", () => {
+  it("keeps branch owners in their assigned branch", () => {
+    expect(resolveContractBranchId({
+      user: { role: "branch_owner", branchId: "branch-a" },
+      query: { branchId: "branch-b" },
+    } as any)).toBe("branch-a");
+
+    expect(resolveContractBranchId({
+      user: { role: "admin", branchId: "branch-a" },
+      query: { branchId: "branch-b" },
+    } as any)).toBe("branch-b");
+  });
+
   it("returns a pending token without creating an ad-hoc ResourceItem", async () => {
     const createPendingUpload = vi.spyOn(managedUploadService, "createPendingUpload").mockResolvedValue({
       _id: "pending-1", token: "token-1", companyCode: "ACME", branchId: "branch-a", actorId: "user-1",
