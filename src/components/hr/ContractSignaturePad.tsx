@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, Eraser, Loader2, Minus, Plus, X, ZoomIn } from "lucide-react";
 
 const CANVAS_WIDTH = 900;
@@ -13,6 +14,30 @@ export function ContractSignaturePad({ onSave, saving = false }: ContractSignatu
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawingRef = useRef(false);
   const [hasInk, setHasInk] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [portalHost] = useState(() => document.createElement("div"));
+
+  // Move the same canvas so changing view never clears its bitmap.
+  useLayoutEffect(() => {
+    const parent = expanded ? document.body : anchorRef.current;
+    parent?.appendChild(portalHost);
+    return () => { portalHost.remove(); };
+  }, [expanded, portalHost]);
+
+  useEffect(() => {
+    if (!expanded) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setExpanded(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [expanded]);
 
   const resetCanvas = () => {
     const canvas = canvasRef.current;
@@ -81,7 +106,15 @@ export function ContractSignaturePad({ onSave, saving = false }: ContractSignatu
   };
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+    <div ref={anchorRef}>
+    {createPortal(<div
+      role={expanded ? "dialog" : undefined}
+      aria-modal={expanded ? true : undefined}
+      aria-label={expanded ? "Ký toàn màn hình" : undefined}
+      className={expanded
+        ? "fixed inset-0 z-[80] flex flex-col overflow-auto bg-slate-50 p-4 sm:p-6"
+        : "rounded-xl border border-slate-200 bg-slate-50/70 p-3"}
+    >
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
@@ -91,6 +124,15 @@ export function ContractSignaturePad({ onSave, saving = false }: ContractSignatu
             Ký trực tiếp bằng chuột hoặc ngón tay trong vùng trắng bên dưới.
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-cyan-700 hover:bg-cyan-50"
+        >
+          {expanded ? <X className="h-3.5 w-3.5" /> : <ZoomIn className="h-3.5 w-3.5" />}
+          {expanded ? "Thu nhỏ vùng ký" : "Ký toàn màn hình"}
+        </button>
         <button
           type="button"
           onClick={resetCanvas}
@@ -100,7 +142,9 @@ export function ContractSignaturePad({ onSave, saving = false }: ContractSignatu
           <Eraser className="h-3.5 w-3.5" />
           Xóa chữ ký
         </button>
+        </div>
       </div>
+      <div className={expanded ? "flex min-h-0 flex-1 items-center justify-center" : ""}>
       <canvas
         ref={canvasRef}
         width={CANVAS_WIDTH}
@@ -112,7 +156,9 @@ export function ContractSignaturePad({ onSave, saving = false }: ContractSignatu
         onPointerCancel={stopDrawing}
         onPointerLeave={stopDrawing}
         className="block aspect-[3/1] w-full touch-none cursor-crosshair rounded-lg border border-slate-300 bg-white shadow-inner"
+        style={expanded ? { maxWidth: "min(100%, calc((100dvh - 180px) * 3))" } : undefined}
       />
+      </div>
       <button
         type="button"
         onClick={saveSignature}
@@ -122,6 +168,7 @@ export function ContractSignaturePad({ onSave, saving = false }: ContractSignatu
         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
         {saving ? "Đang lưu chữ ký..." : "Lưu chữ ký vào hợp đồng"}
       </button>
+    </div>, portalHost)}
     </div>
   );
 }
