@@ -246,6 +246,7 @@ export default function ContractsTab({
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [expiryAlerts, setExpiryAlerts] = useState<ContractExpiryAlert[]>([]);
+  const [expiryAlertsExpanded, setExpiryAlertsExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const initialSearch = readContractSearch(window.location.search);
   const [search, setSearch] = useState(initialSearch);
@@ -794,7 +795,7 @@ export default function ContractsTab({
             </div>
           </div>
           <div className="space-y-2">
-            {expiryAlerts.map((alert) => (
+            {(expiryAlertsExpanded ? expiryAlerts : expiryAlerts.slice(0, 1)).map((alert) => (
               <button
                 key={alert.id}
                 type="button"
@@ -823,6 +824,18 @@ export default function ContractsTab({
                 </span>
               </button>
             ))}
+            {expiryAlerts.length > 1 && (
+              <button
+                type="button"
+                aria-expanded={expiryAlertsExpanded}
+                onClick={() => setExpiryAlertsExpanded((expanded) => !expanded)}
+                className="rounded-lg px-3 py-2 text-xs font-bold text-amber-800 transition hover:bg-amber-100"
+              >
+                {expiryAlertsExpanded
+                  ? "Thu gọn"
+                  : `+${expiryAlerts.length - 1} hợp đồng khác`}
+              </button>
+            )}
           </div>
         </div>
       )}
