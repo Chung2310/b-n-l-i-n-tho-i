@@ -3,6 +3,7 @@ import {
   IHRContract,
   IHRSalaryTerm,
   IHRContractExtension,
+  HR_CONTRACT_TYPES,
 } from "../interface/hr-contract.interface";
 
 const HRSalaryTermSchema = new Schema<IHRSalaryTerm>({
@@ -22,7 +23,13 @@ const HRContractSchema = new Schema<IHRContract>(
   {
     companyCode: { type: String, required: true, index: true },
     branchId: { type: String, index: true },
-    contractType: { type: String, required: true, trim: true, index: true },
+    contractType: {
+      type: String,
+      enum: HR_CONTRACT_TYPES,
+      required: true,
+      trim: true,
+      index: true,
+    },
     employeeId: { type: String, required: true, index: true },
     employeeName: { type: String, required: true, trim: true },
     startDate: { type: Date, required: true, index: true },

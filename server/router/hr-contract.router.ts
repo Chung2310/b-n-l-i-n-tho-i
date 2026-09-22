@@ -4,6 +4,7 @@ import { hrContractController } from "../controller/hr-contract.controller";
 import { requireAuth, requirePermission } from "../middleware/auth";
 import { requireModule } from "../middleware/require-module";
 import { validateRequest } from "../middleware/validation";
+import { HR_CONTRACT_TYPES } from "../interface/hr-contract.interface";
 
 export const hrContractRouter = Router();
 const id = Joi.string().hex().length(24).required();
@@ -44,7 +45,7 @@ const fileMetadata = {
   signedImageUploadToken: Joi.string().guid({ version: ["uuidv4"] }).allow("").optional(),
 };
 const contractBody = Joi.object({
-  contractType: Joi.string().trim().max(100).required(),
+  contractType: Joi.string().valid(...HR_CONTRACT_TYPES).required(),
   employeeId: id,
   startDate: Joi.date().iso().required(),
   endDate: Joi.date().iso().min(Joi.ref("startDate")).required(),
@@ -57,7 +58,7 @@ const contractBody = Joi.object({
   note: Joi.string().allow("").max(1000),
 });
 const updateBody = Joi.object({
-  contractType: Joi.string().trim().max(100),
+  contractType: Joi.string().valid(...HR_CONTRACT_TYPES),
   employeeId: Joi.string().hex().length(24),
   startDate: Joi.date().iso(),
   endDate: Joi.date().iso(),

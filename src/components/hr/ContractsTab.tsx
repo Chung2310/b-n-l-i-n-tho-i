@@ -31,6 +31,14 @@ import { FilePreviewModal } from "../resource/FilePreviewModal";
 import type { ResourceItem } from "../../types";
 
 type ContractStatus = "draft" | "active" | "expired" | "terminated";
+const CONTRACT_TYPES = [
+  "Hợp đồng thử việc 3 ngày",
+  "Hợp đồng thử việc 7 ngày",
+  "Hợp đồng thử việc 2 tháng",
+  "Hợp đồng chính thức",
+  "Khác",
+] as const;
+type ContractType = (typeof CONTRACT_TYPES)[number];
 type Contract = {
   _id: string;
   contractType: string;
@@ -120,7 +128,7 @@ const isExpiringSoon = (contract: Contract) => {
   return contract.status === "active" && remaining >= 1 && remaining <= 20;
 };
 const emptyContract = {
-  contractType: "Hợp đồng xác định thời hạn",
+  contractType: "" as ContractType | "",
   employeeId: "",
   startDate: "",
   endDate: "",
@@ -299,7 +307,9 @@ export default function ContractsTab({
     setContractForm(
       contract
         ? {
-            contractType: contract.contractType,
+            contractType: CONTRACT_TYPES.includes(contract.contractType as ContractType)
+              ? (contract.contractType as ContractType)
+              : "Khác",
             employeeId: contract.employeeId,
             startDate: isoDate(contract.startDate),
             endDate: isoDate(contract.endDate),
@@ -1164,17 +1174,23 @@ export default function ContractsTab({
 
             <label className="sm:col-span-2 text-xs font-semibold text-slate-700">
               Loại hợp đồng <span className="text-rose-500">*</span>
-              <input
+              <select
                 className={inputClass + " mt-1.5"}
-                placeholder="VD: Hợp đồng xác định thời hạn 12 tháng"
                 value={contractForm.contractType}
                 onChange={(e) =>
                   setContractForm({
                     ...contractForm,
-                    contractType: e.target.value,
+                    contractType: e.target.value as ContractType,
                   })
                 }
-              />
+              >
+                <option value="">-- Chọn loại hợp đồng --</option>
+                {CONTRACT_TYPES.map((contractType) => (
+                  <option key={contractType} value={contractType}>
+                    {contractType}
+                  </option>
+                ))}
+              </select>
             </label>
 
             <label className="text-xs font-semibold text-slate-700">
