@@ -6,15 +6,19 @@ const CANVAS_WIDTH = 900;
 const CANVAS_HEIGHT = 300;
 
 type ContractSignaturePadProps = {
-  onSave: (file: File) => void | Promise<void>;
+  value?: string;
+  onSave: (file: File) => Promise<boolean>;
   saving?: boolean;
 };
 
-export function ContractSignaturePad({ onSave, saving = false }: ContractSignaturePadProps) {
+export function ContractSignaturePad({ value, onSave, saving = false }: ContractSignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawingRef = useRef(false);
   const [hasInk, setHasInk] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const anchorRef = useRef<HTMLDivElement>(null);
   const [portalHost] = useState(() => document.createElement("div"));
 
@@ -30,14 +34,14 @@ export function ContractSignaturePad({ onSave, saving = false }: ContractSignatu
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setExpanded(false);
+      if (event.key === "Escape" && !busy && !saving) setExpanded(false);
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", closeOnEscape);
     };
-  }, [expanded]);
+  }, [expanded, busy, saving]);
 
   const resetCanvas = () => {
     const canvas = canvasRef.current;
@@ -49,12 +53,34 @@ export function ContractSignaturePad({ onSave, saving = false }: ContractSignatu
     context.lineJoin = "round";
     context.lineWidth = 4;
     context.strokeStyle = "#0f172a";
+    drawingRef.current = false;
     setHasInk(false);
   };
 
   useEffect(() => {
+    if (!expanded) return;
     resetCanvas();
-  }, []);
+    setError("");
+    setLoading(false);
+    if (!value) return;
+    let cancelled = false;
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    setLoading(true);
+    image.onload = () => {
+      if (cancelled) return;
+      canvasRef.current?.getContext("2d")?.drawImage(image, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      setHasInk(true);
+      setLoading(false);
+    };
+    image.onerror = () => {
+      if (cancelled) return;
+      setLoading(false);
+      setError("Không tải được chữ ký cũ. Bạn có thể ký lại hoặc đóng để giữ chữ ký hiện tại.");
+    };
+    image.src = value;
+    return () => { cancelled = true; };
+  }, [expanded, value]);
 
   const pointFromEvent = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = event.currentTarget;
@@ -67,7 +93,7 @@ export function ContractSignaturePad({ onSave, saving = false }: ContractSignatu
 
   const startDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const context = event.currentTarget.getContext("2d");
-    if (!context || saving) return;
+    if (!context || saving || busy || loading || !expanded) return;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     const point = pointFromEvent(event);
     context.beginPath();
@@ -79,7 +105,7 @@ export function ContractSignaturePad({ onSave, saving = false }: ContractSignatu
   };
 
   const draw = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!drawingRef.current || saving) return;
+    if (!drawingRef.current || saving || busy || loading || !expanded) return;
     const context = event.currentTarget.getContext("2d");
     if (!context) return;
     const point = pointFromEvent(event);
@@ -96,13 +122,22 @@ export function ContractSignaturePad({ onSave, saving = false }: ContractSignatu
     }
   };
 
-  const saveSignature = () => {
+  const saveSignature = async () => {
     const canvas = canvasRef.current;
-    if (!canvas || !hasInk || saving) return;
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      void onSave(new File([blob], `chu-ky-${Date.now()}.png`, { type: "image/png" }));
-    }, "image/png");
+    if (!canvas || !hasInk || saving || busy || loading) return;
+    setBusy(true);
+    setError("");
+    try {
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("Empty signature");
+      const saved = await onSave(new File([blob], `chu-ky-${Date.now()}.png`, { type: "image/png" }));
+      if (saved) setExpanded(false);
+      else setError("Chưa lưu được chữ ký. Vui lòng thử lại.");
+    } catch {
+      setError("Chưa lưu được chữ ký. Vui lòng thử lại.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -121,30 +156,40 @@ export function ContractSignaturePad({ onSave, saving = false }: ContractSignatu
             Chữ ký điện tử
           </p>
           <p className="mt-0.5 text-[11px] font-medium text-slate-500">
-            Ký trực tiếp bằng chuột hoặc ngón tay trong vùng trắng bên dưới.
+            {expanded ? "Ký bằng chuột hoặc ngón tay trong vùng trắng." : "Bấm vào ô bên dưới để ký."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        {expanded && <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={() => setExpanded((value) => !value)}
+          onClick={() => setExpanded(false)}
+          aria-label="Đóng màn hình ký"
+          title="Đóng"
+          disabled={saving || busy}
           className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-cyan-700 hover:bg-cyan-50"
         >
-          {expanded ? <X className="h-3.5 w-3.5" /> : <ZoomIn className="h-3.5 w-3.5" />}
-          {expanded ? "Thu nhỏ vùng ký" : "Ký toàn màn hình"}
+          <X className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"
           onClick={resetCanvas}
-          disabled={saving}
+          disabled={saving || busy || loading}
+          aria-label="Xóa chữ ký"
+          title="Xóa chữ ký"
           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
         >
           <Eraser className="h-3.5 w-3.5" />
-          Xóa chữ ký
         </button>
-        </div>
+        </div>}
       </div>
-      <div className={expanded ? "flex min-h-0 flex-1 items-center justify-center" : ""}>
+      {expanded && error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
+      {expanded && loading && <p role="status">Đang tải chữ ký...</p>}
+      {!expanded && <button type="button" aria-label="Mở ô chữ ký" disabled={saving}
+        onClick={() => setExpanded(true)}
+        className="block aspect-[3/1] w-full overflow-hidden rounded-lg border border-slate-300 bg-white">
+        {value && <img src={value} alt="Chữ ký điện tử" className="h-full w-full object-contain" />}
+      </button>}
+      <div className={expanded ? "flex min-h-0 flex-1 items-center justify-center" : "hidden"}>
       <canvas
         ref={canvasRef}
         width={CANVAS_WIDTH}
@@ -159,15 +204,15 @@ export function ContractSignaturePad({ onSave, saving = false }: ContractSignatu
         style={expanded ? { maxWidth: "min(100%, calc((100dvh - 180px) * 3))" } : undefined}
       />
       </div>
-      <button
+      {expanded && <button
         type="button"
         onClick={saveSignature}
-        disabled={!hasInk || saving}
+        disabled={!hasInk || saving || busy || loading}
         className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-        {saving ? "Đang lưu chữ ký..." : "Lưu chữ ký vào hợp đồng"}
-      </button>
+        {saving || busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+        {saving || busy ? "Đang lưu chữ ký..." : "Lưu chữ ký"}
+      </button>}
     </div>, portalHost)}
     </div>
   );

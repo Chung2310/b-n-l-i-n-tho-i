@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ContractSignaturePad, SignatureZoomModal } from "./ContractSignaturePad";
+
+afterEach(cleanup);
 
 const context = {
   fillStyle: "",
@@ -38,43 +40,44 @@ beforeEach(() => {
 });
 
 describe("ContractSignaturePad", () => {
-  it("preserves the canvas and strokes when signing full screen and returning", () => {
-    const onSave = vi.fn();
-    const { unmount } = render(<ContractSignaturePad onSave={onSave} />);
+  it("opens from the single board and closes only after a successful save", async () => {
+    let finish!: (saved: boolean) => void;
+    const onSave = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve; }));
+    render(<ContractSignaturePad onSave={onSave} />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Mở ô chữ ký" }));
     const canvas = screen.getByLabelText("Vùng ký điện tử");
     fireEvent.pointerDown(canvas, { pointerId: 1, clientX: 20, clientY: 30 });
     fireEvent.pointerUp(canvas, { pointerId: 1 });
-    const resets = context.fillRect.mock.calls.length;
-    fireEvent.click(screen.getByRole("button", { name: "Ký toàn màn hình" }));
-    expect(screen.getByRole("dialog", { name: "Ký toàn màn hình" }).contains(canvas)).toBe(true);
-    expect(screen.getByLabelText("Vùng ký điện tử")).toBe(canvas);
-    fireEvent.pointerDown(canvas, { pointerId: 2, clientX: 40, clientY: 50 });
-    fireEvent.pointerMove(canvas, { pointerId: 2, clientX: 90, clientY: 80 });
-    fireEvent.pointerUp(canvas, { pointerId: 2 });
-    fireEvent.click(screen.getByRole("button", { name: "Thu nhỏ vùng ký" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.getByLabelText("Vùng ký điện tử")).toBe(canvas);
-    expect(context.fillRect).toHaveBeenCalledTimes(resets);
-    fireEvent.click(screen.getByRole("button", { name: "Lưu chữ ký vào hợp đồng" }));
-    expect(onSave).toHaveBeenCalledOnce();
-    unmount();
+    fireEvent.click(screen.getByRole("button", { name: "Lưu chữ ký" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    expect(onSave.mock.calls[0]).toBeTruthy();
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    finish(true);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByRole("button", { name: "Mở ô chữ ký" })).toBeTruthy();
   });
 
-  it("keeps the signing board open and saves pointer strokes as a PNG", async () => {
-    const onSave = vi.fn();
-    render(<ContractSignaturePad onSave={onSave} />);
-
+  it("keeps failed saves open, clears strokes and closes with X", async () => {
+    render(<ContractSignaturePad onSave={async () => false} />);
+    fireEvent.click(screen.getByRole("button", { name: "Mở ô chữ ký" }));
     const canvas = screen.getByLabelText("Vùng ký điện tử");
-    expect(canvas).toBeTruthy();
     fireEvent.pointerDown(canvas, { pointerId: 1, clientX: 20, clientY: 30 });
-    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 80, clientY: 70 });
-    fireEvent.pointerUp(canvas, { pointerId: 1, clientX: 80, clientY: 70 });
-    fireEvent.click(screen.getByRole("button", { name: "Lưu chữ ký vào hợp đồng" }));
+    fireEvent.pointerUp(canvas, { pointerId: 1 });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu chữ ký" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Xóa chữ ký" }));
+    expect((screen.getByRole("button", { name: "Lưu chữ ký" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Đóng màn hình ký" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
 
-    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
-    const file = onSave.mock.calls[0][0] as File;
-    expect(file.type).toBe("image/png");
-    expect(file.name).toMatch(/^chu-ky-\d+\.png$/);
+  it("shows the saved signature in the same board", () => {
+    render(<ContractSignaturePad value="https://example.com/signature.png" onSave={async () => true} />);
+    const board = screen.getByRole("button", { name: "Mở ô chữ ký" });
+    expect(board.querySelector("img")?.getAttribute("src")).toBe("https://example.com/signature.png");
+    expect(screen.queryByRole("button", { name: "Ký toàn màn hình" })).toBeNull();
   });
 
   it("opens the signature in a full-screen zoom viewer without download links", () => {
