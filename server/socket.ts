@@ -108,19 +108,30 @@ async function attachRedisAdapter(server: SocketIOServer) {
 }
 
 function getAllowedOrigins(): string[] {
-  const origins = new Set<string>(["http://localhost:5173", "http://localhost:3000"]);
+  const port = process.env.PORT || "3011";
+  const origins = new Set<string>([
+    "http://localhost:5173",
+    "http://localhost:3000",
+    `http://localhost:${port}`,
+  ]);
   
   if (process.env.LINK_COR) {
-    process.env.LINK_COR.split(",").forEach(o => origins.add(o.trim()));
+    process.env.LINK_COR.split(",").forEach(o => {
+      const trimmed = o.trim();
+      if (trimmed) origins.add(trimmed);
+    });
   }
   
   if (process.env.APP_URL) {
-    origins.add(process.env.APP_URL.trim());
-    try {
-      const url = new URL(process.env.APP_URL);
-      origins.add(url.origin);
-    } catch {
-      // Bỏ qua nếu APP_URL không hợp lệ
+    const appUrl = process.env.APP_URL.trim();
+    if (appUrl && appUrl !== "MY_APP_URL") {
+      origins.add(appUrl);
+      try {
+        const url = new URL(appUrl);
+        origins.add(url.origin);
+      } catch {
+        // Bỏ qua nếu APP_URL không hợp lệ
+      }
     }
   }
 

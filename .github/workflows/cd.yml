@@ -129,10 +129,10 @@ jobs:
         if: github.ref_name == 'develop'
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
+          host: ${{ vars.SSH_HOST || secrets.SSH_HOST }}
+          username: ${{ vars.SSH_USER || secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT || '22' }}
+          port: ${{ vars.SSH_PORT || secrets.SSH_PORT || '22' }}
           source: "docker-compose.yml"
           target: "/opt/igen-erp/staging"
 
@@ -141,12 +141,12 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         env:
           IMAGE_NAME: ${{ needs.build-image.outputs.image-name }}
-          ENV_FILE_CONTENT: ${{ vars.ENV_FILE }}
+          ENV_FILE_CONTENT: ${{ vars.ENV_FILE || secrets.ENV_FILE }}
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
+          host: ${{ vars.SSH_HOST || secrets.SSH_HOST }}
+          username: ${{ vars.SSH_USER || secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT || '22' }}
+          port: ${{ vars.SSH_PORT || secrets.SSH_PORT || '22' }}
           envs: ENV_FILE_CONTENT,IMAGE_NAME
           script: |
             set -eu
@@ -158,7 +158,7 @@ jobs:
             mkdir -p "$TARGET_DIR"
             cd "$TARGET_DIR"
 
-            # Tạo/ghi nội dung cấu hình từ GitHub Secrets vào file .env cục bộ
+            # Tạo/ghi nội dung cấu hình từ GitHub Variables (hoặc fallback Secrets) vào file .env cục bộ
             echo "$ENV_FILE_CONTENT" > .env
 
             # Đăng nhập vào GHCR trên VPS
@@ -181,10 +181,10 @@ jobs:
         if: github.ref_name == 'production'
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.SSH_HOST_PROD }}
-          username: ${{ secrets.SSH_USER_PROD }}
+          host: ${{ vars.SSH_HOST_PROD || secrets.SSH_HOST_PROD }}
+          username: ${{ vars.SSH_USER_PROD || secrets.SSH_USER_PROD }}
           key: ${{ secrets.SSH_KEY_PROD }}
-          port: ${{ secrets.SSH_PORT_PROD || '22' }}
+          port: ${{ vars.SSH_PORT_PROD || secrets.SSH_PORT_PROD || '22' }}
           source: "docker-compose.yml"
           target: "/opt/igen-erp/production"
 
@@ -193,12 +193,12 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         env:
           IMAGE_NAME: ${{ needs.build-image.outputs.image-name }}
-          ENV_FILE_CONTENT: ${{ vars.ENV_FILE_PROD }}
+          ENV_FILE_CONTENT: ${{ vars.ENV_FILE_PROD || secrets.ENV_FILE_PROD }}
         with:
-          host: ${{ secrets.SSH_HOST_PROD }}
-          username: ${{ secrets.SSH_USER_PROD }}
+          host: ${{ vars.SSH_HOST_PROD || secrets.SSH_HOST_PROD }}
+          username: ${{ vars.SSH_USER_PROD || secrets.SSH_USER_PROD }}
           key: ${{ secrets.SSH_KEY_PROD }}
-          port: ${{ secrets.SSH_PORT_PROD || '22' }}
+          port: ${{ vars.SSH_PORT_PROD || secrets.SSH_PORT_PROD || '22' }}
           envs: ENV_FILE_CONTENT,IMAGE_NAME
           script: |
             set -eu
@@ -210,7 +210,7 @@ jobs:
             mkdir -p "$TARGET_DIR"
             cd "$TARGET_DIR"
 
-            # Tạo/ghi nội dung cấu hình từ GitHub Secrets vào file .env cục bộ
+            # Tạo/ghi nội dung cấu hình từ GitHub Variables (hoặc fallback Secrets) vào file .env cục bộ
             echo "$ENV_FILE_CONTENT" > .env
 
             # Đăng nhập vào GHCR trên VPS

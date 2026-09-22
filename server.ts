@@ -253,14 +253,33 @@ async function startServer() {
   app.use("/api/v1", requestContextMiddleware);
   app.use(selectiveBodyParser);
 
-  // 1. Cấu hình CORS bảo mật sử dụng allowedOrigins từ biến môi trường LINK_COR
-  const allowedOrigins = process.env.LINK_COR
-    ? process.env.LINK_COR.split(",")
-    : ["http://localhost:5173", `http://localhost:${PORT}`];
+  // 1. Cấu hình CORS bảo mật sử dụng allowedOrigins từ biến môi trường LINK_COR & APP_URL
+  const allowedOrigins = new Set<string>([
+    "http://localhost:5173",
+    `http://localhost:${PORT}`,
+  ]);
+  if (process.env.LINK_COR) {
+    process.env.LINK_COR.split(",").forEach((o) => {
+      const trimmed = o.trim();
+      if (trimmed) allowedOrigins.add(trimmed);
+    });
+  }
+  if (process.env.APP_URL) {
+    const appUrl = process.env.APP_URL.trim();
+    if (appUrl && appUrl !== "MY_APP_URL") {
+      allowedOrigins.add(appUrl);
+      try {
+        const url = new URL(appUrl);
+        allowedOrigins.add(url.origin);
+      } catch {
+        // Bỏ qua nếu APP_URL không hợp lệ
+      }
+    }
+  }
 
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (origin && allowedOrigins.includes(origin)) {
+    if (origin && allowedOrigins.has(origin)) {
       res.setHeader("Access-Control-Allow-Origin", origin);
     }
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
