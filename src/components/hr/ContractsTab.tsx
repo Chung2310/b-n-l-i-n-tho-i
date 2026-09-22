@@ -30,6 +30,7 @@ import { getApiErrorMessage } from "../../utils/errorMessage";
 import { FilePreviewModal } from "../resource/FilePreviewModal";
 import type { ResourceItem } from "../../types";
 import { readContractSearch } from "../../utils/contractExpiryNavigation";
+import { calculateContractEndDate } from "../../utils/hrContractDates";
 
 type ContractStatus = "draft" | "active" | "expired" | "terminated";
 const CONTRACT_TYPES = [
@@ -1233,12 +1234,18 @@ export default function ContractsTab({
               <select
                 className={inputClass + " mt-1.5"}
                 value={contractForm.contractType}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const contractType = e.target.value as ContractType;
+                  const automaticEndDate = calculateContractEndDate(
+                    contractType,
+                    contractForm.startDate,
+                  );
                   setContractForm({
                     ...contractForm,
-                    contractType: e.target.value as ContractType,
-                  })
-                }
+                    contractType,
+                    endDate: automaticEndDate || contractForm.endDate,
+                  });
+                }}
               >
                 <option value="">-- Chọn loại hợp đồng --</option>
                 {CONTRACT_TYPES.map((contractType) => (
@@ -1255,12 +1262,18 @@ export default function ContractsTab({
                 type="date"
                 className={inputClass + " mt-1.5"}
                 value={contractForm.startDate}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const startDate = e.target.value;
+                  const automaticEndDate = calculateContractEndDate(
+                    contractForm.contractType,
+                    startDate,
+                  );
                   setContractForm({
                     ...contractForm,
-                    startDate: e.target.value,
-                  })
-                }
+                    startDate,
+                    endDate: automaticEndDate || contractForm.endDate,
+                  });
+                }}
               />
             </label>
 
