@@ -38,7 +38,7 @@ export function TablePagination({
 
   return (
     <div
-      className={`flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/50 px-4 py-3 text-xs text-slate-600 select-none ${className}`}
+      className={`relative z-20 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/50 px-4 py-3 text-xs text-slate-600 select-none ${className}`}
     >
       {/* Left: Rows Per Page & Item Range Summary */}
       <div className="flex flex-wrap items-center gap-2">
@@ -53,6 +53,7 @@ export function TablePagination({
           options={dropdownOptions}
           variant="default"
           size="xs"
+          direction="up"
         />
         <span className="text-slate-500 ml-1">
           (Hiển thị <b className="text-slate-800">{startItem} - {endItem}</b> trong{" "}

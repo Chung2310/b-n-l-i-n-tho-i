@@ -20,11 +20,12 @@ export interface DropdownProps<T = string> {
   className?: string;
   triggerClassName?: string;
   menuClassName?: string;
-  variant?: "filter" | "default" | "subtle" | "ghost";
+  variant?: "filter" | "default" | "form" | "subtle" | "ghost";
   size?: "xs" | "sm" | "md";
   searchable?: boolean;
   searchPlaceholder?: string;
   align?: "left" | "right";
+  direction?: "down" | "up" | "auto";
   name?: string;
   id?: string;
 }
@@ -45,13 +46,37 @@ export function Dropdown<T = string>({
   searchable,
   searchPlaceholder = "Tìm kiếm...",
   align = "left",
+  direction = "auto",
   name,
   id,
 }: DropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(direction === "up");
   const [searchQuery, setSearchQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Recalculate opening direction
+  useEffect(() => {
+    if (direction === "up") {
+      setOpenUpward(true);
+      return;
+    }
+    if (direction === "down") {
+      setOpenUpward(false);
+      return;
+    }
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      if (spaceBelow < 220 && spaceAbove > spaceBelow) {
+        setOpenUpward(true);
+      } else {
+        setOpenUpward(false);
+      }
+    }
+  }, [isOpen, direction]);
 
   // Normalize options into DropdownOption format
   const normalizedOptions: DropdownOption<T>[] = useMemo(() => {
@@ -130,12 +155,18 @@ export function Dropdown<T = string>({
   const variantStyles = {
     filter: "rounded-xl border border-slate-200 bg-slate-50 hover:bg-white text-slate-700 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20",
     default: "rounded-xl border border-slate-300 bg-white text-slate-800 shadow-2xs hover:border-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20",
+    form: "rounded-xl border border-slate-200 bg-white text-slate-800 hover:border-slate-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20",
     subtle: "rounded-lg border border-transparent bg-slate-100 hover:bg-slate-200/70 text-slate-700",
     ghost: "rounded-lg hover:bg-slate-100 text-slate-700 border border-transparent",
   }[variant];
 
   return (
-    <div ref={containerRef} className={`relative inline-block text-left ${className}`}>
+    <div
+      ref={containerRef}
+      className={`relative text-left ${
+        className.includes("w-full") || className.includes("block") ? "w-full block" : "inline-block"
+      } ${className}`}
+    >
       {label && (
         <label
           htmlFor={id}
@@ -150,7 +181,7 @@ export function Dropdown<T = string>({
         id={id}
         type="button"
         disabled={disabled}
-        aria-label={ariaLabel ? undefined : (label || (selectedOption ? selectedOption.label : placeholder))}
+        aria-label={name ? undefined : (ariaLabel || label || (selectedOption ? selectedOption.label : placeholder))}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         onClick={() => !disabled && setIsOpen(!isOpen)}
@@ -175,7 +206,7 @@ export function Dropdown<T = string>({
       </button>
 
       {/* Hidden select for form submissions, automated tests, and accessible references */}
-      {(name || ariaLabel) && (
+      {name && (
         <select
           name={name}
           aria-label={ariaLabel}
@@ -196,7 +227,11 @@ export function Dropdown<T = string>({
       {isOpen && (
         <div
           role="listbox"
-          className={`absolute ${align === "right" ? "right-0" : "left-0"} top-full mt-1.5 z-50 min-w-[160px] max-w-xs w-max rounded-xl border border-slate-200 bg-white p-1 shadow-xl ring-1 ring-black/5 overflow-hidden transition-all duration-150 animate-in fade-in zoom-in-95 ${menuClassName}`}
+          className={`absolute ${align === "right" ? "right-0" : "left-0"} ${
+            openUpward ? "bottom-full mb-1.5 origin-bottom" : "top-full mt-1.5 origin-top"
+          } z-50 ${
+            size === "xs" ? "min-w-[110px]" : "min-w-[160px]"
+          } max-w-xs w-max rounded-xl border border-slate-200 bg-white p-1 shadow-xl ring-1 ring-black/5 overflow-hidden transition-all duration-150 animate-in fade-in zoom-in-95 ${menuClassName}`}
         >
           {/* Search input if enabled */}
           {showSearch && (

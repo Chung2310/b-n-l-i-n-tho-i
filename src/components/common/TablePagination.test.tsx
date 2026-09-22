@@ -25,7 +25,7 @@ describe("TablePagination component", () => {
 
     expect(screen.getByText(/Hiển thị/)).not.toBeNull();
     expect(screen.getByText(/1 - 10/)).not.toBeNull();
-    expect(screen.getByText(/25/)).not.toBeNull();
+    expect(screen.getByText("25")).not.toBeNull();
     expect(screen.getByText(/chi nhánh/)).not.toBeNull();
     expect(screen.getByText("1 / 3")).not.toBeNull();
   });
