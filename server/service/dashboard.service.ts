@@ -17,6 +17,7 @@ import { TrainingEnrollmentModel } from "../model/training-enrollment.model";
 import { resolveDashboardModuleAccess } from "./dashboard-module-access";
 import { ProductModel } from "../model/product.model";
 import { HRLeaveApplicationModel } from "../model/hr-leave-application.model";
+import { canReceiveContractExpiryAlerts, hrContractService } from "./hr-contract.service";
 
 
 export interface DashboardUser {
@@ -196,7 +197,7 @@ async function getActionItems(user: DashboardUser) {
   const access = resolveDashboardModuleAccess(user);
   const manages = isManagerOrAbove(user.role);
 
-  const [overdueTasksRaw, pendingApprovalsRaw, lowStockRaw] = await Promise.all([
+  const [overdueTasksRaw, pendingApprovalsRaw, lowStockRaw, contractExpiryAlerts] = await Promise.all([
     access.hr
       ? KanbanTaskModel.find({
           ...companyQ,
@@ -222,6 +223,13 @@ async function getActionItems(user: DashboardUser) {
           .limit(5)
           .lean()
       : Promise.resolve([]),
+    access.hr && canReceiveContractExpiryAlerts(user.role) && user.companyCode
+      ? hrContractService.listExpiryAlerts({
+          companyCode: user.companyCode,
+          branchId: user.branchId,
+          limit: 10,
+        })
+      : Promise.resolve([]),
   ]);
 
   return {
@@ -234,6 +242,7 @@ async function getActionItems(user: DashboardUser) {
       since: a.createdAt,
     })),
     lowStockAlerts: lowStockRaw.map((p: any) => ({ id: String(p._id), name: p.name, sku: p.sku, stock: p.stock, minStockAlert: p.minStockAlert })),
+    contractExpiryAlerts,
   };
 }
 

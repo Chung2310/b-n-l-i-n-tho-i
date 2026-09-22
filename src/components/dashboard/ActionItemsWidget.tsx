@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, ClipboardList, PackageCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardList, FileClock, PackageCheck } from "lucide-react";
 import { DashboardActionItems } from "../../types/dashboard";
 
 function formatRelativeDate(iso: string) {
@@ -12,16 +12,18 @@ export function ActionItemsWidget({
   onGoToTasks,
   onGoToApprovals,
   onGoToInventory,
+  onGoToContract,
 }: {
   actionItems: DashboardActionItems | null;
   onGoToTasks: () => void;
   onGoToApprovals: () => void;
   onGoToInventory: () => void;
+  onGoToContract: (alert: DashboardActionItems["contractExpiryAlerts"][number]) => void;
 }) {
   if (!actionItems) return null;
 
-  const { overdueTasks, pendingApprovals, lowStockAlerts } = actionItems;
-  const totalCount = overdueTasks.length + pendingApprovals.length + lowStockAlerts.length;
+  const { overdueTasks, pendingApprovals, lowStockAlerts, contractExpiryAlerts = [] } = actionItems;
+  const totalCount = overdueTasks.length + pendingApprovals.length + lowStockAlerts.length + contractExpiryAlerts.length;
 
   if (totalCount === 0) {
     return (
@@ -40,6 +42,33 @@ export function ActionItemsWidget({
       </h3>
 
       <div className="space-y-2">
+        {contractExpiryAlerts.map((alert) => (
+          <button
+            key={alert.id}
+            type="button"
+            onClick={() => onGoToContract(alert)}
+            className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition ${
+              alert.reminderDays === 3
+                ? "border-rose-200 bg-rose-50/80 hover:bg-rose-100/70"
+                : "border-amber-200 bg-amber-50/80 hover:bg-amber-100/70"
+            }`}
+          >
+            <span className={`flex min-w-0 items-start gap-2 text-xs font-semibold ${
+              alert.reminderDays === 3 ? "text-rose-700" : "text-amber-800"
+            }`}>
+              <FileClock className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                {alert.contractType} của {alert.employeeName}{" "}
+                {alert.daysRemaining === 0
+                  ? "hết hạn hôm nay"
+                  : `${alert.daysRemaining} ngày nữa hết hạn`}
+                . Hãy kiểm tra ngay.
+              </span>
+            </span>
+            <span className="shrink-0 text-[11px] font-bold text-cyan-700">Kiểm tra ngay</span>
+          </button>
+        ))}
+
         {overdueTasks.length > 0 && (
           <button
             type="button"

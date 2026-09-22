@@ -54,4 +54,13 @@ export interface DashboardActionItems {
   overdueTasks: { id: string; title: string; dueDate: string }[];
   pendingApprovals: { id: string; type: "leave"; employeeName: string; since: string }[];
   lowStockAlerts: { id: string; name: string; sku: string; stock: number; minStockAlert: number }[];
+  contractExpiryAlerts: {
+    id: string;
+    contractType: string;
+    employeeId: string;
+    employeeName: string;
+    endDate: string;
+    daysRemaining: number;
+    reminderDays: 3 | 7;
+  }[];
 }

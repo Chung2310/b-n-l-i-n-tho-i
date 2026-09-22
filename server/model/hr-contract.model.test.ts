@@ -9,9 +9,15 @@ describe("HR contract persistence", () => {
     expect(error?.errors.endDate).toBeTruthy();
   });
 
-  it("accepts document and signed image links", () => {
-    const contract = new HRContractModel({ companyCode: "ACME", contractType: "Xác định thời hạn", employeeId: "employee", employeeName: "An", startDate: new Date("2026-01-01"), endDate: new Date("2026-12-31"), status: "active", contractFileUrl: "https://example.com/contract.pdf", signedImageUrl: "https://example.com/signed.jpg", createdBy: "admin" });
+  it("accepts document, signed image and electronic signature links", () => {
+    const contract = new HRContractModel({ companyCode: "ACME", contractType: "Hợp đồng chính thức", employeeId: "employee", employeeName: "An", startDate: new Date("2026-01-01"), endDate: new Date("2026-12-31"), status: "active", contractFileUrl: "https://example.com/contract.pdf", signedImageUrl: "https://example.com/signed.jpg", electronicSignatureUrl: "https://example.com/signature.png", electronicSignatureMimeType: "image/png", createdBy: "admin" });
     expect(contract.validateSync()).toBeUndefined();
+    expect(contract.electronicSignatureUrl).toBe("https://example.com/signature.png");
+  });
+
+  it("rejects contract types outside the configured dropdown", () => {
+    const contract = new HRContractModel({ companyCode: "ACME", contractType: "Hợp đồng nhập tay", employeeId: "employee", employeeName: "An", startDate: new Date("2026-01-01"), endDate: new Date("2026-12-31"), status: "active", createdBy: "admin" });
+    expect(contract.validateSync()?.errors.contractType).toBeTruthy();
   });
 
   it("stores the old and new expiry dates for every extension", () => {
