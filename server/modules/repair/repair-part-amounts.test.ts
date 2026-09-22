@@ -47,4 +47,17 @@ describe("tính tiền phiếu sửa chữa từ linh kiện", () => {
     expect(doc.dueAmount).toBe(200_000);
     expect(doc.paymentStatus).toBe("partial");
   });
+
+  it("áp dụng ưu đãi khách quen giảm giá sửa chữa dịch vụ", async () => {
+    parts = [{ unitCost: 300_000, unitPrice: 700_000, quantity: 1, chargeable: true }];
+    const doc: any = ticket({
+      laborFee: 100_000,
+      loyaltyDiscount: { rate: 10, reason: "Khách quen" },
+    });
+    // subtotal = 100k labor + 700k parts = 800k. 10% discount = 80k. total = 720k.
+    await recomputeRepairTicketAmounts(doc);
+    expect(doc.loyaltyDiscount.amount).toBe(80_000);
+    expect(doc.totalAmount).toBe(720_000);
+    expect(doc.dueAmount).toBe(720_000);
+  });
 });

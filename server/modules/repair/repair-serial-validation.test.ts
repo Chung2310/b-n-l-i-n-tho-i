@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { assertSoldSerialForRepair } from "./repair-serial-validation";
+import { assertSerialForRepairType, assertSoldSerialForRepair } from "./repair-serial-validation";
 
 describe("assertSoldSerialForRepair", () => {
   test("rejects a repair ticket without an IMEI or serial", () => {
@@ -8,5 +8,17 @@ describe("assertSoldSerialForRepair", () => {
 
   test("accepts a ticket that identifies its sold device", () => {
     expect(() => assertSoldSerialForRepair({ serialNumber: " SN-001 " })).not.toThrow();
+  });
+});
+
+describe("assertSerialForRepairType", () => {
+  test("warranty requires serial or IMEI", () => {
+    expect(() => assertSerialForRepairType("warranty", { serialNumber: "" })).toThrow("IMEI/serial");
+    expect(() => assertSerialForRepairType("warranty", { serialNumber: "ABC" })).not.toThrow();
+  });
+
+  test("service allows empty serial or IMEI", () => {
+    expect(() => assertSerialForRepairType("service", { serialNumber: "" })).not.toThrow();
+    expect(() => assertSerialForRepairType("service", undefined)).not.toThrow();
   });
 });

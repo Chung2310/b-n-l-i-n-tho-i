@@ -26,7 +26,13 @@ export async function recomputeRepairTicketAmounts(ticket: any) {
   const parts: any[] = await RepairPartModel.find({ companyCode: ticket.companyCode, ticketId: String(ticket._id), status: "issued" }).lean();
   const partCost = parts.reduce((total, part) => total + Number(part.unitCost || 0) * Number(part.quantity || 0), 0);
   const partRevenue = parts.reduce((total, part) => total + (part.chargeable === false ? 0 : Number(part.unitPrice || 0) * Number(part.quantity || 0)), 0);
-  const computed = Math.max(0, Number(ticket.laborFee || 0) + partRevenue - Number(ticket.discountAmount || 0));
+  const subtotal = Math.max(0, Number(ticket.laborFee || 0) + partRevenue - Number(ticket.discountAmount || 0));
+  const loyaltyRate = Number(ticket.loyaltyDiscount?.rate || 0);
+  const loyaltyDiscount = loyaltyRate > 0 ? Math.round((subtotal * loyaltyRate) / 100) : 0;
+  if (ticket.loyaltyDiscount) {
+    ticket.loyaltyDiscount.amount = loyaltyDiscount;
+  }
+  const computed = Math.max(0, subtotal - loyaltyDiscount);
   const locked = Number.isFinite(Number(ticket.quotedAmount)) && ticket.quotedAmount !== undefined && ticket.quotedAmount !== null && Boolean(ticket.customerApprovedAt);
 
   ticket.partCost = partCost;

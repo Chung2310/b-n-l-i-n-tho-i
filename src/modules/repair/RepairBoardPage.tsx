@@ -1,765 +1,130 @@
-import CollaboratorPicker from "../partners/CollaboratorPicker";
-import RepairRefundForm from "../partners/RepairRefundForm";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { repairService, type RepairStatus, type RepairTicket } from "../../services/repairService";
+import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+
 import {
-  Wrench,
-  Clock,
-  CheckCircle2,
-  AlertTriangle,
-  User,
-  Smartphone,
-  Coins,
-  ShieldCheck,
-  ChevronRight,
-  X,
-  Plus,
-  Loader2,
-  DollarSign,
-  AlertCircle,
-  FileText,
-  UserCheck,
-} from "lucide-react";
-import { authService } from "../../services/authService";
-import {
-  repairService,
-  type RepairStatus,
-  type RepairTicket,
-} from "../../services/repairService";
-import RepairTicketExtras from "./RepairTicketExtras";
+  columns,
+  PIPELINE_STAGES,
+  type PipelineStageId,
+  type PipelineStageConfig,
+  type RepairCreatePrefill,
+  type RepairViewMode,
+  money,
+  date,
+  getTicketBadge,
+  repairStatusLabels,
+  repairStatusLabel,
+  STEP_MAP,
+  costBearerLabel,
+  costBearerBadgeClass,
+  getSubStatusBadge,
+  nextStatus,
+} from "./repairBoardTypes";
+import RepairTicketCard from "./RepairTicketCard";
+import RepairKanbanStage from "./RepairKanbanStage";
+import RepairKanbanColumn from "./RepairKanbanColumn";
+import ReceiveTechnicianModal from "./ReceiveTechnicianModal";
+import CreateRepairModal from "./CreateRepairModal";
+import TicketModal from "./TicketModal";
+import { Dropdown } from "../../components/common/Dropdown";
+import { TablePagination } from "../../components/common/TablePagination";
+import { SearchInput } from "../../components/common/SearchInput";
 
-const columns: Array<{
-  status: RepairStatus;
-  label: string;
-  badgeColor: string;
-}> = [
-  { status: "received", label: "Tiếp nhận", badgeColor: "bg-slate-100 text-slate-700" },
-  { status: "diagnosing", label: "Kiểm tra", badgeColor: "bg-blue-50 text-blue-700" },
-  { status: "quoted", label: "Báo giá", badgeColor: "bg-amber-50 text-amber-700" },
-  { status: "approved", label: "Đã duyệt", badgeColor: "bg-indigo-50 text-indigo-700" },
-  { status: "repairing", label: "Đang sửa", badgeColor: "bg-cyan-50 text-cyan-700" },
-  { status: "waiting_parts", label: "Chờ linh kiện", badgeColor: "bg-purple-50 text-purple-700" },
-  { status: "waiting_supplier", label: "Chờ NCC", badgeColor: "bg-orange-50 text-orange-700" },
-  { status: "done", label: "Xong", badgeColor: "bg-emerald-50 text-emerald-700" },
-  { status: "delivered", label: "Đã giao", badgeColor: "bg-teal-50 text-teal-700" },
-];
-
-const nextStatus: Partial<Record<RepairStatus, RepairStatus>> = {
-  received: "diagnosing",
-  diagnosing: "quoted",
-  approved: "repairing",
-  repairing: "done",
-  waiting_parts: "repairing",
-  waiting_supplier: "repairing",
-  done: "delivered",
+// Re-export modular components, types, and helpers for backwards compatibility and easy reusability
+export {
+  columns,
+  PIPELINE_STAGES,
+  type PipelineStageId,
+  type PipelineStageConfig,
+  type RepairCreatePrefill,
+  type RepairViewMode,
+  money,
+  date,
+  getTicketBadge,
+  repairStatusLabels,
+  repairStatusLabel,
+  STEP_MAP,
+  costBearerLabel,
+  costBearerBadgeClass,
+  getSubStatusBadge,
+  nextStatus,
+  RepairTicketCard,
+  RepairTicketCard as TicketCard,
+  RepairKanbanStage,
+  RepairKanbanColumn,
+  ReceiveTechnicianModal,
+  CreateRepairModal,
+  TicketModal,
 };
 
-const repairStatusLabels: Record<RepairStatus, string> = {
-  received: "Tiếp nhận",
-  diagnosing: "Kiểm tra",
-  quoted: "Báo giá",
-  approved: "Đã duyệt",
-  repairing: "Đang sửa",
-  waiting_parts: "Chờ linh kiện",
-  waiting_supplier: "Chờ nhà cung cấp",
-  done: "Hoàn tất",
-  delivered: "Đã giao",
-  cancelled: "Đã hủy",
-  returned: "Đã trả",
-};
 
-const money = (value: number) => Number(value || 0).toLocaleString("vi-VN");
-const date = (value?: string) =>
-  value ? new Date(value).toLocaleString("vi-VN") : "—";
-const repairStatusLabel = (status?: string) =>
-  status && status in repairStatusLabels
-    ? repairStatusLabels[status as RepairStatus]
-    : "Chưa tiếp nhận";
 
-const COST_BEARER_LABEL: Record<string, string> = {
-  customer: "Sửa chữa (khách trả phí)",
-  shop: "Bảo hành cửa hàng",
-  supplier: "Bảo hành nhà cung cấp",
-};
-const COST_BEARER_BADGE_CLASS: Record<string, string> = {
-  customer: "bg-amber-50 text-amber-700 border-amber-200",
-  shop: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  supplier: "bg-sky-50 text-sky-700 border-sky-200",
-};
-const costBearerLabel = (costBearer?: string) =>
-  (costBearer && COST_BEARER_LABEL[costBearer]) || "Sửa chữa (khách trả phí)";
-const costBearerBadgeClass = (costBearer?: string) =>
-  (costBearer && COST_BEARER_BADGE_CLASS[costBearer]) ||
-  COST_BEARER_BADGE_CLASS.customer;
-
-function ReceiveTechnicianModal({
-  ticket,
-  onClose,
-  onSubmit,
-}: {
-  ticket: RepairTicket;
-  onClose: () => void;
-  onSubmit: (technicianId: string) => Promise<void>;
-}) {
-  const [people, setPeople] = useState<
-    Array<{ uid: string; displayName?: string; email?: string }>
-  >([]);
-  const [technicianId, setTechnicianId] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    void authService
-      .getColleagues()
-      .then((items) => setPeople(items))
-      .catch((e) =>
-        setError(
-          e instanceof Error
-            ? e.message
-            : "Không thể tải danh sách kỹ thuật viên."
-        )
-      );
-  }, []);
-
-  const submit = async () => {
-    if (!technicianId) return;
-    setBusy(true);
-    setError("");
-    try {
-      await onSubmit(technicianId);
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Không thể cập nhật phiếu."
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-xs animate-in fade-in duration-150">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="receive-technician-title"
-        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150"
-      >
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <h2 id="receive-technician-title" className="text-base sm:text-lg font-bold text-slate-900">
-            Chọn kỹ thuật viên tiếp nhận
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <p className="mt-3 text-xs sm:text-sm text-slate-500">
-          Phiếu <strong className="font-mono text-cyan-700">{ticket.ticketCode}</strong> sẽ được chuyển sang giai đoạn Kiểm tra.
-        </p>
-
-        <label className="mt-4 flex flex-col gap-1.5 text-xs sm:text-sm font-semibold text-slate-700">
-          Kỹ thuật viên tiếp nhận
-          <select
-            value={technicianId}
-            onChange={(e) => setTechnicianId(e.target.value)}
-            className="h-10 rounded-xl border border-slate-200 bg-white px-3 font-normal text-slate-800 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100 cursor-pointer"
-          >
-            <option value="">— Chọn kỹ thuật viên —</option>
-            {people.map((person) => (
-              <option key={person.uid} value={person.uid}>
-                {person.displayName || person.email || person.uid}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {error && (
-          <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-2.5 text-xs font-semibold text-rose-700">
-            {error}
-          </p>
-        )}
-
-        <div className="mt-6 flex justify-end gap-2.5 pt-3 border-t border-slate-100">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={busy}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer shadow-2xs"
-          >
-            Hủy
-          </button>
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={busy || !technicianId}
-            className="rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 px-5 py-2 text-xs font-bold text-white shadow-sm shadow-cyan-600/20 active:scale-95 disabled:opacity-50 cursor-pointer transition-all"
-          >
-            {busy ? "Đang chuyển..." : "Chuyển bước tiếp"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export type RepairCreatePrefill = {
-  productId?: string;
-  serialNumber?: string;
-  productName: string;
-  customerId?: string;
-  customerName?: string;
-  customerPhone?: string;
-  coverage: RepairTicket["coverage"];
-};
-
-function CreateRepairModal({
-  prefill,
-  onClose,
-  onCreated,
-}: {
-  prefill: RepairCreatePrefill;
-  onClose: () => void;
-  onCreated: () => void;
-}) {
-  const [form, setForm] = useState({
-    collaboratorId: "",
-    customerId: prefill.customerId || "",
-    customerName: prefill.customerName || "",
-    customerPhone: prefill.customerPhone || "",
-    symptom: "",
-    condition: "Ngoại hình bình thường",
-  });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    setForm((current) => ({
-      ...current,
-      customerId: prefill.customerId || current.customerId,
-      customerName: prefill.customerName || current.customerName,
-      customerPhone: prefill.customerPhone || current.customerPhone,
-    }));
-  }, [prefill.customerId, prefill.customerName, prefill.customerPhone]);
-
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      await repairService.create({
-        collaboratorId: form.collaboratorId,
-        ticketCode: `REP-${Date.now()}`,
-        customerId: form.customerId,
-        customerName: form.customerName,
-        customerPhone: form.customerPhone,
-        device: {
-          productId: prefill.productId,
-          serialNumber: prefill.serialNumber,
-          name: prefill.productName,
-          condition: form.condition,
-          accessories: [],
-          imeiVerified: Boolean(prefill.serialNumber),
-        },
-        coverage: prefill.coverage,
-        symptom: form.symptom,
-        laborFee: 0,
-        partCost: 0,
-        discountAmount: 0,
-        totalAmount: 0,
-        paidAmount: 0,
-        dueAmount: 0,
-        paymentStatus: "unpaid",
-        receivedAt: new Date().toISOString(),
-      });
-      onCreated();
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Không thể tạo phiếu sửa chữa."
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-xs animate-in fade-in duration-150">
-      <form
-        onSubmit={submit}
-        className="max-h-[92vh] w-full max-w-4xl space-y-4 overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150"
-      >
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">
-              Tạo phiếu sửa chữa/bảo hành
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {prefill.productName} · {prefill.serialNumber || "Không có IMEI/Serial"}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {error && (
-          <p className="rounded-xl bg-red-50 p-3 text-xs font-semibold text-red-700 border border-red-200">
-            {error}
-          </p>
-        )}
-
-        <CollaboratorPicker
-          value={form.collaboratorId}
-          onChange={(collaboratorId) =>
-            setForm({ ...form, collaboratorId })
-          }
-        />
-
-        <div className="grid gap-3 sm:grid-cols-3">
-          {(["customerId", "customerName", "customerPhone"] as const).map(
-            (key) => (
-              <label key={key} className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
-                <span>
-                  {{
-                    customerId: "Mã khách hàng",
-                    customerName: "Tên khách hàng",
-                    customerPhone: "Số điện thoại",
-                  }[key]}
-                </span>
-                <input
-                  value={form[key]}
-                  onChange={(e) =>
-                    setForm({ ...form, [key]: e.target.value })
-                  }
-                  className="h-10 rounded-xl border border-slate-200 bg-white px-3.5 text-xs sm:text-sm font-medium outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100"
-                />
-              </label>
-            )
-          )}
-        </div>
-
-        <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
-          <span>Tình trạng thiết bị khi tiếp nhận</span>
-          <textarea
-            value={form.condition}
-            onChange={(e) =>
-              setForm({ ...form, condition: e.target.value })
-            }
-            placeholder="Ngoại hình, phụ kiện kèm theo, vết xước, tình trạng nguồn/màn hình..."
-            className="min-h-28 w-full resize-y rounded-xl border border-slate-200 bg-white p-3 text-xs sm:text-sm font-medium outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
-          <span>Mô tả lỗi / yêu cầu bảo hành</span>
-          <textarea
-            required
-            value={form.symptom}
-            onChange={(e) =>
-              setForm({ ...form, symptom: e.target.value })
-            }
-            placeholder="Mô tả chi tiết lỗi, thời điểm phát sinh, yêu cầu của khách..."
-            className="min-h-36 w-full resize-y rounded-xl border border-slate-200 bg-white p-3 text-xs sm:text-sm font-medium outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100"
-          />
-        </label>
-
-        <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer shadow-2xs"
-          >
-            Hủy
-          </button>
-          <button
-            disabled={busy}
-            className="rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 px-5 py-2 text-xs font-bold text-white shadow-sm shadow-cyan-600/20 active:scale-95 disabled:opacity-50 cursor-pointer transition-all"
-          >
-            {busy ? "Đang tạo..." : "Tạo phiếu"}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-function TicketModal({
-  ticket,
-  onClose,
-  onChanged,
-}: {
-  ticket: RepairTicket;
-  onClose: () => void;
-  onChanged: () => void;
-}) {
-  const [quote, setQuote] = useState(
-    String(ticket.quotedAmount ?? ticket.totalAmount ?? 0)
-  );
-  const [quoteNote, setQuoteNote] = useState("");
-  const [laborFee, setLaborFee] = useState(
-    ticket.laborFee ? String(ticket.laborFee) : ""
-  );
-  const [quoteSaved, setQuoteSaved] = useState(false);
-  const [payment, setPayment] = useState("");
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const quoteSavePending = useRef(false);
-
-  const run = async (action: () => Promise<unknown>) => {
-    setBusy(true);
-    try {
-      await action();
-      onChanged();
-      onClose();
-    } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Không thể cập nhật phiếu.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const saveQuote = async () => {
-    if (quoteSavePending.current || busy || !quoteNote.trim()) return;
-    quoteSavePending.current = true;
-    setBusy(true);
-    setQuoteSaved(false);
-    try {
-      await (laborFee === ""
-        ? repairService.quote(ticket._id, Number(quote), quoteNote.trim())
-        : repairService.quote(
-            ticket._id,
-            Number(quote),
-            quoteNote.trim(),
-            Number(laborFee)
-          ));
-      onChanged();
-      setQuoteSaved(true);
-    } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Không thể cập nhật phiếu.");
-    } finally {
-      quoteSavePending.current = false;
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-slate-950/50 p-3 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="repair-ticket-title"
-        className="my-3 max-h-[calc(100vh-1.5rem)] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl border border-slate-100 sm:my-6 sm:max-h-[calc(100vh-3rem)] sm:p-6 animate-in zoom-in-95 duration-150"
-      >
-        {/* Header */}
-        <div className="flex justify-between items-start gap-3 border-b border-slate-100 pb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 id="repair-ticket-title" className="text-lg sm:text-xl font-bold text-slate-900">
-                {ticket.ticketCode}
-              </h2>
-              <span
-                className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold border ${costBearerBadgeClass(
-                  ticket.coverage.costBearer
-                )}`}
-              >
-                {costBearerLabel(ticket.coverage.costBearer)}
-              </span>
-            </div>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              {ticket.device.name} · {ticket.device.serialNumber || "Không có serial"}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer shadow-2xs"
-          >
-            Đóng
-          </button>
-        </div>
-
-        {/* Customer & Warranty Info */}
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 text-xs sm:text-sm space-y-1">
-            <b className="text-slate-800 font-bold block mb-1">Khách hàng</b>
-            <p className="text-slate-700 font-medium">
-              {ticket.customerName} · {ticket.customerPhone}
-            </p>
-            <p className="text-slate-500">Mã: {ticket.customerId}</p>
-            <p className="text-slate-500">Tiếp nhận: {date(ticket.receivedAt)}</p>
-          </div>
-
-          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 text-xs sm:text-sm space-y-1">
-            <b className="text-slate-800 font-bold block mb-1">Bảo hành</b>
-            <p className="text-slate-700 font-medium">
-              Khách:{" "}
-              <span className={ticket.coverage.customer.covered ? "text-emerald-700 font-bold" : "text-rose-600 font-bold"}>
-                {ticket.coverage.customer.covered
-                  ? `Còn ${ticket.coverage.customer.daysLeft || 0} ngày`
-                  : "Hết hạn"}
-              </span>
-            </p>
-            <p className="text-slate-700 font-medium">
-              NCC:{" "}
-              <span className={ticket.coverage.supplier.covered ? "text-emerald-700 font-bold" : "text-slate-500"}>
-                {ticket.coverage.supplier.covered
-                  ? `Còn ${ticket.coverage.supplier.daysLeft || 0} ngày`
-                  : "Hết hạn"}
-              </span>
-            </p>
-            <p className="text-slate-500 pt-0.5">
-              Bên chịu phí:{" "}
-              <span
-                className={`rounded px-2 py-0.5 text-xs font-semibold ${costBearerBadgeClass(
-                  ticket.coverage.costBearer
-                )}`}
-              >
-                {costBearerLabel(ticket.coverage.costBearer)}
-              </span>
-            </p>
-          </div>
-        </div>
-
-        {/* Symptom & Diagnosis */}
-        <div className="mt-4 rounded-xl border border-slate-200/80 bg-white p-4 text-xs sm:text-sm space-y-2">
-          <div>
-            <b className="text-slate-800 font-bold">Mô tả lỗi</b>
-            <p className="mt-1 text-slate-700 leading-relaxed">{ticket.symptom}</p>
-          </div>
-          {ticket.diagnosis && (
-            <div className="pt-2 border-t border-slate-100">
-              <b className="block text-slate-800 font-bold">Chẩn đoán</b>
-              <p className="mt-1 text-slate-700 leading-relaxed">{ticket.diagnosis}</p>
-            </div>
-          )}
-        </div>
-
-        {/* Financial Totals */}
-        <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-4 rounded-xl border border-slate-100 bg-slate-50/80 p-3.5 text-xs sm:text-sm">
-          <div className="text-slate-600">
-            Nhân công<br />
-            <b className="text-slate-900 font-bold text-sm">{money(ticket.laborFee)}</b>
-          </div>
-          <div className="text-slate-600">
-            Linh kiện<br />
-            <b className="text-slate-900 font-bold text-sm">{money(ticket.partRevenue ?? 0)}</b>
-          </div>
-          <div className="text-slate-600">
-            Tổng<br />
-            <b className="text-cyan-800 font-bold text-sm">{money(ticket.totalAmount)}</b>
-          </div>
-          <div className="text-slate-600">
-            Còn nợ<br />
-            <b className="text-rose-600 font-bold text-sm">{money(ticket.dueAmount)}</b>
-          </div>
-        </div>
-
-        {/* Diagnosing state quote controls */}
-        {ticket.status === "diagnosing" && (
-          <div className="mt-4 space-y-3 rounded-xl border border-cyan-200/80 bg-cyan-50/30 p-4">
-            <label className="flex flex-col gap-1 text-xs sm:text-sm font-semibold text-slate-700">
-              <span>Số tiền báo giá</span>
-              <input
-                type="number"
-                min="0"
-                value={quote}
-                onChange={(e) => setQuote(e.target.value)}
-                className="h-10 rounded-xl border border-slate-200 bg-white px-3 font-medium outline-none focus:border-cyan-600"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 text-xs sm:text-sm font-semibold text-slate-700">
-              <span>Tiền công trong báo giá</span>
-              <input
-                aria-label="Tiền công trong báo giá"
-                type="number"
-                min="0"
-                max={quote}
-                value={laborFee}
-                onChange={(e) => setLaborFee(e.target.value)}
-                className="h-10 rounded-xl border border-slate-200 bg-white px-3 font-medium outline-none focus:border-cyan-600"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 text-xs sm:text-sm font-semibold text-slate-700">
-              <span>Ghi chú báo giá</span>
-              <textarea
-                required
-                value={quoteNote}
-                onChange={(e) => setQuoteNote(e.target.value)}
-                className="min-h-20 rounded-xl border border-slate-200 bg-white p-3 font-medium outline-none focus:border-cyan-600"
-              />
-            </label>
-
-            {quoteSaved && (
-              <p
-                role="status"
-                className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs sm:text-sm font-semibold text-emerald-700"
-              >
-                Đã lưu báo giá
-              </p>
-            )}
-
-            <button
-              disabled={busy || quoteSaved || !quoteNote.trim()}
-              onClick={() => void saveQuote()}
-              className="min-h-11 w-full rounded-xl bg-cyan-600 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-sm hover:bg-cyan-700 disabled:opacity-50 sm:w-auto cursor-pointer transition-all"
-            >
-              {quoteSavePending.current ? "Đang lưu..." : "Lưu báo giá"}
-            </button>
-          </div>
-        )}
-
-        {/* Done state payment controls */}
-        {ticket.status === "done" && ticket.dueAmount > 0 && (
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row items-center rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-3.5">
-            <input
-              type="number"
-              min="1"
-              max={ticket.dueAmount}
-              value={payment}
-              onChange={(e) => setPayment(e.target.value)}
-              placeholder="Số tiền thu"
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs sm:text-sm font-medium outline-none sm:w-auto flex-1"
-            />
-            <button
-              disabled={busy}
-              onClick={() =>
-                void run(() => repairService.pay(ticket._id, Number(payment)))
-              }
-              className="min-h-11 w-full rounded-xl bg-emerald-600 px-5 py-2 text-xs sm:text-sm font-bold text-white shadow-sm hover:bg-emerald-700 sm:w-auto cursor-pointer transition-all"
-            >
-              Ghi nhận thanh toán
-            </button>
-          </div>
-        )}
-
-        {/* Action Buttons */}
-        <div className="mt-5 flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:flex-wrap">
-          {ticket.status === "done" && (
-            <button
-              disabled={busy}
-              onClick={() => void run(() => repairService.deliver(ticket._id))}
-              className="min-h-11 w-full rounded-xl bg-blue-600 px-5 py-2 text-xs sm:text-sm font-bold text-white shadow-sm hover:bg-blue-700 sm:w-auto cursor-pointer transition-all"
-            >
-              Giao máy
-            </button>
-          )}
-
-          {[
-            "received",
-            "diagnosing",
-            "quoted",
-            "approved",
-            "repairing",
-          ].includes(ticket.status) && (
-            <div className="flex flex-col sm:flex-row gap-2 flex-1">
-              <input
-                placeholder="Lý do hủy"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs sm:text-sm font-medium outline-none sm:w-auto flex-1"
-              />
-              <button
-                disabled={busy || !reason.trim()}
-                onClick={() =>
-                  void run(() => repairService.cancel(ticket._id, reason))
-                }
-                className="min-h-11 w-full rounded-xl border border-rose-300 bg-rose-50/60 px-5 py-2 text-xs sm:text-sm font-bold text-rose-700 hover:bg-rose-100 sm:w-auto cursor-pointer transition-all"
-              >
-                Hủy phiếu
-              </button>
-            </div>
-          )}
-        </div>
-
-        {ticket.status === "delivered" && (
-          <RepairRefundForm
-            ticket={ticket}
-            onChanged={() => {
-              onChanged();
-              onClose();
-            }}
-          />
-        )}
-
-        <RepairTicketExtras ticket={ticket} onChanged={onChanged} />
-
-        {/* Status History */}
-        <div className="mt-5 border-t border-slate-100 pt-4">
-          <h3 className="font-bold text-sm text-slate-800">
-            Lịch sử xử lý
-          </h3>
-          <div className="mt-2 space-y-1.5">
-            {ticket.statusHistory?.map((entry, index) => (
-              <p
-                key={index}
-                className="text-xs text-slate-500 font-medium"
-              >
-                {date(entry.at)} · {repairStatusLabel(entry.from)} →{" "}
-                {repairStatusLabel(entry.to)} · {entry.byName}
-                {entry.note ? ` · ${entry.note}` : ""}
-              </p>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function RepairBoardPage({
   createPrefill,
   onCreatePrefillConsumed,
-}: {
-  createPrefill?: RepairCreatePrefill | null;
-  onCreatePrefillConsumed?: () => void;
-} = {}) {
-  const [board, setBoard] = useState<
-    Partial<Record<RepairStatus, RepairTicket[]>>
-  >({});
+}: { createPrefill?: RepairCreatePrefill | null; onCreatePrefillConsumed?: () => void } = {}) {
+  const [board, setBoard] = useState<Partial<Record<RepairStatus, RepairTicket[]>>>({});
+  const [ticketTypeFilter, setTicketTypeFilter] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [dateFilter, setDateFilter] = useState<"all" | "today" | "yesterday" | "week" | "month">("all");
+  const [technicianFilter, setTechnicianFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<RepairViewMode>("pipeline6");
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selected, setSelected] = useState<RepairTicket | null>(null);
-  const [receivingTicket, setReceivingTicket] =
-    useState<RepairTicket | null>(null);
+  const [receivingTicket, setReceivingTicket] = useState<RepairTicket | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [activePrefill, setActivePrefill] = useState<RepairCreatePrefill | null>(null);
+
+  // Pagination for Queue & Delivered views
+  const [queuePage, setQueuePage] = useState(1);
+  const [queuePageSize, setQueuePageSize] = useState(15);
+  const [deliveredPage, setDeliveredPage] = useState(1);
+  const [deliveredPageSize, setDeliveredPageSize] = useState(15);
 
   useEffect(() => {
-    if (createPrefill) setCreateOpen(true);
+    if (createPrefill) {
+      setActivePrefill(createPrefill);
+      setCreateOpen(true);
+    }
   }, [createPrefill]);
 
   const loadBoard = () =>
     repairService
-      .board()
-      .then(setBoard)
-      .catch((e) =>
-        setError(
-          e instanceof Error ? e.message : "Không thể tải board Repair"
-        )
-      );
+      .board(ticketTypeFilter ? { ticketType: ticketTypeFilter } : {})
+      .then((data) => {
+        setBoard(data);
+        setSelected((curr) => {
+          if (!curr) return null;
+          for (const key of Object.keys(data)) {
+            const list = (data as any)[key];
+            if (Array.isArray(list)) {
+              const match = list.find((t: RepairTicket) => t._id === curr._id);
+              if (match) return match;
+            }
+          }
+          return curr;
+        });
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "Không thể tải board Repair"));
 
   useEffect(() => {
     void loadBoard();
-  }, []);
+  }, [ticketTypeFilter]);
+
+  // Reset page to 1 on any filter change
+  useEffect(() => {
+    setQueuePage(1);
+    setDeliveredPage(1);
+  }, [searchQuery, dateFilter, technicianFilter, ticketTypeFilter]);
 
   const moveForward = async (ticket: RepairTicket, technicianId?: string) => {
     setBusyId(ticket._id);
     try {
       const to = nextStatus[ticket.status];
-      if (ticket.status === "quoted")
-        await repairService.approveQuote(ticket._id);
-      else if (to)
-        await repairService.transition(
-          ticket._id,
-          to,
-          technicianId ? { technicianId } : {}
-        );
+      if (ticket.status === "quoted") await repairService.approveQuote(ticket._id);
+      else if (to) await repairService.transition(ticket._id, to, technicianId ? { technicianId } : {});
       await loadBoard();
       setReceivingTicket(null);
     } catch (e) {
@@ -773,129 +138,968 @@ export default function RepairBoardPage({
   const startMoveForward = (ticket: RepairTicket) => {
     if (ticket.status === "received") setReceivingTicket(ticket);
     else if (ticket.status === "diagnosing") setSelected(ticket);
+    else if (ticket.status === "done" && ticket.dueAmount > 0) setSelected(ticket);
     else void moveForward(ticket).catch(() => undefined);
   };
 
+  const openNewServiceTicket = () => {
+    setActivePrefill({
+      ticketType: "service",
+      productName: "",
+      serialNumber: "",
+    });
+    setCreateOpen(true);
+  };
+
+  // Extract all technician names dynamically from tickets
+  const availableTechnicians = useMemo(() => {
+    const set = new Set<string>();
+    Object.values(board).forEach((tickets) => {
+      tickets?.forEach((t) => {
+        if (t.technicianName?.trim()) {
+          set.add(t.technicianName.trim());
+        }
+      });
+    });
+    return Array.from(set).sort();
+  }, [board]);
+
+  // Search filter helper
+  const matchesSearch = (ticket: RepairTicket) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      ticket.ticketCode.toLowerCase().includes(q) ||
+      ticket.customerName.toLowerCase().includes(q) ||
+      ticket.customerPhone.toLowerCase().includes(q) ||
+      ticket.device.name.toLowerCase().includes(q) ||
+      Boolean(ticket.device.serialNumber && ticket.device.serialNumber.toLowerCase().includes(q)) ||
+      Boolean(ticket.technicianName && ticket.technicianName.toLowerCase().includes(q))
+    );
+  };
+
+  // Date filter helper
+  const matchesDate = (ticket: RepairTicket) => {
+    if (dateFilter === "all") return true;
+    const ticketDateStr = ticket.receivedAt || ticket.deliveredAt || ticket.completedAt;
+    if (!ticketDateStr) return true;
+    const tDate = new Date(ticketDateStr);
+    if (isNaN(tDate.getTime())) return true;
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfTomorrow = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
+    const startOfYesterday = new Date(startOfToday.getTime() - 24 * 60 * 60 * 1000);
+
+    if (dateFilter === "today") {
+      return tDate >= startOfToday && tDate < startOfTomorrow;
+    }
+    if (dateFilter === "yesterday") {
+      return tDate >= startOfYesterday && tDate < startOfToday;
+    }
+    if (dateFilter === "week") {
+      const sevenDaysAgo = new Date(startOfToday.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return tDate >= sevenDaysAgo;
+    }
+    if (dateFilter === "month") {
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      return tDate >= startOfMonth;
+    }
+    return true;
+  };
+
+  // Technician filter helper
+  const matchesTechnician = (ticket: RepairTicket) => {
+    if (technicianFilter === "all" || !technicianFilter) return true;
+    if (technicianFilter === "unassigned") return !ticket.technicianName;
+    return ticket.technicianName?.toLowerCase() === technicianFilter.toLowerCase();
+  };
+
+  // Combined filter
+  const matchesFilter = (ticket: RepairTicket) => {
+    return matchesSearch(ticket) && matchesDate(ticket) && matchesTechnician(ticket);
+  };
+
+  // Helper to extract tickets for a stage
+  const getStageTickets = (stageStatuses: RepairStatus[]) => {
+    const result: RepairTicket[] = [];
+    stageStatuses.forEach((st) => {
+      const list = (board[st] || []).filter(matchesFilter);
+      result.push(...list);
+    });
+    return result;
+  };
+
+  // Quick statistics calculated from board matching active date & technician filters
+  const stats = useMemo(() => {
+    const filterFn = (t: RepairTicket) => matchesDate(t) && matchesTechnician(t) && matchesSearch(t);
+    const count = (st: RepairStatus) => (board[st] || []).filter(filterFn).length;
+
+    const received = count("received");
+    const diagnosing = count("diagnosing");
+    const quoted = count("quoted");
+    const repairing = count("approved") + count("repairing");
+    const waiting = count("waiting_parts") + count("waiting_supplier");
+    const done = count("done");
+    const delivered = count("delivered");
+    const total = received + diagnosing + quoted + repairing + waiting + done;
+    return { received, diagnosing, quoted, repairing, waiting, done, delivered, total };
+  }, [board, searchQuery, dateFilter, technicianFilter]);
+
+  // Flattened tickets for Queue / List View
+  const queueTickets = useMemo(() => {
+    const all: RepairTicket[] = [];
+    columns.forEach((col) => {
+      if (col.status === "delivered") return;
+      const tickets = board[col.status] || [];
+      tickets.forEach((t) => {
+        if (matchesFilter(t)) all.push(t);
+      });
+    });
+    return all;
+  }, [board, searchQuery, dateFilter, technicianFilter]);
+
+  // Delivered tickets
+  const deliveredTickets = useMemo(() => {
+    return (board.delivered || []).filter(matchesFilter);
+  }, [board, searchQuery, dateFilter, technicianFilter]);
+
+  // Paginated slices for Queue & Delivered views
+  const totalQueuePages = Math.ceil(queueTickets.length / queuePageSize) || 1;
+  const validQueuePage = Math.min(queuePage, totalQueuePages);
+  const paginatedQueueTickets = queueTickets.slice(
+    (validQueuePage - 1) * queuePageSize,
+    validQueuePage * queuePageSize
+  );
+
+  const totalDeliveredPages = Math.ceil(deliveredTickets.length / deliveredPageSize) || 1;
+  const validDeliveredPage = Math.min(deliveredPage, totalDeliveredPages);
+  const paginatedDeliveredTickets = deliveredTickets.slice(
+    (validDeliveredPage - 1) * deliveredPageSize,
+    validDeliveredPage * deliveredPageSize
+  );
+
+  // Quick status filter & empty column toggle
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [hideEmptyColumns, setHideEmptyColumns] = useState<boolean>(false);
+
+  // Smooth scroll & mouse drag controls
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [isMouseDown, setIsMouseDown] = useState(false);
+  const dragStartX = useRef(0);
+  const dragStartScrollLeft = useRef(0);
+  const hasDragged = useRef(false);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  const updateScrollArrows = () => {
+    if (!scrollerRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = scrollerRef.current;
+    setCanScrollLeft(scrollLeft > 20);
+    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 20);
+  };
+
+  const scrollByAmount = (amount: number) => {
+    if (!scrollerRef.current) return;
+    scrollerRef.current.scrollBy({ left: amount, behavior: "smooth" });
+    setTimeout(updateScrollArrows, 350);
+  };
+
+  const scrollToColumn = (status: string) => {
+    if (!status) {
+      scrollerRef.current?.scrollTo({ left: 0, behavior: "smooth" });
+      setTimeout(updateScrollArrows, 350);
+      return;
+    }
+    const colEl =
+      document.getElementById(`kanban-stage-stage_${status}`) ||
+      document.getElementById(`kanban-col-${status}`) ||
+      document.getElementById(`kanban-stage-${status}`);
+    if (colEl && scrollerRef.current) {
+      const containerLeft = scrollerRef.current.getBoundingClientRect().left;
+      const colLeft = colEl.getBoundingClientRect().left;
+      const targetScrollLeft = scrollerRef.current.scrollLeft + (colLeft - containerLeft) - 20;
+      scrollerRef.current.scrollTo({ left: Math.max(0, targetScrollLeft), behavior: "smooth" });
+      setTimeout(updateScrollArrows, 350);
+    }
+  };
+
+  // Convert vertical mouse wheel into horizontal glide
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        if (el.scrollWidth > el.clientWidth) {
+          const canLeft = el.scrollLeft > 0 && e.deltaY < 0;
+          const canRight = el.scrollLeft < el.scrollWidth - el.clientWidth && e.deltaY > 0;
+          if (canLeft || canRight) {
+            e.preventDefault();
+            el.scrollLeft += e.deltaY * 1.25;
+            updateScrollArrows();
+          }
+        }
+      }
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    el.addEventListener("scroll", updateScrollArrows);
+    updateScrollArrows();
+
+    const timer = setTimeout(updateScrollArrows, 150);
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => updateScrollArrows());
+      resizeObserver.observe(el);
+    }
+
+    return () => {
+      clearTimeout(timer);
+      resizeObserver?.disconnect();
+      el.removeEventListener("wheel", handleWheel);
+      el.removeEventListener("scroll", updateScrollArrows);
+    };
+  }, [hideEmptyColumns, statusFilter, viewMode, board]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest("button, a, input, textarea, select")) return;
+    if (!scrollerRef.current) return;
+
+    setIsMouseDown(true);
+    hasDragged.current = false;
+    dragStartX.current = e.pageX;
+    dragStartScrollLeft.current = scrollerRef.current.scrollLeft;
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isMouseDown || !scrollerRef.current) return;
+    const diff = e.pageX - dragStartX.current;
+    if (Math.abs(diff) > 4) {
+      hasDragged.current = true;
+      scrollerRef.current.scrollLeft = dragStartScrollLeft.current - diff * 1.3;
+      updateScrollArrows();
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsMouseDown(false);
+  };
+
+  // Filtered stages for 6-Stage Pipeline
+  const visibleStages = PIPELINE_STAGES.filter((stage) => {
+    if (statusFilter) {
+      if (statusFilter === "received") return stage.id === "stage_received";
+      if (statusFilter === "diagnosing") return stage.id === "stage_diagnosing";
+      if (statusFilter === "quoted") return stage.id === "stage_quoted";
+      if (statusFilter === "repairing") return stage.id === "stage_repairing";
+      if (statusFilter === "waiting") return stage.id === "stage_waiting";
+      if (statusFilter === "done") return stage.id === "stage_done";
+      if (statusFilter === "delivered") return stage.id === "stage_delivered";
+    }
+    if (hideEmptyColumns) {
+      const tickets = getStageTickets(stage.statuses);
+      return tickets.length > 0;
+    }
+    return true;
+  });
+
+  // Filtered columns for 9-Column Detailed view
+  const visibleColumns = columns.filter((col) => {
+    if (statusFilter) {
+      if (statusFilter === "received") return col.status === "received";
+      if (statusFilter === "diagnosing") return col.status === "diagnosing" || col.status === "quoted";
+      if (statusFilter === "repairing")
+        return ["approved", "repairing", "waiting_parts", "waiting_supplier"].includes(col.status);
+      if (statusFilter === "done") return col.status === "done" || col.status === "delivered";
+    }
+    if (hideEmptyColumns) {
+      const count = (board[col.status] || []).filter(matchesSearch).length;
+      return count > 0;
+    }
+    return true;
+  });
+
   return (
     <div className="space-y-4">
-      {error && (
-        <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">
-          {error}
-        </p>
-      )}
-
-      {/* Kanban Board Container with horizontal scroller for mobile */}
-      <div
-        data-testid="repair-board-scroll"
-        className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0"
-      >
-        <div className="grid min-w-[1250px] grid-cols-9 gap-3">
-          {columns.map((column) => {
-            const list = board[column.status] || [];
-            return (
-              <section
-                key={column.status}
-                className="min-h-48 rounded-2xl border border-slate-200/80 bg-slate-100/70 p-2.5 flex flex-col"
-              >
-                <div className="mb-2.5 flex items-center justify-between px-1.5">
-                  <h2 className="text-xs font-bold text-slate-800">
-                    {column.label}
-                  </h2>
-                  <span
-                    className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${column.badgeColor}`}
-                  >
-                    {list.length}
-                  </span>
-                </div>
-
-                <div className="space-y-2.5 flex-1">
-                  {list.map((ticket) => (
-                    <article
-                      key={ticket._id}
-                      onClick={() => setSelected(ticket)}
-                      className="group cursor-pointer rounded-xl border border-slate-200/90 bg-white p-3 shadow-xs hover:border-cyan-400 hover:shadow-sm transition-all"
-                    >
-                      <div className="flex items-center justify-between gap-1.5">
-                        <p className="text-xs font-mono font-bold text-cyan-700">
-                          {ticket.ticketCode}
-                        </p>
-                        <span
-                          className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold border ${costBearerBadgeClass(
-                            ticket.coverage.costBearer
-                          )}`}
-                        >
-                          {costBearerLabel(ticket.coverage.costBearer)}
-                        </span>
-                      </div>
-
-                      <p className="mt-1.5 text-xs font-bold text-slate-800 group-hover:text-cyan-700 transition-colors line-clamp-1">
-                        {ticket.device.name}
-                      </p>
-                      <p className="text-[11px] font-mono text-slate-400 truncate">
-                        {ticket.device.serialNumber || "Không có serial"}
-                      </p>
-
-                      <div className="mt-2.5 pt-2 border-t border-slate-100 space-y-1 text-xs">
-                        <div className="flex items-center gap-1 text-slate-700 font-medium">
-                          <User className="h-3 w-3 text-slate-400" />
-                          <span className="truncate">{ticket.customerName}</span>
-                        </div>
-                        <p className="text-[11px] text-slate-400">
-                          KT: {ticket.technicianName || "chưa phân công"}
-                        </p>
-                        <div className="flex items-center justify-between text-[11px] pt-0.5">
-                          <span className="text-slate-500">
-                            Tổng: <strong>{money(ticket.totalAmount)}</strong>
-                          </span>
-                          <span className="text-rose-600 font-bold">
-                            Nợ: {money(ticket.dueAmount)}
-                          </span>
-                        </div>
-                      </div>
-
-                      {ticket.coverage.customer.covered && (
-                        <span className="mt-2 inline-block rounded-md bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
-                          Còn bảo hành
-                        </span>
-                      )}
-
-                      {(nextStatus[ticket.status] || ticket.status === "quoted") && (
-                        <button
-                          type="button"
-                          disabled={busyId === ticket._id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            startMoveForward(ticket);
-                          }}
-                          className="mt-2.5 w-full rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 px-2.5 py-1.5 text-xs font-bold text-white shadow-2xs active:scale-95 disabled:opacity-50 cursor-pointer transition-all"
-                        >
-                          {ticket.status === "quoted"
-                            ? "Duyệt báo giá"
-                            : "Chuyển bước tiếp"}
-                        </button>
-                      )}
-                    </article>
-                  ))}
-
-                  {list.length === 0 && (
-                    <div className="flex items-center justify-center py-8 text-center text-[11px] text-slate-400 italic">
-                      Trống
-                    </div>
-                  )}
-                </div>
-              </section>
-            );
-          })}
+      {/* Header & Quick Action Buttons */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">
+              Quản lý bảo hành & sửa chữa
+            </h1>
+            <span className="rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-xs font-bold text-slate-700">
+              {stats.total} máy đang xử lý
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Phân tách: <b>Bảo hành (máy hệ thống)</b> vs <b>Sửa chữa dịch vụ (khách ngoài)</b>
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setViewMode(viewMode === "delivered" ? "pipeline6" : "delivered")}
+            className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-xs sm:text-sm font-bold transition shadow-2xs cursor-pointer ${
+              viewMode === "delivered"
+                ? "bg-teal-600 text-white border-teal-600 shadow-teal-500/20"
+                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            <span>Lịch sử đã giao ({stats.delivered})</span>
+          </button>
+          <button
+            type="button"
+            onClick={openNewServiceTicket}
+            className="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-sm hover:bg-orange-700 transition cursor-pointer"
+          >
+            Tiếp nhận sửa dịch vụ
+          </button>
         </div>
       </div>
+
+      {/* Sleek Interactive Quick Metrics Strip with 1-Click Jump */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter("");
+              if (viewMode === "delivered") setViewMode("pipeline6");
+            }}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+              !statusFilter && viewMode !== "delivered"
+                ? "bg-slate-900 text-white shadow-xs"
+                : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            Tất cả <span className="rounded-full bg-slate-200/50 px-1.5 py-0.2 text-[10px]">{stats.total}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter(statusFilter === "received" ? "" : "received");
+              if (viewMode === "delivered") setViewMode("pipeline6");
+              scrollToColumn("received");
+            }}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+              statusFilter === "received" && viewMode !== "delivered"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "bg-blue-50/80 text-blue-700 border border-blue-200/70 hover:bg-blue-100/70"
+            }`}
+          >
+            <span>1. Tiếp nhận</span>
+            <span className="rounded-full bg-blue-200/60 px-1.5 py-0.2 text-[10px]">{stats.received}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter(statusFilter === "diagnosing" ? "" : "diagnosing");
+              if (viewMode === "delivered") setViewMode("pipeline6");
+              scrollToColumn("diagnosing");
+            }}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+              statusFilter === "diagnosing" && viewMode !== "delivered"
+                ? "bg-amber-600 text-white shadow-xs"
+                : "bg-amber-50/80 text-amber-800 border border-amber-200/70 hover:bg-amber-100/70"
+            }`}
+          >
+            <span>2. Kiểm tra</span>
+            <span className="rounded-full bg-amber-200/60 px-1.5 py-0.2 text-[10px]">{stats.diagnosing}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter(statusFilter === "quoted" ? "" : "quoted");
+              if (viewMode === "delivered") setViewMode("pipeline6");
+              scrollToColumn("quoted");
+            }}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+              statusFilter === "quoted" && viewMode !== "delivered"
+                ? "bg-purple-600 text-white shadow-xs"
+                : "bg-purple-50/80 text-purple-800 border border-purple-200/70 hover:bg-purple-100/70"
+            }`}
+          >
+            <span>3. Báo giá</span>
+            <span className="rounded-full bg-purple-200/60 px-1.5 py-0.2 text-[10px]">{stats.quoted}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter(statusFilter === "repairing" ? "" : "repairing");
+              if (viewMode === "delivered") setViewMode("pipeline6");
+              scrollToColumn("repairing");
+            }}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+              statusFilter === "repairing" && viewMode !== "delivered"
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "bg-indigo-50/80 text-indigo-700 border border-indigo-200/70 hover:bg-indigo-100/70"
+            }`}
+          >
+            <span>4. Đang sửa</span>
+            <span className="rounded-full bg-indigo-200/60 px-1.5 py-0.2 text-[10px]">{stats.repairing}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter(statusFilter === "waiting" ? "" : "waiting");
+              if (viewMode === "delivered") setViewMode("pipeline6");
+              scrollToColumn("waiting_parts");
+            }}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+              statusFilter === "waiting" && viewMode !== "delivered"
+                ? "bg-orange-600 text-white shadow-xs"
+                : "bg-orange-50/80 text-orange-800 border border-orange-200/70 hover:bg-orange-100/70"
+            }`}
+          >
+            <span>5. Chờ phụ tùng</span>
+            <span className="rounded-full bg-orange-200/60 px-1.5 py-0.2 text-[10px]">{stats.waiting}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter(statusFilter === "done" ? "" : "done");
+              if (viewMode === "delivered") setViewMode("pipeline6");
+              scrollToColumn("done");
+            }}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+              statusFilter === "done" && viewMode !== "delivered"
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "bg-emerald-50/80 text-emerald-800 border border-emerald-200/70 hover:bg-emerald-100/70"
+            }`}
+          >
+            <span>6. Chờ giao</span>
+            <span className="rounded-full bg-emerald-200/60 px-1.5 py-0.2 text-[10px]">{stats.done}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (viewMode === "delivered") {
+                setViewMode("pipeline6");
+                setStatusFilter("");
+              } else {
+                setStatusFilter(statusFilter === "delivered" ? "" : "delivered");
+                scrollToColumn("delivered");
+              }
+            }}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+              (statusFilter === "delivered" || viewMode === "delivered")
+                ? "bg-teal-700 text-white shadow-xs"
+                : "bg-teal-50 text-teal-800 border border-teal-200/70 hover:bg-teal-100/70"
+            }`}
+          >
+            <span>7. Đã giao</span>
+            <span className="rounded-full bg-teal-200/70 px-1.5 py-0.2 text-[10px] text-teal-900">{stats.delivered}</span>
+          </button>
+        </div>
+
+      </div>
+
+      {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700 font-medium">{error}</p>}
+
+      {/* Control Bar: Search, Date Presets, Technician Filter, Type Filter, Hide Empty Columns Toggle, View Switcher */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Instant Search Bar */}
+          <SearchInput
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Tìm mã phiếu, khách, SĐT, IMEI..."
+            size="sm"
+            className="flex-1 min-w-[200px] max-w-sm"
+          />
+
+          {/* Quick Date Presets */}
+          <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
+            <button
+              type="button"
+              onClick={() => setDateFilter("all")}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                dateFilter === "all" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Tất cả ngày
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateFilter("today")}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                dateFilter === "today" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Hôm nay
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateFilter("yesterday")}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                dateFilter === "yesterday" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Hôm qua
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateFilter("week")}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                dateFilter === "week" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              7 ngày qua
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateFilter("month")}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                dateFilter === "month" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Tháng này
+            </button>
+          </div>
+        </div>
+
+        {/* Secondary Filter Row: Ticket Source, Technician Dropdown, Hide Empty Columns */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Ticket Source Filters */}
+            <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => setTicketTypeFilter("")}
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                  !ticketTypeFilter ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Tất cả nguồn
+              </button>
+              <button
+                type="button"
+                onClick={() => setTicketTypeFilter("warranty")}
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                  ticketTypeFilter === "warranty" ? "bg-blue-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Bảo hành
+              </button>
+              <button
+                type="button"
+                onClick={() => setTicketTypeFilter("service")}
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                  ticketTypeFilter === "service" ? "bg-orange-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Sửa chữa
+              </button>
+            </div>
+
+            {/* Technician Filter Dropdown */}
+            <Dropdown<string>
+              aria-label="Lọc theo kỹ thuật viên"
+              value={technicianFilter}
+              onChange={(val) => setTechnicianFilter(val)}
+              options={[
+                { value: "all", label: "Tất cả kỹ thuật viên" },
+                { value: "unassigned", label: "Chưa giao KTV" },
+                ...availableTechnicians.map((tech) => ({
+                  value: tech,
+                  label: `KTV: ${tech}`,
+                })),
+              ]}
+              variant="filter"
+              size="sm"
+            />
+
+            {/* Clear filters button if any active filter */}
+            {(dateFilter !== "all" || technicianFilter !== "all" || ticketTypeFilter || searchQuery) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFilter("all");
+                  setTechnicianFilter("all");
+                  setTicketTypeFilter("");
+                  setSearchQuery("");
+                }}
+                className="text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:underline px-1.5 py-1 cursor-pointer"
+              >
+                Xóa bộ lọc
+              </button>
+            )}
+          </div>
+
+          {/* Toggle Hide Empty Columns */}
+          {(viewMode === "pipeline6" || viewMode === "detailed9") && (
+            <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-600 select-none hover:text-slate-900 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50">
+              <input
+                type="checkbox"
+                checked={hideEmptyColumns}
+                onChange={(e) => setHideEmptyColumns(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+              />
+              <span>Ẩn bước trống</span>
+            </label>
+          )}
+        </div>
+      </div>
+
+      {/* 6-Stage Standard Pipeline (Default - Recommended) */}
+      {viewMode === "pipeline6" && (
+        <div className="relative group/kanban">
+          {/* Floating Left Navigation Arrow */}
+          <button
+            type="button"
+            aria-label="Cuộn sang trái"
+            title="Cuộn sang trái (hoặc lăn chuột lên)"
+            disabled={!canScrollLeft}
+            onClick={() => scrollByAmount(-370)}
+            className={`absolute -left-3 sm:-left-5 top-1/2 -translate-y-1/2 z-20 hidden sm:flex h-12 w-12 items-center justify-center rounded-full border border-slate-200/90 bg-white/95 backdrop-blur-md shadow-2xl transition-all duration-200 ${
+              canScrollLeft
+                ? "text-slate-700 hover:bg-cyan-600 hover:text-white hover:border-cyan-600 hover:scale-110 active:scale-95 cursor-pointer shadow-cyan-500/20"
+                : "text-slate-300 opacity-30 cursor-not-allowed hover:bg-white"
+            }`}
+          >
+            <ChevronLeft className="h-6 w-6 stroke-[2.5]" />
+          </button>
+
+          {/* Floating Right Navigation Arrow */}
+          <button
+            type="button"
+            aria-label="Cuộn sang phải"
+            title="Cuộn sang phải (hoặc lăn chuột xuống)"
+            disabled={!canScrollRight}
+            onClick={() => scrollByAmount(370)}
+            className={`absolute -right-3 sm:-right-5 top-1/2 -translate-y-1/2 z-20 hidden sm:flex h-12 w-12 items-center justify-center rounded-full border border-slate-200/90 bg-white/95 backdrop-blur-md shadow-2xl transition-all duration-200 ${
+              canScrollRight
+                ? "text-slate-700 hover:bg-cyan-600 hover:text-white hover:border-cyan-600 hover:scale-110 active:scale-95 cursor-pointer shadow-cyan-500/20"
+                : "text-slate-300 opacity-30 cursor-not-allowed hover:bg-white"
+            }`}
+          >
+            <ChevronRight className="h-6 w-6 stroke-[2.5]" />
+          </button>
+
+          <div
+            ref={scrollerRef}
+            data-testid="repair-board-scroll"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            className={`-mx-4 overflow-x-auto px-4 pb-4 sm:mx-0 sm:px-0 select-none ${
+              isMouseDown ? "cursor-grabbing" : "cursor-grab"
+            }`}
+          >
+            <div className="flex min-w-[1250px] gap-4 pb-2">
+              {visibleStages.map((stage) => (
+                <RepairKanbanStage
+                  key={stage.id}
+                  stage={stage}
+                  tickets={getStageTickets(stage.statuses)}
+                  busyId={busyId}
+                  hasDragged={hasDragged}
+                  onSelectTicket={setSelected}
+                  onMoveForward={startMoveForward}
+                  onViewAllDelivered={() => setViewMode("delivered")}
+                  totalDeliveredCount={deliveredTickets.length}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 9-Column Detailed Kanban View (Classic) */}
+      {viewMode === "detailed9" && (
+        <div className="relative group/kanban">
+          {/* Floating Left Arrow */}
+          <button
+            type="button"
+            aria-label="Cuộn sang trái"
+            title="Cuộn sang trái (hoặc lăn chuột lên)"
+            disabled={!canScrollLeft}
+            onClick={() => scrollByAmount(-350)}
+            className={`absolute -left-3 sm:-left-5 top-1/2 -translate-y-1/2 z-20 hidden sm:flex h-12 w-12 items-center justify-center rounded-full border border-slate-200/90 bg-white/95 backdrop-blur-md shadow-2xl transition-all duration-200 ${
+              canScrollLeft
+                ? "text-slate-700 hover:bg-cyan-600 hover:text-white hover:border-cyan-600 hover:scale-110 active:scale-95 cursor-pointer shadow-cyan-500/20"
+                : "text-slate-300 opacity-30 cursor-not-allowed hover:bg-white"
+            }`}
+          >
+            <ChevronLeft className="h-6 w-6 stroke-[2.5]" />
+          </button>
+
+          {/* Floating Right Arrow */}
+          <button
+            type="button"
+            aria-label="Cuộn sang phải"
+            title="Cuộn sang phải (hoặc lăn chuột xuống)"
+            disabled={!canScrollRight}
+            onClick={() => scrollByAmount(350)}
+            className={`absolute -right-3 sm:-right-5 top-1/2 -translate-y-1/2 z-20 hidden sm:flex h-12 w-12 items-center justify-center rounded-full border border-slate-200/90 bg-white/95 backdrop-blur-md shadow-2xl transition-all duration-200 ${
+              canScrollRight
+                ? "text-slate-700 hover:bg-cyan-600 hover:text-white hover:border-cyan-600 hover:scale-110 active:scale-95 cursor-pointer shadow-cyan-500/20"
+                : "text-slate-300 opacity-30 cursor-not-allowed hover:bg-white"
+            }`}
+          >
+            <ChevronRight className="h-6 w-6 stroke-[2.5]" />
+          </button>
+
+          <div
+            ref={scrollerRef}
+            data-testid="repair-board-scroll-detailed"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            className={`-mx-4 overflow-x-auto px-4 pb-4 sm:mx-0 sm:px-0 select-none ${
+              isMouseDown ? "cursor-grabbing" : "cursor-grab"
+            }`}
+          >
+            <div className="flex min-w-[1250px] gap-4 pb-2">
+              {visibleColumns.map((column) => (
+                <RepairKanbanColumn
+                  key={column.status}
+                  column={column}
+                  tickets={(board[column.status] || []).filter(matchesFilter)}
+                  busyId={busyId}
+                  hasDragged={hasDragged}
+                  onSelectTicket={setSelected}
+                  onMoveForward={startMoveForward}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Non-tech Friendly Queue / List View */}
+      {viewMode === "queue" && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-bold text-slate-900 text-sm">
+              Danh sách hàng đợi xử lý ({queueTickets.length} phiếu)
+            </h3>
+            <span className="text-xs text-slate-400">Nhấp vào dòng để xem chi tiết hoặc bóc tách linh kiện</span>
+          </div>
+
+          {queueTickets.length === 0 ? (
+            <div className="py-12 text-center text-slate-400">
+              <p className="text-sm">Không tìm thấy phiếu nào phù hợp với bộ lọc hiện tại.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-400 uppercase tracking-wider font-bold">
+                    <th className="py-3 px-2">Mã & Loại</th>
+                    <th className="py-3 px-2">Thiết bị / IMEI</th>
+                    <th className="py-3 px-2">Khách hàng</th>
+                    <th className="py-3 px-2">Trạng thái hiện tại</th>
+                    <th className="py-3 px-2">Kỹ thuật viên</th>
+                    <th className="py-3 px-2 text-right">Chi phí</th>
+                    <th className="py-3 px-2 text-center">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedQueueTickets.map((ticket) => {
+                    const isService = ticket.ticketType === "service";
+                    return (
+                      <tr
+                        key={ticket._id}
+                        onClick={() => setSelected(ticket)}
+                        className="cursor-pointer hover:bg-slate-50/80 transition"
+                      >
+                        <td className="py-3 px-2">
+                          <span className="font-bold text-cyan-700 block">{ticket.ticketCode}</span>
+                          <span
+                            className={`inline-block mt-0.5 rounded px-1.5 py-0.2 text-[10px] font-bold border ${
+                              getTicketBadge(ticket).badgeClass
+                            }`}
+                          >
+                            {getTicketBadge(ticket).label}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2">
+                          <span className="font-semibold text-slate-900 block">{ticket.device.name}</span>
+                          <span className="font-mono text-[11px] text-slate-400">
+                            {ticket.device.serialNumber || "Không có IMEI"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2">
+                          <span className="font-medium text-slate-800 block">{ticket.customerName}</span>
+                          <span className="text-slate-400">{ticket.customerPhone}</span>
+                        </td>
+                        <td className="py-3 px-2">
+                          <span className="rounded-full bg-slate-100 border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+                            {repairStatusLabel(ticket.status)}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2 text-slate-600">
+                          {ticket.technicianName || <span className="text-slate-400 italic">Chưa giao</span>}
+                        </td>
+                        <td className="py-3 px-2 text-right">
+                          <span className="font-bold text-slate-900 block">{money(ticket.totalAmount)} đ</span>
+                          {ticket.dueAmount > 0 && (
+                            <span className="text-[11px] text-rose-600 font-semibold">
+                              Nợ {money(ticket.dueAmount)} đ
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                          {(nextStatus[ticket.status] || ticket.status === "quoted") ? (
+                            <button
+                              type="button"
+                              disabled={busyId === ticket._id}
+                              onClick={() => startMoveForward(ticket)}
+                              className="rounded-lg bg-cyan-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-cyan-700 disabled:opacity-50 transition cursor-pointer"
+                            >
+                              {ticket.status === "quoted" ? "Duyệt báo giá" : "Chuyển tiếp"}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setSelected(ticket)}
+                              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 cursor-pointer"
+                            >
+                              Chi tiết
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              <TablePagination
+                currentPage={validQueuePage}
+                totalPages={totalQueuePages}
+                pageSize={queuePageSize}
+                totalItems={queueTickets.length}
+                onPageChange={setQueuePage}
+                onPageSizeChange={setQueuePageSize}
+                itemLabel="phiếu"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Delivered Machines View */}
+      {viewMode === "delivered" && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm">
+                Lịch sử máy đã bàn giao ({deliveredTickets.length} máy)
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Các thiết bị đã hoàn tất sửa chữa và bàn giao cho khách hàng.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setViewMode("pipeline6")}
+              className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+            >
+              Quay lại bảng xử lý
+            </button>
+          </div>
+
+          {deliveredTickets.length === 0 ? (
+            <div className="py-12 text-center text-slate-400">
+              <p className="text-sm">Chưa có thiết bị nào trong danh sách đã giao.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-400 uppercase tracking-wider font-bold">
+                    <th className="py-3 px-2">Mã & Loại</th>
+                    <th className="py-3 px-2">Thiết bị / IMEI</th>
+                    <th className="py-3 px-2">Khách hàng</th>
+                    <th className="py-3 px-2">Kỹ thuật viên</th>
+                    <th className="py-3 px-2">Thời gian giao</th>
+                    <th className="py-3 px-2 text-right">Tổng tiền</th>
+                    <th className="py-3 px-2 text-right">Công nợ</th>
+                    <th className="py-3 px-2 text-center">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedDeliveredTickets.map((ticket) => {
+                    const badge = getTicketBadge(ticket);
+                    return (
+                      <tr
+                        key={ticket._id}
+                        onClick={() => setSelected(ticket)}
+                        className="cursor-pointer hover:bg-slate-50/80 transition"
+                      >
+                        <td className="py-3 px-2">
+                          <span className="font-bold text-cyan-700 block">{ticket.ticketCode}</span>
+                          <span className={`inline-block mt-0.5 rounded px-1.5 py-0.2 text-[10px] font-bold border ${badge.badgeClass}`}>
+                            {badge.label}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2">
+                          <span className="font-semibold text-slate-900 block">{ticket.device.name}</span>
+                          <span className="font-mono text-[11px] text-slate-400">
+                            {ticket.device.serialNumber || "Không có IMEI"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2">
+                          <span className="font-medium text-slate-800 block">{ticket.customerName}</span>
+                          <span className="text-slate-400">{ticket.customerPhone}</span>
+                        </td>
+                        <td className="py-3 px-2 text-slate-600">
+                          {ticket.technicianName || <span className="text-slate-400 italic">—</span>}
+                        </td>
+                        <td className="py-3 px-2 text-slate-500 font-medium">
+                          {date(ticket.deliveredAt || ticket.completedAt || ticket.receivedAt)}
+                        </td>
+                        <td className="py-3 px-2 text-right font-bold text-slate-900">
+                          {money(ticket.totalAmount)} đ
+                        </td>
+                        <td className="py-3 px-2 text-right">
+                          {ticket.dueAmount > 0 ? (
+                            <span className="text-rose-600 font-bold">{money(ticket.dueAmount)} đ</span>
+                          ) : (
+                            <span className="text-emerald-600 font-semibold">Đã thanh toán</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => setSelected(ticket)}
+                            className="rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-teal-700 bg-teal-50/50 hover:bg-teal-100/70 transition cursor-pointer"
+                          >
+                            Xem & Hoàn tiền
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              <TablePagination
+                currentPage={validDeliveredPage}
+                totalPages={totalDeliveredPages}
+                pageSize={deliveredPageSize}
+                totalItems={deliveredTickets.length}
+                onPageChange={setDeliveredPage}
+                onPageSizeChange={setDeliveredPageSize}
+                itemLabel="phiếu"
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {receivingTicket && (
         <ReceiveTechnicianModal
           ticket={receivingTicket}
           onClose={() => setReceivingTicket(null)}
-          onSubmit={(technicianId) =>
-            moveForward(receivingTicket, technicianId)
-          }
+          onSubmit={(technicianId) => moveForward(receivingTicket, technicianId)}
         />
       )}
 
@@ -905,15 +1109,9 @@ export default function RepairBoardPage({
             ...selected,
             statusHistory: selected.statusHistory?.map((entry) => ({
               ...entry,
-              note:
-                [
-                  entry.note,
-                  entry.technicianName
-                    ? `KT nhận: ${entry.technicianName}`
-                    : "",
-                ]
-                  .filter(Boolean)
-                  .join(" · ") || undefined,
+              note: [entry.note, entry.technicianName ? `KT nhận: ${entry.technicianName}` : ""]
+                .filter(Boolean)
+                .join(" · ") || undefined,
             })),
           }}
           onClose={() => setSelected(null)}
@@ -921,15 +1119,17 @@ export default function RepairBoardPage({
         />
       )}
 
-      {createOpen && createPrefill && (
+      {createOpen && (
         <CreateRepairModal
-          prefill={createPrefill}
+          prefill={activePrefill || {}}
           onClose={() => {
             setCreateOpen(false);
+            setActivePrefill(null);
             onCreatePrefillConsumed?.();
           }}
           onCreated={() => {
             setCreateOpen(false);
+            setActivePrefill(null);
             onCreatePrefillConsumed?.();
             void loadBoard();
           }}

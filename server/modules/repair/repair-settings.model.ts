@@ -7,6 +7,7 @@ const RepairSettingsSchema = new Schema({
   /** Thứ tự ưu tiên kênh gửi; kênh chưa nối API tự bị bỏ qua khi gửi. */
   notifyChannels: { type: [String], default: ["email", "zalo", "sms"] },
   templates: { type: Map, of: TemplateSchema, default: {} },
+  loyaltyDiscountRate: { type: Number, min: 0, max: 100, default: 10 },
   updatedBy: String,
 }, { timestamps: true });
 export const RepairSettingsModel = model("RepairSettings", RepairSettingsSchema);

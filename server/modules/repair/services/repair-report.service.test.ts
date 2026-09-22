@@ -1,7 +1,27 @@
 import { expect, test } from "vitest";
-import { activeRepairMinutes, buildRepairRevenuePipeline } from "./repair-report.service";
+import { activeRepairMinutes, buildRepairRevenuePipeline, parseStartOfDay, parseEndOfDay } from "./repair-report.service";
 
 const range = { from: "2026-08-01", to: "2026-08-31" };
+
+test("parseStartOfDay and parseEndOfDay áp dụng múi giờ Việt Nam +07:00", () => {
+  const start = parseStartOfDay("2026-08-01");
+  const end = parseEndOfDay("2026-08-01");
+  // 2026-08-01 00:00:00 VN = 2026-07-31 17:00:00 UTC
+  expect(start.toISOString()).toBe("2026-07-31T17:00:00.000Z");
+  // 2026-08-01 23:59:59.999 VN = 2026-08-01 16:59:59.999 UTC
+  expect(end.toISOString()).toBe("2026-08-01T16:59:59.999Z");
+});
+
+test("nhóm theo ngày sử dụng timezone +07:00 để không bị lệch ngày", () => {
+  const [, group]: any[] = buildRepairRevenuePipeline({ companyCode: "IGEN" }, range, "day");
+  expect(group.$group._id).toEqual({
+    $dateToString: {
+      format: "%Y-%m-%d",
+      date: "$completedAt",
+      timezone: "+07:00",
+    },
+  });
+});
 
 test("báo cáo doanh thu chỉ lấy phiếu đã xong trong kỳ và lọc theo công ty", () => {
   const [match]: any[] = buildRepairRevenuePipeline({ companyCode: "IGEN" }, range, "branch");

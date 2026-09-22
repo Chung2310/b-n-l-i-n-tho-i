@@ -1,19 +1,24 @@
-import { FormEvent, useMemo, useState } from "react";
+import React, { FormEvent, useState, useEffect } from "react";
 import {
   Search,
   ShieldCheck,
-  Calendar,
-  AlertTriangle,
-  CheckCircle2,
-  Wrench,
-  Smartphone,
-  Barcode,
-  ShoppingBag,
-  User,
-  Loader2,
   ShieldAlert,
+  Smartphone,
+  CheckCircle2,
+  AlertCircle,
+  AlertTriangle,
+  Wrench,
+  RotateCw,
+  Copy,
+  Check,
+  QrCode,
   Clock,
-  Filter,
+  User,
+  ShoppingBag,
+  History,
+  Store,
+  Building2,
+  Sparkles,
 } from "lucide-react";
 import {
   retailWarrantyService,
@@ -24,114 +29,107 @@ import { toast } from "../../../pages/Toast";
 const date = (value?: string) =>
   value ? new Date(value).toLocaleDateString("vi-VN") : "—";
 
-const statusLabel: Record<string, string> = {
-  in_stock: "Còn tồn",
-  sold: "Đã bán",
-  reserved: "Đã giữ hàng",
-  scrapped: "Đã loại bỏ",
-};
+function CopyButton({ text, label }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
 
-const statusBadgeColor: Record<string, string> = {
-  in_stock: "bg-blue-50 text-blue-700 border-blue-200",
-  sold: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  reserved: "bg-amber-50 text-amber-700 border-amber-200",
-  scrapped: "bg-rose-50 text-rose-700 border-rose-200",
-};
-
-const costBearerBadgeColor: Record<string, string> = {
-  customer: "bg-amber-50 text-amber-700 border-amber-200",
-  shop: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  supplier: "bg-sky-50 text-sky-700 border-sky-200",
-};
-
-function Coverage({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value?: WarrantyLookupResult["customerWarranty"];
-  color: "emerald" | "blue";
-}) {
-  const days = value?.daysLeft ?? 0;
-  const isCovered = Boolean(value?.covered);
-  const percent = Math.max(0, Math.min(100, days / 3.65));
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    toast.success(`Đã sao chép ${label || "mã"}`);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-all hover:shadow-sm">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <div
-            className={`flex h-8 w-8 items-center justify-center rounded-xl ${
-              color === "emerald"
-                ? "bg-emerald-50 text-emerald-600"
-                : "bg-blue-50 text-blue-600"
-            }`}
-          >
-            <ShieldCheck className="h-4 w-4" />
-          </div>
-          <span className="font-bold text-xs sm:text-sm text-slate-800">
-            {label}
-          </span>
-        </div>
-
-        <span
-          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold border ${
-            isCovered
-              ? color === "emerald"
-                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                : "bg-blue-50 text-blue-700 border-blue-200"
-              : "bg-rose-50 text-rose-700 border-rose-200"
-          }`}
-        >
-          <span
-            className={`h-1.5 w-1.5 rounded-full ${
-              isCovered
-                ? color === "emerald"
-                  ? "bg-emerald-500"
-                  : "bg-blue-500"
-                : "bg-rose-500"
-            }`}
-          />
-          {isCovered ? `Còn ${days} ngày` : "Đã hết hạn"}
-        </span>
-      </div>
-
-      <div className="mt-4">
-        <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${
-              isCovered
-                ? color === "emerald"
-                  ? "bg-gradient-to-r from-emerald-500 to-teal-500"
-                  : "bg-gradient-to-r from-blue-500 to-cyan-500"
-                : "bg-slate-300"
-            }`}
-            style={{ width: `${isCovered ? percent : 0}%` }}
-          />
-        </div>
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500 pt-2 border-t border-slate-100">
-        <div className="flex items-center gap-1.5">
-          <Calendar className="h-3.5 w-3.5 text-slate-400" />
-          <span>Bắt đầu: <strong className="font-medium text-slate-700">{date(value?.startAt)}</strong></span>
-        </div>
-        <div className="flex items-center gap-1.5 justify-end">
-          <Clock className="h-3.5 w-3.5 text-slate-400" />
-          <span>Hết hạn: <strong className="font-medium text-slate-700">{date(value?.endAt)}</strong></span>
-        </div>
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="inline-flex items-center text-slate-400 hover:text-slate-700 p-1 rounded-md hover:bg-slate-100 transition cursor-pointer"
+      title={`Sao chép ${label || ""}`}
+    >
+      {copied ? (
+        <Check className="h-3.5 w-3.5 text-emerald-600" />
+      ) : (
+        <Copy className="h-3.5 w-3.5" />
+      )}
+    </button>
   );
 }
 
-function RepairLink({ result }: { result: WarrantyLookupResult }) {
-  if (!result.found) return null;
-  const open = () =>
+export default function WarrantyLookupPage() {
+  const [code, setCode] = useState("");
+  const [searchedCode, setSearchedCode] = useState("");
+  const [result, setResult] = useState<WarrantyLookupResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [recentLookups, setRecentLookups] = useState<string[]>(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem("recent_warranty_lookups") || "[]");
+    } catch {
+      return [];
+    }
+  });
+
+  const saveRecentLookup = (c: string) => {
+    setRecentLookups((prev) => {
+      const next = [c, ...prev.filter((item) => item !== c)].slice(0, 5);
+      try {
+        sessionStorage.setItem("recent_warranty_lookups", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const doLookup = async (lookupCode: string) => {
+    const trimmed = lookupCode.trim();
+    if (!trimmed) return;
+    setBusy(true);
+    setSearchedCode(trimmed);
+    try {
+      const res = await retailWarrantyService.lookup(trimmed);
+      setResult(res);
+      saveRecentLookup(trimmed);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Không thể tra cứu bảo hành");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Debounce 1s (1000ms): Tự động gửi API tra cứu sau 1s kể từ khi người dùng ngừng nhập
+  useEffect(() => {
+    const trimmed = code.trim();
+    if (!trimmed) {
+      setResult(null);
+      setSearchedCode("");
+      return;
+    }
+    // Không tự động gọi lại nếu đã tra cứu mã này
+    if (trimmed === searchedCode) return;
+
+    const timer = setTimeout(() => {
+      void doLookup(trimmed);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [code, searchedCode]);
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    void doLookup(code);
+  };
+
+  const isShopOrigin = Boolean(result?.found);
+  const isCustomerCovered = Boolean(result?.customerWarranty?.covered);
+  const isSupplierCovered = Boolean(result?.supplierWarranty?.covered);
+  const isWarrantyCovered = isCustomerCovered || isSupplierCovered;
+
+  const openWarrantyTicket = () => {
+    if (!result) return;
     window.dispatchEvent(
       new CustomEvent("inventory:open-repair", {
         detail: {
+          ticketType: "warranty",
           productId: result.product?.productId,
           serialNumber: result.serialNumber,
           productName: result.product?.name || "Sản phẩm",
@@ -141,379 +139,473 @@ function RepairLink({ result }: { result: WarrantyLookupResult }) {
           coverage: {
             customer: result.customerWarranty || { covered: false },
             supplier: result.supplierWarranty || { covered: false },
-            costBearer: result.costBearer || "customer",
+            costBearer: result.costBearer || "shop",
             checkedAt: new Date().toISOString(),
           },
         },
       })
     );
+  };
+
+  const openServiceTicket = (isOutsideShop = false) => {
+    window.dispatchEvent(
+      new CustomEvent("inventory:open-repair", {
+        detail: {
+          ticketType: "service",
+          productId: isOutsideShop ? undefined : result?.product?.productId,
+          serialNumber: isOutsideShop ? searchedCode : result?.serialNumber,
+          productName: isOutsideShop
+            ? "Thiết bị khách mang ngoài vào"
+            : result?.product?.name || "Sản phẩm",
+          customerId: isOutsideShop ? undefined : result?.sold?.customerId,
+          customerName: isOutsideShop ? undefined : result?.sold?.customerName,
+          customerPhone: isOutsideShop ? undefined : result?.sold?.customerPhone,
+          coverage: {
+            customer: { covered: false },
+            supplier: { covered: false },
+            costBearer: "customer",
+            checkedAt: new Date().toISOString(),
+          },
+        },
+      })
+    );
+  };
 
   return (
-    <button
-      type="button"
-      onClick={open}
-      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-sm shadow-cyan-600/20 active:scale-95 transition-all cursor-pointer"
-    >
-      <Wrench className="h-4 w-4" />
-      <span>Tạo phiếu sửa chữa/bảo hành</span>
-    </button>
-  );
-}
-
-function WarrantyLookupPageContent() {
-  const [code, setCode] = useState("");
-  const [result, setResult] = useState<WarrantyLookupResult | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!code.trim()) return;
-    setBusy(true);
-    try {
-      setResult(await retailWarrantyService.lookup(code.trim()));
-    } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : "Không thể tra cứu bảo hành"
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="space-y-5">
-      {/* Search Input Card */}
-      <form
-        onSubmit={submit}
-        className="flex flex-col sm:flex-row gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs"
-      >
-        <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          <input
-            autoFocus
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="IMEI / Serial / mã vạch nội bộ"
-            className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-11 pr-4 text-xs sm:text-sm font-medium text-slate-900 placeholder-slate-400 outline-none transition-all focus:border-cyan-600 focus:bg-white focus:ring-2 focus:ring-cyan-100"
-          />
+    <div className="space-y-5 max-w-5xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="flex items-center gap-2.5 text-2xl font-black tracking-tight text-slate-900">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-600">
+              <ShieldCheck className="h-6 w-6" />
+            </div>
+            <span>Tra cứu bảo hành thiết bị</span>
+          </h1>
+          <p className="mt-1 text-xs sm:text-sm text-slate-500 font-medium">
+            Kiểm tra nguồn gốc xuất bán từ shop và hiệu lực bảo hành theo IMEI, Serial hoặc mã tem vạch.
+          </p>
         </div>
-        <button
-          disabled={busy}
-          className="h-12 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 px-6 font-bold text-xs sm:text-sm text-white shadow-sm shadow-cyan-600/20 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
-        >
-          {busy ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Search className="h-4 w-4" />
-          )}
-          <span>{busy ? "Đang tra..." : "Tra cứu"}</span>
-        </button>
-      </form>
 
-      {/* Result: Not found */}
-      {result && !result.found && (
-        <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-800 shadow-2xs">
-          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
-          <span className="text-xs sm:text-sm font-medium">
-            Không tìm thấy thiết bị trong hệ thống. Vui lòng kiểm tra lại số IMEI / Serial.
-          </span>
+        {result && (
+          <button
+            type="button"
+            onClick={() => {
+              setCode("");
+              setResult(null);
+              setSearchedCode("");
+            }}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-2xs"
+          >
+            <RotateCw className="h-3.5 w-3.5" />
+            <span>Tra cứu máy khác</span>
+          </button>
+        )}
+      </div>
+
+      {/* Main Search Hero Box */}
+      <div className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-xs">
+
+        <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-cyan-600">
+              <QrCode className="h-5 w-5" />
+            </div>
+            <input
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="Nhập IMEI (15 số), Serial máy hoặc quét mã vạch tem..."
+              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-3.5 pl-12 pr-10 text-sm sm:text-base font-medium text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition shadow-2xs"
+            />
+            {code && (
+              <button
+                type="button"
+                onClick={() => setCode("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 cursor-pointer"
+                title="Xóa nhập liệu"
+              >
+                <span className="rounded-full bg-slate-200/70 p-1 text-xs hover:bg-slate-300">✕</span>
+              </button>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            disabled={busy || !code.trim()}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 px-7 py-3.5 font-bold text-white shadow-md shadow-cyan-600/20 hover:from-cyan-700 hover:to-teal-700 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer text-sm sm:text-base"
+          >
+            {busy ? (
+              <RotateCw className="h-5 w-5 animate-spin" />
+            ) : (
+              <Search className="h-5 w-5" />
+            )}
+            <span>{busy ? "Đang tra cứu..." : "Kiểm tra bảo hành"}</span>
+          </button>
+        </form>
+
+        {/* Tip & Recent Lookups */}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <p className="text-slate-500 flex items-center gap-1.5">
+            <span className="text-amber-500 font-bold">💡 Mẹo quầy tiếp nhận:</span>
+            <span>Dùng máy quét barcode quét trực tiếp tem dán sau lưng máy hoặc hóa đơn mua hàng.</span>
+          </p>
+
+          {recentLookups.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-slate-400 flex items-center gap-1">
+                <History className="h-3 w-3" />
+                <span>Gần đây:</span>
+              </span>
+              {recentLookups.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => {
+                    setCode(item);
+                    void doLookup(item);
+                  }}
+                  className="rounded-md bg-slate-100 hover:bg-slate-200 px-2 py-0.5 font-mono text-[11px] text-slate-700 transition cursor-pointer"
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* IDLE STATE: When no search has been performed yet */}
+      {!result && !busy && (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center space-y-4">
+          <div className="flex justify-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-100/70 text-cyan-700">
+              <ShieldCheck className="h-8 w-8" />
+            </div>
+          </div>
+          <div className="max-w-md mx-auto space-y-1">
+            <h3 className="text-base font-bold text-slate-800">
+              Sẵn sàng kiểm tra thông tin bảo hành
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+              Nhập mã số IMEI hoặc quét mã vạch tem máy ở trên để xác minh xem thiết bị có phải mua tại shop không và kiểm tra hạn bảo hành còn lại.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg mx-auto pt-2 text-left text-xs">
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                <Store className="h-4 w-4 text-cyan-600" />
+                <span>1. Xác thực nguồn gốc từ shop</span>
+              </div>
+              <p className="text-slate-500">
+                Nhận diện ngay máy do shop bán ra hay là máy mua ngoài; xem thông tin đơn hàng và ngày xuất bán.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <span>2. Kiểm tra hiệu lực bảo hành</span>
+              </div>
+              <p className="text-slate-500">
+                Tính toán chính xác số ngày bảo hành còn lại tại Shop và bảo hành từ Hãng/NCC để tiếp nhận máy.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Result: Found */}
-      {result?.found && (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-xs">
-            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700 shrink-0">
-                  <Smartphone className="h-5 w-5" />
-                </div>
-                <div>
-                  <h2 className="text-base sm:text-lg font-bold text-slate-900">
-                    {result.product?.name || "Sản phẩm"}
-                  </h2>
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                    <span className="text-slate-500 font-mono">
-                      SKU: {result.product?.sku || "—"}
-                    </span>
-                    <span className="text-slate-300">·</span>
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold border ${
-                        statusBadgeColor[result.status || ""] || "bg-slate-100 text-slate-600 border-slate-200"
-                      }`}
-                    >
-                      {statusLabel[result.status || ""] || result.status || "—"}
-                    </span>
-                  </div>
-                </div>
+      {/* CASE 1: PRODUCT NOT FOUND (MÁY NGOÀI KHÔNG MUA TẠI SHOP) */}
+      {result && !result.found && (
+        <div className="rounded-2xl border border-amber-200/90 bg-amber-50/70 p-6 text-amber-900 shadow-xs space-y-5">
+          <div className="flex items-start gap-4">
+            <div className="rounded-2xl bg-amber-100 p-3 text-amber-700 shrink-0">
+              <AlertTriangle className="h-7 w-7" />
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="rounded-full bg-amber-200/80 px-3 py-0.5 text-xs font-bold text-amber-900">
+                  THIẾT BỊ NGOÀI SHOP
+                </span>
+                <span className="text-xs text-amber-700 font-mono">
+                  IMEI: <b>{searchedCode}</b>
+                </span>
               </div>
+              <h3 className="text-lg font-bold text-amber-950">
+                Không tìm thấy máy trong lịch sử xuất bán của shop
+              </h3>
+              <p className="text-sm text-amber-800 leading-relaxed">
+                Mã IMEI/Serial này không thuộc đơn hàng nào từng bán ra tại cửa hàng (thiết bị do khách mua ở nơi khác, hoặc thông tin nhập chưa đúng).
+              </p>
+            </div>
+          </div>
 
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold border ${
-                  costBearerBadgeColor[result.costBearer || ""] || "bg-slate-100 text-slate-600 border-slate-200"
-                }`}
-              >
-                Bên chịu phí: {result.costBearer || "—"}
+          <div className="border-t border-amber-200/60 pt-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-amber-800 font-medium">
+              Bạn vẫn có thể tiếp nhận máy để sửa chữa dịch vụ bình thường cho khách hàng:
+            </p>
+
+            <button
+              type="button"
+              onClick={() => openServiceTicket(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-orange-700 active:scale-[0.99] transition cursor-pointer"
+            >
+              <Wrench className="h-4 w-4" />
+              <span>Tiếp nhận sửa chữa dịch vụ (khách ngoài)</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* CASE 2: PRODUCT FOUND (MÁY CHÍNH HÃNG DO SHOP BÁN RA) */}
+      {result && result.found && (
+        <div className="rounded-2xl border border-slate-200/90 bg-white shadow-xs overflow-hidden space-y-0">
+          {/* Top Verification Banner */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900 px-6 py-3.5 text-white">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500 text-white font-black text-xs">
+                ✓
+              </div>
+              <span className="text-sm font-bold tracking-tight text-slate-100">
+                XÁC NHẬN: THIẾT BỊ XUẤT BÁN TẠI SHOP
               </span>
             </div>
 
-            <div className="mt-4 grid gap-4 text-xs sm:text-sm sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  IMEI / Serial
-                </p>
-                <p className="font-mono font-bold text-slate-800 text-xs sm:text-sm mt-1">
-                  {result.serialNumber || "—"}
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Mã vạch nội bộ
-                </p>
-                <p className="font-mono font-bold text-slate-800 text-xs sm:text-sm mt-1">
-                  {result.internalBarcode || "—"}
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Ngày bán
-                </p>
-                <p className="font-bold text-slate-800 text-xs sm:text-sm mt-1">
-                  {date(result.sold?.at)}
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Mã đơn hàng
-                </p>
-                <p className="font-mono font-bold text-cyan-700 text-xs sm:text-sm mt-1">
-                  {result.sold?.orderCode || "—"}
-                </p>
-              </div>
-            </div>
-
-            {/* Customer Details if sold */}
-            {result.sold?.customerName && (
-              <div className="mt-3 flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/50 px-3.5 py-2.5 text-xs text-slate-600">
-                <User className="h-4 w-4 text-slate-400" />
-                <span>
-                  Khách hàng: <strong className="text-slate-800">{result.sold.customerName}</strong>
-                  {result.sold.customerPhone ? ` · ${result.sold.customerPhone}` : ""}
-                </span>
-              </div>
-            )}
-
-            <div className="mt-5 pt-4 border-t border-slate-100">
-              <RepairLink result={result} />
+            <div className="flex items-center gap-2">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-bold ${
+                  isWarrantyCovered
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                    : "bg-rose-500/20 text-rose-300 border border-rose-500/40"
+                }`}
+              >
+                {isWarrantyCovered ? (
+                  <>
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>CÒN HẠN BẢO HÀNH</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldAlert className="h-3.5 w-3.5 text-rose-400" />
+                    <span>ĐÃ HẾT HẠN BẢO HÀNH</span>
+                  </>
+                )}
+              </span>
             </div>
           </div>
 
-          {/* 2 Coverage Cards */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <Coverage
-              label="Bảo hành khách hàng"
-              value={result.customerWarranty}
-              color="emerald"
-            />
-            <Coverage
-              label={`Bảo hành nhà cung cấp${
-                result.supplierWarranty?.supplierName
-                  ? ` · ${result.supplierWarranty.supplierName}`
-                  : ""
-              }`}
-              value={result.supplierWarranty}
-              color="blue"
-            />
+          <div className="p-6 space-y-6">
+            {/* Device Identity Header */}
+            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 pb-5">
+              <div className="flex items-center gap-3.5">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700 border border-cyan-100 shadow-2xs">
+                  <Smartphone className="h-8 w-8" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 tracking-tight">
+                    {result.product?.name || "Thiết bị bảo hành"}
+                  </h2>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
+                    <span>
+                      SKU: <b className="font-mono text-slate-700">{result.product?.sku || "—"}</b>
+                    </span>
+                    <span>•</span>
+                    <div className="flex items-center gap-1">
+                      <span>IMEI / Serial:</span>
+                      <b className="font-mono text-slate-800">{result.serialNumber || "—"}</b>
+                      {result.serialNumber && (
+                        <CopyButton text={result.serialNumber} label="IMEI" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 2-Column Core Verification Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* Box 1: Nguồn gốc mua hàng tại shop */}
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-5 space-y-3.5">
+                <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2.5">
+                  <ShoppingBag className="h-4 w-4 text-cyan-600" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                    1. Nguồn gốc & Lịch sử bán hàng
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Đơn hàng xuất bán</span>
+                    <span className="font-mono font-bold text-cyan-700 text-sm">
+                      {result.sold?.orderCode || "—"}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Ngày xuất bán</span>
+                    <span className="font-semibold text-slate-800 text-sm">
+                      {date(result.sold?.at)}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Tên khách mua</span>
+                    <span className="font-bold text-slate-800">
+                      {result.sold?.customerName || <span className="text-slate-400 italic">Khách lẻ quầy</span>}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Số điện thoại</span>
+                    <span className="font-mono font-bold text-slate-700">
+                      {result.sold?.customerPhone || "—"}
+                    </span>
+                  </div>
+
+                  {result.internalBarcode && (
+                    <div className="col-span-2 border-t border-slate-200/50 pt-2 flex items-center justify-between">
+                      <span className="text-slate-400 text-[11px]">Tem mã vạch nội bộ</span>
+                      <span className="font-mono font-bold text-slate-700">
+                        {result.internalBarcode}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Box 2: Tình trạng bảo hành */}
+              <div
+                className={`rounded-2xl border p-5 space-y-3.5 ${
+                  isWarrantyCovered
+                    ? "bg-emerald-50/40 border-emerald-200"
+                    : "bg-rose-50/40 border-rose-200"
+                }`}
+              >
+                <div className="flex items-center justify-between border-b border-slate-200/60 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className={`h-4 w-4 ${isWarrantyCovered ? "text-emerald-600" : "text-rose-600"}`} />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                      2. Tình trạng bảo hành
+                    </h3>
+                  </div>
+
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                      isWarrantyCovered
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-rose-100 text-rose-800"
+                    }`}
+                  >
+                    {isWarrantyCovered
+                      ? `Còn ${result.customerWarranty?.daysLeft ?? 0} ngày`
+                      : "Đã hết hạn"}
+                  </span>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  {/* Shop Warranty Spec */}
+                  <div className="rounded-xl bg-white/90 p-3 border border-slate-200/70 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                        <Store className="h-3.5 w-3.5 text-cyan-600" />
+                        <span>Bảo hành cửa hàng (Shop)</span>
+                      </span>
+                      <span
+                        className={`font-bold ${
+                          isCustomerCovered ? "text-emerald-700" : "text-slate-400"
+                        }`}
+                      >
+                        {isCustomerCovered
+                          ? `Còn ${result.customerWarranty?.daysLeft ?? 0} ngày`
+                          : "Hết hạn"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-500 text-[11px] pt-1">
+                      <span>Kích hoạt: {date(result.customerWarranty?.startAt)}</span>
+                      <span>Hết hạn: <b className="text-slate-700">{date(result.customerWarranty?.endAt)}</b></span>
+                    </div>
+                  </div>
+
+                  {/* Supplier Warranty Spec */}
+                  {result.supplierWarranty && (
+                    <div className="rounded-xl bg-white/90 p-3 border border-slate-200/70 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <Building2 className="h-3.5 w-3.5 text-indigo-600" />
+                          <span>
+                            BH Hãng / NCC
+                            {result.supplierWarranty.supplierName && ` (${result.supplierWarranty.supplierName})`}
+                          </span>
+                        </span>
+                        <span
+                          className={`font-bold ${
+                            isSupplierCovered ? "text-indigo-700" : "text-slate-400"
+                          }`}
+                        >
+                          {isSupplierCovered
+                            ? `Còn ${result.supplierWarranty.daysLeft ?? 0} ngày`
+                            : "Hết hạn"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-500 text-[11px] pt-1">
+                        <span>Kích hoạt: {date(result.supplierWarranty.startAt)}</span>
+                        <span>Hết hạn: <b className="text-slate-700">{date(result.supplierWarranty.endAt)}</b></span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Actions Bar */}
+            <div className="border-t border-slate-100 pt-5 flex flex-wrap items-center justify-between gap-3">
+              <div className="text-xs text-slate-500">
+                {isWarrantyCovered ? (
+                  <span className="text-emerald-700 font-semibold flex items-center gap-1.5">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span>Thiết bị đủ điều kiện tiếp nhận bảo hành miễn phí theo chính sách cửa hàng.</span>
+                  </span>
+                ) : (
+                  <span className="text-slate-600 font-medium">
+                    Thiết bị đã hết thời hạn bảo hành. Khách hàng mua máy tại shop được áp dụng ưu đãi khi sửa chữa dịch vụ.
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5">
+                {isWarrantyCovered && (
+                  <button
+                    type="button"
+                    onClick={openWarrantyTicket}
+                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 px-5 py-3 text-sm font-bold text-white shadow-md shadow-cyan-600/20 hover:from-cyan-700 hover:to-teal-700 active:scale-[0.99] transition cursor-pointer"
+                  >
+                    <ShieldCheck className="h-5 w-5" />
+                    <span>Tiếp nhận bảo hành miễn phí (Còn hạn)</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => openServiceTicket(false)}
+                  className={`inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition cursor-pointer ${
+                    isWarrantyCovered
+                      ? "border border-orange-200 bg-orange-50 text-orange-900 hover:bg-orange-100"
+                      : "bg-orange-600 text-white hover:bg-orange-700 shadow-md shadow-orange-600/20 active:scale-[0.99]"
+                  }`}
+                >
+                  <Wrench className="h-5 w-5" />
+                  <span>
+                    {isWarrantyCovered
+                      ? "Tiếp nhận sửa chữa dịch vụ (kèm ưu đãi)"
+                      : "Tiếp nhận sửa chữa dịch vụ (ưu đãi 10% khách mua máy)"}
+                  </span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function WarrantyReportPanel() {
-  const [kind, setKind] = useState<"supplier" | "customer">("customer");
-  const [days, setDays] = useState(30);
-  const [status, setStatus] = useState("");
-  const [bearer, setBearer] = useState("");
-  const [query, setQuery] = useState("");
-  const [items, setItems] = useState<WarrantyLookupResult[]>([]);
-  const [gap, setGap] = useState<WarrantyLookupResult[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  async function load() {
-    setLoading(true);
-    try {
-      setItems(await retailWarrantyService.expiring(kind, days));
-      setGap(await retailWarrantyService.gapRisk());
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const filtered = useMemo(
-    () =>
-      items.filter(
-        (item: any) =>
-          (!status || item.status === status) &&
-          (!bearer || item.costBearer === bearer) &&
-          (!query ||
-            [
-              item.serialNumber,
-              item.internalBarcode,
-              item.sku,
-              item.productName,
-            ].some((value) =>
-              String(value || "")
-                .toLowerCase()
-                .includes(query.toLowerCase())
-            ))
-      ),
-    [items, status, bearer, query]
-  );
-
-  return (
-    <section className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-xs space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
-            <Clock className="h-4 w-4" />
-          </div>
-          <div>
-            <h2 className="font-bold text-sm sm:text-base text-slate-900">
-              Danh sách sắp hết hạn
-            </h2>
-            <p className="text-xs text-slate-500">
-              Cảnh báo thiết bị cận ngày hết bảo hành hoặc có rủi ro khe hở bảo hành.
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => void load()}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 px-4 py-2 text-xs font-bold text-white shadow-xs cursor-pointer active:scale-95 disabled:opacity-50 transition-all"
-        >
-          {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          <span>{loading ? "Đang tải..." : "Tải báo cáo"}</span>
-        </button>
-      </div>
-
-      {/* Filters Bar */}
-      <div className="grid gap-2.5 sm:grid-cols-2 md:grid-cols-5">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Tìm IMEI, SKU, sản phẩm"
-          className="h-10 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100 md:col-span-2"
-        />
-        <select
-          value={kind}
-          onChange={(e) => setKind(e.target.value as typeof kind)}
-          className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100 cursor-pointer"
-        >
-          <option value="customer">BH khách hàng</option>
-          <option value="supplier">BH nhà cung cấp</option>
-        </select>
-        <input
-          type="number"
-          min="1"
-          max="1200"
-          value={days}
-          onChange={(e) => setDays(Number(e.target.value) || 30)}
-          className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-800 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100"
-          aria-label="Số ngày sắp hết hạn"
-        />
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100 cursor-pointer"
-        >
-          <option value="">Mọi trạng thái</option>
-          <option value="in_stock">Còn tồn</option>
-          <option value="sold">Đã bán</option>
-          <option value="reserved">Đã giữ hàng</option>
-        </select>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 pt-1">
-        <span>
-          <strong className="font-bold text-slate-800">{filtered.length}</strong> thiết bị phù hợp ·{" "}
-          <strong className="font-bold text-amber-600">{gap.length}</strong> thiết bị có khe hở bảo hành
-        </span>
-      </div>
-
-      {filtered.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 bg-white shadow-2xs">
-          <table className="w-full min-w-[900px] text-left text-xs">
-            <thead className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              <tr>
-                <th className="p-3">Sản phẩm / SKU</th>
-                <th className="p-3">IMEI / Serial</th>
-                <th className="p-3">Mã nội bộ</th>
-                <th className="p-3">Trạng thái</th>
-                <th className="p-3">Hết hạn</th>
-                <th className="p-3">Bên chịu phí</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filtered.map((item: any) => (
-                <tr key={item._id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="p-3">
-                    <p className="font-bold text-slate-800">
-                      {item.productName || "—"}
-                    </p>
-                    <p className="font-mono text-[11px] text-slate-400">
-                      {item.sku || "—"}
-                    </p>
-                  </td>
-                  <td className="p-3 font-mono font-medium text-slate-700">
-                    {item.serialNumber || "—"}
-                  </td>
-                  <td className="p-3 font-mono text-slate-600">
-                    {item.internalBarcode || "—"}
-                  </td>
-                  <td className="p-3">
-                    <span
-                      className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold border ${
-                        statusBadgeColor[item.status] || "bg-slate-100 text-slate-600 border-slate-200"
-                      }`}
-                    >
-                      {statusLabel[item.status] || item.status || "—"}
-                    </span>
-                  </td>
-                  <td className="p-3 font-medium text-slate-700">
-                    {date(
-                      kind === "supplier"
-                        ? item.supplierWarranty?.endAt
-                        : item.customerWarranty?.endAt
-                    )}
-                  </td>
-                  <td className="p-3">
-                    <span className="font-medium text-slate-600">
-                      {item.costBearer || "—"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
-export default function WarrantyLookupPage() {
-  return (
-    <div className="space-y-5">
-      <WarrantyLookupPageContent />
-      <WarrantyReportPanel />
     </div>
   );
 }

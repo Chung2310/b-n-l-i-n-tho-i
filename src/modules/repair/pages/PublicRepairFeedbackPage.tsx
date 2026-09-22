@@ -100,7 +100,7 @@ export default function PublicRepairFeedbackPage() {
 
             <label className="block text-sm font-bold text-slate-800">
               Nhận xét (không bắt buộc)
-              <textarea value={comment} onChange={(event) => setComment(event.target.value)} rows={4} className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm font-normal outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100" placeholder="Chia sẻ trải nghiệm của bạn" />
+              <textarea value={comment} onChange={(event) => setComment(event.target.value)} rows={4} className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm font-normal outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100" placeholder="Chia sẻ trải nghiệm của bạn (VD: Kỹ thuật viên nhiệt tình, sửa chữa nhanh, máy chạy rất mượt...)" />
             </label>
 
             <button type="submit" disabled={rating < 1 || submitting} className="w-full rounded-xl bg-cyan-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-cyan-800 disabled:cursor-not-allowed disabled:opacity-50">

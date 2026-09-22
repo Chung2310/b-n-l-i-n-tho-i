@@ -11,9 +11,29 @@ export type RepairRevenueGroupBy = "branch" | "technician" | "day";
 /** Doanh thu chỉ tính trên phiếu đã sửa xong hoặc đã giao, theo mốc hoàn tất. */
 const COUNTED_STATUSES: RepairStatus[] = ["done", "delivered"];
 
+export function parseStartOfDay(dateStr: string): Date {
+  const hasZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(dateStr);
+  const normalized = hasZone
+    ? dateStr
+    : /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+      ? `${dateStr}T00:00:00.000+07:00`
+      : `${dateStr}+07:00`;
+  return new Date(normalized);
+}
+
+export function parseEndOfDay(dateStr: string): Date {
+  const hasZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(dateStr);
+  const normalized = hasZone
+    ? dateStr
+    : /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+      ? `${dateStr}T23:59:59.999+07:00`
+      : `${dateStr}+07:00`;
+  return new Date(normalized);
+}
+
 function rangeMatch(scope: RepairReportScope, range: RepairReportRange): PipelineStage.Match {
-  const from = new Date(`${range.from}T00:00:00.000Z`);
-  const to = new Date(`${range.to}T23:59:59.999Z`);
+  const from = parseStartOfDay(range.from);
+  const to = parseEndOfDay(range.to);
   if (Number.isNaN(from.valueOf()) || Number.isNaN(to.valueOf())) throw Object.assign(new Error("Khoảng thời gian không hợp lệ."), { statusCode: 400 });
   if (from > to) throw Object.assign(new Error("Ngày bắt đầu phải trước ngày kết thúc."), { statusCode: 400 });
   return { $match: { companyCode: scope.companyCode, ...(scope.branchId ? { branchId: scope.branchId } : {}), status: { $in: COUNTED_STATUSES }, completedAt: { $gte: from, $lte: to } } };
@@ -22,11 +42,16 @@ function rangeMatch(scope: RepairReportScope, range: RepairReportRange): Pipelin
 const groupKey: Record<RepairRevenueGroupBy, unknown> = {
   branch: "$branchId",
   technician: { $ifNull: ["$technicianId", ""] },
-  day: { $dateToString: { format: "%Y-%m-%d", date: "$completedAt" } },
+  day: { $dateToString: { format: "%Y-%m-%d", date: "$completedAt", timezone: "+07:00" } },
 };
 
 export function buildRepairRevenuePipeline(scope: RepairReportScope, range: RepairReportRange, groupBy: RepairRevenueGroupBy = "branch"): PipelineStage[] {
-  const isWarranty = { $ne: ["$coverage.costBearer", "customer"] };
+  const isWarranty = {
+    $or: [
+      { $eq: ["$ticketType", "warranty"] },
+      { $ne: ["$coverage.costBearer", "customer"] },
+    ],
+  };
   return [
     rangeMatch(scope, range),
     {
@@ -60,10 +85,16 @@ function applyCostVisibility(rows: any[], includeCost: boolean) {
 }
 
 export async function repairRevenueReport(scope: RepairReportScope, range: RepairReportRange, options: { groupBy?: RepairRevenueGroupBy; includeCost?: boolean } = {}) {
+  // Backfill completedAt = deliveredAt cho phiếu delivered cũ nếu chưa có completedAt
+  await RepairTicketModel.updateMany(
+    { companyCode: scope.companyCode, status: "delivered", completedAt: null, deliveredAt: { $ne: null } },
+    [{ $set: { completedAt: "$deliveredAt" } }]
+  ).catch(() => {});
+
   const groupBy = options.groupBy || "branch";
   const rows: any[] = await RepairTicketModel.aggregate(buildRepairRevenuePipeline(scope, range, groupBy));
   const items = applyCostVisibility(rows, Boolean(options.includeCost));
-  const total = items.reduce((sum, row) => ({
+  const total: any = items.reduce((sum, row) => ({
     ticketCount: sum.ticketCount + Number(row.ticketCount || 0),
     warrantyTicketCount: sum.warrantyTicketCount + Number(row.warrantyTicketCount || 0),
     laborRevenue: sum.laborRevenue + Number(row.laborRevenue || 0),
@@ -71,13 +102,27 @@ export async function repairRevenueReport(scope: RepairReportScope, range: Repai
     revenue: sum.revenue + Number(row.revenue || 0),
     collected: sum.collected + Number(row.collected || 0),
     outstanding: sum.outstanding + Number(row.outstanding || 0),
-  }), { ticketCount: 0, warrantyTicketCount: 0, laborRevenue: 0, partRevenue: 0, revenue: 0, collected: 0, outstanding: 0 });
+    ...(options.includeCost ? {
+      partCost: (sum.partCost || 0) + Number(row.partCost || 0),
+      warrantyPartCost: (sum.warrantyPartCost || 0) + Number(row.warrantyPartCost || 0),
+      grossProfit: (sum.grossProfit || 0) + Number(row.grossProfit || 0),
+    } : {}),
+  }), {
+    ticketCount: 0,
+    warrantyTicketCount: 0,
+    laborRevenue: 0,
+    partRevenue: 0,
+    revenue: 0,
+    collected: 0,
+    outstanding: 0,
+    ...(options.includeCost ? { partCost: 0, warrantyPartCost: 0, grossProfit: 0 } : {}),
+  });
   return { groupBy, range, items, total };
 }
 
 export function buildRepairPartUsagePipeline(scope: RepairReportScope, range: RepairReportRange): PipelineStage[] {
-  const from = new Date(`${range.from}T00:00:00.000Z`);
-  const to = new Date(`${range.to}T23:59:59.999Z`);
+  const from = parseStartOfDay(range.from);
+  const to = parseEndOfDay(range.to);
   return [
     { $match: { companyCode: scope.companyCode, ...(scope.branchId ? { branchId: scope.branchId } : {}), status: "issued", issuedAt: { $gte: from, $lte: to } } },
     {
@@ -117,8 +162,8 @@ export function activeRepairMinutes(ticket: { receivedAt?: unknown; completedAt?
 }
 
 export async function repairTechnicianPerformanceReport(scope: RepairReportScope, range: RepairReportRange) {
-  const from = new Date(`${range.from}T00:00:00.000Z`);
-  const to = new Date(`${range.to}T23:59:59.999Z`);
+  const from = parseStartOfDay(range.from);
+  const to = parseEndOfDay(range.to);
   const tickets: any[] = await RepairTicketModel.find({
     companyCode: scope.companyCode, ...(scope.branchId ? { branchId: scope.branchId } : {}),
     status: { $in: COUNTED_STATUSES }, completedAt: { $gte: from, $lte: to }, technicianId: { $nin: [null, ""] },
@@ -171,8 +216,8 @@ export async function repairTechnicianPerformanceReport(scope: RepairReportScope
 }
 
 export async function repairFeedbackSummaryReport(scope: RepairReportScope, range: RepairReportRange) {
-  const from = new Date(`${range.from}T00:00:00.000Z`);
-  const to = new Date(`${range.to}T23:59:59.999Z`);
+  const from = parseStartOfDay(range.from);
+  const to = parseEndOfDay(range.to);
   const rows: any[] = await RepairFeedbackModel.aggregate([
     { $match: { companyCode: scope.companyCode, ...(scope.branchId ? { branchId: scope.branchId } : {}), submittedAt: { $gte: from, $lte: to } } },
     { $group: { _id: { branchId: "$branchId", rating: "$rating" }, count: { $sum: 1 } } },

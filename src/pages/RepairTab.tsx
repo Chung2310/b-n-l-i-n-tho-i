@@ -4,6 +4,7 @@ import {
   ShieldCheck,
   BarChart3,
   Sparkles,
+  PlusCircle,
 } from "lucide-react";
 import WarrantyLookupSection from "../components/inventory/WarrantyLookupSection";
 import RepairBoardPage, {
@@ -13,8 +14,8 @@ import RepairReportsPanel from "../modules/repair/RepairReportsPanel";
 
 const TABS = [
   { key: "warranty", label: "Tra cứu bảo hành", icon: ShieldCheck },
-  { key: "repair", label: "Phiếu sửa chữa", icon: Wrench },
-  { key: "reports", label: "Báo cáo", icon: BarChart3 },
+  { key: "repair", label: "Phiếu sửa chữa & Bảo hành", icon: Wrench },
+  { key: "reports", label: "Báo cáo doanh thu & KTV", icon: BarChart3 },
 ] as const;
 type RepairView = (typeof TABS)[number]["key"];
 
@@ -31,6 +32,15 @@ export default function RepairTab() {
     return () =>
       window.removeEventListener("inventory:open-repair", openRepair);
   }, []);
+
+  const openServiceRepair = () => {
+    setPrefill({
+      ticketType: "service",
+      productName: "",
+      serialNumber: "",
+    });
+    setView("repair");
+  };
 
   return (
     <div className="space-y-5">
@@ -56,27 +66,40 @@ export default function RepairTab() {
           </div>
         </div>
 
-        {/* Subtabs Switcher */}
-        <div className="flex gap-1.5 rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-2xs w-fit self-start sm:self-auto">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            const active = view === tab.key;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setView(tab.key)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  active
-                    ? "bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-xs"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                }`}
-              >
-                <Icon className={`h-4 w-4 ${active ? "text-white" : "text-slate-400"}`} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
+        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+          {/* Subtabs Switcher */}
+          <div className="flex gap-1.5 rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-2xs">
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              const active = view === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setView(tab.key)}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    active
+                      ? "bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-xs"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+                >
+                  <Icon className={`h-4 w-4 ${active ? "text-white" : "text-slate-400"}`} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {view !== "repair" && (
+            <button
+              type="button"
+              onClick={openServiceRepair}
+              className="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-orange-700 transition cursor-pointer"
+            >
+              <PlusCircle className="h-4 w-4" />
+              <span>Tiếp nhận dịch vụ</span>
+            </button>
+          )}
         </div>
       </div>
 

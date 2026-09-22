@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { repairExtras } from "../../services/repairService";
 import { toast } from "../../pages/Toast";
+import { Dropdown } from "../../components/common/Dropdown";
 
 const money = (value: number) => Number(value || 0).toLocaleString("vi-VN");
 const date = (value?: string) => (value ? new Date(value).toLocaleString("vi-VN") : "—");
@@ -49,12 +50,32 @@ export default function RepairHistoryPanel() {
     </div>
 
     <form onSubmit={search} className="flex flex-wrap items-center gap-2">
-      <select value={mode} onChange={(e) => { setMode(e.target.value as "imei" | "phone"); setResult(null); }} className="rounded-lg border px-3 py-2 text-sm">
-        <option value="imei">Theo IMEI / Serial</option>
-        <option value="phone">Theo số điện thoại</option>
-      </select>
-      <input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder={mode === "imei" ? "Nhập hoặc quét IMEI/serial" : "Nhập số điện thoại khách"} className="min-w-64 flex-1 rounded-lg border px-3 py-2 text-sm" />
-      <button disabled={busy} className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Đang tra..." : "Tra cứu"}</button>
+      <Dropdown<"imei" | "phone">
+        value={mode}
+        onChange={(val) => {
+          setMode(val);
+          setResult(null);
+        }}
+        options={[
+          { value: "imei", label: "Theo IMEI / Serial" },
+          { value: "phone", label: "Theo số điện thoại" },
+        ]}
+        variant="default"
+        size="md"
+        triggerClassName="py-2 px-3 rounded-xl border border-slate-300 bg-white text-sm"
+      />
+      <input
+        value={keyword}
+        onChange={(e) => setKeyword(e.target.value)}
+        placeholder={mode === "imei" ? "Nhập hoặc quét IMEI/serial (VD: 356891234567890)" : "Nhập số điện thoại khách (VD: 0912 345 678)"}
+        className="min-w-64 flex-1 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm shadow-2xs focus:border-cyan-500 focus:outline-none"
+      />
+      <button
+        disabled={busy}
+        className="rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-cyan-700 disabled:opacity-50 transition cursor-pointer"
+      >
+        {busy ? "Đang tra..." : "Tra cứu"}
+      </button>
     </form>
 
     {result?.kind === "device" && <div className="space-y-3">

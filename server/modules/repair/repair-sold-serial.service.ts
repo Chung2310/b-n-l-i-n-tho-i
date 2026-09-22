@@ -7,3 +7,9 @@ export async function requireSoldSerialForRepair(scope: { companyCode: string },
   if (!unit) throw Object.assign(new Error("IMEI/serial không tồn tại hoặc chưa được bán."), { statusCode: 409, code: "REPAIR_SERIAL_NOT_SOLD" });
   return unit;
 }
+
+export async function lookupDeviceOptional(scope: { companyCode: string }, device?: { serialNumber?: string; imei?: string }) {
+  const serial = String(device?.serialNumber || device?.imei || "").trim();
+  if (!serial) return null;
+  return SerialUnitModel.findOne({ companyCode: scope.companyCode, normalizedSerialNumber: normalizeSerialNumber(serial) }).lean();
+}

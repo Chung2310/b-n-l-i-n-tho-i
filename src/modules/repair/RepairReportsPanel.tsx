@@ -1,66 +1,84 @@
-import React, { useEffect, useState } from "react";
-import {
-  BarChart3,
-  Calendar,
-  Layers,
-  Loader2,
-  FileText,
-  ShieldCheck,
-  Wrench,
-  Cpu,
-  Coins,
-  AlertCircle,
-  UserCheck,
-  Star,
-  Clock,
-  TrendingUp,
-} from "lucide-react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   repairExtras,
   type RepairRevenueRow,
   type RepairTechnicianRow,
 } from "../../services/repairService";
 import { toast } from "../../pages/Toast";
+import { Dropdown } from "../../components/common/Dropdown";
+import { TablePagination } from "../../components/common/TablePagination";
+import { RotateCw, Calendar } from "lucide-react";
 
-const money = (value?: number) => Number(value || 0).toLocaleString("vi-VN");
-const today = () => new Date().toISOString().slice(0, 10);
-const monthStart = () => `${new Date().toISOString().slice(0, 7)}-01`;
+export const formatMoney = (value?: number) =>
+  `${Number(value || 0).toLocaleString("vi-VN")} đ`;
+
+export const formatLocalDate = (d: Date) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const today = () => formatLocalDate(new Date());
+const monthStart = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+};
+
 const GROUP_LABEL: Record<string, string> = {
   branch: "Chi nhánh",
   technician: "Kỹ thuật viên",
   day: "Ngày",
 };
 
-function Card({
-  label,
-  value,
-  icon: Icon,
-  iconColor,
-  tone = "text-slate-900",
-}: {
+type PresetKey = "today" | "week" | "month" | "lastMonth" | "quarter";
+
+interface StatCardProps {
   label: string;
   value: string;
-  icon: React.ComponentType<{ className?: string }>;
-  iconColor: string;
+  sublabel?: string;
   tone?: string;
-}) {
+  badge?: string;
+  badgeColor?: string;
+}
+
+function StatCard({
+  label,
+  value,
+  sublabel,
+  tone = "text-slate-900",
+  badge,
+  badgeColor = "bg-slate-100 text-slate-700",
+}: StatCardProps) {
   return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+    <div className="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs transition hover:shadow-md">
+      <div className="flex items-center justify-between gap-1 mb-2">
+        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
           {label}
         </span>
-        <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${iconColor}`}>
-          <Icon className="h-4 w-4" />
-        </div>
+        {badge && (
+          <span
+            className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${badgeColor}`}
+          >
+            {badge}
+          </span>
+        )}
       </div>
-      <p className={`mt-2 text-xl sm:text-2xl font-black ${tone}`}>{value}</p>
+      <div>
+        <p className={`text-xl sm:text-2xl font-black tracking-tight ${tone}`}>
+          {value}
+        </p>
+        {sublabel && (
+          <p className="mt-1 text-xs text-slate-500 font-medium">{sublabel}</p>
+        )}
+      </div>
     </div>
   );
 }
 
 export default function RepairReportsPanel() {
   const [range, setRange] = useState({ from: monthStart(), to: today() });
+  const [activePreset, setActivePreset] = useState<PresetKey | "custom">("month");
   const [groupBy, setGroupBy] = useState<"branch" | "technician" | "day">("branch");
   const [revenue, setRevenue] = useState<{
     items: RepairRevenueRow[];
@@ -68,6 +86,39 @@ export default function RepairReportsPanel() {
   } | null>(null);
   const [technicians, setTechnicians] = useState<RepairTechnicianRow[]>([]);
   const [busy, setBusy] = useState(false);
+
+  // Pagination states for Revenue and Technician tables
+  const [revenuePage, setRevenuePage] = useState(1);
+  const [revenuePageSize, setRevenuePageSize] = useState(10);
+  const [techPage, setTechPage] = useState(1);
+  const [techPageSize, setTechPageSize] = useState(10);
+
+  // Quick date presets
+  const applyPreset = (preset: PresetKey) => {
+    setActivePreset(preset);
+    const now = new Date();
+    const todayStr = formatLocalDate(now);
+
+    if (preset === "today") {
+      setRange({ from: todayStr, to: todayStr });
+    } else if (preset === "week") {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+      setRange({ from: formatLocalDate(d), to: todayStr });
+    } else if (preset === "month") {
+      setRange({ from: monthStart(), to: todayStr });
+    } else if (preset === "lastMonth") {
+      const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+      setRange({
+        from: formatLocalDate(firstDay),
+        to: formatLocalDate(lastDay),
+      });
+    } else if (preset === "quarter") {
+      const qMonth = Math.floor(now.getMonth() / 3) * 3;
+      const qStart = new Date(now.getFullYear(), qMonth, 1);
+      setRange({ from: formatLocalDate(qStart), to: todayStr });
+    }
+  };
 
   const load = async () => {
     setBusy(true);
@@ -87,282 +138,538 @@ export default function RepairReportsPanel() {
 
   useEffect(() => {
     void load();
-    /* eslint-disable-next-line react-hooks/exhaustive-deps */
-  }, [groupBy]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupBy, range.from, range.to]);
 
-  // Cột giá vốn/lãi chỉ có khi tài khoản được cấp repair:cost:read — server đã lược bỏ sẵn.
-  const showCost = Boolean(
-    revenue?.items?.some((row) => row.grossProfit !== undefined)
+  // Reset pagination on filter change
+  useEffect(() => {
+    setRevenuePage(1);
+    setTechPage(1);
+  }, [groupBy, range.from, range.to]);
+
+  // Paginated revenue data
+  const totalRevenuePages = useMemo(
+    () => Math.max(1, Math.ceil((revenue?.items.length || 0) / revenuePageSize)),
+    [revenue?.items.length, revenuePageSize]
+  );
+  const validRevenuePage = Math.min(Math.max(1, revenuePage), totalRevenuePages);
+  const paginatedRevenueItems = useMemo(() => {
+    if (!revenue?.items) return [];
+    const start = (validRevenuePage - 1) * revenuePageSize;
+    return revenue.items.slice(start, start + revenuePageSize);
+  }, [revenue?.items, validRevenuePage, revenuePageSize]);
+
+  // Paginated technician data
+  const totalTechPages = useMemo(
+    () => Math.max(1, Math.ceil(technicians.length / techPageSize)),
+    [technicians.length, techPageSize]
+  );
+  const validTechPage = Math.min(Math.max(1, techPage), totalTechPages);
+  const paginatedTechnicians = useMemo(() => {
+    const start = (validTechPage - 1) * techPageSize;
+    return technicians.slice(start, start + techPageSize);
+  }, [technicians, validTechPage, techPageSize]);
+
+  // Check if gross profit / costs are exposed by permission
+  const showCost = useMemo(
+    () => Boolean(revenue?.items?.some((row) => row.grossProfit !== undefined)),
+    [revenue]
   );
 
   return (
-    <div className="space-y-5">
-      {/* Filters Form Card */}
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          void load();
-        }}
-        className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs"
-      >
-        <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
-          <span className="flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5 text-slate-400" />
-            Từ ngày
-          </span>
-          <input
-            type="date"
-            value={range.from}
-            onChange={(e) => setRange({ ...range, from: e.target.value })}
-            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs sm:text-sm font-medium text-slate-800 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100 cursor-pointer"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
-          <span className="flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5 text-slate-400" />
-            Đến ngày
-          </span>
-          <input
-            type="date"
-            value={range.to}
-            onChange={(e) => setRange({ ...range, to: e.target.value })}
-            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs sm:text-sm font-medium text-slate-800 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100 cursor-pointer"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
-          <span className="flex items-center gap-1.5">
-            <Layers className="h-3.5 w-3.5 text-slate-400" />
-            Nhóm theo
-          </span>
-          <select
-            value={groupBy}
-            onChange={(e) => setGroupBy(e.target.value as any)}
-            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs sm:text-sm font-medium text-slate-800 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100 cursor-pointer"
-          >
-            {Object.entries(GROUP_LABEL).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
+    <div className="space-y-5 pb-8">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200/80 pb-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+            Báo cáo sửa chữa & bảo hành
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Doanh thu phân loại theo chi nhánh và hiệu suất kỹ thuật viên, tính trên
+            phiếu đã sửa xong trong kỳ.
+          </p>
+        </div>
 
         <button
+          type="button"
+          onClick={() => void load()}
           disabled={busy}
-          className="h-10 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 px-5 text-xs sm:text-sm font-bold text-white shadow-sm shadow-cyan-600/20 active:scale-95 disabled:opacity-50 cursor-pointer transition-all"
+          className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs cursor-pointer disabled:opacity-50"
         >
-          {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-          <span>{busy ? "Đang tải..." : "Xem báo cáo"}</span>
+          <RotateCw className={`h-3.5 w-3.5 ${busy ? "animate-spin text-cyan-600" : "text-slate-400"}`} />
+          <span>{busy ? "Đang tải dữ liệu..." : "Làm mới"}</span>
         </button>
-      </form>
+      </div>
 
-      {/* KPI Cards */}
-      {revenue && (
-        <div className="space-y-5">
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-            <Card
-              label="Số phiếu"
-              value={String(revenue.total.ticketCount)}
-              icon={FileText}
-              iconColor="bg-slate-100 text-slate-700"
-            />
-            <Card
-              label="Trong đó BH"
-              value={String(revenue.total.warrantyTicketCount)}
-              icon={ShieldCheck}
-              iconColor="bg-emerald-50 text-emerald-700"
-            />
-            <Card
-              label="Công sửa"
-              value={money(revenue.total.laborRevenue)}
-              icon={Wrench}
-              iconColor="bg-cyan-50 text-cyan-700"
-              tone="text-cyan-800"
-            />
-            <Card
-              label="Linh kiện"
-              value={money(revenue.total.partRevenue)}
-              icon={Cpu}
-              iconColor="bg-purple-50 text-purple-700"
-            />
-            <Card
-              label="Tổng DT"
-              value={money(revenue.total.revenue)}
-              icon={Coins}
-              iconColor="bg-indigo-50 text-indigo-700"
-              tone="text-indigo-800"
-            />
-            <Card
-              label="Còn nợ"
-              value={money(revenue.total.outstanding)}
-              icon={AlertCircle}
-              iconColor="bg-rose-50 text-rose-700"
-              tone="text-rose-600"
-            />
+      {/* Filter Toolbar */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Quick Date Presets */}
+          <div className="flex flex-wrap items-center gap-1 rounded-xl bg-slate-100 p-1">
+            <button
+              type="button"
+              onClick={() => applyPreset("today")}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                activePreset === "today"
+                  ? "bg-white text-slate-900 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Hôm nay
+            </button>
+            <button
+              type="button"
+              onClick={() => applyPreset("week")}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                activePreset === "week"
+                  ? "bg-white text-slate-900 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              7 ngày qua
+            </button>
+            <button
+              type="button"
+              onClick={() => applyPreset("month")}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                activePreset === "month"
+                  ? "bg-white text-slate-900 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Tháng này
+            </button>
+            <button
+              type="button"
+              onClick={() => applyPreset("lastMonth")}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                activePreset === "lastMonth"
+                  ? "bg-white text-slate-900 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Tháng trước
+            </button>
+            <button
+              type="button"
+              onClick={() => applyPreset("quarter")}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                activePreset === "quarter"
+                  ? "bg-white text-slate-900 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Quý này
+            </button>
           </div>
 
-          {/* Revenue Breakdown Table */}
-          <div className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-              <h2 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-cyan-600" />
-                <span>Doanh thu theo {GROUP_LABEL[groupBy]}</span>
-              </h2>
-              <span className="text-xs text-slate-400 font-medium">
-                {revenue.items.length} bản ghi
-              </span>
+          {/* Group By Filter Dropdown */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-500">Nhóm theo:</span>
+            <Dropdown<"branch" | "technician" | "day">
+              aria-label="Nhóm dữ liệu báo cáo"
+              value={groupBy}
+              onChange={(val) => setGroupBy(val)}
+              options={[
+                { value: "branch", label: "Theo Chi nhánh" },
+                { value: "technician", label: "Theo Kỹ thuật viên" },
+                { value: "day", label: "Theo Ngày" },
+              ]}
+              variant="filter"
+              size="sm"
+            />
+          </div>
+        </div>
+
+        {/* Date Inputs & Submit Row */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void load();
+          }}
+          className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3"
+        >
+          <div className="flex items-center gap-2">
+            <div className="relative flex items-center">
+              <span className="text-xs font-medium text-slate-500 mr-2">Từ:</span>
+              <input
+                type="date"
+                value={range.from}
+                onChange={(e) => {
+                  setActivePreset("custom");
+                  setRange({ ...range, from: e.target.value });
+                }}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-cyan-500 focus:bg-white focus:outline-none transition"
+              />
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3">{GROUP_LABEL[groupBy]}</th>
-                    <th className="px-3 py-3 text-center">Số phiếu</th>
-                    <th className="px-3 py-3 text-center">Bảo hành</th>
-                    <th className="px-3 py-3 text-right">Công sửa</th>
-                    <th className="px-3 py-3 text-right">Linh kiện</th>
-                    <th className="px-3 py-3 text-right">Doanh thu</th>
-                    <th className="px-3 py-3 text-right">Đã thu</th>
-                    <th className="px-3 py-3 text-right">Còn nợ</th>
+            <div className="relative flex items-center">
+              <span className="text-xs font-medium text-slate-500 mr-2">Đến:</span>
+              <input
+                type="date"
+                value={range.to}
+                onChange={(e) => {
+                  setActivePreset("custom");
+                  setRange({ ...range, to: e.target.value });
+                }}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-cyan-500 focus:bg-white focus:outline-none transition"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={busy}
+            className="rounded-xl bg-cyan-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-cyan-700 transition shadow-2xs cursor-pointer disabled:opacity-50"
+          >
+            {busy ? "Đang tải..." : "Xem báo cáo"}
+          </button>
+        </form>
+      </div>
+
+      {/* KPI Metrics Strip */}
+      {revenue && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <StatCard
+            label="Tổng số phiếu"
+            value={`${revenue.total.ticketCount} máy`}
+            sublabel="Đã sửa xong trong kỳ"
+            badge="Tổng số"
+            badgeColor="bg-blue-50 text-blue-700 border border-blue-200/60"
+          />
+          <StatCard
+            label="Bảo hành"
+            value={`${revenue.total.warrantyTicketCount} máy`}
+            sublabel={`${Math.round((revenue.total.warrantyTicketCount / (revenue.total.ticketCount || 1)) * 100)}% tổng số máy`}
+            badge="Bảo hành"
+            badgeColor="bg-amber-50 text-amber-700 border border-amber-200/60"
+          />
+          <StatCard
+            label="Doanh thu công sửa"
+            value={formatMoney(revenue.total.laborRevenue)}
+            sublabel="Tiền công kỹ thuật"
+            badge="Công sửa"
+            badgeColor="bg-indigo-50 text-indigo-700 border border-indigo-200/60"
+          />
+          <StatCard
+            label="Doanh thu linh kiện"
+            value={formatMoney(revenue.total.partRevenue)}
+            sublabel="Phụ tùng thay thế"
+            badge="Linh kiện"
+            badgeColor="bg-violet-50 text-violet-700 border border-violet-200/60"
+          />
+          <StatCard
+            label="Tổng doanh thu"
+            value={formatMoney(revenue.total.revenue)}
+            sublabel={`Đã thu: ${formatMoney(revenue.total.collected)}`}
+            tone="text-emerald-700"
+            badge="Doanh số"
+            badgeColor="bg-emerald-50 text-emerald-800 border border-emerald-200/60"
+          />
+          <StatCard
+            label="Công nợ còn lại"
+            value={formatMoney(revenue.total.outstanding)}
+            sublabel={
+              revenue.total.outstanding > 0
+                ? "Cần thu hồi từ khách"
+                : "Đã thu đủ 100%"
+            }
+            tone={revenue.total.outstanding > 0 ? "text-rose-600" : "text-emerald-600"}
+            badge={revenue.total.outstanding > 0 ? "Chưa thu" : "Đủ"}
+            badgeColor={
+              revenue.total.outstanding > 0
+                ? "bg-rose-50 text-rose-700 border border-rose-200/60"
+                : "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+            }
+          />
+        </div>
+      )}
+
+      {/* Revenue Breakdown Table Card */}
+      {revenue && (
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+          <div className="border-b border-slate-100 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-slate-50/40">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">
+                Phân tích doanh thu theo {GROUP_LABEL[groupBy]}
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Bóc tách chi tiết công sửa, linh kiện và tình trạng công nợ
+              </p>
+            </div>
+            <span className="text-xs font-semibold text-slate-500 self-start sm:self-auto">
+              {revenue.items.length} bản ghi
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs sm:text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50/90 text-slate-500 uppercase tracking-wider text-[11px] font-bold">
+                <tr>
+                  <th className="py-3 px-4">{GROUP_LABEL[groupBy]}</th>
+                  <th className="py-3 px-3 text-center">Số phiếu</th>
+                  <th className="py-3 px-3 text-center">Bảo hành</th>
+                  <th className="py-3 px-3 text-right">Công sửa</th>
+                  <th className="py-3 px-3 text-right">Linh kiện</th>
+                  <th className="py-3 px-3 text-right font-bold text-slate-800">Doanh thu</th>
+                  <th className="py-3 px-3 text-right">Đã thu</th>
+                  <th className="py-3 px-4 text-right">Còn nợ</th>
+                  {showCost && (
+                    <>
+                      <th className="py-3 px-3 text-right">Giá vốn LK</th>
+                      <th className="py-3 px-3 text-right">Chi phí BH</th>
+                      <th className="py-3 px-4 text-right font-bold text-emerald-800">Lãi gộp</th>
+                    </>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                {paginatedRevenueItems.map((row) => (
+                  <tr key={row.key} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-3 px-4 font-bold text-slate-900">
+                      {row.technicianName || row.key || "—"}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 font-semibold text-slate-700">
+                        {row.ticketCount}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      {row.warrantyTicketCount > 0 ? (
+                        <span className="rounded-md bg-amber-50 border border-amber-200/70 px-2 py-0.5 font-bold text-amber-800">
+                          {row.warrantyTicketCount}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">0</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-3 text-right">{formatMoney(row.laborRevenue)}</td>
+                    <td className="py-3 px-3 text-right">{formatMoney(row.partRevenue)}</td>
+                    <td className="py-3 px-3 text-right font-bold text-slate-900">
+                      {formatMoney(row.revenue)}
+                    </td>
+                    <td className="py-3 px-3 text-right text-emerald-700">
+                      {formatMoney(row.collected)}
+                    </td>
+                    <td
+                      className={`py-3 px-4 text-right font-bold ${
+                        row.outstanding > 0 ? "text-rose-600" : "text-slate-400 font-normal"
+                      }`}
+                    >
+                      {row.outstanding > 0 ? formatMoney(row.outstanding) : "0 đ"}
+                    </td>
                     {showCost && (
                       <>
-                        <th className="px-3 py-3 text-right">Giá vốn LK</th>
-                        <th className="px-3 py-3 text-right">Chi phí BH</th>
-                        <th className="px-3 py-3 text-right">Lãi gộp</th>
+                        <td className="py-3 px-3 text-right text-slate-600">
+                          {formatMoney(row.partCost)}
+                        </td>
+                        <td className="py-3 px-3 text-right text-slate-600">
+                          {formatMoney(row.warrantyPartCost)}
+                        </td>
+                        <td className="py-3 px-4 text-right font-bold text-emerald-700">
+                          {formatMoney(row.grossProfit)}
+                        </td>
                       </>
                     )}
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {revenue.items.map((row) => (
-                    <tr key={row.key} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="px-4 py-3 font-bold text-slate-800">
-                        {row.technicianName || row.key || "—"}
-                      </td>
-                      <td className="px-3 py-3 text-center font-medium text-slate-700">
-                        {row.ticketCount}
-                      </td>
-                      <td className="px-3 py-3 text-center font-medium text-emerald-700">
-                        {row.warrantyTicketCount}
-                      </td>
-                      <td className="px-3 py-3 text-right font-medium text-slate-700">
-                        {money(row.laborRevenue)}
-                      </td>
-                      <td className="px-3 py-3 text-right font-medium text-slate-700">
-                        {money(row.partRevenue)}
-                      </td>
-                      <td className="px-3 py-3 text-right font-bold text-slate-900">
-                        {money(row.revenue)}
-                      </td>
-                      <td className="px-3 py-3 text-right font-medium text-emerald-700">
-                        {money(row.collected)}
-                      </td>
-                      <td className="px-3 py-3 text-right font-bold text-rose-600">
-                        {money(row.outstanding)}
-                      </td>
-                      {showCost && (
-                        <>
-                          <td className="px-3 py-3 text-right font-medium text-slate-600">
-                            {money(row.partCost)}
-                          </td>
-                          <td className="px-3 py-3 text-right font-medium text-slate-600">
-                            {money(row.warrantyPartCost)}
-                          </td>
-                          <td className="px-3 py-3 text-right font-bold text-emerald-700">
-                            {money(row.grossProfit)}
-                          </td>
-                        </>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {!revenue.items.length && (
-                <div className="p-8 text-center text-xs text-slate-400">
-                  Chưa có phiếu nào hoàn tất trong kỳ đã chọn.
-                </div>
+                ))}
+              </tbody>
+              {revenue.items.length > 0 && (
+                <tfoot className="border-t-2 border-slate-200 bg-slate-50 font-bold text-slate-900">
+                  <tr>
+                    <td className="py-3 px-4 uppercase text-xs tracking-wider text-slate-500">
+                      Tổng cộng
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className="rounded-md bg-slate-200/80 px-2 py-0.5">
+                        {revenue.total.ticketCount}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-center text-amber-800">
+                      {revenue.total.warrantyTicketCount}
+                    </td>
+                    <td className="py-3 px-3 text-right">
+                      {formatMoney(revenue.total.laborRevenue)}
+                    </td>
+                    <td className="py-3 px-3 text-right">
+                      {formatMoney(revenue.total.partRevenue)}
+                    </td>
+                    <td className="py-3 px-3 text-right text-cyan-800 font-black">
+                      {formatMoney(revenue.total.revenue)}
+                    </td>
+                    <td className="py-3 px-3 text-right text-emerald-700">
+                      {formatMoney(revenue.total.collected)}
+                    </td>
+                    <td
+                      className={`py-3 px-4 text-right ${
+                        revenue.total.outstanding > 0 ? "text-rose-600" : "text-slate-500"
+                      }`}
+                    >
+                      {formatMoney(revenue.total.outstanding)}
+                    </td>
+                    {showCost && (
+                      <>
+                        <td className="py-3 px-3 text-right text-slate-700">
+                          {formatMoney(revenue.total.partCost)}
+                        </td>
+                        <td className="py-3 px-3 text-right text-slate-700">
+                          {formatMoney(revenue.total.warrantyPartCost)}
+                        </td>
+                        <td className="py-3 px-4 text-right text-emerald-800 font-black">
+                          {formatMoney(revenue.total.grossProfit)}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                </tfoot>
               )}
-            </div>
+            </table>
+            {!revenue.items.length && (
+              <div className="p-8 text-center text-slate-400">
+                <Calendar className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+                <p className="text-sm font-medium">
+                  Chưa có phiếu sửa chữa nào hoàn tất trong khoảng thời gian đã chọn.
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Hãy thử chọn khoảng thời gian rộng hơn hoặc đổi nhóm phân loại.
+                </p>
+              </div>
+            )}
+
+            {revenue.items.length > 0 && (
+              <TablePagination
+                currentPage={validRevenuePage}
+                totalPages={totalRevenuePages}
+                pageSize={revenuePageSize}
+                totalItems={revenue.items.length}
+                onPageChange={setRevenuePage}
+                onPageSizeChange={setRevenuePageSize}
+                itemLabel={GROUP_LABEL[groupBy].toLowerCase()}
+              />
+            )}
           </div>
         </div>
       )}
 
-      {/* Technician Performance Table */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-          <h2 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-            <UserCheck className="h-4 w-4 text-cyan-600" />
-            <span>Hiệu suất kỹ thuật viên</span>
-          </h2>
-          <span className="text-xs text-slate-400 font-medium">
+      {/* Technician Performance Table Card */}
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+        <div className="border-b border-slate-100 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-slate-50/40">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">
+              Hiệu suất & Đánh giá kỹ thuật viên
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Thống kê thời gian hoàn thành, tỷ lệ bảo hành sửa lại và điểm đánh giá
+              chất lượng từ khách hàng
+            </p>
+          </div>
+          <span className="text-xs font-semibold text-slate-500 self-start sm:self-auto">
             {technicians.length} kỹ thuật viên
           </span>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <table className="w-full text-left text-xs sm:text-sm">
+            <thead className="border-b border-slate-200 bg-slate-50/90 text-slate-500 uppercase tracking-wider text-[11px] font-bold">
               <tr>
-                <th className="px-4 py-3">Kỹ thuật viên</th>
-                <th className="px-3 py-3 text-center">Phiếu</th>
-                <th className="px-3 py-3 text-center">TG sửa TB</th>
-                <th className="px-3 py-3 text-center">Sửa lại</th>
-                <th className="px-3 py-3 text-center">Lượt chấm</th>
-                <th className="px-3 py-3 text-center">Điểm TB</th>
-                <th className="px-3 py-3 text-center">Tay nghề</th>
-                <th className="px-3 py-3 text-center">Thái độ</th>
-                <th className="px-3 py-3 text-center">Tốc độ</th>
-                <th className="px-4 py-3 text-right">Doanh thu</th>
+                <th className="py-3 px-4">Kỹ thuật viên</th>
+                <th className="py-3 px-3 text-center">Phiếu</th>
+                <th className="py-3 px-3 text-center">TG sửa TB</th>
+                <th className="py-3 px-3 text-center">Sửa lại</th>
+                <th className="py-3 px-3 text-center">Lượt chấm</th>
+                <th className="py-3 px-3 text-center font-bold text-slate-800">Điểm TB</th>
+                <th className="py-3 px-2 text-center">Tay nghề</th>
+                <th className="py-3 px-2 text-center">Thái độ</th>
+                <th className="py-3 px-2 text-center">Tốc độ</th>
+                <th className="py-3 px-4 text-right font-bold text-slate-800">Doanh số tạo ra</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {technicians.map((row) => (
-                <tr key={row.technicianId} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="px-4 py-3 font-bold text-slate-800">
-                    {row.technicianName || row.technicianId}
-                  </td>
-                  <td className="px-3 py-3 text-center font-medium text-slate-700">
-                    {row.ticketCount}
-                  </td>
-                  <td className="px-3 py-3 text-center font-medium text-slate-600">
-                    {row.averageMinutes >= 60
-                      ? `${Math.round(row.averageMinutes / 6) / 10} giờ`
-                      : `${row.averageMinutes} phút`}
-                  </td>
-                  <td className="px-3 py-3 text-center font-medium text-amber-700">
-                    {row.reworkCount} ({row.reworkRate}%)
-                  </td>
-                  <td className="px-3 py-3 text-center font-medium text-slate-600">
-                    {row.ratingCount}
-                  </td>
-                  <td className="px-3 py-3 text-center font-bold text-amber-600">
-                    {row.averageRating || "—"}
-                  </td>
-                  <td className="px-3 py-3 text-center text-slate-600">
-                    {row.criteria.skill || "—"}
-                  </td>
-                  <td className="px-3 py-3 text-center text-slate-600">
-                    {row.criteria.attitude || "—"}
-                  </td>
-                  <td className="px-3 py-3 text-center text-slate-600">
-                    {row.criteria.speed || "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right font-bold text-cyan-800">
-                    {money(row.revenue)}
-                  </td>
-                </tr>
-              ))}
+            <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+              {paginatedTechnicians.map((row) => {
+                const avgMinutes = row.averageMinutes || 0;
+                const timeText =
+                  avgMinutes >= 60
+                    ? `${Math.round(avgMinutes / 6) / 10} giờ`
+                    : `${avgMinutes} phút`;
+
+                return (
+                  <tr key={row.technicianId} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-cyan-100 text-xs font-bold text-cyan-800">
+                          {(row.technicianName || row.technicianId).charAt(0).toUpperCase()}
+                        </div>
+                        <span className="font-bold text-slate-900 truncate">
+                          {row.technicianName || row.technicianId}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 font-bold text-slate-800">
+                        {row.ticketCount}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-center font-semibold text-slate-600">
+                      {timeText}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      {row.reworkCount > 0 ? (
+                        <span className="rounded-full bg-rose-50 border border-rose-200 px-2 py-0.5 text-xs font-bold text-rose-700">
+                          {row.reworkCount} ({row.reworkRate}%)
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                          0 (0%)
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-3 text-center text-slate-600">
+                      {row.ratingCount || 0}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      {row.averageRating ? (
+                        <span className="inline-flex items-center gap-0.5 rounded-md bg-amber-50 border border-amber-200/70 px-2 py-0.5 text-xs font-bold text-amber-800">
+                          ★ {row.averageRating}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-2 text-center text-slate-600">
+                      {row.criteria.skill || "—"}
+                    </td>
+                    <td className="py-3 px-2 text-center text-slate-600">
+                      {row.criteria.attitude || "—"}
+                    </td>
+                    <td className="py-3 px-2 text-center text-slate-600">
+                      {row.criteria.speed || "—"}
+                    </td>
+                    <td className="py-3 px-4 text-right font-black text-slate-900">
+                      {formatMoney(row.revenue)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-
           {!technicians.length && (
-            <div className="p-8 text-center text-xs text-slate-400">
-              Chưa có phiếu nào được phân công kỹ thuật viên trong kỳ.
+            <div className="p-8 text-center text-slate-400">
+              <p className="text-sm font-medium">
+                Chưa có dữ liệu hiệu suất kỹ thuật viên trong kỳ này.
+              </p>
             </div>
+          )}
+
+          {technicians.length > 0 && (
+            <TablePagination
+              currentPage={validTechPage}
+              totalPages={totalTechPages}
+              pageSize={techPageSize}
+              totalItems={technicians.length}
+              onPageChange={setTechPage}
+              onPageSizeChange={setTechPageSize}
+              itemLabel="kỹ thuật viên"
+            />
           )}
         </div>
       </div>

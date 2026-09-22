@@ -1,4 +1,4 @@
-﻿import { Router } from "express";
+import { Router } from "express";
 import { requirePermission } from "../../middleware/auth";
 import { retailScopeFromRequest } from "../retail/contracts";
 import { RepairTicketModel } from "./repair-ticket.model";
@@ -47,8 +47,8 @@ const actor = (req: any) => ({ id: String(req.user?.id || req.user?.uid || ""), 
 
 repairRouter.post("/tickets/lookup-device", manage, async (req, res, next) => { try { return res.json({ success: true, data: await lookupSoldDevice(scope(req), String(req.body?.serialNumber || "")) }); } catch (error) { next(error); } });
 repairRouter.get("/tickets/by-serial/:serialNumber", read, async (req, res, next) => { try { const data = await RepairTicketModel.find({ ...scope(req), "device.serialNumber": String(req.params.serialNumber).trim().toUpperCase() }).sort({ receivedAt: -1 }).lean(); return res.json({ success: true, data }); } catch (error) { next(error); } });
-repairRouter.get("/tickets", read, async (req, res, next) => { try { const filter: any = { ...scope(req) }; if (req.query.status) filter.status = String(req.query.status); if (req.query.customerId) filter.customerId = String(req.query.customerId); if (req.query.technicianId) filter.technicianId = String(req.query.technicianId); if (req.query.q) filter.$or = [{ ticketCode: { $regex: String(req.query.q), $options: "i" } }, { customerName: { $regex: String(req.query.q), $options: "i" } }, { "device.serialNumber": { $regex: String(req.query.q), $options: "i" } }]; const page = Math.max(1, Number(req.query.page) || 1); const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 25)); const [items, total] = await Promise.all([RepairTicketModel.find(filter).sort({ receivedAt: -1 }).skip((page - 1) * limit).limit(limit).lean(), RepairTicketModel.countDocuments(filter)]); return res.json({ success: true, data: { items, total, page, limit } }); } catch (error) { next(error); } });
-repairRouter.get("/tickets/board", read, async (req, res, next) => { try { const items: any[] = await RepairTicketModel.find(scope(req)).sort({ receivedAt: -1 }).lean(); const board = items.reduce<Record<string, any[]>>((result, ticket) => { (result[ticket.status] ||= []).push(ticket); return result; }, {}); return res.json({ success: true, data: board }); } catch (error) { next(error); } });
+repairRouter.get("/tickets", read, async (req, res, next) => { try { const filter: any = { ...scope(req) }; if (req.query.status) filter.status = String(req.query.status); if (req.query.ticketType) filter.ticketType = String(req.query.ticketType); if (req.query.customerId) filter.customerId = String(req.query.customerId); if (req.query.technicianId) filter.technicianId = String(req.query.technicianId); if (req.query.q) filter.$or = [{ ticketCode: { $regex: String(req.query.q), $options: "i" } }, { customerName: { $regex: String(req.query.q), $options: "i" } }, { "device.serialNumber": { $regex: String(req.query.q), $options: "i" } }]; const page = Math.max(1, Number(req.query.page) || 1); const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 25)); const [items, total] = await Promise.all([RepairTicketModel.find(filter).sort({ receivedAt: -1 }).skip((page - 1) * limit).limit(limit).lean(), RepairTicketModel.countDocuments(filter)]); return res.json({ success: true, data: { items, total, page, limit } }); } catch (error) { next(error); } });
+repairRouter.get("/tickets/board", read, async (req, res, next) => { try { const filter: any = { ...scope(req) }; if (req.query.ticketType) filter.ticketType = String(req.query.ticketType); const items: any[] = await RepairTicketModel.find(filter).sort({ receivedAt: -1 }).lean(); const board = items.reduce<Record<string, any[]>>((result, ticket) => { (result[ticket.status] ||= []).push(ticket); return result; }, {}); return res.json({ success: true, data: board }); } catch (error) { next(error); } });
 repairRouter.get("/tickets/:id", read, async (req, res, next) => { try { const data = await RepairTicketModel.findOne({ _id: req.params.id, ...scope(req) }).lean(); if (!data) return res.status(404).json({ success: false, message: "Không tìm thấy phiếu sửa chữa." }); return res.json({ success: true, data }); } catch (error) { next(error); } });
 repairRouter.post("/tickets", manage, async (req, res, next) => { try { const data = await createRepairTicket(scope(req), req.body, actor(req)); return res.status(201).json({ success: true, data }); } catch (error) { next(error); } });
 repairRouter.post("/tickets/:id/refunds", manage, async (req, res, next) => { try { res.json({ success: true, data: await refundRepairCommission(scope(req), req.params.id, req.body, actor(req).id) }); } catch (error) { next(error); } });
@@ -95,6 +95,17 @@ repairRouter.put("/settings/notifications", manage, async (req, res, next) => { 
   const notifyChannels = Array.isArray(req.body?.notifyChannels) ? req.body.notifyChannels.map(String) : undefined;
   const data = await RepairSettingsModel.findOneAndUpdate({ companyCode }, { $set: { companyCode, ...(notifyChannels ? { notifyChannels } : {}), ...(Object.keys(templates).length ? { templates } : {}), updatedBy: actor(req).id } }, { returnDocument: 'after', upsert: true }).lean();
   return res.json({ success: true, data });
+} catch (error) { next(error); } });
+repairRouter.get("/settings/loyalty", read, async (req, res, next) => { try {
+  const companyCode = reportScope(req).companyCode;
+  const settings: any = await RepairSettingsModel.findOne({ companyCode }).lean();
+  return res.json({ success: true, data: { loyaltyDiscountRate: settings?.loyaltyDiscountRate ?? 10 } });
+} catch (error) { next(error); } });
+repairRouter.put("/settings/loyalty", manage, async (req, res, next) => { try {
+  const companyCode = reportScope(req).companyCode;
+  const loyaltyDiscountRate = Math.min(100, Math.max(0, Number(req.body?.loyaltyDiscountRate ?? 10)));
+  const data = await RepairSettingsModel.findOneAndUpdate({ companyCode }, { $set: { companyCode, loyaltyDiscountRate, updatedBy: actor(req).id } }, { returnDocument: 'after', upsert: true }).lean();
+  return res.json({ success: true, data: { loyaltyDiscountRate: data?.loyaltyDiscountRate } });
 } catch (error) { next(error); } });
 
 // --- Báo cáo ---

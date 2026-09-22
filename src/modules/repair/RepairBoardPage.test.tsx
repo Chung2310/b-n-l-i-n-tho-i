@@ -102,7 +102,39 @@ test("keeps the quote amount when entering a quote note", async () => {
   await user.type(amount, "250000");
   await user.type(screen.getByLabelText("Ghi chú báo giá"), "Thay pin");
 
-  expect(amount.value).toBe("250000");
+  expect(amount.value).toBe("250.000");
+});
+
+test("formats currency directly inside quote and labor inputs and handles quick presets", async () => {
+  const diagnosingTicket = { ...ticket, status: "diagnosing" as const };
+  vi.mocked(repairService.board).mockResolvedValue({ diagnosing: [diagnosingTicket] } as any);
+  const user = userEvent.setup();
+  render(<RepairBoardPage />);
+
+  await user.click(await screen.findByRole("button", { name: "Chuyển bước tiếp" }));
+  const amount = screen.getByLabelText("Số tiền báo giá") as HTMLInputElement;
+  const labor = screen.getByLabelText("Tiền công trong báo giá") as HTMLInputElement;
+
+  // Typing unformatted digits formats directly in input with thousand separators
+  await user.clear(amount);
+  await user.type(amount, "199999");
+  expect(amount.value).toBe("199.999");
+
+  // Exterior badge next to label is not present
+  const labelHeader = screen.getByText(/Số tiền báo giá \(VNĐ\)/).closest("div");
+  expect(within(labelHeader!).queryByText("199.999 đ")).toBeNull();
+
+  // Presets update the formatted input value directly
+  await user.click(screen.getByRole("button", { name: "+50k" }));
+  expect(amount.value).toBe("249.999");
+
+  // Quick preset for labor fee
+  await user.click(screen.getByRole("button", { name: "100k" }));
+  expect(labor.value).toBe("100.000");
+
+  // Clear button resets quote to "0"
+  await user.click(screen.getByRole("button", { name: "Xóa" }));
+  expect(amount.value).toBe("0");
 });
 
 test("disables quote saving while pending and ignores double clicks", async () => {
@@ -231,3 +263,39 @@ test("offers payment only for a completed ticket awaiting delivery", async () =>
 
   expect(screen.getByRole("button", { name: "Ghi nhận thanh toán" })).not.toBeNull();
 });
+
+test("filters tickets by date presets and technician selector", async () => {
+  render(<RepairBoardPage />);
+
+  expect(screen.getByRole("button", { name: "Tất cả ngày" })).not.toBeNull();
+  expect(screen.getByRole("button", { name: "Hôm nay" })).not.toBeNull();
+  expect(screen.getByRole("button", { name: "7 ngày qua" })).not.toBeNull();
+  expect(screen.getByLabelText("Lọc theo kỹ thuật viên")).not.toBeNull();
+});
+
+test("renders delivered history view and handles table pagination for high volume tickets", async () => {
+  const user = userEvent.setup();
+  const manyTickets = Array.from({ length: 25 }, (_, i) => ({
+    ...ticket,
+    _id: `repair-${i}`,
+    ticketCode: `REP-${String(i).padStart(3, "0")}`,
+    status: "delivered" as const,
+    deliveredAt: "2026-03-25T10:00:00Z",
+  }));
+  vi.mocked(repairService.board).mockResolvedValue({ delivered: manyTickets } as any);
+
+  render(<RepairBoardPage />);
+
+  await user.click(screen.getByRole("button", { name: /Lịch sử đã giao/ }));
+
+  expect(screen.getByText(/Lịch sử máy đã bàn giao \(25 máy\)/)).not.toBeNull();
+  expect(screen.getByText(/Hiển thị/).textContent).toContain("1 - 15");
+  expect(screen.getByText(/Hiển thị/).textContent).toContain("25");
+  expect(screen.getByText("1 / 2")).not.toBeNull();
+
+  // Navigate to page 2
+  await user.click(screen.getByRole("button", { name: "Sau" }));
+  expect(screen.getByText(/Hiển thị/).textContent).toContain("16 - 25");
+  expect(screen.getByText("2 / 2")).not.toBeNull();
+});
+

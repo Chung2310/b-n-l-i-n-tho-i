@@ -9,19 +9,54 @@ import type { RepairCoverage, RepairTicketDocument } from "./repair-ticket.inter
 import { assertRepairTransition, type RepairStatus } from "./repair-state";
 import { dispatchRepairNotification } from "./services/repair-notify.service";
 import { publishRepairTicketEvent } from "./services/repair-events";
-import { assertSoldSerialForRepair } from "./repair-serial-validation";
+import { assertSerialForRepairType, assertSoldSerialForRepair } from "./repair-serial-validation";
 import { recordRepairSerialLifecycle } from "./services/repair-serial-lifecycle";
-import { requireSoldSerialForRepair } from "./repair-sold-serial.service";
+import { lookupDeviceOptional, requireSoldSerialForRepair } from "./repair-sold-serial.service";
+import { RepairSettingsModel } from "./repair-settings.model";
 
 export type RepairScope = { companyCode: string; branchId: string };
 export type RepairActor = { id: string; name: string };
 
-export async function createRepairTicket(scope: RepairScope, input: Omit<RepairTicketDocument, "companyCode" | "branchId" | "status" | "statusHistory" | "createdAt" | "updatedAt"> & { ticketCode: string; coverage: RepairCoverage }, actor: RepairActor, session?: ClientSession) {
+export async function createRepairTicket(scope: RepairScope, input: Omit<RepairTicketDocument, "companyCode" | "branchId" | "status" | "statusHistory" | "createdAt" | "updatedAt"> & { ticketCode: string; coverage?: RepairCoverage }, actor: RepairActor, session?: ClientSession) {
   if (!input.customerId || !input.device?.name || !input.symptom) throw Object.assign(new Error("Khách hàng, thiết bị và mô tả lỗi là bắt buộc."), { statusCode: 400 });
-  assertSoldSerialForRepair(input.device);
-  await requireSoldSerialForRepair(scope, input.device);
+  const ticketType = input.ticketType || "warranty";
+  assertSerialForRepairType(ticketType, input.device);
+
+  let coverage = input.coverage;
+  if (ticketType === "warranty") {
+    await requireSoldSerialForRepair(scope, input.device);
+    if (!coverage) {
+      coverage = { customer: { covered: true }, supplier: { covered: false }, costBearer: "shop", checkedAt: new Date() };
+    }
+  } else {
+    // Sửa chữa dịch vụ: kiểm tra máy hệ thống để hưởng ưu đãi khách quen
+    const existingDevice = await lookupDeviceOptional(scope, input.device);
+    if (existingDevice && !input.loyaltyDiscount) {
+      const settings: any = await RepairSettingsModel.findOne({ companyCode: scope.companyCode }).lean();
+      const loyaltyRate = Number(settings?.loyaltyDiscountRate ?? 10);
+      if (loyaltyRate > 0) {
+        input.loyaltyDiscount = { rate: loyaltyRate, reason: "Khách mua máy tại hệ thống" };
+      }
+    }
+    if (!coverage) {
+      coverage = { customer: { covered: false }, supplier: { covered: false }, costBearer: "customer", checkedAt: new Date() };
+    }
+  }
+
   const collaborator = await resolveCollaborator(scope.companyCode, input.collaboratorId, session);
-  const ticket = new RepairTicketModel({ ...input, ...scope, collaboratorId: collaborator ? String(collaborator._id) : undefined, commissionSnapshot: undefined, commissionRefunds: [], status: "received", statusHistory: [{ to: "received", at: new Date(), by: actor.id, byName: actor.name, customerNotified: false }], createdBy: actor.id, createdByName: actor.name });
+  const ticket = new RepairTicketModel({
+    ...input,
+    ...scope,
+    ticketType,
+    coverage,
+    collaboratorId: collaborator ? String(collaborator._id) : undefined,
+    commissionSnapshot: undefined,
+    commissionRefunds: [],
+    status: "received",
+    statusHistory: [{ to: "received", at: new Date(), by: actor.id, byName: actor.name, customerNotified: false }],
+    createdBy: actor.id,
+    createdByName: actor.name,
+  });
   if (session) ticket.$session(session);
   const saved = (await ticket.save()).toObject();
   await recordRepairSerialLifecycle(saved, "received", actor);
@@ -60,7 +95,11 @@ export async function transitionRepairTicket(scope: RepairScope, id: string, to:
     ticket.paymentStatus = ticket.dueAmount === 0 ? "paid" : ticket.paidAmount > 0 ? "partial" : "unpaid";
     if (!ticket.feedbackToken) ticket.feedbackToken = randomUUID();
   }
-  if (to === "delivered") ticket.deliveredAt = new Date(); ticket.updatedBy = actor.id; if (session) ticket.$session(session); await ticket.save();
+  if (to === "delivered") {
+    ticket.deliveredAt = new Date();
+    if (!ticket.completedAt) ticket.completedAt = ticket.deliveredAt;
+  }
+  ticket.updatedBy = actor.id; if (session) ticket.$session(session); await ticket.save();
   const saved = ticket.toObject();
   if (to === "delivered" && saved.commissionSnapshot) await reconcileCommission("repair", id, scope.companyCode, session).catch(error => console.error("[repair-commission]", error));
   if (to === "delivered") await recordRepairSerialLifecycle(saved, "delivered", actor);

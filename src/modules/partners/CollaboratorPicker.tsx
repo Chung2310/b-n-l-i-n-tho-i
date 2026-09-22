@@ -1,22 +1,28 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { partnerRequest } from "./partnerApi";
-import { Users, AlertCircle } from "lucide-react";
+import { Dropdown } from "../../components/common/Dropdown";
+
+export interface CollaboratorPickerProps {
+  value?: string;
+  onChange: (id: string) => void;
+  className?: string;
+  label?: string;
+}
 
 export default function CollaboratorPicker({
   value,
   onChange,
-}: {
-  value?: string;
-  onChange: (id: string) => void;
-}) {
-  const [items, setItems] = React.useState<Array<{ _id: string; code: string; name: string }>>([]);
-  const [error, setError] = React.useState("");
+  className = "",
+  label = "CTV giới thiệu",
+}: CollaboratorPickerProps) {
+  const [items, setItems] = useState<Array<{ _id: string; code: string; name: string }>>([]);
+  const [error, setError] = useState("");
 
-  React.useEffect(() => {
+  useEffect(() => {
     let active = true;
     partnerRequest("/collaborators")
       .then((data) => {
-        if (active) setItems(data);
+        if (active) setItems(data || []);
       })
       .catch((e) => {
         if (active) setError(e.message);
@@ -26,33 +32,34 @@ export default function CollaboratorPicker({
     };
   }, []);
 
+  const options = [
+    { value: "", label: "Không có CTV (Khách đến trực tiếp)" },
+    ...items.map((p) => ({
+      value: p._id,
+      label: `${p.code} — ${p.name}`,
+    })),
+  ];
+
+  if (value && !items.some((p) => p._id === value)) {
+    options.splice(1, 0, { value, label: "CTV đã chọn" });
+  }
+
   return (
-    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-      <span className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
-        <Users className="h-3.5 w-3.5 text-slate-400" />
-        CTV giới thiệu (tính hoa hồng)
-      </span>
-      <select
-        className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 cursor-pointer"
+    <div className={`flex flex-col gap-1.5 text-sm ${className}`}>
+      {label && <span className="font-semibold text-slate-700">{label}</span>}
+      <Dropdown<string>
+        aria-label="Chọn CTV giới thiệu"
         value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        <option value="">Không có CTV</option>
-        {value && !items.some((p) => p._id === value) && (
-          <option value={value}>CTV đã chọn</option>
-        )}
-        {items.map((p) => (
-          <option key={p._id} value={p._id}>
-            {p.code} — {p.name}
-          </option>
-        ))}
-      </select>
-      {error && (
-        <span className="mt-1 flex items-center gap-1 text-[11px] text-rose-600 dark:text-rose-400">
-          <AlertCircle className="h-3 w-3" />
-          Không tải được danh sách CTV: {error}
-        </span>
-      )}
-    </label>
+        onChange={onChange}
+        options={options}
+        variant="default"
+        size="md"
+        searchable={items.length > 5}
+        searchPlaceholder="Tìm kiếm CTV theo mã hoặc tên..."
+        className="w-full"
+        triggerClassName="w-full justify-between py-2.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 text-slate-800 shadow-2xs font-normal"
+      />
+      {error && <span className="text-xs text-rose-600 font-medium">Không tải được CTV: {error}</span>}
+    </div>
   );
 }
