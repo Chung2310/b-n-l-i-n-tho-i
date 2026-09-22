@@ -31,6 +31,10 @@ import { FilePreviewModal } from "../resource/FilePreviewModal";
 import type { ResourceItem } from "../../types";
 import { readContractSearch } from "../../utils/contractExpiryNavigation";
 import { calculateContractEndDate } from "../../utils/hrContractDates";
+import {
+  ContractSignaturePad,
+  SignatureZoomModal,
+} from "./ContractSignaturePad";
 
 type ContractStatus = "draft" | "active" | "expired" | "terminated";
 const CONTRACT_TYPES = [
@@ -59,6 +63,11 @@ type Contract = {
   signedImageMimeType?: string;
   signedImageSize?: number;
   signedImageResourceId?: string;
+  electronicSignatureUrl?: string;
+  electronicSignatureName?: string;
+  electronicSignatureMimeType?: string;
+  electronicSignatureSize?: number;
+  electronicSignatureResourceId?: string;
   note?: string;
 };
 type Employee = {
@@ -156,6 +165,12 @@ const emptyContract = {
   signedImageSize: 0,
   signedImageResourceId: "",
   signedImageUploadToken: "",
+  electronicSignatureUrl: "",
+  electronicSignatureName: "",
+  electronicSignatureMimeType: "",
+  electronicSignatureSize: 0,
+  electronicSignatureResourceId: "",
+  electronicSignatureUploadToken: "",
   note: "",
 };
 const emptyExtension = {
@@ -245,9 +260,10 @@ export default function ContractsTab({
   const [extensionForm, setExtensionForm] = useState(emptyExtension);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<
-    "contract" | "signed" | "extension" | "extensionSigned" | null
+    "contract" | "signed" | "electronicSignature" | "extension" | "extensionSigned" | null
   >(null);
   const [previewItem, setPreviewItem] = useState<ResourceItem | null>(null);
+  const [signatureZoomUrl, setSignatureZoomUrl] = useState<string | null>(null);
   const suffix = `?companyCode=${encodeURIComponent(companyCode)}${
     branchId ? `&branchId=${encodeURIComponent(branchId)}` : ""
   }`;
@@ -340,6 +356,12 @@ export default function ContractsTab({
             signedImageSize: contract.signedImageSize || 0,
             signedImageResourceId: contract.signedImageResourceId || "",
             signedImageUploadToken: "",
+            electronicSignatureUrl: contract.electronicSignatureUrl || "",
+            electronicSignatureName: contract.electronicSignatureName || "",
+            electronicSignatureMimeType: contract.electronicSignatureMimeType || "",
+            electronicSignatureSize: contract.electronicSignatureSize || 0,
+            electronicSignatureResourceId: contract.electronicSignatureResourceId || "",
+            electronicSignatureUploadToken: "",
             note: contract.note || "",
           }
         : emptyContract
@@ -402,10 +424,11 @@ export default function ContractsTab({
 
   const uploadContractFile = async (
     file: File,
-    target: "contract" | "signed"
+    target: "contract" | "signed" | "electronicSignature"
   ) => {
+    const isImage = target !== "contract";
     const allowed =
-      target === "signed"
+      isImage
         ? file.type.startsWith("image/")
         : [
             "application/pdf",
@@ -414,8 +437,8 @@ export default function ContractsTab({
           ].includes(file.type);
     if (!allowed)
       return toast.error(
-        target === "signed"
-          ? "Ảnh đã ký phải là tệp hình ảnh."
+        isImage
+          ? "Chữ ký và ảnh đã ký phải là tệp hình ảnh."
           : "Hợp đồng chỉ hỗ trợ PDF, DOC hoặc DOCX."
       );
     if (file.size > 10 * 1024 * 1024)
@@ -441,8 +464,19 @@ export default function ContractsTab({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Tải tệp thất bại.");
-      setContractForm((current) =>
-        target === "signed"
+      setContractForm((current) => {
+        if (target === "electronicSignature") {
+          return {
+            ...current,
+            electronicSignatureUrl: data.data.url,
+            electronicSignatureName: file.name,
+            electronicSignatureMimeType: file.type,
+            electronicSignatureSize: file.size,
+            electronicSignatureResourceId: "",
+            electronicSignatureUploadToken: data.data.uploadToken,
+          };
+        }
+        return target === "signed"
           ? {
               ...current,
               signedImageUrl: data.data.url,
@@ -460,8 +494,8 @@ export default function ContractsTab({
               contractFileSize: file.size,
               contractResourceId: "",
               contractFileUploadToken: data.data.uploadToken,
-            }
-      );
+            };
+      });
       toast.success(`Đã tải lên ${file.name}.`);
     } catch (e) {
       toast.error(getApiErrorMessage(e, "Không thể tải tệp hợp đồng."));
@@ -973,7 +1007,22 @@ export default function ContractsTab({
                               <span>Ảnh ký</span>
                             </button>
                           )}
-                          {!c.contractFileUrl && !c.signedImageUrl && (
+                          {c.electronicSignatureUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setSignatureZoomUrl(c.electronicSignatureUrl || null)}
+                              className="group rounded-lg border border-slate-200 bg-white p-1 shadow-2xs transition-colors hover:border-cyan-300 hover:bg-cyan-50"
+                              title="Bấm để phóng to chữ ký điện tử"
+                              aria-label={`Phóng to chữ ký của ${c.employeeName}`}
+                            >
+                              <img
+                                src={c.electronicSignatureUrl}
+                                alt={`Chữ ký của ${c.employeeName}`}
+                                className="h-8 w-20 rounded bg-white object-contain transition-transform group-hover:scale-105"
+                              />
+                            </button>
+                          )}
+                          {!c.contractFileUrl && !c.signedImageUrl && !c.electronicSignatureUrl && (
                             <span className="text-slate-400 text-[11px]">—</span>
                           )}
                         </div>
@@ -1373,6 +1422,43 @@ export default function ContractsTab({
               )}
             </div>
 
+            <div className="sm:col-span-2 space-y-2">
+              <ContractSignaturePad
+                saving={uploading === "electronicSignature"}
+                onSave={(file) => uploadContractFile(file, "electronicSignature")}
+              />
+              {contractForm.electronicSignatureUrl && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-emerald-700">
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">Chữ ký đã lưu trong hợp đồng</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSignatureZoomUrl(contractForm.electronicSignatureUrl)}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-emerald-200 bg-white px-2 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      Phóng to
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSignatureZoomUrl(contractForm.electronicSignatureUrl)}
+                    className="block w-full overflow-hidden rounded-lg border border-slate-200 bg-white p-2"
+                    aria-label="Phóng to chữ ký vừa lưu"
+                  >
+                    <img
+                      src={contractForm.electronicSignatureUrl}
+                      alt="Chữ ký điện tử đã lưu"
+                      className="h-24 w-full object-contain"
+                    />
+                  </button>
+                </div>
+              )}
+            </div>
+
             <label className="sm:col-span-2 text-xs font-semibold text-slate-700">
               Ghi chú thêm
               <textarea
@@ -1550,6 +1636,10 @@ export default function ContractsTab({
         item={previewItem}
         onClose={() => setPreviewItem(null)}
         hideShare
+      />
+      <SignatureZoomModal
+        url={signatureZoomUrl}
+        onClose={() => setSignatureZoomUrl(null)}
       />
     </div>
   );

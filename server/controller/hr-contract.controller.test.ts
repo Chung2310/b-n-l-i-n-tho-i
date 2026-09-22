@@ -60,14 +60,23 @@ describe("hrContractController managed uploads", () => {
     });
   });
 
-  it("finalizes contract and signed-image tokens against the saved contract", async () => {
+  it("finalizes contract, signed-image and electronic-signature tokens against the saved contract", async () => {
     const finalizeManagedUpload = vi.fn(async (token: string) => ({
-      _id: token === "contract-token" ? "resource-contract" : "resource-signed",
+      _id:
+        token === "contract-token"
+          ? "resource-contract"
+          : token === "signed-token"
+            ? "resource-signed"
+            : "resource-electronic-signature",
     }));
 
     const patch = await finalizeContractPendingUploads({
       contract: { _id: "contract-1", employeeId: "employee-1", employeeName: "NV001 - Nguyễn Văn A" },
-      body: { contractFileUploadToken: "contract-token", signedImageUploadToken: "signed-token" },
+      body: {
+        contractFileUploadToken: "contract-token",
+        signedImageUploadToken: "signed-token",
+        electronicSignatureUploadToken: "electronic-signature-token",
+      },
       actor: { companyCode: "ACME", branchId: "branch-a", actorId: "user-1", actorName: "Admin" },
       finalizeManagedUpload: finalizeManagedUpload as any,
     });
@@ -79,7 +88,18 @@ describe("hrContractController managed uploads", () => {
       sourceRecordId: "contract-1",
       sourceField: "contractFile",
     });
-    expect(patch).toEqual({ contractResourceId: "resource-contract", signedImageResourceId: "resource-signed" });
+    expect(finalizeManagedUpload).toHaveBeenNthCalledWith(3, "electronic-signature-token", expect.any(Object), {
+      entityType: "employee",
+      entityId: "employee-1",
+      entityLabel: "NV001 - Nguyễn Văn A",
+      sourceRecordId: "contract-1",
+      sourceField: "electronicSignature",
+    });
+    expect(patch).toEqual({
+      contractResourceId: "resource-contract",
+      signedImageResourceId: "resource-signed",
+      electronicSignatureResourceId: "resource-electronic-signature",
+    });
   });
 
   it("finalizes extension tokens against the saved extension", async () => {

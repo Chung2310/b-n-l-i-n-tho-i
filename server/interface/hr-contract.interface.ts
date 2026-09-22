@@ -48,6 +48,11 @@ export interface IHRContract extends Document {
   signedImageMimeType?: string;
   signedImageSize?: number;
   signedImageResourceId?: string;
+  electronicSignatureUrl?: string;
+  electronicSignatureName?: string;
+  electronicSignatureMimeType?: string;
+  electronicSignatureSize?: number;
+  electronicSignatureResourceId?: string;
   note?: string;
   createdBy: string;
   updatedBy?: string;

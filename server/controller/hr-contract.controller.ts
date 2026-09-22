@@ -34,7 +34,11 @@ type FinalizeUpload = (
 
 export async function finalizeContractPendingUploads(input: {
   contract: { _id: unknown; employeeId: string; employeeName: string };
-  body: { contractFileUploadToken?: string; signedImageUploadToken?: string };
+  body: {
+    contractFileUploadToken?: string;
+    signedImageUploadToken?: string;
+    electronicSignatureUploadToken?: string;
+  };
   actor: ManagedUploadActor;
   finalizeManagedUpload?: FinalizeUpload;
 }) {
@@ -45,7 +49,11 @@ export async function finalizeContractPendingUploads(input: {
     entityLabel: input.contract.employeeName,
     sourceRecordId: String(input.contract._id),
   };
-  const patch: { contractResourceId?: string; signedImageResourceId?: string } = {};
+  const patch: {
+    contractResourceId?: string;
+    signedImageResourceId?: string;
+    electronicSignatureResourceId?: string;
+  } = {};
   if (input.body.contractFileUploadToken) {
     const resource = await finalize(input.body.contractFileUploadToken, input.actor, {
       ...sourceBase,
@@ -59,6 +67,13 @@ export async function finalizeContractPendingUploads(input: {
       sourceField: "signedImage",
     });
     patch.signedImageResourceId = resource._id;
+  }
+  if (input.body.electronicSignatureUploadToken) {
+    const resource = await finalize(input.body.electronicSignatureUploadToken, input.actor, {
+      ...sourceBase,
+      sourceField: "electronicSignature",
+    });
+    patch.electronicSignatureResourceId = resource._id;
   }
   return patch;
 }
