@@ -99,6 +99,7 @@ export default function DashboardTab() {
           <div className="flex items-center gap-3">
             <div className="h-8 w-1.5 bg-cyan-600 rounded-full shrink-0" />
             <div>
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
               <h1 className="flex items-center gap-2 font-extrabold text-xl md:text-2xl tracking-tight text-cyan-700">
                 {greetingHour >= 18
                   ? <Moon aria-hidden="true" className="h-6 w-6 shrink-0 text-indigo-500" />
@@ -107,8 +108,10 @@ export default function DashboardTab() {
                 {greeting.greeting}, {userProfile?.displayName || "bạn"}!
                 </span>
               </h1>
+              <p className="text-sm text-slate-600">{greeting.message}</p>
+              </div>
               <p className="text-xs text-slate-700 font-medium">Hôm nay, {todayLabel}</p>
-              <p className="mt-1 text-sm text-slate-600">{greeting.message}</p>
+
             </div>
           </div>
         </div>
