@@ -23,7 +23,7 @@ export default function FinanceTrendChart({ data }: { data: TrendRow[] }) {
   const min = Math.min(0, ...values), max = Math.max(1, ...values);
   const y = (v: number) => 214 - (v - min) / (max - min) * 192;
   const start = Date.parse(rows[0].date), end = Date.parse(rows[rows.length - 1].date);
-  const x = (i: number) => end === start ? 457 : 94 + (Date.parse(rows[i].date) - start) / (end - start) * 726;
+  const x = (i: number) => end === start ? 445 : 70 + (Date.parse(rows[i].date) - start) / (end - start) * 750;
   const active = rows.findIndex(r => r.date === activeDate);
   const ticks = [...new Set(Array.from({ length: Math.min(6, rows.length) }, (_, i) =>
     Math.round(i * (rows.length - 1) / Math.max(1, Math.min(6, rows.length) - 1))))];
@@ -38,17 +38,17 @@ export default function FinanceTrendChart({ data }: { data: TrendRow[] }) {
       <svg viewBox="0 0 850 260" role="group" aria-label="Diễn biến doanh thu, giá vốn và lợi nhuận theo ngày" className="w-full min-w-[600px]"
         onKeyDown={e => { if (e.key === "Escape") setActiveDate(undefined); }}>
         {[0, 1, 2, 3].map(i => { const value = min + (max - min) * i / 3; return <g key={i}>
-          <line x1="94" x2="820" y1={y(value)} y2={y(value)} stroke="#e2e8f0" strokeDasharray="3 4"/>
-          <text x="84" y={y(value) + 4} textAnchor="end" fontSize="10" fill="#64748b">{axisMoney(value)}</text>
+          <line x1="70" x2="820" y1={y(value)} y2={y(value)} stroke="#e2e8f0" strokeDasharray="3 4"/>
+          <text x="60" y={y(value) + 4} textAnchor="end" fontSize="10" fill="#64748b">{axisMoney(value)}</text>
         </g>; })}
-        <line x1="94" x2="820" y1={y(0)} y2={y(0)} stroke="#94a3b8"/>
+        <line x1="70" x2="820" y1={y(0)} y2={y(0)} stroke="#94a3b8"/>
         {ticks.map(i => <text key={i} x={x(i)} y="242" textAnchor={i === 0 && rows.length > 1 ? "start" : i === rows.length - 1 && rows.length > 1 ? "end" : "middle"} fontSize="10" fill="#475569">{dateLabel(rows[i].date)}</text>)}
         {series.map(s => <g key={s.label}>
           <path fill="none" stroke={s.color} strokeWidth="1.5" d={rows.map((r, i) => s.get(r) == null ? "" : `${i === 0 || s.get(rows[i - 1]) == null ? "M" : "L"}${x(i)},${y(s.get(r)!)}`).join(" ")}/>
           {rows.map((r, i) => s.get(r) != null && (i === active || (i === 0 || s.get(rows[i - 1]) == null) && (i === rows.length - 1 || s.get(rows[i + 1]) == null)) ? <circle key={r.date} cx={x(i)} cy={y(s.get(r)!)} r="2.5" fill={s.color}/> : null)}
         </g>)}
         {active >= 0 && <line x1={x(active)} x2={x(active)} y1="22" y2="214" stroke="#94a3b8" strokeDasharray="3 4"/>}
-        {rows.map((r, i) => { const left = i === 0 ? 94 : (x(i - 1) + x(i)) / 2; const right = i === rows.length - 1 ? 820 : (x(i) + x(i + 1)) / 2; return <rect key={r.date} x={left} y="12" width={right - left} height="214" fill="transparent" tabIndex={0} role="button" aria-label={"Xem ngày " + dateLabel(r.date)} className="cursor-crosshair focus:outline-none focus:stroke-sky-300"
+        {rows.map((r, i) => { const left = i === 0 ? 70 : (x(i - 1) + x(i)) / 2; const right = i === rows.length - 1 ? 820 : (x(i) + x(i + 1)) / 2; return <rect key={r.date} x={left} y="12" width={right - left} height="214" fill="transparent" tabIndex={0} role="button" aria-label={"Xem ngày " + dateLabel(r.date)} className="cursor-crosshair focus:outline-none focus:stroke-sky-300"
           onPointerEnter={() => setActiveDate(r.date)} onPointerDown={() => setActiveDate(r.date)} onClick={() => setActiveDate(r.date)} onFocus={() => setActiveDate(r.date)} onBlur={() => setActiveDate(undefined)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setActiveDate(r.date); } }}/>;
         })}
       </svg>
