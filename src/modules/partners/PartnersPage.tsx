@@ -1188,7 +1188,7 @@ export default function PartnersPage() {
   // Partner accounts without management permission use the self portal.
   if (!admin) {
     return (
-      <div id="partners-page" className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 text-left">
+      <div id="partners-page" className="w-full min-w-0 space-y-6 px-0.5 py-4 sm:py-6 text-left">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-600 to-sky-400 text-white shadow-md shadow-cyan-500/20">
             <Coins className="h-5 w-5" />
