@@ -167,5 +167,25 @@ describe("ModernAnalyticsDashboard", () => {
     fireEvent.click(screen.getByText("Hợp đồng & Cảnh báo đến hạn"));
     expect(onNavigate).toHaveBeenCalledWith("NHÂN SỰ", "hop-dong");
   });
+
+  it("compares real totals from two API requests instead of placeholder previousTotal", async () => {
+    const { analyticsService } = await import("../../services/analyticsService");
+    const { revenueComparisonRange } = await import("./revenueComparison");
+    const range = revenueComparisonRange("month");
+    vi.mocked(analyticsService.getRevenue).mockImplementation(async params => ({
+      total: params.from === range.previousFrom ? 10000000 : 15000000, previousTotal: 0, growthPct: null, series: [],
+    }) as any);
+    render(<ModernAnalyticsDashboard summary={mockSummary as any} actionItems={mockActionItems as any} onNavigate={vi.fn()} onOpenContract={vi.fn()}/>);
+    expect(await screen.findByText(/\+50% tăng/)).toBeTruthy();
+    expect(analyticsService.getRevenue).toHaveBeenCalledWith(expect.objectContaining({from:range.previousFrom,to:range.previousTo}));
+  });
+  it("does not invent 100 percent growth when previous revenue is zero", async () => {
+    const { analyticsService } = await import("../../services/analyticsService");
+    const { revenueComparisonRange } = await import("./revenueComparison");
+    const range = revenueComparisonRange("month");
+    vi.mocked(analyticsService.getRevenue).mockImplementation(async params => ({total:params.from===range.previousFrom?0:15000000,series:[]}) as any);
+    render(<ModernAnalyticsDashboard summary={mockSummary as any} actionItems={mockActionItems as any} onNavigate={vi.fn()} onOpenContract={vi.fn()}/>);
+    expect(await screen.findByText("Chưa có cơ sở so sánh")).toBeTruthy();
+  });
 });
 

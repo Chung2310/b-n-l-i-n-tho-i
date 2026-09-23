@@ -1,3 +1,5 @@
+import { revenueComparisonRange } from "./revenueComparison";
+import { useBranchOptional } from "../../context/BranchContext";
 import React, { useState, useEffect } from "react";
 import {
   BarChart3,
@@ -134,7 +136,8 @@ export function ModernAnalyticsDashboard({
   const [revenueData, setRevenueData] = useState<{ bucket: string; amount: number }[]>([]);
   const [revenueTotal, setRevenueTotal] = useState(0);
   const [previousRevenueTotal, setPreviousRevenueTotal] = useState(0);
-  const [revenueGrowthPct, setRevenueGrowthPct] = useState<number | null>(null);
+  const branch = useBranchOptional();
+  const [revenueError, setRevenueError] = useState(false);
   const [isLoadingRevenue, setIsLoadingRevenue] = useState(true);
   const [totalStock, setTotalStock] = useState<number | null>(null);
   const [activePoint, setActivePoint] = useState<{ bucket: string; amount: number; x: number; y: number } | null>(null);
@@ -173,45 +176,34 @@ export function ModernAnalyticsDashboard({
   useEffect(() => {
     let cancelled = false;
 
-    const to = new Date();
-    const from = new Date();
-    let granularity: "day" | "week" | "month" = "day";
-
-    if (timeFilter === "month") {
-      from.setDate(to.getDate() - 30);
-      granularity = "day";
-    } else if (timeFilter === "quarter") {
-      from.setDate(to.getDate() - 90);
-      granularity = "week";
-    } else {
-      from.setDate(to.getDate() - 365);
-      granularity = "month";
-    }
-
-    analyticsService
-      .getRevenue({
-        from: from.toISOString().slice(0, 10),
-        to: to.toISOString().slice(0, 10),
-        granularity,
-      })
-      .then((res) => {
+    setIsLoadingRevenue(true);
+    setRevenueError(false);
+    setRevenueData([]);
+    setRevenueTotal(0);
+    setPreviousRevenueTotal(0);
+    const period = revenueComparisonRange(timeFilter);
+    Promise.all([
+      analyticsService.getRevenue({ from: period.from, to: period.to, granularity: period.granularity, branchId: branch?.activeBranchId || undefined }),
+      analyticsService.getRevenue({ from: period.previousFrom, to: period.previousTo, granularity: period.granularity, branchId: branch?.activeBranchId || undefined }),
+    ])
+      .then(([res, previous]) => {
         if (!cancelled) {
           setRevenueData(res.series || []);
           setRevenueTotal(res.total || 0);
-          setPreviousRevenueTotal(res.previousTotal || 0);
-          setRevenueGrowthPct(res.growthPct ?? null);
+          setPreviousRevenueTotal(previous.total);
+
           setIsLoadingRevenue(false);
         }
       })
       .catch((err) => {
         console.error("Lỗi tải doanh thu:", err);
-        if (!cancelled) setIsLoadingRevenue(false);
+        if (!cancelled) { setIsLoadingRevenue(false); setRevenueError(true); }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [timeFilter]);
+  }, [timeFilter, branch?.activeBranchId]);
 
   // Extract real metrics from bulletin cards or summary
   const bulletinCards = actionItems?.bulletin?.cards || [];
@@ -268,19 +260,15 @@ export function ModernAnalyticsDashboard({
   const monthVal = revenueTotal;
   const prevMonthVal = previousRevenueTotal;
   const monthDiff = monthVal - prevMonthVal;
-  const monthPct = prevMonthVal > 0
-    ? Math.round((monthDiff / prevMonthVal) * 100)
-    : revenueGrowthPct !== null
-    ? Math.round(revenueGrowthPct)
-    : monthVal > 0
-    ? 100
-    : 0;
+  const monthPct = prevMonthVal > 0 ? Math.round((monthDiff / prevMonthVal) * 100) : null;
+  const previousLabel = timeFilter === "month" ? "tháng trước" : timeFilter === "quarter" ? "quý trước" : "năm trước";
+  const comparisonRange = revenueComparisonRange(timeFilter);
   const monthDiffFormatted = formatVietnameseCompactAmount(Math.abs(monthDiff));
-  const monthDeltaText = monthDiff > 0
+  const monthDeltaText = isLoadingRevenue ? "Đang tải so sánh…" : revenueError ? "Không tải được dữ liệu so sánh" : monthPct === null ? "Chưa có cơ sở so sánh" : monthDiff > 0
     ? `+${monthPct}% tăng ${monthDiffFormatted}`
     : monthDiff < 0
     ? `-${Math.abs(monthPct)}% giảm ${monthDiffFormatted}`
-    : "0% so với tháng trước";
+    : `0% so với ${previousLabel}`;
 
   // Real Alerts from actionItems
   const overdueTasks = actionItems?.overdueTasks || [];
@@ -547,20 +535,20 @@ export function ModernAnalyticsDashboard({
                 className="pointer-events-none select-none absolute z-30 bottom-full right-0 mb-2 w-64 rounded-xl bg-slate-900/95 p-3 text-xs text-white shadow-xl backdrop-blur-xs transition-opacity duration-150"
               >
                 <div className="flex items-center justify-between pb-1.5 border-b border-slate-700/60 mb-2">
-                  <span className="font-semibold text-slate-300 text-[11px]">So sánh tháng này & tháng trước</span>
+                  <span className="font-semibold text-slate-300 text-[11px]">So sánh kỳ này & {previousLabel}</span>
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                     monthDiff >= 0 ? "bg-emerald-950 text-emerald-300" : "bg-rose-950 text-rose-300"
                   }`}>
-                    {monthDiff >= 0 ? `+${monthPct}%` : `-${Math.abs(monthPct)}%`}
+                    {isLoadingRevenue || revenueError || monthPct === null ? "—" : monthDiff >= 0 ? `+${monthPct}%` : `-${Math.abs(monthPct)}%`}
                   </span>
                 </div>
                 <div className="space-y-1.5 text-[11px]">
                   <div className="flex justify-between text-slate-300">
-                    <span>Kỳ này:</span>
+                    <span>Kỳ này ({comparisonRange.from} → {comparisonRange.to}):</span>
                     <span className="font-bold text-white">{monthVal.toLocaleString("vi-VN")} ₫</span>
                   </div>
                   <div className="flex justify-between text-slate-300">
-                    <span>Kỳ trước:</span>
+                    <span>Kỳ trước ({comparisonRange.previousFrom} → {comparisonRange.previousTo}):</span>
                     <span className="font-bold text-white">{prevMonthVal.toLocaleString("vi-VN")} ₫</span>
                   </div>
                   <div className="flex justify-between pt-1.5 border-t border-slate-700/60 mt-1">
