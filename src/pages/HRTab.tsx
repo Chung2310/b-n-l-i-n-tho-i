@@ -14,7 +14,6 @@ const OrgChartTab = lazy(() => import("../components/hr/OrgChartTab"));
 const KanbanTab = lazy(() => import("../components/hr/KanbanTab"));
 const TrainingTab = lazy(() => import("../components/hr/TrainingTab"));
 const WorkflowTab = lazy(() => import("../components/hr/WorkflowTab"));
-const CalendarTab = lazy(() => import("../components/hr/CalendarTab"));
 const PayrollTab = lazy(() => import("../components/hr/PayrollTab"));
 const ContractsTab = lazy(() => import("../components/hr/ContractsTab"));
 const CelebrationEmailTab = lazy(() => import("../components/hr/CelebrationEmailTab"));
@@ -354,6 +353,13 @@ export default function HRTab() {
                   : subTab === WORK_HOURS_TAB
                   ? "hours"
                   : "attendance"
+              }
+              initialCalendarSubTab={
+                typeof window !== "undefined" &&
+                (new URLSearchParams(window.location.search).get("view") === "requests" ||
+                 new URLSearchParams(window.location.search).get("sub") === "don-tu")
+                  ? "requests"
+                  : undefined
               }
             />
           </div>

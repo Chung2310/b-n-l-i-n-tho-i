@@ -110,60 +110,105 @@ export function DonutCard({
     localCenterValue = "0";
   }
 
-  let offset = 0;
+  let runningOffset = 0;
+  const computedSegments = localSegments.map((segment) => {
+    const dash = (segment.value / 100) * circumference;
+    const itemOffset = runningOffset;
+    runningOffset += dash;
+    return { ...segment, dash, offset: itemOffset };
+  });
 
   return (
     <div className={compact ? "" : "rounded-3xl border border-slate-100 bg-white p-6 shadow-sm hover:shadow-md transition-all duration-300"}>
       {!compact && title && <h3 className="mb-6 text-sm font-bold uppercase tracking-wider text-gray-800">{title}</h3>}
 
-      <div className="flex flex-col items-center gap-5 w-full">
-        <div className="relative h-40 w-40 shrink-0">
-          <svg className="h-full w-full -rotate-90" viewBox="0 0 180 180" aria-label={title}>
+      <div className={`flex flex-col items-center ${compact ? "gap-3" : "gap-5"} w-full`}>
+        <div className={`relative ${compact ? "h-32 w-32" : "h-40 w-40"} shrink-0`}>
+          <svg
+            key={`donut-${localSegments.length}-${localCenterValue}`}
+            className="h-full w-full -rotate-90"
+            viewBox="0 0 180 180"
+            aria-label={title}
+            style={{
+              animation: "donutRotateIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+              transformOrigin: "center",
+            }}
+          >
+            <defs>
+              <style>{`
+                @keyframes donutRotateIn {
+                  0% { transform: rotate(-140deg) scale(0.85); opacity: 0; }
+                  100% { transform: rotate(-90deg) scale(1); opacity: 1; }
+                }
+                @keyframes donutSegmentEntrance {
+                  0% { opacity: 0; stroke-width: 14; }
+                  100% { opacity: 1; stroke-width: 24; }
+                }
+                @keyframes donutCenterPop {
+                  0% { transform: scale(0.5); opacity: 0; }
+                  100% { transform: scale(1); opacity: 1; }
+                }
+                @keyframes legendItemSlide {
+                  0% { opacity: 0; transform: translateY(5px); }
+                  100% { opacity: 1; transform: translateY(0); }
+                }
+              `}</style>
+            </defs>
             <circle cx="90" cy="90" r={radius} fill="none" stroke="#f8fafc" strokeWidth="24" />
-            {localSegments.map((segment) => {
-              const dash = (segment.value / 100) * circumference;
-              const circle = (
-                <circle
-                  key={segment.label}
-                  tabIndex={segments?.length ? 0 : undefined}
-                  aria-label={`${segment.label}: ${segment.display || `${segment.value}%`}`}
-                  aria-describedby={activeSegment?.label === segment.label ? tooltipId : undefined}
-                  className="cursor-pointer"
-                  onMouseEnter={() => setHoveredLabel(segment.label)}
-                  onMouseLeave={() => setHoveredLabel(null)}
-                  onFocus={() => setHoveredLabel(segment.label)}
-                  onBlur={() => setHoveredLabel(null)}
-                  onClick={() => setHoveredLabel(segment.label)}
-                  onKeyDown={event => { if (event.key === "Escape") setHoveredLabel(null); }}
-                  cx="90"
-                  cy="90"
-                  r={radius}
-                  fill="none"
-                  stroke={segment.color}
-                  strokeWidth="24"
-                  strokeDasharray={`${dash} ${circumference - dash}`}
-                  strokeDashoffset={-offset}
-                  strokeLinecap="butt"
-                >
-                  <title>{`${segment.label}: ${segment.display || `${segment.value}%`}`}</title>
-                </circle>
-              );
-              offset += dash;
-              return circle;
-            })}
+            {computedSegments.map((segment, idx) => (
+              <circle
+                key={segment.label}
+                tabIndex={segments?.length ? 0 : undefined}
+                aria-label={`${segment.label}: ${segment.display || `${segment.value}%`}`}
+                aria-describedby={activeSegment?.label === segment.label ? tooltipId : undefined}
+                className="cursor-pointer"
+                onMouseEnter={() => setHoveredLabel(segment.label)}
+                onMouseLeave={() => setHoveredLabel(null)}
+                onFocus={() => setHoveredLabel(segment.label)}
+                onBlur={() => setHoveredLabel(null)}
+                onClick={() => setHoveredLabel(segment.label)}
+                onKeyDown={event => { if (event.key === "Escape") setHoveredLabel(null); }}
+                cx="90"
+                cy="90"
+                r={radius}
+                fill="none"
+                stroke={segment.color}
+                strokeWidth="24"
+                strokeDasharray={`${segment.dash} ${circumference - segment.dash}`}
+                strokeDashoffset={-segment.offset}
+                strokeLinecap="butt"
+                style={{
+                  animation: `donutSegmentEntrance 0.75s cubic-bezier(0.16, 1, 0.3, 1) ${idx * 50}ms both`,
+                }}
+              >
+                <title>{`${segment.label}: ${segment.display || `${segment.value}%`}`}</title>
+              </circle>
+            ))}
           </svg>
-          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-            <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">{centerLabel}</span>
-            <strong className="font-sans text-xl font-extrabold text-gray-800">{localCenterValue}</strong>
+          <div
+            className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center"
+            style={{
+              animation: "donutCenterPop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both",
+            }}
+          >
+            <span className={`${compact ? "text-[9px]" : "text-[10px]"} text-gray-400 font-semibold uppercase tracking-wider`}>{centerLabel}</span>
+            <strong className={`font-sans ${compact ? "text-base" : "text-xl"} font-extrabold text-gray-800`}>{localCenterValue}</strong>
           </div>
           {activeSegment && <div id={tooltipId} role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 max-w-[75vw] -translate-x-1/2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[11px] leading-relaxed text-slate-700 shadow-md">
             <p className="break-words font-semibold"><span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: activeSegment.color }} />{activeSegment.label}</p>
             <p>{activeSegment.display || `${activeSegment.value}%`}</p>
           </div>}
         </div>
-        <div className="w-full space-y-2.5 text-xs border-t border-slate-100/85 pt-4">
-          {localSegments.map((segment) => (
-            <Legend key={segment.label} color={segment.color} label={segment.label} value={segment.display || `${segment.value}%`} />
+        <div className={`w-full ${compact ? "space-y-1.5 text-[11px] pt-2.5" : "space-y-2.5 text-xs pt-4"} border-t border-slate-100/85`}>
+          {localSegments.map((segment, idx) => (
+            <div
+              key={segment.label}
+              style={{
+                animation: `legendItemSlide 0.4s ease-out ${180 + idx * 45}ms both`,
+              }}
+            >
+              <Legend color={segment.color} label={segment.label} value={segment.display || `${segment.value}%`} compact={compact} />
+            </div>
           ))}
         </div>
       </div>
@@ -216,7 +261,14 @@ export function BarChart({ data = [] }: { data?: Array<{ label: string; value: n
                 const right = left + width;
                 const depth = Math.min(5, slotWidth * 0.08, (plotHeight - point.y) / 2);
                 return (
-                  <g key={index} className="group">
+                  <g
+                    key={index}
+                    className="group"
+                    style={{
+                      transformOrigin: "bottom",
+                      animation: `barGrowUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) ${index * 30}ms both`,
+                    }}
+                  >
                     {depth > 0 && <>
                       <polygon points={`${right},${point.y} ${right + depth},${point.y - depth} ${right + depth},${plotHeight - depth} ${right},${plotHeight}`} fill="#38b5dc" />
                       <polygon points={`${left},${point.y} ${left + depth},${point.y - depth} ${right + depth},${point.y - depth} ${right},${point.y}`} fill="#b5ecfa" />
@@ -316,14 +368,14 @@ export function AiInsightCard({ icon: Icon, title, body, action, color, onAction
   );
 }
 
-export function Legend({ color, label, value }: any) {
+export function Legend({ color, label, value, compact = false }: any) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5 text-xs">
-      <span className="flex min-w-0 items-center gap-2 text-gray-655">
-        <i className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-        <span className="truncate font-semibold text-left">{label}</span>
+    <div className={`grid grid-cols-[minmax(0,1fr)_auto] items-center ${compact ? "gap-2 text-[11px]" : "gap-2.5 text-xs"}`}>
+      <span className="flex min-w-0 items-center gap-1.5 text-slate-600">
+        <i className={`${compact ? "h-2 w-2" : "h-2.5 w-2.5"} shrink-0 rounded-full`} style={{ backgroundColor: color }} />
+        <span className="truncate font-medium text-left" title={label}>{label}</span>
       </span>
-      <strong className="font-mono text-gray-800 font-bold shrink-0">{value}</strong>
+      <strong className={`font-mono text-slate-800 ${compact ? "text-[10.5px] font-semibold" : "font-bold"} shrink-0 ml-1`}>{value}</strong>
     </div>
   );
 }

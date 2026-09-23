@@ -43,3 +43,121 @@
   --color-emerald-600: #059669;
   --color-emerald-800: #065f46;
 }
+
+/* ========================================================================= */
+/* Chart Animations: Run ONCE on page load/re-entry (animation-iteration-count: 1, no loop) */
+/* ========================================================================= */
+
+@keyframes chartLineDraw {
+  0% {
+    stroke-dashoffset: 100;
+    opacity: 0.2;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes chartAreaRise {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scaleY(0.7);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+@keyframes chartDotPop {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  65% {
+    transform: scale(1.3);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes donutRotateIn {
+  0% {
+    transform: rotate(-140deg) scale(0.85);
+    opacity: 0;
+  }
+  100% {
+    transform: rotate(-90deg) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes donutSegmentEntrance {
+  0% {
+    opacity: 0;
+    stroke-width: 14;
+  }
+  100% {
+    opacity: 1;
+    stroke-width: 24;
+  }
+}
+
+@keyframes donutCenterPop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes legendItemSlide {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes barGrowUp {
+  0% {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes kpiCardEntrance {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes alertItemSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

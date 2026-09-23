@@ -30,6 +30,7 @@ export const HR_SUB_TAB_ROUTES: SubTabRouteMap<HRSubTabType> = [
   { slug: "dao-tao", value: "ĐÀO TẠO" },
   { slug: "quy-trinh", value: "QUY TRÌNH" },
   { slug: "lich", value: "LỊCH" },
+  { slug: "don-tu", value: "LỊCH" },
   { slug: "payroll", value: "PAYROLL" },
   { slug: "hop-dong", value: "HỢP ĐỒNG" },
 ];
