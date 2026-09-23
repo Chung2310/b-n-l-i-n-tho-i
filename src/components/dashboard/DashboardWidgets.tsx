@@ -170,7 +170,7 @@ export function BarChart({ data = [] }: { data?: Array<{ label: string; value: n
     <div>
       <div className="mb-4 flex flex-wrap gap-4 text-xs font-semibold text-slate-600">
         <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-cyan-500" />Doanh thu</span>
-        <span className="inline-flex items-center gap-2"><span className="h-[0.75px] w-5 bg-blue-500/50" />Xu hướng doanh thu</span>
+        <span className="inline-flex items-center gap-2"><span className="h-[0.75px] w-5 bg-[#e2eaf3]" />Xu hướng doanh thu</span>
       </div>
       {data.length === 0 ? <p className="py-12 text-center text-sm text-slate-600">Chưa có dữ liệu doanh thu trong kỳ này.</p> : (
         <div className="relative h-[320px]">
@@ -185,15 +185,26 @@ export function BarChart({ data = [] }: { data?: Array<{ label: string; value: n
           <div className="absolute bottom-10 left-16 right-2 top-3">
             <svg viewBox={`0 0 ${plotWidth} ${plotHeight}`} preserveAspectRatio="none"
               className="h-full w-full overflow-visible" role="img" aria-label="Biểu đồ doanh thu kết hợp cột và đường">
-              {points.map((point, index) => (
-                <rect key={index} x={point.x - Math.min(slotWidth * 0.6, 64) / 2} y={point.y}
-                  width={Math.min(slotWidth * 0.6, 64)} height={plotHeight - point.y} rx="3"
-                  className="fill-cyan-400/70 hover:fill-cyan-500">
-                  <title>{point.label}: {point.value.toLocaleString("vi-VN")} ₫</title>
-                </rect>
-              ))}
+              {points.map((point, index) => {
+                const width = Math.min(slotWidth * 0.6, 64);
+                const left = point.x - width / 2;
+                const right = left + width;
+                const depth = Math.min(5, slotWidth * 0.08, (plotHeight - point.y) / 2);
+                return (
+                  <g key={index} className="group">
+                    {depth > 0 && <>
+                      <polygon points={`${right},${point.y} ${right + depth},${point.y - depth} ${right + depth},${plotHeight - depth} ${right},${plotHeight}`} fill="#38b5dc" />
+                      <polygon points={`${left},${point.y} ${left + depth},${point.y - depth} ${right + depth},${point.y - depth} ${right},${point.y}`} fill="#b5ecfa" />
+                    </>}
+                    <rect x={left} y={point.y} width={width} height={plotHeight - point.y} rx="1"
+                      className="fill-sky-300 group-hover:fill-sky-400">
+                      <title>{point.label}: {point.value.toLocaleString("vi-VN")} ₫</title>
+                    </rect>
+                  </g>
+                );
+              })}
               <polyline points={`0,${plotHeight} ${points.map(point => `${point.x},${point.y}`).join(" ")} ${plotWidth},${plotHeight}`}
-                fill="none" stroke="#3b82f6" strokeWidth="0.75" strokeOpacity="0.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                fill="none" stroke="#e2eaf3" strokeWidth="0.75" strokeOpacity="0.85" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             </svg>
           </div>
           <div className="absolute bottom-0 left-16 right-2 flex h-8">
