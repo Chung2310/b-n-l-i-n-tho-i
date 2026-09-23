@@ -27,7 +27,7 @@ export function ActionItemsWidget({
 
   if (totalCount === 0) {
     return (
-      <div className="flex items-center gap-2.5 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-sm font-semibold text-emerald-700">
+      <div className="flex items-center gap-2.5 rounded-2xl border border-[#d1d5db] bg-emerald-50/70 p-4 text-sm font-semibold text-emerald-700">
         <CheckCircle2 className="h-5 w-5" />
         Không có việc gì cần xử lý gấp hôm nay. 🎉
       </div>
@@ -35,7 +35,7 @@ export function ActionItemsWidget({
   }
 
   return (
-    <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border border-[#d1d5db] bg-white p-4 shadow-sm">
       <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-gray-800">
         <ClipboardList className="h-4 w-4 text-blue-600" />
         Việc cần xử lý hôm nay
@@ -47,7 +47,7 @@ export function ActionItemsWidget({
             key={alert.id}
             type="button"
             onClick={() => onGoToContract(alert)}
-            className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50"
+            className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#d1d5db] bg-white px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50"
           >
             <span className="flex min-w-0 items-start gap-2 text-xs font-semibold text-[#ef4444]">
               <FileClock className="mt-0.5 h-4 w-4 shrink-0" />
@@ -67,7 +67,7 @@ export function ActionItemsWidget({
           <button
             type="button"
             onClick={onGoToTasks}
-            className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50"
+            className="flex w-full items-center justify-between rounded-xl border border-[#d1d5db] bg-white px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50"
           >
             <span className="flex items-center gap-2 text-xs font-semibold text-[#ef4444]">
               <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -81,7 +81,7 @@ export function ActionItemsWidget({
           <button
             type="button"
             onClick={onGoToApprovals}
-            className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50"
+            className="flex w-full items-center justify-between rounded-xl border border-[#d1d5db] bg-white px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50"
           >
             <span className="flex items-center gap-2 text-xs font-semibold text-[#ef4444]">
               <ClipboardList className="h-4 w-4 shrink-0" />
@@ -97,7 +97,7 @@ export function ActionItemsWidget({
           <button
             type="button"
             onClick={onGoToInventory}
-            className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50"
+            className="flex w-full items-center justify-between rounded-xl border border-[#d1d5db] bg-white px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50"
           >
             <span className="flex items-center gap-2 text-xs font-semibold text-[#ef4444]">
               <PackageCheck className="h-4 w-4 shrink-0" />
