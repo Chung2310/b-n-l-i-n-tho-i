@@ -82,7 +82,7 @@ export function RevenueAnalysisPanel() {
   return (
     <div className="space-y-3 pb-10">
       {/* Filters */}
-      <div className="flex justify-end">
+      <div className="flex justify-start">
         <div className="flex bg-slate-100 p-1 rounded-xl">
           <button
             onClick={() => setFilter("month")}
