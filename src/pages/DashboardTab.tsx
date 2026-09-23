@@ -12,6 +12,8 @@ import { RevenueAnalysisPanel } from "../components/dashboard/RevenueAnalysisPan
 import { DailyBulletin } from "../components/dashboard/DailyBulletin";
 import { getEnergyGreeting } from "../components/dashboard/energyGreeting";
 
+import "../components/dashboard/overview.css";
+
 type DashboardView = "overview" | "revenue";
 
 export default function DashboardTab() {
@@ -90,17 +92,17 @@ export default function DashboardTab() {
   });
 
   return (
-    <div className="mx-auto max-h-[85vh] max-w-7xl overflow-y-auto px-0.5 pb-4 text-left sm:pr-2" id="dashboard_tab_view">
-      <div className="mb-6 flex flex-col gap-4">
+    <div data-overview={activeView === "overview" ? "true" : undefined} className="mx-auto max-h-[85vh] max-w-7xl overflow-y-auto px-0.5 pb-4 text-left sm:pr-2" id="dashboard_tab_view">
+      <div className="mb-3 flex flex-col gap-3">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <div className="h-8 w-1.5 bg-cyan-600 rounded-full shrink-0" />
             <div>
-              <h1 className="font-extrabold text-xl md:text-2xl tracking-tight text-cyan-700 dark:text-cyan-400">
+              <h1 className="font-extrabold text-xl md:text-2xl tracking-tight text-cyan-700">
                 {greeting.greeting}, {userProfile?.displayName || "bạn"}!
               </h1>
-              <p className="text-xs text-slate-500 font-medium">Hôm nay, {todayLabel}</p>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{greeting.message}</p>
+              <p className="text-xs text-slate-700 font-medium">Hôm nay, {todayLabel}</p>
+              <p className="mt-1 text-sm text-slate-600">{greeting.message}</p>
             </div>
           </div>
         </div>
