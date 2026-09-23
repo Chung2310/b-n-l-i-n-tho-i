@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { RETAIL_PAYMENT_METHODS, RetailOrderModel } from "./retail-order.model";
+import { RetailAfterSaleModel } from "./retail-after-sale.model";
 import { RetailInvoiceModel } from "./retail-invoice.model";
 import { RetailIdempotencyModel } from "./retail-idempotency.model";
 import { RetailOrderCounterModel } from "./retail-order-counter.model";
@@ -45,4 +46,19 @@ test("order payment snapshots carry shift date tender and change", () => {
 test("stock logs expose retail references and unique partial idempotency", () => {
   for (const path of ["refType", "refId", "idempotencyKey"]) assert.ok(StockLogModel.schema.path(path));
   assert.ok(StockLogModel.schema.indexes().some(([keys, options]) => keys.companyCode === 1 && keys.idempotencyKey === 1 && options.unique === true));
+});
+
+
+test("payments and refunds validate without a sales shift", () => {
+  const doc = new RetailOrderModel({
+    companyCode: "ACME", branchId: "B1", businessDate: "2026-09-23",
+    subtotal: 100, orderDiscount: 0, taxRate: 0, taxAmount: 0, shippingFee: 0,
+    grandTotal: 100, totalCost: 50, createdBy: "u1", createdByName: "Cashier",
+    payments: [{ method: "cash", amount: 100, paidAt: new Date(), receivedBy: "u1", receivedByName: "Cashier", businessDate: "2026-09-23" }],
+    refunds: [{ method: "cash", amount: 100, refundedAt: new Date(), refundedBy: "u1", refundedByName: "Cashier", businessDate: "2026-09-23", reason: "Return" }],
+  });
+  const errors = doc.validateSync()?.errors || {};
+  assert.equal(errors["payments.0.shiftId"], undefined);
+  assert.equal(errors["refunds.0.shiftId"], undefined);
+  assert.equal(Boolean((RetailAfterSaleModel.schema.path("shiftId") as any).isRequired), false);
 });
