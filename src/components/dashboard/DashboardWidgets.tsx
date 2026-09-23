@@ -170,7 +170,7 @@ export function BarChart({ data = [] }: { data?: Array<{ label: string; value: n
     <div>
       <div className="mb-4 flex flex-wrap gap-4 text-xs font-semibold text-slate-600">
         <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-cyan-500" />Doanh thu</span>
-        <span className="inline-flex items-center gap-2"><span className="h-0.5 w-5 bg-orange-600" />Xu hướng doanh thu</span>
+        <span className="inline-flex items-center gap-2"><span className="h-px w-5 bg-blue-500" />Xu hướng doanh thu</span>
       </div>
       {data.length === 0 ? <p className="py-12 text-center text-sm text-slate-600">Chưa có dữ liệu doanh thu trong kỳ này.</p> : (
         <div className="relative h-[320px]">
@@ -193,13 +193,7 @@ export function BarChart({ data = [] }: { data?: Array<{ label: string; value: n
                 </rect>
               ))}
               <polyline points={points.map(point => `${point.x},${point.y}`).join(" ")}
-                fill="none" stroke="#ea580c" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-              {points.map((point, index) => (
-                <circle key={index} cx={point.x} cy={point.y} r="4" fill="#fff" stroke="#ea580c" strokeWidth="2" vectorEffect="non-scaling-stroke"
-                  tabIndex={0} aria-label={`${point.label}: ${point.value.toLocaleString("vi-VN")} ₫`}>
-                  <title>{point.label}: {point.value.toLocaleString("vi-VN")} ₫</title>
-                </circle>
-              ))}
+                fill="none" stroke="#3b82f6" strokeWidth="1.25" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             </svg>
           </div>
           <div className="absolute bottom-0 left-16 right-2 flex h-8">
