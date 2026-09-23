@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { BarChart } from "./DashboardWidgets";
 afterEach(cleanup);
@@ -26,4 +26,21 @@ describe("revenue combination chart", () => {
     expect(container.innerHTML).not.toContain("NaN");
     expect(container.innerHTML).not.toContain("Infinity");
   });
+});
+
+it("shows period and revenue on hover, tap and keyboard focus", () => {
+  render(<BarChart data={[{ label: "2026-09-22", value: 17000000 }, { label: "2026-09", value: 185400000 }, { label: "2026", value: 200000000 }]} />);
+  const buttons = screen.getAllByRole("button");
+  fireEvent.mouseEnter(buttons[0]);
+  expect(screen.getByRole("tooltip").textContent).toContain("22/09/2026");
+  expect(screen.getByRole("tooltip").textContent).toContain("17.000.000");
+  fireEvent.mouseLeave(buttons[0]);
+  expect(screen.queryByRole("tooltip")).toBeNull();
+  fireEvent.click(buttons[1]);
+  expect(screen.getByRole("tooltip").textContent).toContain("09/2026");
+  expect(screen.getByRole("tooltip").textContent).toContain("185.400.000");
+  fireEvent.focus(buttons[2]);
+  expect(screen.getByRole("tooltip").textContent).toContain("200.000.000");
+  fireEvent.keyDown(buttons[2], { key: "Escape" });
+  expect(screen.queryByRole("tooltip")).toBeNull();
 });

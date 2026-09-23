@@ -155,6 +155,14 @@ export function DonutCard({
 }
 
 export function BarChart({ data = [] }: { data?: Array<{ label: string; value: number }> }) {
+  const [activeLabel, setActiveLabel] = React.useState<string | null>(null);
+  const tooltipId = React.useId();
+  const activeItem = data.find(item => item.label === activeLabel);
+  const formatPeriod = (label: string) => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(label)) return label.split("-").reverse().join("/");
+    if (/^\d{4}-\d{2}$/.test(label)) return label.split("-").reverse().join("/");
+    return label;
+  };
   const rawMax = Math.max(...data.map(item => item.value), 0);
   const maxValue = rawMax || 1;
   const plotWidth = 1000;
@@ -173,7 +181,7 @@ export function BarChart({ data = [] }: { data?: Array<{ label: string; value: n
         <span className="inline-flex items-center gap-2"><span className="h-[0.75px] w-5 bg-[#b6cbe5]" />Xu hướng doanh thu</span>
       </div>
       {data.length === 0 ? <p className="py-12 text-center text-sm text-slate-600">Chưa có dữ liệu doanh thu trong kỳ này.</p> : (
-        <div className="relative h-[320px]">
+        <div className="relative h-[320px]" onPointerDown={() => setActiveLabel(null)} onKeyDown={event => { if (event.key === "Escape") setActiveLabel(null); }}>
           <div className="absolute bottom-10 left-0 right-0 top-3 flex flex-col justify-between text-[11px] font-semibold text-slate-600">
             {[rawMax, rawMax * 2 / 3, rawMax / 3, 0].map((value, index) => (
               <div key={index} className="flex h-0 items-center gap-2">
@@ -206,6 +214,24 @@ export function BarChart({ data = [] }: { data?: Array<{ label: string; value: n
               <polyline points={`0,${plotHeight} ${points.map(point => `${point.x},${point.y}`).join(" ")} ${plotWidth},${plotHeight}`}
                 fill="none" stroke="#b6cbe5" strokeWidth="0.75" strokeOpacity="0.85" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             </svg>
+            <div className="absolute inset-0 flex">
+              {data.map((item) => (
+                <button key={item.label} type="button"
+                  className="min-w-0 flex-1 cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-sky-500"
+                  aria-label={formatPeriod(item.label) + ': ' + item.value.toLocaleString('vi-VN') + ' ₫'}
+                  aria-describedby={activeLabel === item.label ? tooltipId : undefined}
+                  onPointerDown={event => event.stopPropagation()}
+                  onMouseEnter={() => setActiveLabel(item.label)}
+                  onMouseLeave={() => setActiveLabel(null)}
+                  onFocus={() => setActiveLabel(item.label)}
+                  onBlur={() => setActiveLabel(null)}
+                  onClick={() => setActiveLabel(item.label)} />
+              ))}
+            </div>
+            {activeItem && <div id={tooltipId} role="tooltip" className="pointer-events-none absolute right-0 top-0 z-10 max-w-full rounded-lg border border-[#d1d5db] bg-white px-3 py-2 text-xs text-slate-700 shadow-md">
+              <p className="font-semibold">{formatPeriod(activeItem.label)}</p>
+              <p className="mt-1 font-bold text-sky-700">Doanh thu: {activeItem.value.toLocaleString("vi-VN")} ₫</p>
+            </div>}
           </div>
           <div className="absolute bottom-0 left-16 right-2 flex h-8">
             {data.map((item, index) => (
