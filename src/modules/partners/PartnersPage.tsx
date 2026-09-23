@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import {
   Users,
   UserCheck,
@@ -794,58 +795,59 @@ function Statement({
 // ---------------------------------------------------------
 // COMMISSION POLICY EDITOR
 // ---------------------------------------------------------
-function PolicyEditor({ partners }: { partners: Partner[] }) {
-  const [items, setItems] = React.useState<any[]>([]);
-  const [config, setConfig] = React.useState<any>({
-    phoneAmount: 200000,
-    accessoryBps: 1000,
-    repairBps: 1000,
-    rules: [],
-  });
-  const [partnerId, setPartnerId] = React.useState("");
+function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner[]; initial: any; onClose: () => void; onSaved: () => void }) {
+  const [config, setConfig] = React.useState<any>(() => initial?.config ? structuredClone(initial.config) : { phoneAmount: 200000, accessoryBps: 1000, repairBps: 1000, rules: [] });
+  const [partnerId, setPartnerId] = React.useState(initial?.partnerId || "");
   const [effectiveAt, setEffectiveAt] = React.useState("");
   const [message, setMessage] = React.useState("");
   const [busy, setBusy] = React.useState(false);
-
-  const load = () =>
-    partnerRequest("/policies")
-      .then((data) => setItems(data.items))
-      .catch((e) => setMessage(e.message));
-
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  const busyRef = React.useRef(false);
+  busyRef.current = busy;
+  const closeRef = React.useRef(onClose);
+  closeRef.current = onClose;
   React.useEffect(() => {
-    void load();
+    const previous = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    dialogRef.current?.focus();
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busyRef.current) { event.preventDefault(); closeRef.current(); }
+      if (event.key !== "Tab") return;
+      const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled)') || []);
+      const first = controls[0], last = controls[controls.length - 1];
+      if (!first) { event.preventDefault(); return; }
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialogRef.current)) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", keydown);
+    return () => { document.body.style.overflow = overflow; document.removeEventListener("keydown", keydown); previous?.focus(); };
   }, []);
-
-  const save = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy(true); setMessage("");
     try {
-      await partnerRequest("/policies", "POST", {
-        partnerId,
-        ...(effectiveAt ? { effectiveAt: new Date(effectiveAt).toISOString() } : {}),
-        config,
-      });
-      setMessage("Đã tạo phiên bản chính sách mới.");
-      await load();
-    } catch (e) {
-      setMessage((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
+      await partnerRequest("/policies", "POST", { partnerId, ...(effectiveAt ? { effectiveAt: new Date(effectiveAt).toISOString() } : {}), config });
+      onSaved();
+    } catch (error) { setMessage((error as Error).message); }
+    finally { busyRef.current = false; setBusy(false); }
   };
-
-  return (
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Tạo chính sách hoa hồng" className="relative max-h-[90dvh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl outline-none dark:bg-slate-900">
+        <button type="button" aria-label="Đóng popup chính sách" disabled={busy} onClick={onClose} className="absolute right-4 top-4 rounded-lg p-2 text-slate-400 hover:bg-slate-100 disabled:opacity-50"><X className="h-5 w-5" /></button>
     <form
       onSubmit={save}
       className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900"
     >
-      <div className="flex items-center gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
+      <div className="flex items-center gap-3 border-b border-slate-100 pb-4 pr-8 dark:border-slate-800">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-400">
           <SlidersHorizontal className="h-5 w-5" />
         </div>
         <div>
           <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-            Chính sách hoa hồng
+            Tạo chính sách hoa hồng
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Mỗi lần lưu tạo phiên bản mới. Quy tắc SKU ưu tiên hơn nhóm hàng. Cần khai báo nhóm/SKU cho mọi hàng bán có gắn CTV.
@@ -855,14 +857,15 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
 
       {message && (
         <div
-          role="status"
+          role="alert"
           className="flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-700 dark:border-cyan-900/40 dark:bg-cyan-950/30 dark:text-cyan-300"
         >
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{message}</span>
         </div>
       )}
 
+      <fieldset disabled={busy} className="space-y-6 border-0 p-0">
       {/* Scope and Base Settings */}
       <div>
         <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -1103,53 +1106,49 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
         </div>
       </div>
 
-      {/* Version History */}
-      <div className="border-t border-slate-100 pt-5 dark:border-slate-800">
-        <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
-          Phiên bản gần đây
-        </h3>
-        <div className="space-y-2">
-          {items.map((p) => (
-            <div
-              key={p._id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/50 p-3 text-xs dark:border-slate-800/80 dark:bg-slate-800/20"
-            >
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                  {p.partnerId
-                    ? partners.find((x) => x._id === p.partnerId)?.name || p.partnerId
-                    : "Toàn công ty"}
-                </span>
-                <span className="text-slate-400">·</span>
-                <span className="text-slate-500">
-                  {new Date(p.effectiveAt).toLocaleString("vi-VN")}
-                </span>
-                <span className="text-slate-400">·</span>
-                <span className="rounded-md bg-slate-200/70 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-300">
-                  {p.config?.rules?.length || 0} quy tắc
-                </span>
-              </div>
-              <button
-                type="button"
-                className="flex items-center gap-1 font-semibold text-cyan-600 hover:text-cyan-700 dark:text-cyan-400 cursor-pointer"
-                onClick={() => {
-                  setConfig(structuredClone(p.config));
-                  setPartnerId(p.partnerId || "");
-                  setEffectiveAt("");
-                }}
-              >
-                <Copy className="h-3.5 w-3.5" />
-                Sao chép cấu hình
-              </button>
-            </div>
-          ))}
-          {items.length === 0 && (
-            <p className="text-xs text-slate-400 italic">Chưa có phiên bản nào được ghi nhận.</p>
-          )}
-        </div>
-      </div>
+
+      </fieldset>
+      <div className="flex justify-end border-t border-slate-100 pt-4"><button type="button" onClick={onClose} disabled={busy} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 disabled:opacity-50">Hủy</button></div>
     </form>
+      </div>
+    </div>, document.body
   );
+}
+
+function PolicyEditor({ partners }: { partners: Partner[] }) {
+  const [items, setItems] = React.useState<any[]>([]);
+  const [draft, setDraft] = React.useState<any | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState("");
+  const [message, setMessage] = React.useState("");
+  const [revision, setRevision] = React.useState(0);
+  React.useEffect(() => {
+    let active = true; setLoading(true); setError("");
+    partnerRequest("/policies").then(data => { if (active) setItems(data.items); })
+      .catch(cause => { if (active) setError(cause.message); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [revision]);
+  return <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div><h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Chính sách hoa hồng</h2><p className="mt-1 text-xs text-slate-500">Danh sách phiên bản chính sách áp dụng cho công ty và từng cộng tác viên.</p></div>
+      <button type="button" onClick={() => { setDraft({}); setMessage(""); }} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-sky-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:from-cyan-500 hover:to-sky-500"><Plus className="h-4 w-4" />Tạo mới</button>
+    </div>
+    {message && <p role="status" className="rounded-xl bg-cyan-50 p-3 text-sm text-cyan-700">{message}</p>}
+    {error ? <div role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}<button type="button" onClick={() => setRevision(value => value + 1)} className="ml-3 font-semibold underline">Thử lại</button></div> : loading ? <p role="status" className="py-8 text-center text-sm text-slate-500">Đang tải chính sách...</p> : items.length === 0 ? <p className="rounded-xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">Chưa có chính sách. Chọn “Tạo mới” để thêm chính sách hoa hồng.</p> : <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+      <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs text-slate-500 dark:bg-slate-800"><tr>{["Áp dụng cho", "Hiệu lực từ", "Điện thoại / máy", "Phụ kiện", "Công sửa chữa", "Quy tắc riêng", "Thao tác"].map(label => <th key={label} className="whitespace-nowrap px-4 py-3 font-semibold">{label}</th>)}</tr></thead>
+      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">{items.map(policy => <tr key={policy._id} className="text-slate-700 dark:text-slate-300">
+        <td className="px-4 py-3 font-semibold">{policy.partnerId ? partners.find(partner => partner._id === policy.partnerId)?.name || policy.partnerId : "Toàn công ty"}</td>
+        <td className="whitespace-nowrap px-4 py-3">{new Date(policy.effectiveAt).toLocaleString("vi-VN")}</td>
+        <td className="whitespace-nowrap px-4 py-3">{money(policy.config?.phoneAmount)}</td>
+        <td className="px-4 py-3">{(policy.config?.accessoryBps || 0) / 100}%</td>
+        <td className="px-4 py-3">{(policy.config?.repairBps || 0) / 100}%</td>
+        <td className="px-4 py-3">{policy.config?.rules?.length || 0}</td>
+        <td className="px-4 py-3"><button type="button" onClick={() => { setDraft(policy); setMessage(""); }} className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold text-cyan-600 hover:text-cyan-500"><Copy className="h-3.5 w-3.5" />Sao chép cấu hình</button></td>
+      </tr>)}</tbody></table>
+    </div>}
+    {draft && <PolicyForm partners={partners} initial={draft} onClose={() => setDraft(null)} onSaved={() => { setDraft(null); setMessage("Đã tạo phiên bản chính sách mới."); setRevision(value => value + 1); }} />}
+  </section>;
 }
 
 // ---------------------------------------------------------

@@ -61,7 +61,7 @@ function buildHeaders(apiKey: string): Record<string, string> {
     "Content-Type": "application/json",
     Authorization: `Bearer ${apiKey}`,
     "HTTP-Referer": process.env.APP_URL || "https://igen-erp.app",
-    "X-Title": "Igen ERP",
+    "X-Title": "Anh Khoa Mobile",
   };
 }
 
@@ -245,13 +245,13 @@ export async function openrouterGenerateImage(params: OpenRouterImageParams): Pr
 
   // Map aspect ratio string → pixel dimensions để nhúng vào prompt và image_generation_config
   const ASPECT_RATIO_MAP: Record<string, { width: number; height: number }> = {
-    "1:1":  { width: 1024, height: 1024 },
+    "1:1": { width: 1024, height: 1024 },
     "16:9": { width: 1344, height: 768 },
-    "9:16": { width: 768,  height: 1344 },
-    "4:3":  { width: 1152, height: 864 },
-    "3:4":  { width: 864,  height: 1152 },
-    "3:2":  { width: 1216, height: 832 },
-    "2:3":  { width: 832,  height: 1216 },
+    "9:16": { width: 768, height: 1344 },
+    "4:3": { width: 1152, height: 864 },
+    "3:4": { width: 864, height: 1152 },
+    "3:2": { width: 1216, height: 832 },
+    "2:3": { width: 832, height: 1216 },
   };
   const ratioKey = params.aspectRatio || "1:1";
   const dimensions = ASPECT_RATIO_MAP[ratioKey] || ASPECT_RATIO_MAP["1:1"];

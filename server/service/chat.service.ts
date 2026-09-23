@@ -55,7 +55,7 @@ export const chatService = {
         senderId: CHATBOT_SENDER_ID,
         senderName: "Trợ lý AI",
         senderPhoto: "ai-avatar",
-        content: `Chào bạn! Tôi là trợ lý ảo AI của hệ thống iGen ERP.
+        content: `Chào bạn! Tôi là trợ lý ảo AI của hệ thống Anh Khoa Mobile.
 
 Tôi có thể giúp bạn tra cứu nhanh dữ liệu doanh nghiệp:
 - Khách hàng (CRM) — pipeline, trạng thái, giá trị cơ hội.
@@ -138,7 +138,7 @@ Bạn cần tôi hỗ trợ thông tin gì hôm nay?`,
       if (aPinned !== bPinned) {
         return bPinned - aPinned;
       }
-      
+
       const aTime = new Date(a.updatedAt).getTime();
       const bTime = new Date(b.updatedAt).getTime();
       return bTime - aTime;

@@ -1,4 +1,4 @@
-export const BRAND_NAME = "iGen ERP";
+export const BRAND_NAME = "Anh Khoa Mobile";
 export const BRAND_TAGLINE = "Enterprise Hub";
 export const SERVICE_WEBSITE_URL = "https://erp.igentechsolutions.com";
 export const SUPPORT_EMAIL = "igen.work99@gmail.com";

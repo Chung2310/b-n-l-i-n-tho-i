@@ -174,7 +174,7 @@ function AppContent() {
   if (loading) {
     return (
       <>
-        <SEOHead meta={{ ...AUTH_SEO, title: "Đang tải hệ thống iGen ERP", path: "/khoi-tao-he-thong" }} />
+        <SEOHead meta={{ ...AUTH_SEO, title: "Đang tải hệ thống Anh Khoa Mobile", path: "/khoi-tao-he-thong" }} />
         <div className="relative flex h-screen w-screen flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-[#f6f8fd] via-[#eef2f7] to-[#e3ecf5] text-center font-sans">
           <div className="pointer-events-none absolute left-[-10%] top-[-10%] h-[600px] w-[600px] rounded-full bg-blue-400/5 blur-[120px]" />
           <div className="pointer-events-none absolute bottom-[-10%] right-[-10%] h-[600px] w-[600px] rounded-full bg-indigo-400/5 blur-[120px]" />
@@ -239,9 +239,8 @@ function AppContent() {
         />
 
         <main
-          className={`min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-surface ${
-            activeTab === "TRÒ CHUYỆN" ? "p-0 sm:p-6" : "p-3 sm:p-6"
-          }`}
+          className={`min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-surface ${activeTab === "TRÒ CHUYỆN" ? "p-0 sm:p-6" : "p-3 sm:p-6"
+            }`}
           id="primary_page_container"
         >
           <AppRouterView activeTab={resolvedActiveTab} userProfile={userProfile} />

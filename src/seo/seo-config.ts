@@ -25,9 +25,9 @@ export function buildDocumentTitle(title: string) {
 export const DEFAULT_SEO: SeoMeta = {
   title: "Nền tảng quản trị doanh nghiệp tích hợp AI",
   description:
-    "iGen ERP là nền tảng quản trị doanh nghiệp tích hợp AI thế hệ mới, hỗ trợ quản lý kho vận, nhân sự, tiếp thị tự động, quản lý khách hàng đa kênh và tối ưu hiệu suất vận hành doanh nghiệp.",
+    "Anh Khoa Mobile là nền tảng quản trị doanh nghiệp tích hợp AI thế hệ mới, hỗ trợ quản lý kho vận, nhân sự, tiếp thị tự động, quản lý khách hàng đa kênh và tối ưu hiệu suất vận hành doanh nghiệp.",
   keywords:
-    "iGen ERP, ERP tích hợp AI, phần mềm quản trị doanh nghiệp, quản lý nhân sự HRM, quản lý kho thông minh, marketing AI, sales CRM đa kênh, tối ưu vận hành",
+    "Anh Khoa Mobile, ERP tích hợp AI, phần mềm quản trị doanh nghiệp, quản lý nhân sự HRM, quản lý kho thông minh, marketing AI, sales CRM đa kênh, tối ưu vận hành",
   path: "/",
   image: SEO_DEFAULT_IMAGE,
   robots: "index, follow",
@@ -39,9 +39,9 @@ export const DEFAULT_SEO: SeoMeta = {
 export const AUTH_SEO: SeoMeta = {
   title: "Đăng nhập - Quản trị doanh nghiệp thông minh",
   description:
-    "Đăng nhập vào iGen ERP để quản lý vận hành, nhân sự, kho, tiếp thị và khách hàng trên một nền tảng doanh nghiệp tích hợp AI.",
+    "Đăng nhập vào Anh Khoa Mobile để quản lý vận hành, nhân sự, kho, tiếp thị và khách hàng trên một nền tảng doanh nghiệp tích hợp AI.",
   keywords:
-    "đăng nhập iGen ERP, hệ thống ERP doanh nghiệp, cổng quản trị AI, phần mềm ERP",
+    "đăng nhập Anh Khoa Mobile, hệ thống ERP doanh nghiệp, cổng quản trị AI, phần mềm ERP",
   path: "/dang-nhap",
   image: SEO_DEFAULT_IMAGE,
   robots: "noindex, nofollow",
@@ -52,8 +52,8 @@ export const AUTH_SEO: SeoMeta = {
 
 export const PRIVACY_SEO: SeoMeta = {
   title: "Chính sách bảo mật",
-  description: "Chính sách bảo mật thông tin người dùng và dữ liệu của iGen ERP.",
-  keywords: "chính sách bảo mật, bảo mật dữ liệu, igen erp",
+  description: "Chính sách bảo mật thông tin người dùng và dữ liệu của Anh Khoa Mobile.",
+  keywords: "chính sách bảo mật, bảo mật dữ liệu, Anh Khoa Mobile",
   path: "/privacy-policy",
   image: SEO_DEFAULT_IMAGE,
   robots: "index, follow",
@@ -64,8 +64,8 @@ export const PRIVACY_SEO: SeoMeta = {
 
 export const TERMS_SEO: SeoMeta = {
   title: "Điều khoản dịch vụ",
-  description: "Điều khoản dịch vụ và thỏa thuận sử dụng phần mềm quản trị doanh nghiệp iGen ERP.",
-  keywords: "điều khoản dịch vụ, thoả thuận sử dụng, igen erp",
+  description: "Điều khoản dịch vụ và thỏa thuận sử dụng phần mềm quản trị doanh nghiệp Anh Khoa Mobile.",
+  keywords: "điều khoản dịch vụ, thoả thuận sử dụng, Anh Khoa Mobile",
   path: "/terms-of-service",
   image: SEO_DEFAULT_IMAGE,
   robots: "index, follow",
@@ -76,8 +76,8 @@ export const TERMS_SEO: SeoMeta = {
 
 export const DELETION_SEO: SeoMeta = {
   title: "Yêu cầu xóa dữ liệu người dùng",
-  description: "Hướng dẫn xóa dữ liệu người dùng và tra cứu trạng thái yêu cầu xóa thông tin trên hệ thống iGen ERP.",
-  keywords: "xóa dữ liệu người dùng, bảo mật dữ liệu, user data deletion, igen erp",
+  description: "Hướng dẫn xóa dữ liệu người dùng và tra cứu trạng thái yêu cầu xóa thông tin trên hệ thống Anh Khoa Mobile.",
+  keywords: "xóa dữ liệu người dùng, bảo mật dữ liệu, user data deletion, Anh Khoa Mobile",
   path: "/user-data-deletion",
   image: SEO_DEFAULT_IMAGE,
   robots: "index, follow",
@@ -90,9 +90,9 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "TỔNG QUAN": {
     title: "Tổng quan doanh nghiệp - Dashboard điều hành thông minh",
     description:
-      "Báo cáo tổng quan hiệu suất kinh doanh, doanh thu bán hàng, tiến độ công việc và phân tích vận hành doanh nghiệp tự động với AI trên iGen ERP.",
+      "Báo cáo tổng quan hiệu suất kinh doanh, doanh thu bán hàng, tiến độ công việc và phân tích vận hành doanh nghiệp tự động với AI trên Anh Khoa Mobile.",
     keywords:
-      "dashboard doanh nghiệp, tổng quan ERP, báo cáo điều hành, dashboard AI, iGen ERP, doanh thu erp",
+      "dashboard doanh nghiệp, tổng quan ERP, báo cáo điều hành, dashboard AI, Anh Khoa Mobile, doanh thu erp",
     path: "/tong-quan",
     priority: "0.9",
     changeFrequency: "daily",
@@ -100,7 +100,7 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "NHÂN SỰ": {
     title: "Quản lý nhân sự HRM - Sơ đồ tổ chức, KPI và Đào tạo",
     description:
-      "Giải pháp HRM toàn diện trên iGen ERP giúp quản lý hồ sơ nhân sự, vẽ sơ đồ tổ chức tự động, thiết lập KPI và số hóa tài liệu đào tạo nội bộ.",
+      "Giải pháp HRM toàn diện trên Anh Khoa Mobile giúp quản lý hồ sơ nhân sự, vẽ sơ đồ tổ chức tự động, thiết lập KPI và số hóa tài liệu đào tạo nội bộ.",
     keywords:
       "quản lý nhân sự, HRM, KPI nhân viên, đào tạo nội bộ, sơ đồ tổ chức, ERP nhân sự, sơ đồ báo cáo",
     path: "/nhan-su",
@@ -120,9 +120,9 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "QUẢN LÝ TÀI NGUYÊN": {
     title: "Quản lý tài nguyên - Lưu trữ và đồng bộ Google Drive",
     description:
-      "Không gian quản lý tài nguyên, tài liệu nội bộ và liên kết đồng bộ trực tiếp với tài khoản Google Drive cá nhân của nhân viên trên iGen ERP.",
+      "Không gian quản lý tài nguyên, tài liệu nội bộ và liên kết đồng bộ trực tiếp với tài khoản Google Drive cá nhân của nhân viên trên Anh Khoa Mobile.",
     keywords:
-      "quản lý tài nguyên, lưu trữ tài liệu, google drive erp, đồng bộ google drive, thư mục tài nguyên, igen erp",
+      "quản lý tài nguyên, lưu trữ tài liệu, google drive erp, đồng bộ google drive, thư mục tài nguyên, Anh Khoa Mobile",
     path: "/quan-ly-tai-nguyen",
     priority: "0.8",
     changeFrequency: "weekly",
@@ -130,9 +130,9 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "TRÒ CHUYỆN": {
     title: "Trò chuyện nội bộ - Trực quan, Thời gian thực",
     description:
-      "Trực tiếp trao đổi công việc, trò chuyện 1-1 hoặc tạo phòng chat nhóm giữa các tài khoản nhân viên trong doanh nghiệp tại iGen ERP.",
+      "Trực tiếp trao đổi công việc, trò chuyện 1-1 hoặc tạo phòng chat nhóm giữa các tài khoản nhân viên trong doanh nghiệp tại Anh Khoa Mobile.",
     keywords:
-      "chat nội bộ, chat nhóm, chat 1-1, trò chuyện nội bộ, nhắn tin realtime, socket.io chat, igen erp",
+      "chat nội bộ, chat nhóm, chat 1-1, trò chuyện nội bộ, nhắn tin realtime, socket.io chat, Anh Khoa Mobile",
     path: "/tro-chuyen",
     priority: "0.7",
     changeFrequency: "weekly",
@@ -140,7 +140,7 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "QUẢN LÝ KHÁCH HÀNG": {
     title: "Quản lý khách hàng - Hồ sơ, chăm sóc và lịch sử tương tác",
     description:
-      "Phân khu quản lý khách hàng trong iGen ERP giúp doanh nghiệp lưu trữ hồ sơ khách hàng, theo dõi lịch sử tương tác và tối ưu hoạt động chăm sóc khách hàng.",
+      "Phân khu quản lý khách hàng trong Anh Khoa Mobile giúp doanh nghiệp lưu trữ hồ sơ khách hàng, theo dõi lịch sử tương tác và tối ưu hoạt động chăm sóc khách hàng.",
     keywords:
       "quản lý khách hàng, CRM, chăm sóc khách hàng, hồ sơ khách hàng, lịch sử tương tác, ERP dịch vụ",
     path: "/quan-ly-khach-hang",
@@ -150,7 +150,7 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "QUẢN LÝ ỨNG VIÊN": {
     title: "Quản lý ứng viên - Tuyển dụng, hồ sơ và quy trình phỏng vấn",
     description:
-      "Phân khu quản lý ứng viên trong iGen ERP giúp doanh nghiệp tập trung hồ sơ ứng viên, theo dõi các vòng tuyển dụng và quản lý lịch phỏng vấn hiệu quả.",
+      "Phân khu quản lý ứng viên trong Anh Khoa Mobile giúp doanh nghiệp tập trung hồ sơ ứng viên, theo dõi các vòng tuyển dụng và quản lý lịch phỏng vấn hiệu quả.",
     keywords:
       "quản lý ứng viên, tuyển dụng, hồ sơ ứng viên, lịch phỏng vấn, quy trình tuyển dụng, ERP tuyển dụng",
     path: "/quan-ly-ung-vien",
@@ -160,9 +160,9 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "BÁN LẺ": {
     title: "Bán lẻ & POS - Quản lý bán hàng tại quầy",
     description:
-      "Phân hệ bán lẻ trên iGen ERP hỗ trợ quản lý khách hàng, cấu hình bán hàng tại quầy và vận hành POS theo chi nhánh.",
+      "Phân hệ bán lẻ trên Anh Khoa Mobile hỗ trợ quản lý khách hàng, cấu hình bán hàng tại quầy và vận hành POS theo chi nhánh.",
     keywords:
-      "bán lẻ, POS, quản lý bán hàng, khách hàng bán lẻ, ERP bán lẻ, iGen ERP",
+      "bán lẻ, POS, quản lý bán hàng, khách hàng bán lẻ, ERP bán lẻ, Anh Khoa Mobile",
     path: "/ban-le",
     robots: "noindex, nofollow",
     priority: "0.2",
@@ -172,9 +172,9 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "TÀI CHÍNH": {
     title: "Tài chính - Quản lý công nợ và nhắc nợ",
     description:
-      "Phân hệ tài chính trên iGen ERP hỗ trợ theo dõi công nợ phải thu, ghi nhận thanh toán và quản lý lịch nhắc nợ theo chi nhánh.",
+      "Phân hệ tài chính trên Anh Khoa Mobile hỗ trợ theo dõi công nợ phải thu, ghi nhận thanh toán và quản lý lịch nhắc nợ theo chi nhánh.",
     keywords:
-      "quản lý công nợ, công nợ phải thu, nhắc nợ, thanh toán, ERP tài chính, iGen ERP",
+      "quản lý công nợ, công nợ phải thu, nhắc nợ, thanh toán, ERP tài chính, Anh Khoa Mobile",
     path: "/tai-chinh",
     robots: "noindex, nofollow",
     priority: "0.2",
@@ -218,7 +218,7 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
     description:
       "Hệ thống quản lý quy trình tiếp nhận, kiểm tra, báo giá, sửa chữa, bàn giao thiết bị bảo hành chuyên nghiệp tích hợp AI.",
     keywords:
-      "sửa chữa bảo hành, quản lý sửa chữa, phiếu bảo hành, tra cứu IMEI, bảo hành thiết bị, igen erp",
+      "sửa chữa bảo hành, quản lý sửa chữa, phiếu bảo hành, tra cứu IMEI, bảo hành thiết bị, Anh Khoa Mobile",
     path: "/sua-chua-bao-hanh",
     robots: "noindex, nofollow",
     priority: "0.5",
@@ -227,7 +227,7 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "TÀI NGUYÊN": {
     title: "Tài nguyên - Quản lý tài liệu & Drive nội bộ",
     description:
-      "Lưu trữ và quản lý tài liệu nội bộ, kết nối Google Drive và chia sẻ tài nguyên doanh nghiệp tập trung trên iGen ERP.",
+      "Lưu trữ và quản lý tài liệu nội bộ, kết nối Google Drive và chia sẻ tài nguyên doanh nghiệp tập trung trên Anh Khoa Mobile.",
     keywords:
       "tài liệu nội bộ, google drive, quản lý tài nguyên, lưu trữ doanh nghiệp, tài nguyên ERP",
     path: "/tai-nguyen",
@@ -238,9 +238,9 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "HƯỚNG DẪN": {
     title: "Hướng dẫn sử dụng - Cẩm nang thao tác hệ thống",
     description:
-      "Hướng dẫn sử dụng chi tiết từng phân hệ trong iGen ERP bằng ngôn ngữ giản dị, trực quan dành cho người dùng không chuyên.",
+      "Hướng dẫn sử dụng chi tiết từng phân hệ trong Anh Khoa Mobile bằng ngôn ngữ giản dị, trực quan dành cho người dùng không chuyên.",
     keywords:
-      "hướng dẫn sử dụng, cẩm nang erp, tài liệu hướng dẫn, igen erp, hỗ trợ sử dụng",
+      "hướng dẫn sử dụng, cẩm nang erp, tài liệu hướng dẫn, Anh Khoa Mobile, hỗ trợ sử dụng",
     path: "/huong-dan",
     robots: "noindex, nofollow",
     priority: "0.5",
