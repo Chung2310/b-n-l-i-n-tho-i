@@ -192,7 +192,7 @@ export function BarChart({ data = [] }: { data?: Array<{ label: string; value: n
                   <title>{point.label}: {point.value.toLocaleString("vi-VN")} ₫</title>
                 </rect>
               ))}
-              <polyline points={points.map(point => `${point.x},${point.y}`).join(" ")}
+              <polyline points={`0,${plotHeight} ${points.map(point => `${point.x},${point.y}`).join(" ")} ${plotWidth},${plotHeight}`}
                 fill="none" stroke="#3b82f6" strokeWidth="0.75" strokeOpacity="0.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             </svg>
           </div>
