@@ -92,7 +92,7 @@ export default function DashboardTab() {
   });
 
   return (
-    <div data-overview={activeView === "overview" ? "true" : undefined} className="mx-auto max-h-[85vh] max-w-7xl overflow-y-auto px-0.5 pb-4 text-left sm:pr-2" id="dashboard_tab_view">
+    <div data-overview={activeView === "overview" ? "true" : undefined} className="w-full min-w-0 max-h-[85vh] overflow-y-auto px-0.5 pb-4 text-left sm:pr-2" id="dashboard_tab_view">
       <div className="mb-3 flex flex-col gap-3">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
