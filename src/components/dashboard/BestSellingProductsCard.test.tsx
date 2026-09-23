@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { ApiClientError } from "../../services/apiClientError";
 import { BestSellingProductsCard, buildProductSegments } from "./BestSellingProductsCard";
 const mocks = vi.hoisted(() => ({ summary: vi.fn(), scope: { companyCode: "C1", branchId: "B1" } }));
 vi.mock("../../modules/retail/api/retailReports.api", () => ({ retailReportsApi: { summary: mocks.summary } }));
@@ -39,5 +40,16 @@ it("shows errors and empty data without a fabricated chart", async () => {
  mocks.summary.mockResolvedValue({ products: [] });
  rerender(<BestSellingProductsCard filter="quarter" />);
  await waitFor(() => expect(screen.getByText("Chưa có doanh thu sản phẩm trong kỳ này.")).toBeTruthy());
+ expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("preserves API error details and supports retry", async () => {
+ mocks.summary.mockRejectedValueOnce(new ApiClientError({ status: 403, code: "DENIED", message: "Không có quyền báo cáo" }))
+   .mockResolvedValueOnce({ products: [product(1, 100)] });
+ render(<BestSellingProductsCard filter="month" />);
+ await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("403"));
+ expect(screen.getByRole("alert").textContent).toContain("Không có quyền báo cáo");
+ fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+ await waitFor(() => expect(screen.getByText("Product 1 (SKU1)")).toBeTruthy());
  expect(screen.queryByRole("alert")).toBeNull();
 });
