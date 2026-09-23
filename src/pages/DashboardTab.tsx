@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState } from "react";
-import { LayoutDashboard, TrendingUp } from "lucide-react";
+import { LayoutDashboard, TrendingUp, Sun, Moon } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useBranch } from "../context/BranchContext";
 import { isModuleEnabled } from "../config/modules";
@@ -33,7 +33,8 @@ export default function DashboardTab() {
   const bulletinError = bulletinResult?.key === bulletinKey && bulletinResult.error;
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const timer = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(timer); }, []);
-  const greeting = getEnergyGreeting(Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: "Asia/Ho_Chi_Minh" }).format(now)));
+  const greetingHour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: "Asia/Ho_Chi_Minh" }).format(now));
+  const greeting = getEnergyGreeting(greetingHour);
 
   // Poll summary data
   useEffect(() => {
@@ -98,8 +99,13 @@ export default function DashboardTab() {
           <div className="flex items-center gap-3">
             <div className="h-8 w-1.5 bg-cyan-600 rounded-full shrink-0" />
             <div>
-              <h1 className="font-extrabold text-xl md:text-2xl tracking-tight text-cyan-700">
+              <h1 className="flex items-center gap-2 font-extrabold text-xl md:text-2xl tracking-tight text-cyan-700">
+                {greetingHour >= 18
+                  ? <Moon aria-hidden="true" className="h-6 w-6 shrink-0 text-indigo-500" />
+                  : <Sun aria-hidden="true" className="h-6 w-6 shrink-0 text-amber-500" />}
+                <span>
                 {greeting.greeting}, {userProfile?.displayName || "bạn"}!
+                </span>
               </h1>
               <p className="text-xs text-slate-700 font-medium">Hôm nay, {todayLabel}</p>
               <p className="mt-1 text-sm text-slate-600">{greeting.message}</p>
