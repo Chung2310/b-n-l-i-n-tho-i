@@ -94,6 +94,9 @@ export function DonutCard({
   centerLabel?: string;
   centerValue?: string;
 }) {
+  const [hoveredLabel, setHoveredLabel] = React.useState<string | null>(null);
+  const tooltipId = React.useId();
+  const activeSegment = segments?.find(segment => segment.label === hoveredLabel);
   const radius = 66;
   const circumference = 2 * Math.PI * radius;
 
@@ -122,6 +125,16 @@ export function DonutCard({
               const circle = (
                 <circle
                   key={segment.label}
+                  tabIndex={segments?.length ? 0 : undefined}
+                  aria-label={`${segment.label}: ${segment.display || `${segment.value}%`}`}
+                  aria-describedby={activeSegment?.label === segment.label ? tooltipId : undefined}
+                  className="cursor-pointer"
+                  onMouseEnter={() => setHoveredLabel(segment.label)}
+                  onMouseLeave={() => setHoveredLabel(null)}
+                  onFocus={() => setHoveredLabel(segment.label)}
+                  onBlur={() => setHoveredLabel(null)}
+                  onClick={() => setHoveredLabel(segment.label)}
+                  onKeyDown={event => { if (event.key === "Escape") setHoveredLabel(null); }}
                   cx="90"
                   cy="90"
                   r={radius}
@@ -139,10 +152,14 @@ export function DonutCard({
               return circle;
             })}
           </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
             <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">{centerLabel}</span>
             <strong className="font-sans text-xl font-extrabold text-gray-800">{localCenterValue}</strong>
           </div>
+          {activeSegment && <div id={tooltipId} role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 max-w-[75vw] -translate-x-1/2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[11px] leading-relaxed text-slate-700 shadow-md">
+            <p className="break-words font-semibold"><span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: activeSegment.color }} />{activeSegment.label}</p>
+            <p>{activeSegment.display || `${activeSegment.value}%`}</p>
+          </div>}
         </div>
         <div className="w-full space-y-2.5 text-xs border-t border-slate-100/85 pt-4">
           {localSegments.map((segment) => (
