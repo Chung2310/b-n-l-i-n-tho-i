@@ -24,6 +24,7 @@ import { ProductCatalogV2Section } from "../components/inventory/ProductCatalogV
 import { WarehouseSection } from "../components/inventory/WarehouseSection";
 import { ReceivingSection } from "../components/inventory/ReceivingSection";
 import { SerialRegistrySection } from "../components/inventory/SerialRegistrySection";
+import { OutboundSection } from "../components/inventory/OutboundSection";
 
 // Lazy-loaded subcomponents
 const AiForecastPanel = lazy(() =>
@@ -671,28 +672,26 @@ export default function InventoryTab() {
           <button type="button" aria-label="Cuộn tab kho sang trái" onClick={() => scrollSubTabs("left")} className="flex h-6 w-5 shrink-0 items-center justify-center text-slate-400 transition-colors hover:text-slate-700 sm:hidden"><ChevronLeft className="h-4 w-4" /></button>
           <div ref={subTabsRef} className="flex min-w-0 flex-1 gap-1 overflow-x-auto select-none">
             {[
-              { id: "SẢN PHẨM", label: "Sản phẩm", icon: Package },
-              { id: "KHO HÀNG", label: "Kho hàng", icon: FolderTree },
-              { id: "NHẬP HÀNG", label: "Nhập hàng", icon: ArrowDownRight },
-              { id: "IMEI / SERIAL", label: "IMEI / Serial", icon: Package },
-              { id: "XUẤT HÀNG", label: "Xuất hàng", icon: ArrowUpRight },
-              { id: "GIAO DỊCH KHO", label: "Giao dịch kho", icon: ArrowLeftRight },
-              { id: "DỰ BÁO", label: "Dự báo", icon: Sparkles },
+              { id: "SẢN PHẨM", label: "Sản phẩm" },
+              { id: "KHO HÀNG", label: "Kho hàng" },
+              { id: "NHẬP HÀNG", label: "Nhập hàng" },
+              { id: "IMEI / SERIAL", label: "IMEI / Serial" },
+              { id: "XUẤT HÀNG", label: "Xuất hàng" },
+              { id: "GIAO DỊCH KHO", label: "Giao dịch kho" },
+              { id: "DỰ BÁO", label: "Dự báo" },
             ].map((tab) => {
               const isActive = subTab === tab.id;
-              const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setSubTab(tab.id as InventorySubTabType)}
-                  className={`flex items-center gap-2 px-3.5 py-2.5 font-semibold text-xs transition-all cursor-pointer shrink-0 rounded-xl ${
+                  className={`px-3.5 py-1.5 font-bold text-xs transition-all cursor-pointer shrink-0 rounded-lg ${
                     isActive
-                      ? "bg-cyan-600 text-white font-bold shadow-xs"
-                      : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                      ? "bg-cyan-700 text-white shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                   }`}
                 >
-                  <Icon className={`h-4 w-4 ${isActive ? "text-white" : "text-slate-400"}`} />
-                  <span>{tab.label}</span>
+                  {tab.label}
                 </button>
               );
             })}
@@ -892,28 +891,30 @@ export default function InventoryTab() {
             </>
           )}
           {subTab === "XUẤT HÀNG" && (
-            <StockLogPanel
-              products={products}
-              searchLog={searchLog}
-              setSearchLog={setSearchLog}
+            <OutboundSection
               stockLogs={stockLogs}
               isLoading={stockLogLoading}
-              onExportExcel={handleExportStockLogsExcel}
-              onImportExcel={handleOpenStockLogImport}
-              isImporting={stockLogExcelImporting}
-              onNavigateToCreateProduct={handleNavigateToCreateProduct}
+              initialWarehouseId={outboundPrefill?.warehouseId}
+              initialSku={outboundPrefill?.sku}
+              openOnMountKey={outboundPrefill?.nonce}
               onCreateTransaction={handleCreateTransaction}
               onUpdateTransaction={handleUpdateTransaction}
               onUpdateStatus={handleQuickUpdateTransactionStatus}
               onDeleteTransaction={handleDeleteTransaction}
-              outboundOnly
-              hideExcelActions
-              initialWarehouseId={outboundPrefill?.warehouseId}
-              initialSku={outboundPrefill?.sku}
-              openOnMountKey={outboundPrefill?.nonce}
             />
           )}
-          {subTab === "DỰ BÁO" && <AiForecastPanel forecast={forecastSummary} stockLogs={stockLogs} />}
+          {subTab === "DỰ BÁO" && (
+            <AiForecastPanel
+              forecast={forecastSummary}
+              stockLogs={stockLogs}
+              onNavigateToReceiving={(sku, qty) => {
+                setSubTab("NHẬP HÀNG");
+                if (sku) {
+                  toast.info(`Chuyển sang Nhập hàng cho SKU: ${sku} (Đề xuất: ${qty || 1} sp)`);
+                }
+              }}
+            />
+          )}
         </Suspense>
       </div>
 

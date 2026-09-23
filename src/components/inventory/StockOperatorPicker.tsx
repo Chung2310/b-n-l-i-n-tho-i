@@ -89,7 +89,7 @@ export function StockOperatorPicker({ value, onChange, disabled = false }: Stock
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         placeholder="Nhập tên người phụ trách"
-        className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+        className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-800 shadow-2xs outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600"
       />
     );
   }
@@ -100,7 +100,7 @@ export function StockOperatorPicker({ value, onChange, disabled = false }: Stock
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen((current) => !current)}
-        className={`flex h-11 w-full min-w-0 items-center justify-between rounded-lg border border-slate-200 bg-white px-3 text-left text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-50 ${isOpen ? "border-teal-600 ring-2 ring-teal-100" : ""}`}
+        className={`flex h-10 w-full min-w-0 items-center justify-between rounded-xl border border-slate-300 bg-white px-3.5 text-left text-sm outline-none transition shadow-2xs hover:border-slate-400 focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600 disabled:cursor-not-allowed disabled:bg-slate-50 ${isOpen ? "border-cyan-600 ring-1 ring-cyan-600" : ""}`}
       >
         <span className={`mr-2 flex-1 truncate ${value ? "font-medium text-slate-800" : "text-slate-400"}`}>
           {value || "Chọn người phụ trách"}

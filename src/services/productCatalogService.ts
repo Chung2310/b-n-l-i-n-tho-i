@@ -29,8 +29,13 @@ export type ProductResource = {
   code: string;
   name: string;
   status: "active" | "inactive";
+  parentCode?: string;
+  defaultTrackingMode?: ProductTrackingMode;
   symbol?: string;
   category?: "count" | "weight" | "volume" | "length" | "time" | "other";
+  type?: "text" | "number" | "boolean" | "select" | "multi-select";
+  options?: string[];
+  description?: string;
 };
 
 export type ProductVariant = {
@@ -101,6 +106,7 @@ export type VariantInput = {
   unitCode: string;
   trackingMode: ProductTrackingMode;
   status: "active" | "inactive" | "discontinued";
+  optionValues?: Array<{ code: string; value: string }>;
   weightGrams?: number;
   lengthMm?: number;
   widthMm?: number;
@@ -109,6 +115,7 @@ export type VariantInput = {
   supplierWarrantyMonths?: number;
   mediaIds?: string[];
   sellingPrice?: number;
+  costPrice?: number;
 };
 
 type ApiEnvelope<T> = { success: boolean; data: T };
@@ -116,6 +123,12 @@ type ListResult<T> = { items: T[]; total: number; page: number; limit: number };
 
 const root = "/inventory/catalog";
 import { getAccessToken } from "./authService";
+
+function stripCatalogVariantPricing<T extends Record<string, any>>(variant: T): T {
+  if (!variant || typeof variant !== "object") return variant;
+  const { sellingPrice: _s, costPrice: _c, price: _p, ...clean } = variant;
+  return clean as T;
+}
 
 export const productCatalogService = {
   async uploadMedia(file: File) {
@@ -149,7 +162,7 @@ export const productCatalogService = {
     return data.url as string;
   },
 
-  async listProducts(params: { q?: string; status?: string; productType?: string; categoryCode?: string; page?: number; limit?: number } = {}) {
+  async listProducts(params: { q?: string; status?: string; productType?: string; categoryCode?: string; brandCode?: string; page?: number; limit?: number } = {}) {
     const result = await apiFetch<ApiEnvelope<ListResult<CatalogProduct>>>(`${root}/products`, { params });
     return result.data;
   },
@@ -160,12 +173,20 @@ export const productCatalogService = {
   },
 
   async createProduct(input: ProductInput & { variant: VariantInput }) {
-    const result = await apiFetch<ApiEnvelope<CatalogProductDetail>>(`${root}/products`, { method: "POST", body: JSON.stringify(input) });
+    const payload = {
+      ...input,
+      variant: stripCatalogVariantPricing(input.variant),
+    };
+    const result = await apiFetch<ApiEnvelope<CatalogProductDetail>>(`${root}/products`, { method: "POST", body: JSON.stringify(payload) });
     return result.data;
   },
 
   async bulkCreateWithVariants(input: ProductInput & { variants: VariantInput[] }) {
-    const result = await apiFetch<ApiEnvelope<CatalogProductDetail>>(`${root}/products/bulk-create-with-variants`, { method: "POST", body: JSON.stringify(input) });
+    const payload = {
+      ...input,
+      variants: (input.variants || []).map(stripCatalogVariantPricing),
+    };
+    const result = await apiFetch<ApiEnvelope<CatalogProductDetail>>(`${root}/products/bulk-create-with-variants`, { method: "POST", body: JSON.stringify(payload) });
     return result.data;
   },
 
@@ -180,17 +201,20 @@ export const productCatalogService = {
   },
 
   async createVariant(productId: string, input: VariantInput) {
-    const result = await apiFetch<ApiEnvelope<ProductVariant>>(`${root}/products/${productId}/variants`, { method: "POST", body: JSON.stringify(input) });
+    const payload = stripCatalogVariantPricing(input);
+    const result = await apiFetch<ApiEnvelope<ProductVariant>>(`${root}/products/${productId}/variants`, { method: "POST", body: JSON.stringify(payload) });
     return result.data;
   },
 
   async createVariants(productId: string, variants: VariantInput[]) {
-    const result = await apiFetch<ApiEnvelope<ProductVariant[]>>(`${root}/products/${productId}/variants/bulk`, { method: "POST", body: JSON.stringify({ variants }) });
+    const payload = (variants || []).map(stripCatalogVariantPricing);
+    const result = await apiFetch<ApiEnvelope<ProductVariant[]>>(`${root}/products/${productId}/variants/bulk`, { method: "POST", body: JSON.stringify({ variants: payload }) });
     return result.data;
   },
 
   async updateVariant(id: string, input: Partial<VariantInput>) {
-    const result = await apiFetch<ApiEnvelope<ProductVariant>>(`${root}/variants/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+    const payload = stripCatalogVariantPricing(input);
+    const result = await apiFetch<ApiEnvelope<ProductVariant>>(`${root}/variants/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
     return result.data;
   },
   async upsertPrice(variantId: string, sellingPrice: number, costPrice = 0, branchId?: string) {
@@ -227,7 +251,7 @@ export const productCatalogService = {
     return result.data;
   },
 
-  async deleteResource(kind: "categories" | "brands", id: string) {
+  async deleteResource(kind: ProductResourceKind, id: string) {
     const result = await apiFetch<ApiEnvelope<{ deletedId: string }>>(`${root}/resources/${kind}/${id}`, { method: "DELETE" });
     return result.data;
   },
@@ -244,6 +268,11 @@ export const productCatalogService = {
 
   async updateTemplate(id: string, input: Partial<{ name: string; fields: ProductTemplateField[]; status: "active" | "inactive" }>) {
     const result = await apiFetch<ApiEnvelope<ProductTemplate>>(`${root}/templates/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+    return result.data;
+  },
+
+  async seedDefaults() {
+    const result = await apiFetch<ApiEnvelope<any>>(`${root}/resources/seed/defaults`, { method: "POST" });
     return result.data;
   },
 };
