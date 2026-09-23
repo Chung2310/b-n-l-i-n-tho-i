@@ -24,7 +24,7 @@ export function DailyBulletin({ data, error }: { data?: DashboardActionItems["bu
     "Hang cham day an toan": "bg-orange-600 text-white",
   };
   const labels = { sales: "Bán hàng", technical: "Kỹ thuật", manager: "Quản lý" };
-  return <section aria-label="Bản tin việc cần làm" className="mb-3 rounded-2xl border border-blue-200 bg-blue-50 p-3 sm:p-4">
+  return <section aria-label="Bản tin việc cần làm" className="mb-3 rounded-2xl border border-blue-200 bg-white p-3 sm:p-4">
     {data && <span className="sr-only">{labels[data.role]}</span>}
     {error ? <p role="alert" className="text-sm font-semibold text-rose-800">Không tải được bản tin. Hệ thống sẽ tự thử lại sau 30 giây.</p> : !data ? <p role="status" className="text-sm text-slate-700">Đang tải việc cần làm của bạn…</p> : <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
