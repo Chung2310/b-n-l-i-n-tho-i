@@ -838,17 +838,17 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
   return (
     <form
       onSubmit={save}
-      className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+      className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
-      <div className="flex items-center gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-400">
+      <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white">
           <SlidersHorizontal className="h-5 w-5" />
         </div>
         <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+          <h2 className="text-lg font-bold text-slate-900">
             Chính sách hoa hồng
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-slate-500">
             Mỗi lần lưu tạo phiên bản mới. Quy tắc SKU ưu tiên hơn nhóm hàng. Cần khai báo nhóm/SKU cho mọi hàng bán có gắn CTV.
           </p>
         </div>
@@ -857,7 +857,7 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
       {message && (
         <div
           role="status"
-          className="flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-700 dark:border-cyan-900/40 dark:bg-cyan-950/30 dark:text-cyan-300"
+          className="flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-700"
         >
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           <span>{message}</span>
@@ -870,10 +870,10 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
           Phạm vi & Mức hoa hồng cơ sở
         </h3>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <label className="text-xs font-semibold text-slate-700">
             Áp dụng cho
             <select
-              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100 cursor-pointer"
+              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500 cursor-pointer"
               value={partnerId}
               onChange={(e) => setPartnerId(e.target.value)}
             >
@@ -888,17 +888,17 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
             </select>
           </label>
 
-          <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <label className="text-xs font-semibold text-slate-700">
             Hiệu lực (để trống = ngay)
             <input
               type="datetime-local"
-              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100"
+              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500"
               value={effectiveAt}
               onChange={(e) => setEffectiveAt(e.target.value)}
             />
           </label>
 
-          <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <label className="text-xs font-semibold text-slate-700">
             Điện thoại / máy (VND)
             <div className="relative mt-1.5">
               <input
@@ -906,7 +906,7 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
                 min="150000"
                 max="300000"
                 step="1000"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500"
                 value={config.phoneAmount}
                 onChange={(e) =>
                   setConfig({ ...config, phoneAmount: Number(e.target.value) })
@@ -922,7 +922,7 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
             ["accessoryBps", "Phụ kiện (%)"],
             ["repairBps", "Tiền công sửa chữa (%)"],
           ].map(([key, label]) => (
-            <label key={key} className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <label key={key} className="text-xs font-semibold text-slate-700">
               {label}
               <div className="relative mt-1.5">
                 <input
@@ -930,7 +930,7 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
                   min="10"
                   max="15"
                   step="0.01"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500"
                   value={config[key] / 100}
                   onChange={(e) =>
                     setConfig({
@@ -963,11 +963,11 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
           {config.rules.map((r: any, index: number) => (
             <div
               key={index}
-              className="flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-800/40"
+              className="flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50/80 p-3"
             >
               <select
                 aria-label="Loại sản phẩm"
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
                 value={r.kind}
                 onChange={(e) =>
                   setConfig({
@@ -986,7 +986,7 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
 
               <select
                 aria-label="Loại quy tắc"
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
                 value={r.sku !== undefined ? "sku" : "category"}
                 onChange={(e) =>
                   setConfig({
@@ -1007,7 +1007,7 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
                 aria-label="SKU hoặc nhóm hàng"
                 required
                 placeholder="Nhập mã SKU hoặc tên nhóm..."
-                className="min-w-[150px] flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="min-w-[150px] flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
                 value={r.sku ?? r.category}
                 onChange={(e) =>
                   setConfig({
@@ -1025,7 +1025,7 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
                 aria-label="Mức riêng (để trống dùng mặc định)"
                 type="number"
                 placeholder={r.kind === "phone" ? "đ/máy (mặc định)" : "% (mặc định)"}
-                className="w-44 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="w-44 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
                 min={r.kind === "phone" ? 150000 : 10}
                 max={r.kind === "phone" ? 300000 : 15}
                 step={r.kind === "phone" ? 1000 : 0.01}
@@ -1058,7 +1058,7 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
 
               <button
                 type="button"
-                className="flex items-center gap-1 rounded-lg p-1.5 text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                className="flex items-center gap-1 rounded-lg p-1.5 text-xs text-rose-600 hover:bg-rose-50 cursor-pointer"
                 onClick={() =>
                   setConfig({
                     ...config,
@@ -1073,7 +1073,7 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
           ))}
 
           {config.rules.length === 0 && (
-            <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400 dark:border-slate-800">
+            <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
               Chưa có quy tắc riêng biệt nào. Hệ thống sẽ áp dụng mức cơ sở mặc định.
             </p>
           )}
@@ -1082,7 +1082,7 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <button
             type="button"
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 transition cursor-pointer"
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
             onClick={() =>
               setConfig({
                 ...config,
@@ -1105,7 +1105,7 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
       </div>
 
       {/* Version History */}
-      <div className="border-t border-slate-100 pt-5 dark:border-slate-800">
+      <div className="border-t border-slate-100 pt-5">
         <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
           Phiên bản gần đây
         </h3>
@@ -1113,10 +1113,10 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
           {items.map((p) => (
             <div
               key={p._id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/50 p-3 text-xs dark:border-slate-800/80 dark:bg-slate-800/20"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/50 p-3 text-xs"
             >
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                <span className="font-semibold text-slate-800">
                   {p.partnerId
                     ? partners.find((x) => x._id === p.partnerId)?.name || p.partnerId
                     : "Toàn công ty"}
@@ -1126,13 +1126,13 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
                   {new Date(p.effectiveAt).toLocaleString("vi-VN")}
                 </span>
                 <span className="text-slate-400">·</span>
-                <span className="rounded-md bg-slate-200/70 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-300">
+                <span className="rounded-md bg-slate-200/70 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
                   {p.config?.rules?.length || 0} quy tắc
                 </span>
               </div>
               <button
                 type="button"
-                className="flex items-center gap-1 font-semibold text-cyan-600 hover:text-cyan-700 dark:text-cyan-400 cursor-pointer"
+                className="flex items-center gap-1 font-semibold text-cyan-600 hover:text-cyan-700 cursor-pointer"
                 onClick={() => {
                   setConfig(structuredClone(p.config));
                   setPartnerId(p.partnerId || "");
