@@ -49,7 +49,7 @@ export function ActionItemsWidget({
             onClick={() => onGoToContract(alert)}
             className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50"
           >
-            <span className="flex min-w-0 items-start gap-2 text-xs font-semibold text-red-700">
+            <span className="flex min-w-0 items-start gap-2 text-xs font-semibold text-[#ef4444]">
               <FileClock className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
                 {alert.contractType} của {alert.employeeName}{" "}
@@ -69,11 +69,11 @@ export function ActionItemsWidget({
             onClick={onGoToTasks}
             className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50"
           >
-            <span className="flex items-center gap-2 text-xs font-semibold text-red-700">
+            <span className="flex items-center gap-2 text-xs font-semibold text-[#ef4444]">
               <AlertTriangle className="h-4 w-4 shrink-0" />
               {overdueTasks.length} task quá hạn giao cho bạn
             </span>
-            <span className="truncate pl-2 text-xs font-semibold text-red-700">{overdueTasks[0].title}</span>
+            <span className="truncate pl-2 text-xs font-semibold text-[#ef4444]">{overdueTasks[0].title}</span>
           </button>
         )}
 
@@ -83,11 +83,11 @@ export function ActionItemsWidget({
             onClick={onGoToApprovals}
             className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50"
           >
-            <span className="flex items-center gap-2 text-xs font-semibold text-red-700">
+            <span className="flex items-center gap-2 text-xs font-semibold text-[#ef4444]">
               <ClipboardList className="h-4 w-4 shrink-0" />
               {pendingApprovals.length} phiếu chờ duyệt
             </span>
-            <span className="truncate pl-2 text-xs font-medium text-red-700">
+            <span className="truncate pl-2 text-xs font-medium text-[#ef4444]">
               {pendingApprovals[0].employeeName} · {formatRelativeDate(pendingApprovals[0].since)}
             </span>
           </button>
@@ -99,11 +99,11 @@ export function ActionItemsWidget({
             onClick={onGoToInventory}
             className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50"
           >
-            <span className="flex items-center gap-2 text-xs font-semibold text-red-700">
+            <span className="flex items-center gap-2 text-xs font-semibold text-[#ef4444]">
               <PackageCheck className="h-4 w-4 shrink-0" />
               {lowStockAlerts.length} sản phẩm sắp hết hàng
             </span>
-            <span className="truncate pl-2 text-xs font-medium text-red-700">{lowStockAlerts[0].name}</span>
+            <span className="truncate pl-2 text-xs font-medium text-[#ef4444]">{lowStockAlerts[0].name}</span>
           </button>
         )}
       </div>
