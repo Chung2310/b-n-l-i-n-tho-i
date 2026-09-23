@@ -3,6 +3,7 @@ import type { AuthenticatedRequest } from "../../../middleware/auth";
 import { ProductCatalogService } from "./product-catalog.service";
 import { ProductCatalogResourceService } from "./product-catalog-resource.service";
 import { ProductPriceService } from "./product-price.service";
+import { CatalogSeedService } from "./catalog-seed.service";
 
 function companyCode(req: AuthenticatedRequest): string {
   if (!req.user?.companyCode) {
@@ -76,6 +77,14 @@ export const productCatalogController = {
   deleteResource: async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       res.json({ success: true, data: await ProductCatalogResourceService.delete(companyCode(req), req.params.kind, req.params.id) });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  seedDefaults: async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      res.json({ success: true, data: await CatalogSeedService.seedDefaults(companyCode(req), actor(req)) });
     } catch (error) {
       next(error);
     }

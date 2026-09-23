@@ -7,6 +7,7 @@ export interface DropdownOption<T = string> {
   sublabel?: string;
   icon?: React.ReactNode;
   disabled?: boolean;
+  className?: string;
 }
 
 export interface DropdownProps<T = string> {
@@ -28,6 +29,7 @@ export interface DropdownProps<T = string> {
   direction?: "down" | "up" | "auto";
   name?: string;
   id?: string;
+  maxHeight?: string;
 }
 
 export function Dropdown<T = string>({
@@ -42,13 +44,14 @@ export function Dropdown<T = string>({
   triggerClassName = "",
   menuClassName = "",
   variant = "filter",
-  size = "sm",
+  size,
   searchable,
   searchPlaceholder = "Tìm kiếm...",
   align = "left",
   direction = "auto",
   name,
   id,
+  maxHeight = "max-h-48",
 }: DropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [openUpward, setOpenUpward] = useState(direction === "up");
@@ -68,9 +71,12 @@ export function Dropdown<T = string>({
     }
     if (isOpen && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      if (spaceBelow < 220 && spaceAbove > spaceBelow) {
+      const dialogEl = containerRef.current.closest('[role="dialog"]');
+      const bottomBoundary = dialogEl ? dialogEl.getBoundingClientRect().bottom : window.innerHeight;
+      const topBoundary = dialogEl ? dialogEl.getBoundingClientRect().top : 0;
+      const spaceBelow = bottomBoundary - rect.bottom;
+      const spaceAbove = rect.top - topBoundary;
+      if (spaceBelow < 190 && spaceAbove > spaceBelow) {
         setOpenUpward(true);
       } else {
         setOpenUpward(false);
@@ -144,27 +150,31 @@ export function Dropdown<T = string>({
     setIsOpen(false);
   };
 
+  const effectiveSize = size || (variant === "form" ? "md" : "sm");
+
   // Size styles
   const sizeStyles = {
-    xs: "px-2 py-1 text-[11px] gap-1",
-    sm: "px-2.5 py-1.5 text-xs font-semibold gap-1.5",
-    md: "px-3 py-2 text-sm font-medium gap-2",
-  }[size];
+    xs: "min-h-[28px] px-2 py-1 text-[11px] gap-1",
+    sm: "min-h-[34px] px-2.5 py-1.5 text-xs font-semibold gap-1.5",
+    md: "min-h-[40px] px-3.5 py-2 text-sm font-normal gap-2",
+  }[effectiveSize];
 
   // Variant styles
   const variantStyles = {
     filter: "rounded-xl border border-slate-200 bg-slate-50 hover:bg-white text-slate-700 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20",
     default: "rounded-xl border border-slate-300 bg-white text-slate-800 shadow-2xs hover:border-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20",
-    form: "rounded-xl border border-slate-200 bg-white text-slate-800 hover:border-slate-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20",
+    form: "rounded-xl border border-slate-300 bg-white text-slate-800 shadow-2xs hover:border-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20",
     subtle: "rounded-lg border border-transparent bg-slate-100 hover:bg-slate-200/70 text-slate-700",
     ghost: "rounded-lg hover:bg-slate-100 text-slate-700 border border-transparent",
   }[variant];
+
+  const isFullWidth = className.includes("w-full") || className.includes("block") || variant === "form";
 
   return (
     <div
       ref={containerRef}
       className={`relative text-left ${
-        className.includes("w-full") || className.includes("block") ? "w-full block" : "inline-block"
+        isFullWidth ? "w-full block min-w-0" : "inline-block"
       } ${className}`}
     >
       {label && (
@@ -186,20 +196,25 @@ export function Dropdown<T = string>({
         aria-expanded={isOpen}
         onClick={() => !disabled && setIsOpen(!isOpen)}
         className={`inline-flex items-center justify-between transition-all duration-150 select-none cursor-pointer focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-slate-100 ${variantStyles} ${sizeStyles} ${
+          isFullWidth && !triggerClassName.includes("w-") ? "w-full" : ""
+        } ${
           isOpen ? "border-cyan-500 ring-2 ring-cyan-500/20 bg-white" : ""
         } ${triggerClassName}`}
       >
-        <span className="flex items-center gap-1.5 truncate">
+        <span className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
           {selectedOption?.icon && (
             <span className="shrink-0 text-slate-400">{selectedOption.icon}</span>
           )}
-          <span className={selectedOption ? "text-slate-800" : "text-slate-400"}>
+          <span
+            title={selectedOption ? selectedOption.label : placeholder}
+            className={`truncate block min-w-0 text-left ${selectedOption ? "text-slate-800 font-medium" : "text-slate-400"}`}
+          >
             {selectedOption ? selectedOption.label : placeholder}
           </span>
         </span>
 
         <ChevronDown
-          className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 ml-1 ${
+          className={`${effectiveSize === "md" ? "h-4 w-4" : "h-3.5 w-3.5"} shrink-0 text-slate-400 transition-transform duration-200 ml-1.5 ${
             isOpen ? "rotate-180 text-cyan-600" : ""
           }`}
         />
@@ -230,8 +245,10 @@ export function Dropdown<T = string>({
           className={`absolute ${align === "right" ? "right-0" : "left-0"} ${
             openUpward ? "bottom-full mb-1.5 origin-bottom" : "top-full mt-1.5 origin-top"
           } z-50 ${
-            size === "xs" ? "min-w-[110px]" : "min-w-[160px]"
-          } max-w-xs w-max rounded-xl border border-slate-200 bg-white p-1 shadow-xl ring-1 ring-black/5 overflow-hidden transition-all duration-150 animate-in fade-in zoom-in-95 ${menuClassName}`}
+            isFullWidth
+              ? "w-full min-w-full"
+              : `${size === "xs" ? "min-w-[110px]" : "min-w-[160px]"} max-w-xs w-max`
+          } rounded-xl border border-slate-200 bg-white p-1 shadow-xl ring-1 ring-black/5 overflow-hidden transition-all duration-150 animate-in fade-in zoom-in-95 ${menuClassName}`}
         >
           {/* Search input if enabled */}
           {showSearch && (
@@ -258,7 +275,10 @@ export function Dropdown<T = string>({
           )}
 
           {/* Options List */}
-          <div className="max-h-56 overflow-y-auto space-y-0.5 scrollbar-thin">
+          <div
+            className={`overflow-y-auto overscroll-contain space-y-0.5 pr-1 ${maxHeight} dropdown-scrollbar`}
+            style={{ scrollbarWidth: "thin" }}
+          >
             {filteredOptions.length === 0 ? (
               <div className="py-2.5 px-3 text-center text-xs text-slate-400">
                 Không tìm thấy lựa chọn
@@ -278,7 +298,7 @@ export function Dropdown<T = string>({
                       isSelected
                         ? "bg-cyan-50 font-bold text-cyan-800"
                         : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
-                    }`}
+                    } ${opt.className || ""}`}
                   >
                     <div className="flex items-center gap-2 truncate">
                       {opt.icon && (

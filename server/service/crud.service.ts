@@ -481,34 +481,50 @@ export const crudService = {
         const toStatus = direction === "out" ? "sold" : "in_stock";
         const eventType = direction === "out" ? "sold" : "received";
 
-        for (const item of preparedData.items) {
-          if (Array.isArray(item.unitIdentifiers) && item.unitIdentifiers.length > 0) {
-            const units = await SerialUnitModel.find({
+        const allIdentifiers = (preparedData.items || [])
+          .flatMap((item: any) => Array.isArray(item.unitIdentifiers) ? item.unitIdentifiers : [])
+          .map((value: any) => String(value).trim())
+          .filter(Boolean);
+
+        if (allIdentifiers.length > 0) {
+          const upperIdentifiers = allIdentifiers.map((value: string) => value.toUpperCase());
+          const units = await SerialUnitModel.find({
+            companyCode,
+            branchId: inventoryBranch,
+            $or: [
+              { serialNumber: { $in: allIdentifiers } },
+              { normalizedInternalBarcode: { $in: upperIdentifiers } },
+            ],
+          });
+
+          if (units.length > 0) {
+            const unitIds = units.map((u: any) => u._id);
+            const events = units.map((unit: any) => ({
               companyCode,
               branchId: inventoryBranch,
-              $or: [{ serialNumber: { $in: item.unitIdentifiers } }, { normalizedInternalBarcode: { $in: item.unitIdentifiers.map((value: string) => String(value).trim().toUpperCase()) } }],
-            });
+              serialUnitId: String(unit._id),
+              serialNumber: unit.serialNumber,
+              eventType,
+              fromStatus: unit.status,
+              toStatus,
+              documentType: "manual-stock-log",
+              documentId: sourceId,
+              actorId: "SYSTEM",
+              actorName: preparedData.operatorName || "Hệ thống",
+            }));
 
-            for (const unit of units) {
-              const fromStatus = unit.status;
-              unit.status = toStatus;
-              unit.updatedBy = preparedData.operatorName || "SYSTEM";
-              await unit.save();
-
-              await SerialEventModel.create({
-                companyCode,
-                branchId: inventoryBranch,
-                serialUnitId: String(unit._id),
-                serialNumber: unit.serialNumber,
-                eventType,
-                fromStatus,
-                toStatus,
-                documentType: "manual-stock-log",
-                documentId: sourceId,
-                actorId: "SYSTEM",
-                actorName: preparedData.operatorName || "Hệ thống",
-              });
-            }
+            await Promise.all([
+              SerialUnitModel.updateMany(
+                { _id: { $in: unitIds } },
+                {
+                  $set: {
+                    status: toStatus,
+                    updatedBy: preparedData.operatorName || "SYSTEM",
+                  },
+                }
+              ),
+              SerialEventModel.insertMany(events),
+            ]);
           }
         }
       }
@@ -638,34 +654,50 @@ export const crudService = {
         const eventType = direction === "out" ? "sold" : "received";
 
         const items = preparedUpdatePayload.items || existingLog.items || [];
-        for (const item of items) {
-          if (Array.isArray(item.unitIdentifiers) && item.unitIdentifiers.length > 0) {
-            const units = await SerialUnitModel.find({
+        const allIdentifiers = items
+          .flatMap((item: any) => Array.isArray(item.unitIdentifiers) ? item.unitIdentifiers : [])
+          .map((value: any) => String(value).trim())
+          .filter(Boolean);
+
+        if (allIdentifiers.length > 0) {
+          const upperIdentifiers = allIdentifiers.map((value: string) => value.toUpperCase());
+          const units = await SerialUnitModel.find({
+            companyCode,
+            branchId: inventoryBranch,
+            $or: [
+              { serialNumber: { $in: allIdentifiers } },
+              { normalizedInternalBarcode: { $in: upperIdentifiers } },
+            ],
+          });
+
+          if (units.length > 0) {
+            const unitIds = units.map((u: any) => u._id);
+            const events = units.map((unit: any) => ({
               companyCode,
               branchId: inventoryBranch,
-              $or: [{ serialNumber: { $in: item.unitIdentifiers } }, { normalizedInternalBarcode: { $in: item.unitIdentifiers.map((value: string) => String(value).trim().toUpperCase()) } }],
-            });
+              serialUnitId: String(unit._id),
+              serialNumber: unit.serialNumber,
+              eventType,
+              fromStatus: unit.status,
+              toStatus,
+              documentType: "manual-stock-log",
+              documentId: existingLog._id.toString(),
+              actorId: "SYSTEM",
+              actorName: preparedUpdatePayload.operatorName || existingLog.operatorName || "Hệ thống",
+            }));
 
-            for (const unit of units) {
-              const fromStatus = unit.status;
-              unit.status = toStatus;
-              unit.updatedBy = preparedUpdatePayload.operatorName || existingLog.operatorName || "SYSTEM";
-              await unit.save();
-
-              await SerialEventModel.create({
-                companyCode,
-                branchId: inventoryBranch,
-                serialUnitId: String(unit._id),
-                serialNumber: unit.serialNumber,
-                eventType,
-                fromStatus,
-                toStatus,
-                documentType: "manual-stock-log",
-                documentId: existingLog._id.toString(),
-                actorId: "SYSTEM",
-                actorName: preparedUpdatePayload.operatorName || existingLog.operatorName || "Hệ thống",
-              });
-            }
+            await Promise.all([
+              SerialUnitModel.updateMany(
+                { _id: { $in: unitIds } },
+                {
+                  $set: {
+                    status: toStatus,
+                    updatedBy: preparedUpdatePayload.operatorName || existingLog.operatorName || "SYSTEM",
+                  },
+                }
+              ),
+              SerialEventModel.insertMany(events),
+            ]);
           }
         }
       }
