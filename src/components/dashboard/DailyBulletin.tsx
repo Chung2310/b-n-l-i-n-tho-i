@@ -30,7 +30,7 @@ export function DailyBulletin({ data, error }: { data?: DashboardActionItems["bu
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {data.cards.map(card => { const key = card.title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\u0110/g, "D").replace(/\u0111/g, "d"); const Icon = cardIcons[key] || ClipboardList; return <article key={card.title} className="flex flex-col rounded-xl border border-slate-200 bg-white p-3">
           <div className="flex items-center gap-2"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${iconTones[key] || "bg-cyan-100 text-cyan-600"}`}><Icon aria-hidden="true" className="h-5 w-5" /></span><h3 className="text-xs font-bold text-slate-700">{card.title}</h3></div>
-          <p className="mt-2 text-lg font-extrabold text-slate-900">{card.value}</p>
+          <p className="mt-2 text-center text-lg font-extrabold text-slate-900">{card.value}</p>
           {card.detail && <p className="mb-2 mt-1 text-xs leading-relaxed text-slate-700">{card.detail}</p>}
           {card.href && <a href={card.href} onClick={event => { if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; event.preventDefault(); window.history.pushState(null, "", card.href); window.dispatchEvent(new PopStateEvent("popstate")); }} className="mt-auto pt-2 inline-flex items-center gap-1 text-xs font-bold text-cyan-700">{card.title === "Hàng chạm đáy an toàn" ? "Nhập hàng từ NCC" : "Xem và xử lý"}<ArrowUpRight className="h-3.5 w-3.5" /></a>}
         </article>; })}
