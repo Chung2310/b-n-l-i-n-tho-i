@@ -6,11 +6,10 @@ on:
   pull_request:
     branches: [ develop, production ]
 
-# Push nhiều commit liên tiếp: chỉ chạy pipeline cho commit mới nhất.
-# PR thì hủy run cũ đang chạy; push (có deploy) thì xếp hàng thay vì hủy giữa chừng
+# Tự động hủy pipeline cũ nếu có commit mới được push, tránh tình trạng run cũ hoàn thành sau và ghi đè phiên bản mới
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
 

@@ -400,9 +400,11 @@ async function startServer() {
 
         const personalizedHtml = injectSeoMeta(indexHtmlCached, req.path);
         res.setHeader("Content-Type", "text/html");
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         res.send(personalizedHtml);
       } catch (err) {
         console.error("Lỗi khi xử lý server SEO fallback:", err);
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         res.sendFile(path.join(distPath, "index.html"));
       }
     });
