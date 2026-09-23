@@ -45,7 +45,7 @@ test("scan always queues in-app, publishes Marketing when enabled, and advances 
   const result = await memory.service.runOverdueScan(scope, "manual", { id: "u1" }, now);
   assert.deepEqual(result, { eligible: 1, queued: 2, skipped: 0, failed: 0, duplicates: 0 });
   assert.equal(memory.notifications.length, 1); assert.equal(memory.events.length, 1); assert.equal(memory.updates.length, 1);
-  assert.deepEqual(memory.deliveries.map((item) => [item.channel, item.status]), [["in_app", "queued"], ["marketing", "queued"]]);
+  assert.deepEqual(memory.deliveries.map((item) => [item.channel, item.status]), [["in_app", "sent"], ["marketing", "queued"]]);
 });
 
 test("Marketing disabled is skipped while in-app still succeeds", async () => {

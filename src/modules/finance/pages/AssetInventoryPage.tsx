@@ -1,3 +1,4 @@
+import { Stats } from "../components/ManagementUI";
 import { useEffect, useState } from "react";
 import {
   financeAssetInventoriesApi,
@@ -241,6 +242,7 @@ export default function AssetInventoryPage({
             </div>
           )}
 
+          {variance && <div className="p-4"><Stats values={[["Dự kiến", selected.items.filter(i => i.result !== "surplus").length], ["Đã kiểm", selected.items.filter(i => i.scannedAt).length], ["Chưa kiểm", variance.counts.pending || 0], ["Thừa / thiếu / hỏng", `${variance.counts.surplus || 0} / ${variance.counts.missing || 0} / ${variance.counts.damaged || 0}`]]} /></div>}
           {variance && (
             <div className="flex flex-wrap gap-4 border-b p-4 text-sm">
               <b>Tổng: {variance.total}</b>

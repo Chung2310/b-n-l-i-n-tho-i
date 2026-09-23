@@ -83,6 +83,7 @@ export function createOverdueReminderService(dependencies: Dependencies) {
           try {
             if (channel === "in_app") await dependencies.createNotification({ ...scope, ...payload, idempotencyKey: cycleKey });
             else await dependencies.publishOverdue({ ...scope, ...payload, eventId: cycleKey, occurredAt: now });
+            await dependencies.updateDelivery(String(delivery._id), { status: channel === "in_app" ? "sent" : "queued", ...(channel === "in_app" ? { sentAt: now } : {}) });
             stats.queued += 1; enqueued = true;
           } catch (error) {
             await dependencies.updateDelivery(String(delivery._id), { status: "failed", failureType: "temporary", error: (error as Error).message, nextAttemptAt: new Date(now.getTime() + 60_000) }); stats.failed += 1;
@@ -115,7 +116,7 @@ const mongoDependencies: Dependencies = {
       { upsert: true },
     );
   },
-  marketingEnabled: async (companyCode) => Boolean((await getEnabledModulesForCompany(companyCode))?.includes("marketing")),
+  marketingEnabled: async () => false,
   publishOverdue: (event) => publishDomainEvent({
     eventId: event.eventId, eventType: "finance.receivable.overdue", companyCode: event.companyCode, branchId: event.branchId,
     aggregateType: "FinanceReceivable", aggregateId: event.receivableId, occurredAt: event.occurredAt, actorId: "system", actorName: "Finance",
@@ -129,7 +130,7 @@ export const OverdueReminderService = createOverdueReminderService(mongoDependen
 export function retryReminderDelivery(id: string, now = new Date(), scope?: FinanceBranchScope) {
   return retryReminderDeliveryWith(id, now, {
     claim: (deliveryId) => ReminderDeliveryModel.findOneAndUpdate(
-      { _id: deliveryId, ...(scope || {}), status: "failed", failureType: "temporary", $expr: { $lt: ["$attempt", "$maxAttempts"] } },
+      { _id: deliveryId, ...(scope || {}), channel: "in_app", status: "failed", failureType: "temporary", $expr: { $lt: ["$attempt", "$maxAttempts"] } },
       { $set: { status: "sending" }, $inc: { attempt: 1 } }, { returnDocument: 'after' },
     ).lean(),
     send: (delivery) => delivery.channel === "in_app"

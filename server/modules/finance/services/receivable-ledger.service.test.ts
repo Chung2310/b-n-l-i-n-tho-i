@@ -223,3 +223,19 @@ test("header balance equals the sum of entries after every operation in a determ
     assert.equal(header.balance, sum, `balance mismatch after operation ${step}`);
   }
 });
+
+test("settled payment can be reversed and reopens the debt", async () => {
+ const memory = memoryRepository(); const service = createReceivableLedgerService(memory.repository);
+ const debt = await service.openFromEvent(scope, openInput, actor);
+ const paid = await service.collect(scope, debt._id, { amount: 100000, idempotencyKey: "full", paymentMethod: "cash" }, actor);
+ const result = await service.reverse(scope, debt._id, paid.entry._id, { reason: "Mistake", idempotencyKey: "undo" }, actor);
+ assert.equal(result.receivable.balance,100000); assert.equal(result.receivable.paidAmount,0); assert.equal(result.receivable.status,"open");
+});
+test("replay rejects different amount or debt without mutating balances", async () => {
+ const memory = memoryRepository(); const service = createReceivableLedgerService(memory.repository);
+ const debt = await service.openFromEvent(scope, openInput, actor);
+ await service.collect(scope, debt._id, { amount: 1000, idempotencyKey: "same", paymentMethod:"cash" }, actor);
+ await assert.rejects(()=>service.collect(scope, debt._id, { amount:2000,idempotencyKey:"same",paymentMethod:"cash" },actor));
+ await assert.rejects(()=>service.collect(scope, "other", { amount:1000,idempotencyKey:"same",paymentMethod:"cash" },actor));
+ assert.equal(memory.snapshot().receivables[0].balance,99000);
+});

@@ -261,7 +261,7 @@ export default function ReceivableDetailDrawer({
           <LedgerRow
             key={entry._id}
             entry={entry}
-            canReverse={canAdjust && isActive}
+            canReverse={canAdjust && (isActive || receivable.status === "settled" && entry.type === "payment") && !entries.some(e => e.reversalOfEntryId === entry._id)}
             onReverse={(reason) =>
               mutate(() => financeReceivablesApi.reverse(id, entry._id, reason))
             }

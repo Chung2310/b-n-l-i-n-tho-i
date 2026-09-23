@@ -3,7 +3,7 @@ import { AssetInventorySessionModel } from "../models/asset-inventory.model";
 import { FixedAssetModel } from "../models/fixed-asset.model";
 import { ConflictError, NotFoundError } from "../../../errors/app-error";
 
-type Actor = { id?: string; uid?: string; name?: string; displayName?: string };
+type Actor = { role?: string; id?: string; uid?: string; name?: string; displayName?: string };
 
 export interface AssetInventoryRepository {
   listSessions(scope: FinanceScope, status?: string): Promise<any[]>;
@@ -33,6 +33,8 @@ export function createAssetInventoryService(repository: AssetInventoryRepository
   async function loadSession(scope: FinanceScope, id: string) {
     const session = await repository.findSession(scope, id);
     if (!session) throw new NotFoundError("INVENTORY_SESSION_NOT_FOUND", "Không tìm thấy phiên kiểm kê.");
+    if (scope.branchId && (session.branchIds || []).some((id: string) => id !== scope.branchId))
+      throw new ConflictError("FORBIDDEN", "Phiên kiểm kê vượt phạm vi chi nhánh.");
     return session;
   }
 
@@ -41,7 +43,7 @@ export function createAssetInventoryService(repository: AssetInventoryRepository
   }
 
   return {
-    list: (scope: FinanceScope, query: any = {}) => repository.listSessions(scope, query?.status ? String(query.status) : undefined),
+    list: async (scope: FinanceScope, query: any = {}) => (await repository.listSessions(scope, query?.status ? String(query.status) : undefined)).filter(s => !scope.branchId || (s.branchIds || []).every((id: string) => id === scope.branchId)),
 
     detail: (scope: FinanceScope, id: string) => loadSession(scope, id),
 
@@ -49,6 +51,8 @@ export function createAssetInventoryService(repository: AssetInventoryRepository
 
     /** Freezes the expected asset population into the session so later counts compare against the opening state. */
     open: async (scope: FinanceBranchScope, input: any, actor: Actor) => {
+      if (actor.role !== "superadmin" && (input.scope === "company" || input.branchIds.some((id: string) => id !== scope.branchId)))
+        throw new ConflictError("FORBIDDEN", "Chỉ được kiểm kê tài sản trong chi nhánh được phép.");
       const duplicate = await repository.findSessionByCode(scope.companyCode, input.sessionCode);
       if (duplicate) throw new ConflictError("INVENTORY_SESSION_CODE_EXISTS", "Mã phiên kiểm kê đã tồn tại.");
       const branchIds = input.scope === "company" ? [] : input.branchIds;

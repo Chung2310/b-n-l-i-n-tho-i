@@ -186,3 +186,16 @@ test("documented inventory error codes are registered", () => {
     assert.equal((ERROR_CODES as any)[code], code);
   }
 });
+
+test("branch actor cannot open another branch or company inventory", async () => {
+ const {repository,calls}=stubRepository();const service=createAssetInventoryService(repository);
+ for(const input of [{scope:"branch",branchIds:["B2"]},{scope:"company",branchIds:[]}])
+  await assert.rejects(()=>service.open({companyCode:"ACME",branchId:"B1"},input,{}));
+ assert.equal(calls.length,0);
+});
+test("branch access excludes multi-branch inventory details and lists", async () => {
+ const session={...OPEN_SESSION,branchIds:["B1","B2"]};
+ const {repository}=stubRepository({findSession:async()=>session,listSessions:async()=>[session]});
+ const service=createAssetInventoryService(repository);const scope={companyCode:"ACME",branchId:"B1"};
+ await assert.rejects(()=>service.detail(scope,"s1"));assert.deepEqual(await service.list(scope),[]);
+});
