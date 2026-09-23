@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { BarChart3, PieChart, Calendar, TrendingUp, Loader2 } from "lucide-react";
+import { BarChart3, PieChart, Calendar, Loader2 } from "lucide-react";
 import { BarChart, DonutCard } from "./DashboardWidgets";
 import { formatDashboardCurrency } from "./dashboardUtils";
 import { analyticsService } from "../../services/analyticsService";
@@ -80,19 +80,9 @@ export function RevenueAnalysisPanel() {
   }, [filter]);
 
   return (
-    <div className="space-y-6 pb-10">
+    <div className="space-y-3 pb-10">
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl bg-white p-4 border border-slate-200/60 shadow-sm">
-        <div className="flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-50 text-cyan-600">
-            <TrendingUp className="h-5 w-5" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-slate-800">Phân tích Doanh thu</h3>
-            <p className="text-xs text-slate-500">Xem chi tiết doanh thu theo thời gian và dịch vụ</p>
-          </div>
-        </div>
-        
+      <div className="flex justify-end">
         <div className="flex bg-slate-100 p-1 rounded-xl">
           <button
             onClick={() => setFilter("month")}
