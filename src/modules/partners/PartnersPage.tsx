@@ -120,19 +120,19 @@ function PartnerForm({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl">
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-600 to-sky-400 text-white shadow-md shadow-cyan-500/20">
               <ContactRound className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              <h2 className="text-lg font-bold text-slate-900">
                 {initial._id ? "Sửa thông tin đối tác" : "Thêm đối tác"}
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-slate-500">
                 Quản lý hồ sơ CTV, đại lý đối tác hoặc liên kết nhà cung cấp
               </p>
             </div>
@@ -140,7 +140,7 @@ function PartnerForm({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
@@ -151,7 +151,7 @@ function PartnerForm({
           {error && (
             <div
               role="alert"
-              className="flex items-center gap-2.5 rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300"
+              className="flex items-center gap-2.5 rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-sm text-rose-700"
             >
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{error}</span>
@@ -164,23 +164,23 @@ function PartnerForm({
               Thông tin định danh
             </h3>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 Mã đối tác <span className="text-rose-500">*</span>
                 <input
                   required
                   placeholder="VD: CTV-001, DL-MINH"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100 dark:focus:bg-slate-900"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20"
                   value={String(form.code || "")}
                   onChange={(e) => setForm({ ...form, code: e.target.value })}
                 />
               </label>
 
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 Tên đối tác <span className="text-rose-500">*</span>
                 <input
                   required
                   placeholder="Họ tên cá nhân hoặc tên đại lý"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100 dark:focus:bg-slate-900"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20"
                   value={String(form.name || "")}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                 />
@@ -194,30 +194,30 @@ function PartnerForm({
               Liên hệ & Địa chỉ
             </h3>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 Điện thoại
                 <input
                   placeholder="0912 345 678"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100 dark:focus:bg-slate-900"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20"
                   value={String(form.phone || "")}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 />
               </label>
 
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 Email
                 <input
                   required={!initial._id}
                   type="email"
                   placeholder="partner@example.com"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100 dark:focus:bg-slate-900"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20"
                   value={String(form.email || "")}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                 />
               </label>
 
               {!initial._id && (
-                <label className="sm:col-span-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <label className="sm:col-span-2 text-xs font-semibold text-slate-700">
                   Mật khẩu tài khoản <span className="text-rose-500">*</span>
                   <input
                     required
@@ -225,21 +225,21 @@ function PartnerForm({
                     maxLength={128}
                     type="password"
                     placeholder="Ít nhất 6 ký tự"
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100 dark:focus:bg-slate-900"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20"
                     value={String(form.accountPassword || "")}
                     onChange={(e) => setForm({ ...form, accountPassword: e.target.value })}
                   />
-                  <span className="mt-1.5 block text-xs font-normal text-slate-500 dark:text-slate-400">
+                  <span className="mt-1.5 block text-xs font-normal text-slate-500">
                     Tài khoản sẽ được cấp ngay sau khi lưu hồ sơ với quyền chỉ xem cổng Đối tác.
                   </span>
                 </label>
               )}
 
-              <label className="sm:col-span-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="sm:col-span-2 text-xs font-semibold text-slate-700">
                 Địa chỉ
                 <input
                   placeholder="Địa chỉ giao dịch, nhận hàng hoặc liên hệ"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100 dark:focus:bg-slate-900"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20"
                   value={String(form.address || "")}
                   onChange={(e) => setForm({ ...form, address: e.target.value })}
                 />
@@ -261,11 +261,11 @@ function PartnerForm({
                       key={key}
                       className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 transition ${
                         checked
-                          ? "border-cyan-500/40 bg-cyan-50/50 ring-1 ring-cyan-500/20 dark:border-cyan-500/40 dark:bg-cyan-950/20"
-                          : "border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 dark:border-slate-800 dark:bg-slate-800/30 dark:hover:bg-slate-800/50"
+                          ? "border-cyan-500/40 bg-cyan-50/50 ring-1 ring-cyan-500/20"
+                          : "border-slate-200 bg-slate-50/50 hover:bg-slate-100/50"
                       }`}
                     >
-                      <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                      <span className="text-sm font-medium text-slate-800">
                         {label}
                       </span>
                       <input
@@ -291,7 +291,7 @@ function PartnerForm({
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
                 Trạng thái
                 <select
-                  className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100 dark:focus:bg-slate-900 cursor-pointer"
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 cursor-pointer"
                   value={form.status}
                   onChange={(e) => setForm({ ...form, status: e.target.value })}
                 >
@@ -299,18 +299,18 @@ function PartnerForm({
                   <option value="inactive">Ngừng hoạt động</option>
                 </select>
               </label>
-              <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-500 dark:bg-slate-800/40 dark:text-slate-400 border border-slate-100 dark:border-slate-800">
-                <span className="font-semibold text-slate-700 dark:text-slate-300">Ghi chú:</span> Đối tác ngừng hoạt động sẽ không thể gắn vào đơn hàng mới hoặc tính hoa hồng phát sinh.
+              <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-500 border border-slate-100">
+                <span className="font-semibold text-slate-700">Ghi chú:</span> Đối tác ngừng hoạt động sẽ không thể gắn vào đơn hàng mới hoặc tính hoa hồng phát sinh.
               </div>
             </div>
           </div>
 
           {/* Footer Controls */}
-          <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+          <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
+              className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition cursor-pointer"
             >
               Đóng
             </button>
@@ -358,42 +358,42 @@ function PartnerAccountModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-100 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-100 text-cyan-700">
               <UserPlus className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Cấp tài khoản đối tác</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{partner.name} · {roles[partner.roles?.[0]] || "Đối tác"}</p>
+              <h2 className="text-lg font-bold text-slate-900">Cấp tài khoản đối tác</h2>
+              <p className="text-xs text-slate-500">{partner.name} · {roles[partner.roles?.[0]] || "Đối tác"}</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Đóng">
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 transition cursor-pointer" aria-label="Đóng">
             <X className="h-5 w-5" />
           </button>
         </div>
         <form onSubmit={submit} className="space-y-4 p-6">
-          {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300">{error}</div>}
-          <p className="rounded-xl border border-cyan-100 bg-cyan-50/70 p-3 text-xs leading-5 text-cyan-900 dark:border-cyan-900/40 dark:bg-cyan-950/30 dark:text-cyan-200">
+          {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
+          <p className="rounded-xl border border-cyan-100 bg-cyan-50/70 p-3 text-xs leading-5 text-cyan-900">
             Tài khoản chỉ được xem cổng Đối tác và dữ liệu thuộc hồ sơ này. Gửi thông tin đăng nhập cho đối tác qua kênh an toàn.
           </p>
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <label className="block text-xs font-semibold text-slate-700">
             Email đăng nhập <span className="text-rose-500">*</span>
-            <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100" />
+            <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:bg-white" />
           </label>
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <label className="block text-xs font-semibold text-slate-700">
             Tên hiển thị
-            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100" />
+            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:bg-white" />
           </label>
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <label className="block text-xs font-semibold text-slate-700">
             Mật khẩu tạm thời <span className="text-rose-500">*</span>
-            <input required minLength={6} maxLength={128} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Ít nhất 6 ký tự" className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100" />
+            <input required minLength={6} maxLength={128} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Ít nhất 6 ký tự" className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:bg-white" />
           </label>
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Hủy</button>
-            <button type="submit" disabled={busy} className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-sky-600 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-cyan-500/20 disabled:opacity-50">{busy ? "Đang cấp..." : "Cấp tài khoản"}</button>
+            <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition cursor-pointer">Hủy</button>
+            <button type="submit" disabled={busy} className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-sky-600 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-cyan-500/20 disabled:opacity-50 transition cursor-pointer">{busy ? "Đang cấp..." : "Cấp tài khoản"}</button>
           </div>
         </form>
       </div>
