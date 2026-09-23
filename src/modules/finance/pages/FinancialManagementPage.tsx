@@ -1,3 +1,4 @@
+import TrendChart from "../components/FinanceTrendChart";
 import { useEffect, useState } from "react";
 import { LockKeyhole, RefreshCw } from "lucide-react";
 import { useBranchOptional } from "../../../context/BranchContext";
@@ -78,15 +79,4 @@ export default function FinancialManagementPage({ view }: {
     else
         await financeManagement("/settings", values, "PUT"); setRevision(v => v + 1); }}/>}
   </section>;
-}
-function TrendChart({ data }: {
-    data: any[];
-}) {
-    if (!data.length)
-        return null;
-    const values = data.flatMap(r => r.cost == null ? [r.revenue] : [r.revenue, r.cost, r.revenue - r.cost, r.revenue - r.cost - r.expense]);
-    const min = Math.min(0, ...values), max = Math.max(1, ...values);
-    const y = (v: number) => 150 - (v - min) / (max - min) * 135;
-    const series = [{ label: "Doanh thu", color: "#0284c7", get: (r: any) => r.revenue }, { label: "Giá vốn", color: "#d97706", get: (r: any) => r.cost }, { label: "Lãi gộp", color: "#059669", get: (r: any) => r.cost == null ? null : r.revenue - r.cost }, { label: "Lãi ròng", color: "#7c3aed", get: (r: any) => r.cost == null ? null : r.revenue - r.cost - r.expense }];
-    return <div className="rounded-2xl border border-slate-300 bg-white p-4"><div className="mb-2 flex flex-wrap gap-4 text-xs">{series.map(s => <span key={s.label} style={{ color: s.color }}>{s.label}</span>)}</div><svg viewBox="0 0 700 170" role="img" aria-label="Diễn biến tài chính; số liệu chi tiết trong bảng bên dưới" className="max-h-52 w-full"><line x1="10" x2="690" y1={y(0)} y2={y(0)} stroke="#cbd5e1"/>{series.map(s => <path key={s.label} fill="none" stroke={s.color} strokeWidth="1.5" d={data.map((r, i) => s.get(r) == null ? "" : `${i === 0 || s.get(data[i - 1]) == null ? "M" : "L"}${10 + i / Math.max(1, data.length - 1) * 680},${y(s.get(r))}`).join(" ")}/>)}</svg></div>;
 }
