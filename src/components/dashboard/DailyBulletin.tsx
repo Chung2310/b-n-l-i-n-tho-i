@@ -24,11 +24,11 @@ export function DailyBulletin({ data, error }: { data?: DashboardActionItems["bu
     "Hang cham day an toan": "bg-orange-600 text-white",
   };
   const labels = { sales: "Bán hàng", technical: "Kỹ thuật", manager: "Quản lý" };
-  return <section aria-label="Bản tin việc cần làm" className="mb-3 rounded-2xl border border-blue-200 bg-white p-3 sm:p-4">
+  return <section aria-label="Bản tin việc cần làm" className="mb-3 rounded-2xl border border-[#d1d5db] bg-white p-3 sm:p-4">
     {data && <span className="sr-only">{labels[data.role]}</span>}
     {error ? <p role="alert" className="text-sm font-semibold text-rose-800">Không tải được bản tin. Hệ thống sẽ tự thử lại sau 30 giây.</p> : !data ? <p role="status" className="text-sm text-slate-700">Đang tải việc cần làm của bạn…</p> : <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {data.cards.map(card => { const key = card.title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\u0110/g, "D").replace(/\u0111/g, "d"); const Icon = cardIcons[key] || ClipboardList; return <article key={card.title} className="flex flex-col rounded-xl border border-slate-200 bg-white p-3">
+        {data.cards.map(card => { const key = card.title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\u0110/g, "D").replace(/\u0111/g, "d"); const Icon = cardIcons[key] || ClipboardList; return <article key={card.title} className="flex flex-col rounded-xl border border-[#d1d5db] bg-white p-3">
           <div className="flex items-center gap-2 text-left"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${iconTones[key] || "bg-cyan-600 text-white"}`}><Icon aria-hidden="true" className="h-5 w-5" /></span><p className="min-w-0 break-words text-left text-lg font-extrabold text-slate-900">{card.value}</p></div>
           <h3 className="mt-1 text-left text-xs font-bold text-slate-700">{card.title}</h3>
           {card.detail && <p className="mb-2 mt-1 text-xs leading-relaxed text-slate-700">{card.detail}</p>}
