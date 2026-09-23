@@ -217,13 +217,12 @@ export function TimekeepingWidget({
           <button
             onClick={() => handleAction("in")}
             disabled={hasCheckIn || checking !== null || isLoading}
-            className={`flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-wider text-white shadow-md transition-all duration-200 cursor-pointer ${
-              hasCheckIn
+            className={`flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-wider text-white shadow-md transition-all duration-200 cursor-pointer ${hasCheckIn
                 ? "bg-slate-200 text-slate-400 shadow-none cursor-not-allowed border border-slate-300/40"
                 : checking === "in"
-                ? "bg-indigo-400 cursor-wait animate-pulse"
-                : "bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] shadow-indigo-600/10"
-            }`}
+                  ? "bg-indigo-400 cursor-wait animate-pulse"
+                  : "bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] shadow-indigo-600/10"
+              }`}
           >
             {checking === "in" ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -235,13 +234,12 @@ export function TimekeepingWidget({
           <button
             onClick={() => handleAction("out")}
             disabled={!hasCheckIn || hasCheckOut || checking !== null || isLoading}
-            className={`flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-wider text-white shadow-md transition-all duration-200 cursor-pointer ${
-              !hasCheckIn || hasCheckOut
+            className={`flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-wider text-white shadow-md transition-all duration-200 cursor-pointer ${!hasCheckIn || hasCheckOut
                 ? "bg-slate-200 text-slate-400 shadow-none cursor-not-allowed border border-slate-300/40"
                 : checking === "out"
-                ? "bg-emerald-400 cursor-wait animate-pulse"
-                : "bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] shadow-emerald-600/10"
-            }`}
+                  ? "bg-emerald-400 cursor-wait animate-pulse"
+                  : "bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] shadow-emerald-600/10"
+              }`}
           >
             {checking === "out" ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -255,7 +253,7 @@ export function TimekeepingWidget({
       {gpsPermission === "prompt" && (
         <div className="w-full p-3 bg-indigo-50 border border-indigo-100 text-indigo-800 rounded-2xl flex items-center gap-2 animate-pulse">
           <AlertTriangle className="h-4.5 w-4.5 shrink-0 text-indigo-600" />
-          <span className="text-[11px] font-semibold text-left">iGen ERP cần quyền vị trí của bạn để chấm công. Vui lòng chọn "Cho phép" (Allow) khi trình duyệt yêu cầu.</span>
+          <span className="text-[11px] font-semibold text-left">Anh Khoa Mobile cần quyền vị trí của bạn để chấm công. Vui lòng chọn "Cho phép" (Allow) khi trình duyệt yêu cầu.</span>
         </div>
       )}
 

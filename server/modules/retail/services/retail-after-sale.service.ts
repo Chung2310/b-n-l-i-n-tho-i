@@ -10,7 +10,7 @@ import { normalizeInternalBarcode } from "../../inventory/serials/unit-barcode-v
 import type { RetailBranchScope } from "../contracts";
 import { RetailAfterSaleModel } from "../models/retail-after-sale.model";
 import { RetailOrderModel } from "../models/retail-order.model";
-import { CashierShiftModel } from "../models/cashier-shift.model";
+import { businessDateInVietnam } from "./cashier-shift.service";
 
 const actorId = (a: any) => String(a.id || a.uid || ""); const actorName = (a: any) => String(a.displayName || a.email || "");
 const fail = (message: string, code = "AFTER_SALE_INVALID", status = 400) => Object.assign(new Error(message), { code, status });
@@ -44,7 +44,8 @@ async function restoreSerials(scope: RetailBranchScope, order: any, doc: any, ac
 
 export const RetailAfterSaleService = {
   async list(scope: RetailBranchScope, query: any) { const page = Math.max(1, Number(query.page) || 1), limit = Math.min(100, Math.max(1, Number(query.limit) || 20)), filter: any = { ...scope, ...(query.type ? { type: String(query.type) } : {}), ...(query.orderId ? { orderId: String(query.orderId) } : {}) }; const [items, total] = await Promise.all([RetailAfterSaleModel.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(), RetailAfterSaleModel.countDocuments(filter)]); return { items, total, page, limit }; },
-  async create(scope: RetailBranchScope, input: any, actor: any, shift: any) {
+  async create(scope: RetailBranchScope, input: any, actor: any, shift?: any) {
+    const businessDate = shift?.businessDate || businessDateInVietnam(new Date());
     if (!["return", "buyback"].includes(input.type)) throw fail("Loại chứng từ không hợp lệ."); const reason = String(input.reason || "").trim(); if (!reason) throw fail("Lý do là bắt buộc.");
     const paymentMethod = String(input.paymentMethod || "cash") as "cash" | "card" | "transfer" | "ewallet", idempotencyKey = String(input.idempotencyKey || "").trim(); if (!["cash", "card", "transfer", "ewallet"].includes(paymentMethod)) throw fail("Phương thức chi tiền không hợp lệ."); if (!idempotencyKey) throw fail("Thiếu khóa chống tạo trùng.");
     const replay = await RetailAfterSaleModel.findOne({ companyCode: scope.companyCode, idempotencyKey }).lean(); if (replay) return replay; if (!Types.ObjectId.isValid(input.orderId)) throw fail("Mã đơn bán gốc không hợp lệ.");
@@ -52,12 +53,11 @@ export const RetailAfterSaleService = {
       const order: any = await RetailOrderModel.findOne({ _id: input.orderId, ...scope, status: "completed", paymentStatus: { $in: ["paid", "refunded"] } }).session(session); if (!order) throw fail("Chỉ xử lý được đơn đã hoàn tất và thanh toán đủ.", "ORDER_NOT_ELIGIBLE", 409);
       const prior: any[] = await RetailAfterSaleModel.find({ ...scope, orderId: String(order._id) }).session(session).lean(), used = new Map<number, number>(); for (const d of prior) for (const i of d.items || []) used.set(i.orderLineIndex, (used.get(i.orderLineIndex) || 0) + i.quantity);
       const items = selectedItems(order, input, used), totalAmount = items.reduce((s: number, i: any) => s + i.lineAmount, 0); if (totalAmount <= 0) throw fail("Tổng tiền phải lớn hơn 0.");
-      const _id = new Types.ObjectId(), code = `${input.type === "return" ? "TH" : "TM"}-${shift.businessDate.replaceAll("-", "")}-${String(_id).slice(-6).toUpperCase()}`;
-      const [doc] = await (RetailAfterSaleModel as any).create([{ _id, ...scope, code, type: input.type, orderId: String(order._id), orderCode: order.orderCode, customerId: order.customerId, customerName: order.customerName, customerPhone: order.customerPhone, items, totalAmount, paymentMethod, paymentReference: String(input.paymentReference || "").trim() || undefined, reason, shiftId: String(shift._id), businessDate: shift.businessDate, idempotencyKey, createdBy: actorId(actor), createdByName: actorName(actor) }], { session });
+      const _id = new Types.ObjectId(), code = `${input.type === "return" ? "TH" : "TM"}-${businessDate.replaceAll("-", "")}-${String(_id).slice(-6).toUpperCase()}`;
+      const [doc] = await (RetailAfterSaleModel as any).create([{ _id, ...scope, code, type: input.type, orderId: String(order._id), orderCode: order.orderCode, customerId: order.customerId, customerName: order.customerName, customerPhone: order.customerPhone, items, totalAmount, paymentMethod, paymentReference: String(input.paymentReference || "").trim() || undefined, reason, shiftId: shift?._id ? String(shift._id) : undefined, businessDate: businessDate, idempotencyKey, createdBy: actorId(actor), createdByName: actorName(actor) }], { session });
       const variants = await ProductVariantModel.find({ companyCode: scope.companyCode, _id: { $in: items.map((i: any) => i.productId) } }).session(session).lean(), map = new Map(variants.map((v: any) => [String(v._id), v]));
       await writeStockMovement({ ...scope, direction: "in", purpose: input.type === "return" ? "sales-return" : "purchase", sourceType: "retail-after-sale", sourceId: String(doc._id), sourceCode: code, idempotencyKey: `after-sale:${doc._id}:in`, operatorName: actorName(actor), items: items.map((i: any) => { const v: any = map.get(i.productId); return { ...i, productId: v ? String(v.productId) : i.productId, ...(v ? { variantId: String(v._id) } : { legacyProductId: i.productId }) }; }), reason, session }); await restoreSerials(scope, order, doc, actor, session);
-      if (input.type === "return") { order.refunds.push({ method: paymentMethod, amount: totalAmount, reference: doc.paymentReference, refundedAt: new Date(), refundedBy: actorId(actor), refundedByName: actorName(actor), shiftId: String(shift._id), businessDate: shift.businessDate, reason }); order.refundedAmount += totalAmount; order.paymentStatus = order.refundedAmount >= order.grandTotal ? "refunded" : "paid"; order.version += 1; await order.save({ session }); }
-      if (input.type === "buyback" && paymentMethod === "cash") await CashierShiftModel.updateOne({ _id: shift._id, ...scope, status: "open" }, { $push: { cashMovements: { type: "out", amount: totalAmount, reason: `Thu mua ${code}: ${reason}`, at: new Date(), by: actorId(actor), byName: actorName(actor) } } }, { session });
+      if (input.type === "return") { order.refunds.push({ method: paymentMethod, amount: totalAmount, reference: doc.paymentReference, refundedAt: new Date(), refundedBy: actorId(actor), refundedByName: actorName(actor), shiftId: shift?._id ? String(shift._id) : undefined, businessDate: businessDate, reason }); order.refundedAmount += totalAmount; order.paymentStatus = order.refundedAmount >= order.grandTotal ? "refunded" : "paid"; order.version += 1; await order.save({ session }); }
       if (input.type === "return" && order.commissionSnapshot) await reconcileCommission("retail", String(order._id), scope.companyCode, session);
       result = doc;
     }); } finally { await session.endSession(); } return result;

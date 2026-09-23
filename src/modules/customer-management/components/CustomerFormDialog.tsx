@@ -193,7 +193,7 @@ export default function CustomerFormDialog({
           {field("dateOfBirth", "Ngày sinh", "date")}
 
           <div className="block text-sm font-semibold text-slate-700">
-            <span className="block mb-1">Loại khách</span>
+            <span className="flex items-center gap-1">Loại khách</span>
             <Dropdown<CustomerInput["type"]>
               aria-label="Loại khách"
               name="type"
@@ -203,9 +203,12 @@ export default function CustomerFormDialog({
                 { value: "regular", label: "Khách thường" },
                 { value: "vat", label: "Khách xuất VAT" },
               ]}
-              variant="default"
+              placeholder={PLACEHOLDERS.type}
+              variant="form"
               size="md"
-              triggerClassName="w-full justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              className="mt-1 w-full block"
+              triggerClassName="w-full h-[38px] justify-between font-normal"
+              menuClassName="w-full min-w-full"
             />
           </div>
 

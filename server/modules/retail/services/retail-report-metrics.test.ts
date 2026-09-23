@@ -269,3 +269,18 @@ test("product metrics honor product, SKU, category, brand and salesperson filter
   });
   assert.deepEqual(model.products.map((row) => row.productId), ["p1"]);
 });
+
+
+test("cashier performance includes sales without shifts and keeps legacy sales", () => {
+  const model = buildRetailReportModel({
+    orders: [
+      order({ shiftId: undefined, createdBy: "cashier-alice", createdByName: "Alice", grandTotal: 200 }),
+      order(),
+    ],
+    shifts: [shift()], days: ["2026-08-10"], today: "2026-08-10", includeProfit: false,
+  });
+  assert.equal(model.cashiers.length, 1);
+  assert.equal(model.cashiers[0].cashierName, "Alice");
+  assert.equal(model.cashiers[0].orderCount, 2);
+  assert.equal(model.cashiers[0].netSales, 300);
+});

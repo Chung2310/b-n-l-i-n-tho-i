@@ -5,13 +5,22 @@ import {
   ChevronRight,
   ContactRound,
   Eye,
+  Layers,
   PackagePlus,
   Pencil,
   RefreshCw,
+  Scan,
   Search,
+  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
+import {
+  BulkVariantReceiveModal,
+  type SelectedReceiveVariant,
+} from "./receiving/BulkVariantReceiveModal";
+import { SerialManagerModal } from "./receiving/SerialManagerModal";
+import { ReceiptDetailModal } from "./receiving/ReceiptDetailModal";
 import {
   inventoryReceivingService,
   type GoodsReceipt,
@@ -465,7 +474,7 @@ export function ReceivingSection() {
 
 function ReceiptStatus({ status }: { status: GoodsReceipt["status"] }) { const details = { draft: ["Nháp", "bg-slate-100 text-slate-600"], pending: ["Chờ xác nhận", "bg-amber-50 text-amber-700"], receiving: ["Đang nhập kho", "bg-sky-50 text-sky-700"], confirmed: ["Hoàn thành", "bg-emerald-50 text-emerald-700"], cancelled: ["Đã hủy", "bg-rose-50 text-rose-700"] } as const; const [label, className] = details[status]; return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${className}`}>{label}</span>; }
 function ReceiptActions({ receipt, onView, onSubmit, onStart, onConfirm, onCancel }: { receipt: GoodsReceipt; onView: () => void; onSubmit: () => void; onStart: () => void; onConfirm: () => void; onCancel: () => void }) { return <span className="inline-flex gap-1"><button type="button" onClick={onView} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-cyan-700" title="Xem chi tiết phiếu"><Eye className="h-4 w-4" /></button>{receipt.status === "draft" && <><button type="button" onClick={onSubmit} className="inline-flex h-8 items-center rounded-md px-2 text-xs font-medium text-amber-700 hover:bg-amber-50" title="Gửi chờ xác nhận">Gửi</button><button type="button" onClick={onCancel} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-rose-600 hover:bg-rose-50" title="Hủy phiếu"><X className="h-4 w-4" /></button></>}{receipt.status === "pending" && <><button type="button" onClick={onStart} className="inline-flex h-8 items-center rounded-md px-2 text-xs font-medium text-sky-700 hover:bg-sky-50" title="Bắt đầu nhập kho">Nhập kho</button><button type="button" onClick={onCancel} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-rose-600 hover:bg-rose-50" title="Hủy phiếu"><X className="h-4 w-4" /></button></>}{receipt.status === "receiving" && <button type="button" onClick={onConfirm} className="inline-flex h-8 items-center gap-1 rounded-md bg-emerald-600 px-2 text-xs font-medium text-white hover:bg-emerald-700" title="Hoàn thành nhập kho"><Check className="h-3.5 w-3.5" />Hoàn thành</button>}</span>; }
-function ReceiptDetailModal({ receipt, onClose }: { receipt: GoodsReceipt; onClose: () => void }) { return <Modal title={`Chi tiết phiếu nhập ${receipt.receiptCode}`} onClose={onClose} wide><div className="space-y-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold text-slate-900">{receipt.supplierName}</p><p className="mt-1 text-xs text-slate-500">Ngày tạo: {new Date(receipt.createdAt).toLocaleString("vi-VN")}</p></div><ReceiptStatus status={receipt.status} /></div><div className="overflow-x-auto rounded-lg border border-slate-200"><table className="w-full min-w-[620px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">Sản phẩm</th><th className="px-4 py-3">SKU</th><th className="px-4 py-3 text-right">Số lượng</th><th className="px-4 py-3 text-right">BH NCC</th><th className="px-4 py-3 text-right">Đơn giá</th><th className="px-4 py-3 text-right">Thành tiền</th></tr></thead><tbody className="divide-y divide-slate-100">{receipt.items.map((item, index) => <tr key={`${item.variantId}-${index}`}><td className="px-4 py-3 font-medium text-slate-800">{item.productName}</td><td className="px-4 py-3 font-mono text-xs text-slate-600">{item.sku}</td><td className="px-4 py-3 text-right tabular-nums">{item.quantity}</td><td className="px-4 py-3 text-right tabular-nums text-slate-600">{item.supplierWarrantyMonths ? `${item.supplierWarrantyMonths} tháng` : "—"}</td><td className="px-4 py-3 text-right tabular-nums">{money(item.unitCost)}</td><td className="px-4 py-3 text-right font-semibold tabular-nums">{money(item.lineTotal)}</td></tr>)}</tbody></table></div><div className="flex justify-end border-t border-slate-200 pt-4"><button type="button" onClick={onClose} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Đóng</button></div></div></Modal>; }
+
 
 function SearchableSelect({ options, value, onChange, onQueryChange, placeholder, disabled }: { options: { value: string; label: string }[]; value: string; onChange: (val: string) => void; onQueryChange?: (query: string) => void; placeholder: string; disabled?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -543,6 +552,66 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [saving, setSaving] = useState(false);
+
+  // Advanced Bulk SKU & IMEI Manager states
+  const [isBulkVariantModalOpen, setIsBulkVariantModalOpen] = useState(false);
+  const [managingSerialLineKey, setManagingSerialLineKey] = useState<string | null>(null);
+  const [expandedUnitLines, setExpandedUnitLines] = useState<Record<string, boolean>>({});
+
+  const activeSerialLine = useMemo(() => {
+    return lines.find((l) => l.key === managingSerialLineKey);
+  }, [lines, managingSerialLineKey]);
+
+  const otherLinesSerials = useMemo(() => {
+    return lines
+      .filter((l) => l.key !== managingSerialLineKey)
+      .flatMap((l) => (l.serialNumbers || []).map((s) => s.trim()).filter(Boolean));
+  }, [lines, managingSerialLineKey]);
+
+  const handleBulkVariantsConfirm = (selectedList: SelectedReceiveVariant[]) => {
+    const currentProduct = products.find((p) => p._id === productId);
+    if (!currentProduct) return;
+
+    setLines((current) => {
+      const next = [...current];
+      for (const item of selectedList) {
+        const existingIndex = next.findIndex((l) => l.variantId === item.variant._id);
+        if (existingIndex >= 0) {
+          const existing = next[existingIndex];
+          const newQty = existing.quantity + item.quantity;
+          const updated: DraftLine = {
+            ...existing,
+            quantity: newQty,
+            unitCost: item.unitCost > 0 ? item.unitCost : existing.unitCost,
+          };
+          next[existingIndex] = unitTracked(updated.trackingMode)
+            ? normalizeUnits(updated, Math.round(newQty))
+            : updated;
+        } else {
+          const draft: DraftLine = {
+            key: `${item.variant._id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            productId: currentProduct._id,
+            variantId: item.variant._id,
+            sku: item.variant.sku,
+            productName: currentProduct.name,
+            displayName: item.variant.displayName || item.variant.sku,
+            quantity: item.quantity,
+            unitCost: item.unitCost,
+            trackingMode: item.variant.trackingMode,
+            supplierWarrantyMonths: item.variant.supplierWarrantyMonths,
+          };
+          next.push(unitTracked(draft.trackingMode) ? normalizeUnits(draft, Math.max(1, Math.round(item.quantity))) : draft);
+        }
+      }
+      return next;
+    });
+
+    toast.success(`Đã thêm/cập nhật ${selectedList.length} SKU của "${currentProduct.name}" vào phiếu nhập!`);
+  };
+
+  const handleSaveSerialLine = (updatedLine: DraftLine) => {
+    setLines((current) => current.map((l) => (l.key === updatedLine.key ? updatedLine : l)));
+  };
 
   const load = async () => {
     try {
@@ -741,7 +810,18 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
           </div>
 
           <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
-            <h4 className="text-sm font-semibold text-slate-900 mb-4">Thêm sản phẩm vào phiếu</h4>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
+              <h4 className="text-sm font-semibold text-slate-900">Thêm sản phẩm vào phiếu</h4>
+              {productId && variants.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsBulkVariantModalOpen(true)}
+                  className="rounded-md bg-cyan-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-cyan-800 transition-colors"
+                >
+                  Nhập nhiều SKU của sản phẩm này ({variants.length} SKU)
+                </button>
+              )}
+            </div>
             <div className="grid gap-4 sm:grid-cols-12 items-end">
               <div className="sm:col-span-5">
                 <label className="mb-1.5 block text-xs font-medium text-slate-700">Sản phẩm</label>
@@ -798,48 +878,172 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
                 <tbody className="divide-y divide-slate-100">
                   {lines.length === 0 ? <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-500">Chưa có sản phẩm trong phiếu.</td></tr> : lines.map((line) => unitTracked(line.trackingMode) ? (
                     <Fragment key={line.key}>
-                      <tr className="bg-slate-50/60">
+                      <tr className="bg-slate-50/60 hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3">
-                          <p className="font-medium text-slate-900">{line.productName}</p>
+                          <p className="font-semibold text-slate-900">{line.productName}</p>
                           <p className="text-xs text-slate-500">{line.displayName}</p>
                         </td>
-                        <td className="px-4 py-3 font-mono text-xs text-slate-600">{line.sku}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-slate-700">{line.sku}</td>
                         
-                        <td className="px-4 py-3 text-right tabular-nums text-sm font-semibold text-slate-800">{unitCount(line)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <input
+                            type="number"
+                            min={1}
+                            max={500}
+                            value={line.quantity}
+                            onChange={(event) => updateLine(line.key, "quantity", event.target.value)}
+                            className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-right tabular-nums text-sm font-bold text-slate-800 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600"
+                            aria-label={`Số lượng ${line.sku}`}
+                          />
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-[11px] font-medium text-cyan-700">{line.trackingMode === "serial" ? "Theo IMEI/sê-ri" : "Theo mã vạch từng đơn vị"}</span>
-                            <button type="button" onClick={() => generateUnitBarcodes(line)} className="text-xs font-medium text-cyan-700 hover:text-cyan-900">Sinh mã nội bộ tự động</button>
-                            <label className="flex items-center gap-1 text-[11px] text-slate-500">
+                            {line.trackingMode === "serial" ? (
+                              (() => {
+                                const filledCount = (line.serialNumbers || []).filter(Boolean).length;
+                                const isEnough = filledCount === line.quantity;
+                                return (
+                                  <span
+                                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                      isEnough
+                                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                        : filledCount > 0
+                                        ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                        : "bg-rose-50 text-rose-700 border border-rose-200"
+                                    }`}
+                                  >
+                                    {isEnough && <Check className="h-3 w-3" />}
+                                    {filledCount === 0
+                                      ? `Chưa có IMEI (0/${line.quantity})`
+                                      : `${filledCount}/${line.quantity} IMEI`}
+                                  </span>
+                                );
+                              })()
+                            ) : (
+                              <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-[11px] font-medium text-cyan-700 border border-cyan-200">
+                                Theo mã vạch đơn vị
+                              </span>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => setManagingSerialLineKey(line.key)}
+                              className="rounded bg-cyan-700 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-cyan-800 transition-colors"
+                            >
+                              Quản lý / Quét IMEI
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => generateUnitBarcodes(line)}
+                              className="text-xs font-medium text-cyan-700 hover:text-cyan-900"
+                            >
+                              Sinh mã nội bộ
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedUnitLines((curr) => ({
+                                  ...curr,
+                                  [line.key]: !curr[line.key],
+                                }))
+                              }
+                              className="text-[11px] text-slate-400 hover:text-slate-700 font-medium ml-1"
+                            >
+                              {expandedUnitLines[line.key] ? "▲ Thu gọn" : "▼ Xem từng ô"}
+                            </button>
+
+                            <label className="flex items-center gap-1 text-[11px] text-slate-500 ml-auto">
                               BH NCC
-                              <input value={line.supplierWarrantyMonths ?? ""} onChange={(event) => updateWarrantyMonths(line.key, event.target.value)} placeholder="0" className="w-14 rounded-md border border-slate-200 bg-white px-1.5 py-1 text-right tabular-nums text-xs text-slate-700 outline-none focus:border-cyan-600" aria-label={`Bảo hành nhà cung cấp ${line.sku} (tháng)`} />
+                              <input
+                                value={line.supplierWarrantyMonths ?? ""}
+                                onChange={(event) => updateWarrantyMonths(line.key, event.target.value)}
+                                placeholder="0"
+                                className="w-12 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-right tabular-nums text-xs text-slate-700 outline-none focus:border-cyan-600"
+                                aria-label={`Bảo hành nhà cung cấp ${line.sku} (tháng)`}
+                              />
                               tháng
                             </label>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-right"><input type="text" inputMode="numeric" value={money(line.unitCost)} onChange={(event) => updateLine(line.key, "unitCost", event.target.value)} className="w-32 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-right tabular-nums text-sm text-slate-700 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600" aria-label={`Đơn giá ${line.sku}`} /></td>
-                        <td className="px-4 py-3 text-right tabular-nums font-semibold text-slate-900">{money(line.quantity * line.unitCost)}</td>
-                        <td className="px-4 py-3 text-right"><button type="button" onClick={() => setLines((current) => current.filter((item) => item.key !== line.key))} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-600" title="Xóa cả dòng"><Trash2 className="h-4 w-4" /></button></td>
+                        <td className="px-4 py-3 text-right">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={money(line.unitCost)}
+                            onChange={(event) => updateLine(line.key, "unitCost", event.target.value)}
+                            className="w-32 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-right tabular-nums text-sm font-semibold text-cyan-800 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600"
+                            aria-label={`Đơn giá ${line.sku}`}
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums font-bold text-slate-900">{money(line.quantity * line.unitCost)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => setLines((current) => current.filter((item) => item.key !== line.key))}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                            title="Xóa cả dòng"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
                       </tr>
-                      {Array.from({ length: unitCount(line) }, (_, index) => (
-                        <tr key={`${line.key}-unit-${index}`}>
-                          <td colSpan={2} className="py-2 pl-8 pr-4 text-xs font-medium text-slate-500">Đơn vị #{index + 1}</td>
-                          <td className="px-4 py-2 text-right tabular-nums text-xs text-slate-400">1</td>
-                          <td className="px-4 py-2">
-                            <div className="flex flex-wrap gap-2">
-                              {line.trackingMode === "serial" && <input value={line.serialNumbers?.[index] || ""} onChange={(event) => updateSerialAt(line.key, index, event.target.value)} placeholder={`IMEI/serial ${index + 1}`} className="w-44 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600" aria-label={`IMEI serial ${line.sku} đơn vị ${index + 1}`} />}
-                              <input value={line.unitDetails?.[index]?.internalBarcode || ""} onChange={(event) => updateUnitBarcodeAt(line.key, index, event.target.value)} placeholder={`Mã vạch nội bộ ${index + 1}`} className="w-44 rounded-md border border-cyan-200 bg-cyan-50 px-2 py-1.5 text-xs outline-none focus:border-cyan-600" aria-label={`Mã vạch nội bộ ${line.sku} đơn vị ${index + 1}`} />
-                            </div>
+                      {expandedUnitLines[line.key] &&
+                        Array.from({ length: unitCount(line) }, (_, index) => (
+                          <tr key={`${line.key}-unit-${index}`} className="bg-slate-50/30">
+                            <td colSpan={2} className="py-2 pl-8 pr-4 text-xs font-medium text-slate-500">
+                              Đơn vị #{index + 1}
+                            </td>
+                            <td className="px-4 py-2 text-right tabular-nums text-xs text-slate-400">1</td>
+                            <td className="px-4 py-2">
+                              <div className="flex flex-wrap gap-2">
+                                {line.trackingMode === "serial" && (
+                                  <input
+                                    value={line.serialNumbers?.[index] || ""}
+                                    onChange={(event) => updateSerialAt(line.key, index, event.target.value)}
+                                    placeholder={`IMEI/serial ${index + 1}`}
+                                    className="w-44 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600"
+                                    aria-label={`IMEI serial ${line.sku} đơn vị ${index + 1}`}
+                                  />
+                                )}
+                                <input
+                                  value={line.unitDetails?.[index]?.internalBarcode || ""}
+                                  onChange={(event) => updateUnitBarcodeAt(line.key, index, event.target.value)}
+                                  placeholder={`Mã vạch nội bộ ${index + 1}`}
+                                  className="w-44 rounded-md border border-cyan-200 bg-cyan-50 px-2 py-1.5 text-xs outline-none focus:border-cyan-600"
+                                  aria-label={`Mã vạch nội bộ ${line.sku} đơn vị ${index + 1}`}
+                                />
+                              </div>
+                            </td>
+                            <td className="px-4 py-2" />
+                            <td className="px-4 py-2" />
+                            <td className="px-4 py-2" />
+                            <td className="px-4 py-2 text-right">
+                              <button
+                                type="button"
+                                onClick={() => removeUnitAt(line.key, index)}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-300 hover:bg-rose-50 hover:text-rose-600"
+                                title={`Xóa đơn vị #${index + 1}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      {expandedUnitLines[line.key] && (
+                        <tr>
+                          <td colSpan={8} className="px-4 pb-3 pl-8">
+                            <button
+                              type="button"
+                              onClick={() => addUnit(line.key)}
+                              className="inline-flex items-center gap-1 rounded-md border border-dashed border-cyan-300 px-2.5 py-1 text-xs font-medium text-cyan-700 hover:bg-cyan-50"
+                            >
+                              + Thêm đơn vị
+                            </button>
                           </td>
-                        <td className="px-4 py-2" />
-                        <td className="px-4 py-2" />
-                        <td className="px-4 py-2" />
-                          <td className="px-4 py-2 text-right"><button type="button" onClick={() => removeUnitAt(line.key, index)} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-300 hover:bg-rose-50 hover:text-rose-600" title={`Xóa đơn vị #${index + 1}`}><Trash2 className="h-3.5 w-3.5" /></button></td>
                         </tr>
-                      ))}
-                      <tr>
-                        <td colSpan={8} className="px-4 pb-3 pl-8"><button type="button" onClick={() => addUnit(line.key)} className="inline-flex items-center gap-1 rounded-md border border-dashed border-cyan-300 px-2.5 py-1 text-xs font-medium text-cyan-700 hover:bg-cyan-50">+ Thêm đơn vị</button></td>
-                      </tr>
+                      )}
                     </Fragment>
                   ) : (
                     <tr key={line.key}>
@@ -884,6 +1088,29 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
           </div>
         </div>
       </div>
+
+      {/* Modal Nhập nhiều SKU của sản phẩm */}
+      {isBulkVariantModalOpen && productId && products.find((p) => p._id === productId) && (
+        <BulkVariantReceiveModal
+          isOpen={isBulkVariantModalOpen}
+          onClose={() => setIsBulkVariantModalOpen(false)}
+          product={products.find((p) => p._id === productId)!}
+          productDetail={productDetails[productId]}
+          existingVariantIds={lines.map((l) => l.variantId)}
+          onConfirm={handleBulkVariantsConfirm}
+        />
+      )}
+
+      {/* Modal Quản lý & Quét IMEI chuyên dụng */}
+      {activeSerialLine && (
+        <SerialManagerModal
+          isOpen={Boolean(activeSerialLine)}
+          onClose={() => setManagingSerialLineKey(null)}
+          line={activeSerialLine}
+          onSave={handleSaveSerialLine}
+          otherLinesSerials={otherLinesSerials}
+        />
+      )}
     </Modal>
   );
 }

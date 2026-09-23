@@ -20,6 +20,7 @@ vi.mock("../../../pages/Toast", () => ({
   }
 }));
 
+vi.mock("../api/retailCoupons.api", () => ({ retailCouponsApi: { available: vi.fn().mockResolvedValue([]) } }));
 vi.mock("../hooks/useRetailScope", () => ({ useRetailScope: () => ({ scope: { companyCode: "ACME", branchId: "B1" }, userProfile: { uid: "u1" } }) }));
 vi.mock("../../customer-management/customerApi", () => ({ customerApi: { billingProfiles: vi.fn() } }));
 vi.mock("../api/retailProducts.api", () => ({ retailProductsApi: { list: vi.fn() } }));
@@ -50,18 +51,12 @@ beforeEach(() => {
 });
 
 describe("RetailPosPage", () => {
-  it("guides cashier to open a shift before using POS", async () => {
-    const open = vi.fn().mockResolvedValue({ _id: "s2", shiftCode: "CA-2", cashierId: "u1", cashierName: "Thu ngân", openingFloat: 500_000, businessDate: "2026-08-10", status: "open" });
-    (retailShiftsApi as any).open = open;
-    vi.mocked(retailShiftsApi.current).mockResolvedValueOnce(null);
+  it("opens POS without requesting or opening a sales shift", async () => {
+    vi.mocked(retailShiftsApi.current).mockResolvedValue(null);
     render(<RetailPosPage />);
-
-    expect(await screen.findByRole("heading", { name: "Mở ca bán hàng" })).toBeTruthy();
-    await userEvent.type(screen.getByLabelText("Tiền đầu ca"), "500000");
-    await userEvent.click(screen.getByRole("button", { name: "Mở ca ngay" }));
-
-    await waitFor(() => expect(open).toHaveBeenCalledWith({ companyCode: "ACME", branchId: "B1" }, { openingFloat: 500_000, terminalId: undefined }));
-    expect(await screen.findByText(/CA-2/)).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /SKU-1/ })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Mở ca bán hàng" })).toBeNull();
+    expect(retailShiftsApi.current).not.toHaveBeenCalled();
   });
 
   it("keeps payment dialog closed and guides cashier to select a customer", async () => {

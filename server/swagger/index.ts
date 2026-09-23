@@ -14,9 +14,9 @@ import { customerSettingsSwagger } from "./customer-settings.swagger";
 const swaggerDocument = {
   openapi: "3.0.0",
   info: {
-    title: "iGen ERP Smart AI API Docs",
+    title: "Anh Khoa Mobile Smart AI API Docs",
     version: "1.0.0",
-    description: "Tài liệu API Swagger của iGen ERP.",
+    description: "Tài liệu API Swagger của Anh Khoa Mobile.",
   },
   servers: [
     {

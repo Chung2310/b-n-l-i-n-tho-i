@@ -344,7 +344,7 @@ export default function GuideTab() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-              Cẩm nang Hướng dẫn Sử dụng iGen ERP
+              Cẩm nang Hướng dẫn Sử dụng Anh Khoa Mobile
             </h1>
             <p className="text-xs text-gray-500 mt-0.5">
               Tài liệu hướng dẫn thao tác từng bước bằng ngôn ngữ đơn giản, dễ hiểu cho mọi nhân viên.
@@ -380,9 +380,8 @@ export default function GuideTab() {
                 <button
                   key={section.id}
                   onClick={() => setSelectedId(section.id)}
-                  className={`flex items-center gap-3 w-full p-3 rounded-xl border text-left transition-all ${
-                    isSelected ? style.activeBg + " shadow-xs font-semibold" : `border-transparent text-gray-600 ${style.hoverBg}`
-                  }`}
+                  className={`flex items-center gap-3 w-full p-3 rounded-xl border text-left transition-all ${isSelected ? style.activeBg + " shadow-xs font-semibold" : `border-transparent text-gray-600 ${style.hoverBg}`
+                    }`}
                 >
                   <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? "bg-white" : style.bg} ${style.text}`}>
                     <Icon className="h-4 w-4" />
@@ -471,7 +470,7 @@ export default function GuideTab() {
                 <Clock className="h-4 w-4 text-emerald-500 shrink-0" />
                 Hướng dẫn các thao tác từng bước
               </h3>
-              
+
               <div className="relative border-l border-emerald-100 ml-3.5 pl-6 space-y-6 py-1">
                 {activeSection.steps.map((step, idx) => (
                   <div key={idx} className="relative group">

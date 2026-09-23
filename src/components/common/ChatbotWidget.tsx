@@ -14,7 +14,7 @@ const POSITION_KEY = "igen_erp_chatbot_fab_pos";
 // Tin nhắn chào mừng ban đầu
 const welcomeMessage: Message = {
   role: "assistant",
-  content: `Chào bạn! Tôi là trợ lý ảo AI của hệ thống iGen ERP.
+  content: `Chào bạn! Tôi là trợ lý ảo AI của hệ thống Anh Khoa Mobile.
 
 Tôi có thể giúp bạn tra cứu nhanh dữ liệu doanh nghiệp:
 - Khách hàng — quy trình bán hàng, trạng thái, giá trị cơ hội.
@@ -286,9 +286,8 @@ export const ChatbotWidget: React.FC = () => {
               {messages.map((msg, index) => (
                 <div key={index} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div
-                    className={`flex gap-2.5 max-w-[85%] ${
-                      msg.role === "user" ? "flex-row-reverse" : "flex-row"
-                    }`}
+                    className={`flex gap-2.5 max-w-[85%] ${msg.role === "user" ? "flex-row-reverse" : "flex-row"
+                      }`}
                   >
                     {msg.role !== "user" && (
                       <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0 mt-1 shadow-sm">
@@ -296,11 +295,10 @@ export const ChatbotWidget: React.FC = () => {
                       </div>
                     )}
                     <div
-                      className={`px-4 py-3 rounded-2xl text-slate-800 shadow-sm ${
-                        msg.role === "user"
+                      className={`px-4 py-3 rounded-2xl text-slate-800 shadow-sm ${msg.role === "user"
                           ? "bg-blue-600 text-white rounded-br-none font-medium"
                           : "bg-white rounded-bl-none border border-slate-100"
-                      }`}
+                        }`}
                     >
                       {msg.role === "user" ? (
                         <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>

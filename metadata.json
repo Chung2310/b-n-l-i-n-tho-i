@@ -1,6 +1,8 @@
 {
-  "name": "iGen ERP",
+  "name": "Anh Khoa Mobile",
   "description": "Hệ thống Quản lý Doanh nghiệp Thông minh tích hợp Trợ lý AI (Sales CRM, AI Marketing Hub, Quản lý Kho, Quản lý Nhân sự).",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

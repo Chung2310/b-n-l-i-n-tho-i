@@ -63,6 +63,7 @@ export interface StockLog {
   createdAt: string;
   notes: string;
   status: "Thành công" | "Đang xử lý" | "Đang chờ" | "Hoàn thành";
+  warehouseId?: string;
 }
 
 export interface InventoryForecastSeriesPoint {

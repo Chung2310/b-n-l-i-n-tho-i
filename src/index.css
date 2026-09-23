@@ -398,6 +398,31 @@ code, kbd, samp, pre {
   background: #006f8d !important;
 }
 
+/* Sleek Dropdown Scrollbar Utility */
+.dropdown-scrollbar {
+  -ms-overflow-style: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #cbd5e1 transparent !important;
+}
+
+.dropdown-scrollbar::-webkit-scrollbar {
+  display: block !important;
+  width: 5px !important;
+}
+
+.dropdown-scrollbar::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.dropdown-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+  border-radius: 4px !important;
+}
+
+.dropdown-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8 !important;
+}
+
 /* Toast Animations */
 @keyframes slide-in {
   from {

@@ -65,8 +65,8 @@ export default function CustomerPointLedgerPanel({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
-    <div className="mt-4 rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-xs">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 p-4 bg-slate-50/50">
+    <div className="mt-4 rounded-2xl border border-slate-200 bg-white shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 p-4 bg-slate-50/50 rounded-t-2xl">
         <div className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
             <Coins className="h-4 w-4" />
@@ -197,6 +197,7 @@ export default function CustomerPointLedgerPanel({
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
           itemLabel="giao dịch"
+          className="rounded-b-2xl"
         />
       )}
     </div>

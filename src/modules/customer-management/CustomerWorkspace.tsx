@@ -7,6 +7,8 @@ import { customerApi } from "./customerApi";
 import CustomerDetailDrawer from "./components/CustomerDetailDrawer";
 import CustomerFormDialog from "./components/CustomerFormDialog";
 import CustomerList from "./components/CustomerList";
+import SaveTiersSuccessModal from "./components/SaveTiersSuccessModal";
+import { toast } from "../../pages/Toast";
 import { CurrencyInput } from "../../components/common/CurrencyInput";
 import { useSubTabRouter } from "../../hooks/useSubTabRouter";
 import { CUSTOMER_SUB_TAB_ROUTES, type CustomerSubTabType } from "../../router/subTabRoutes";
@@ -36,6 +38,7 @@ export default function CustomerWorkspace() {
   const [settings, setSettings] = React.useState<CustomerSettings | null>(null);
   const [loadingSettings, setLoadingSettings] = React.useState(false);
   const [savingSettings, setSavingSettings] = React.useState(false);
+  const [showSaveSuccess, setShowSaveSuccess] = React.useState(false);
 
   const load = React.useCallback(async () => {
     if (!companyCode) return;
@@ -124,9 +127,11 @@ export default function CustomerWorkspace() {
         companyCode
       );
       setSettings(data);
-      alert("Đã lưu cấu hình phân hạng Lợi Nhuận Gộp & Điểm thưởng thành công!");
+      toast.success("Đã lưu cấu hình phân hạng khách hàng thành công!");
+      setShowSaveSuccess(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Không lưu được cấu hình.");
+      toast.error(cause instanceof Error ? cause.message : "Không lưu được cấu hình phân hạng.");
     } finally {
       setSavingSettings(false);
     }
@@ -603,6 +608,13 @@ export default function CustomerWorkspace() {
           )}
         </div>
       )}
+
+      {/* Modern Save Confirmation Modal */}
+      <SaveTiersSuccessModal
+        isOpen={showSaveSuccess}
+        onClose={() => setShowSaveSuccess(false)}
+        settings={settings}
+      />
     </section>
   );
 }

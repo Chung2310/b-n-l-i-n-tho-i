@@ -9,7 +9,8 @@ export interface Option {
 export interface GeneratedVariant {
   optionValues: { code: string; value: string }[];
   sku: string;
-  price?: number;
+  price?: number; // Giá bán
+  costPrice?: number; // Giá vốn
   barcode?: string;
   weightGrams?: number;
   mediaIds?: string[];
@@ -28,39 +29,84 @@ export function generateEAN13(): string {
   return code + checksum;
 }
 
-export function useVariantMatrix(baseSku: string, options: Option[]) {
-  return useMemo(() => {
-    if (!options || options.length === 0) return [];
-    
-    // Filter out options that have no values
-    const validOptions = options.filter(opt => opt.values.length > 0);
-    if (validOptions.length === 0) return [];
+export function cleanOptionSlug(val: string): string {
+  return val
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[đĐ]/g, "d")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .substring(0, 10);
+}
 
-    // Cartesian product algorithm
-    const cartesian = (...a: any[][]) => a.reduce((a, b) => a.flatMap(d => b.map(e => [d, e].flat())));
+export function generateMatrixFromOptions(
+  options: Option[],
+  baseSku: string = "",
+  existingMatrix: GeneratedVariant[] = []
+): GeneratedVariant[] {
+  if (!options || options.length === 0) return [];
 
-    const optionValuesLists = validOptions.map(opt => 
-      opt.values.map(val => ({ code: opt.code, value: val }))
-    );
+  // Filter out options that have no values
+  const validOptions = options.filter(opt => opt.values && opt.values.length > 0);
+  if (validOptions.length === 0) return [];
 
-    const matrix = optionValuesLists.length === 1 
+  // Cartesian product algorithm
+  const cartesian = (...a: any[][]) => a.reduce((acc, curr) => acc.flatMap(d => curr.map(e => [d, e].flat())));
+
+  const optionValuesLists = validOptions.map(opt =>
+    opt.values.map(val => ({ code: opt.code, value: val }))
+  );
+
+  const combinations: Array<Array<{ code: string; value: string }>> =
+    optionValuesLists.length === 1
       ? optionValuesLists[0].map(v => [v])
       : cartesian(...optionValuesLists);
 
-    return matrix.map(combination => {
-      // Generate automatic SKU suffix based on option values
-      const skuSuffix = combination
-        .map((c: any) => c.value.toUpperCase().replace(/\s+/g, '-').substring(0, 5))
-        .join('-');
+  // Map existing matrix items to preserve user changes (prices, images, barcodes, custom SKUs)
+  const existingMap = new Map<string, GeneratedVariant>();
+  for (const item of existingMatrix) {
+    const key = (item.optionValues || [])
+      .map(ov => `${ov.code}:${ov.value}`)
+      .sort()
+      .join("|");
+    if (key) existingMap.set(key, item);
+  }
 
+  return combinations.map(combination => {
+    const key = combination
+      .map(c => `${c.code}:${c.value}`)
+      .sort()
+      .join("|");
+
+    const existing = existingMap.get(key);
+    if (existing) {
       return {
+        ...existing,
         optionValues: combination,
-        sku: baseSku ? `${baseSku}-${skuSuffix}` : `SKU-${skuSuffix}`,
-        price: 0,
-        barcode: generateEAN13(),
-        weightGrams: 0,
-        mediaIds: [],
-      } as GeneratedVariant;
-    });
-  }, [baseSku, options]);
+      };
+    }
+
+    const skuSuffix = combination
+      .map((c: any) => cleanOptionSlug(c.value))
+      .join('-');
+
+    const cleanBase = cleanOptionSlug(baseSku);
+    const generatedSku = cleanBase ? `${cleanBase}-${skuSuffix}` : `SKU-${skuSuffix}`;
+
+    return {
+      optionValues: combination,
+      sku: generatedSku,
+      price: 0,
+      costPrice: 0,
+      barcode: generateEAN13(),
+      weightGrams: 0,
+      mediaIds: [],
+    } as GeneratedVariant;
+  });
 }
+
+export function useVariantMatrix(baseSku: string, options: Option[]) {
+  return useMemo(() => generateMatrixFromOptions(options, baseSku), [baseSku, options]);
+}
+

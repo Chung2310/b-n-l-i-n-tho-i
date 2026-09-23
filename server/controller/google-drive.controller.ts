@@ -31,7 +31,7 @@ async function getDriveClientAndRoot(companyCode: string, userId: string) {
       const { googleDriveService } = await import("../service/google-drive.service");
       const folder = await googleDriveService.createFolder(
         accessToken,
-        `iGen ERP - Tài liệu ${company.name || company.code}`
+        `Anh Khoa Mobile - Tài liệu ${company.name || company.code}`
       );
       company.driveFolderId = folder.id;
       company.driveFolderLink = folder.webViewLink || "";
@@ -93,7 +93,7 @@ async function getAdminDriveClient(companyCode: string, loggedInUserId?: string)
       const { googleDriveService } = await import("../service/google-drive.service");
       const folder = await googleDriveService.createFolder(
         accessToken,
-        `iGen ERP - Tài liệu ${company.name || company.code}`
+        `Anh Khoa Mobile - Tài liệu ${company.name || company.code}`
       );
       company.driveFolderId = folder.id;
       company.driveFolderLink = folder.webViewLink || "";
@@ -246,7 +246,7 @@ export const googleDriveController = {
       );
       oauth2Client.setCredentials(tokens);
 
-      const folderId = await GoogleDriveService.createFolder(oauth2Client, "iGen ERP Resources");
+      const folderId = await GoogleDriveService.createFolder(oauth2Client, "Anh Khoa Mobile Resources");
 
       // Cập nhật thông tin vào DB
       user.googleDriveIntegration = {
@@ -261,7 +261,7 @@ export const googleDriveController = {
 
       await user.save();
 
-      return sendHtmlResponse("success", `Tài khoản ${driveEmail} đã được liên kết thành công với iGen ERP. Cửa sổ này sẽ tự đóng sau giây lát.`, { driveEmail });
+      return sendHtmlResponse("success", `Tài khoản ${driveEmail} đã được liên kết thành công với Anh Khoa Mobile. Cửa sổ này sẽ tự đóng sau giây lát.`, { driveEmail });
     } catch (err: any) {
       console.error("[googleDriveController.oauthCallback] Error:", err);
       return sendHtmlResponse("error", err.message || "Lỗi xử lý luồng Callback OAuth Google.");
@@ -513,7 +513,7 @@ export const googleDriveController = {
         try {
           // Tạo thư mục "iGen Shared Groups" trong root folder của Admin nếu chưa có
           const sharedGroupsFolderId = await GoogleDriveService.createFolder(adminInfo.authClient, "iGen Shared Groups");
-          
+
           // Tạo thư mục cụ thể cho phòng chat này
           const fileMetadata = {
             name: chatRoom.name || `Nhóm_${roomId}`,
@@ -524,7 +524,7 @@ export const googleDriveController = {
             requestBody: fileMetadata,
             fields: "id"
           });
-          
+
           // Cấp quyền đọc công khai cho thư mục này để lấy thumbnail/download link hiển thị
           try {
             await drive.permissions.create({
@@ -535,7 +535,7 @@ export const googleDriveController = {
               },
             });
           } catch (err: any) {
-             console.warn("Không thể thiết lập quyền công khai cho thư mục nhóm:", err.message);
+            console.warn("Không thể thiết lập quyền công khai cho thư mục nhóm:", err.message);
           }
 
           chatRoom.driveFolderId = folder.data.id!;
@@ -564,9 +564,9 @@ export const googleDriveController = {
         });
         files = response.data.files || [];
       } catch (listErr: any) {
-        const isPermissionOrNotFound = listErr.status === 403 || listErr.status === 404 || 
+        const isPermissionOrNotFound = listErr.status === 403 || listErr.status === 404 ||
           (listErr.message && (listErr.message.includes("Insufficient permissions") || listErr.message.includes("not found")));
-        
+
         if (isPermissionOrNotFound && targetFolderId === chatRoom.driveFolderId) {
           console.warn("[getGroupResources] Phát hiện lỗi quyền truy cập hoặc thư mục không tồn tại. Tiến hành khởi tạo lại thư mục mới...");
           try {
@@ -579,7 +579,7 @@ export const googleDriveController = {
               },
               fields: "id"
             });
-            
+
             try {
               await drive.permissions.create({
                 fileId: newFolder.data.id!,
@@ -592,7 +592,7 @@ export const googleDriveController = {
             chatRoom.driveFolderId = newFolder.data.id!;
             await chatRoom.save();
             targetFolderId = chatRoom.driveFolderId;
-            
+
             const response = await drive.files.list({
               q: `'${targetFolderId}' in parents and trashed = false`,
               fields: "files(id, name, mimeType, webViewLink, webContentLink, thumbnailLink, size, createdTime)",
@@ -719,7 +719,7 @@ export const googleDriveController = {
           actualParentId
         );
       } catch (uploadErr: any) {
-        const isPermissionOrNotFound = uploadErr.status === 403 || uploadErr.status === 404 || 
+        const isPermissionOrNotFound = uploadErr.status === 403 || uploadErr.status === 404 ||
           (uploadErr.message && (uploadErr.message.includes("Insufficient permissions") || uploadErr.message.includes("not found")));
 
         if (isPermissionOrNotFound && actualParentId === chatRoom.driveFolderId) {
@@ -735,7 +735,7 @@ export const googleDriveController = {
               },
               fields: "id"
             });
-            
+
             try {
               await drive.permissions.create({
                 fileId: newFolder.data.id!,
@@ -1159,7 +1159,7 @@ export const googleDriveController = {
             },
             fields: "id"
           });
-          
+
           try {
             await drive.permissions.create({
               fileId: folder.data.id!,
@@ -1215,11 +1215,11 @@ export const googleDriveController = {
         if (!linkUrl) {
           return res.status(400).json({ status: "error", message: "Thiếu đường dẫn liên kết (linkUrl)." });
         }
-        
+
         // Kiểm tra xem có phải link Google Drive không
         const driveRegex = /(?:drive\.google\.com\/file\/d\/|open\?id=|docs\.google\.com\/(?:document|spreadsheets|presentation)\/d\/)([a-zA-Z0-9-_]+)/;
         const match = linkUrl.match(driveRegex);
-        
+
         if (match && match[1]) {
           const fileId = match[1];
           try {
@@ -1273,7 +1273,7 @@ export const googleDriveController = {
             fields: "id, name, mimeType, webViewLink"
           });
         } catch (createErr: any) {
-          const isPermissionOrNotFound = createErr.status === 403 || createErr.status === 404 || 
+          const isPermissionOrNotFound = createErr.status === 403 || createErr.status === 404 ||
             (createErr.message && (createErr.message.includes("Insufficient permissions") || createErr.message.includes("not found")));
 
           if (isPermissionOrNotFound && spaceType === "group" && actualParentId === chatRoom.driveFolderId) {
@@ -1288,7 +1288,7 @@ export const googleDriveController = {
                 },
                 fields: "id"
               });
-              
+
               try {
                 await drive.permissions.create({
                   fileId: newFolder.data.id!,
@@ -1323,8 +1323,8 @@ export const googleDriveController = {
 
         driveFileId = createdFile.data.id!;
         webViewLink = createdFile.data.webViewLink || (
-          type === "folder" 
-            ? `https://drive.google.com/drive/folders/${createdFile.data.id}` 
+          type === "folder"
+            ? `https://drive.google.com/drive/folders/${createdFile.data.id}`
             : `https://docs.google.com/open?id=${createdFile.data.id}`
         );
         mimeType = createdFile.data.mimeType!;

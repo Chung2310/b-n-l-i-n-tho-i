@@ -2,6 +2,8 @@ import type { RetailPaymentMethod } from "../interfaces/cashier-shift.interface"
 
 type RetailReportOrder = {
   orderCode?: string;
+  createdBy?: string;
+  createdByName?: string;
   shiftId?: unknown;
   businessDate?: string;
   status: string;
@@ -183,10 +185,11 @@ export function buildRetailReportModel(input: RetailReportInput): RetailReportMo
   const cashierMap = new Map<string, RetailReportModel["cashiers"][number] & { activeGrossSales: number }>();
   for (const order of orders) {
     const shift = shiftById.get(String(order.shiftId ?? ""));
-    if (!shift) continue;
-    const row = cashierMap.get(shift.cashierId) || {
-      cashierId: shift.cashierId,
-      cashierName: shift.cashierName,
+    const cashierId = shift?.cashierId || order.createdBy;
+    if (!cashierId) continue;
+    const row = cashierMap.get(cashierId) || {
+      cashierId,
+      cashierName: shift?.cashierName || order.createdByName || cashierId,
       orderCount: 0,
       grossSales: 0,
       refunds: 0,
@@ -202,7 +205,7 @@ export function buildRetailReportModel(input: RetailReportInput): RetailReportMo
       row.activeGrossSales += order.grandTotal;
       row.averageOrderValue = row.activeGrossSales / row.orderCount;
     }
-    cashierMap.set(shift.cashierId, row);
+    cashierMap.set(cashierId, row);
   }
   const cashiers = [...cashierMap.values()]
     .map(({ activeGrossSales: _activeGrossSales, ...row }) => row)

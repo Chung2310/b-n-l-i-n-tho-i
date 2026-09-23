@@ -29,6 +29,8 @@ function toIsoDateString(value?: string) {
   return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
 }
 
+const activeListeners = new Set<() => void>();
+
 export const inventoryStockLogService = {
   subscribe(branchId: string, callback: (logs: StockLog[]) => void, onError?: (error: unknown) => void) {
     const controller = new AbortController();
@@ -69,11 +71,23 @@ export const inventoryStockLogService = {
     };
 
     fetchLogs();
+    activeListeners.add(fetchLogs);
     const interval = setInterval(fetchLogs, 5000);
     return () => {
       controller.abort();
       clearInterval(interval);
+      activeListeners.delete(fetchLogs);
     };
+  },
+
+  notifySubscribers() {
+    activeListeners.forEach((fn) => {
+      try {
+        fn();
+      } catch (err) {
+        console.error("Lỗi khi notify stock log subscribers:", err);
+      }
+    });
   },
 
   async createLog(input: StockLogCreateInput, branchId?: string): Promise<string> {
@@ -91,8 +105,8 @@ export const inventoryStockLogService = {
         body: JSON.stringify({
           type: input.type,
           purpose: input.type === "xuất" ? input.purpose : undefined,
-          customerId: input.type === "xuất" && input.purpose === "bán" ? input.customerId : undefined,
-          customerName: input.type === "xuất" && input.purpose === "bán" ? input.customerName : undefined,
+          customerId: input.customerId,
+          customerName: input.customerName,
           title: input.title,
           items: input.items,
           sku: input.sku,
@@ -112,6 +126,7 @@ export const inventoryStockLogService = {
       }
 
       const json = await res.json();
+      inventoryStockLogService.notifySubscribers();
       return json.data._id;
     } catch (error) {
       console.error(error);
@@ -134,8 +149,8 @@ export const inventoryStockLogService = {
         body: JSON.stringify({
           type: input.type,
           purpose: input.type === "xuất" ? input.purpose : undefined,
-          customerId: input.type === "xuất" && input.purpose === "bán" ? input.customerId : undefined,
-          customerName: input.type === "xuất" && input.purpose === "bán" ? input.customerName : undefined,
+          customerId: input.customerId,
+          customerName: input.customerName,
           title: input.title,
           items: input.items,
           sku: input.sku,
@@ -153,6 +168,8 @@ export const inventoryStockLogService = {
         const errJson = await res.json().catch(() => ({}));
         throw new Error(errJson.message || "Cập nhật lịch sử kho thất bại.");
       }
+
+      inventoryStockLogService.notifySubscribers();
     } catch (error) {
       console.error(error);
       throw error;
@@ -238,6 +255,8 @@ export const inventoryStockLogService = {
         const errJson = await res.json().catch(() => ({}));
         throw new Error(errJson.message || "Xóa lịch sử kho thất bại.");
       }
+
+      inventoryStockLogService.notifySubscribers();
     } catch (error) {
       console.error(error);
       throw error;

@@ -5,6 +5,16 @@ const product = { _id: "p1", sku: "SKU-1", name: "Ão", category: "A", unit: "CÃ
 const empty: RetailCartState = { lines: [], customer: null, billingProfile: null, orderDiscount: { type: "amount", value: 0 }, taxRate: 0, shippingFee: 0, quote: null, quoteDirty: false };
 
 describe("retail cart", () => {
+  it("invalidates the quote when changing coupons and clears failed quotes", () => {
+    const state = retailCartReducer({ ...empty, quote: { subtotal: 100000, grandTotal: 100000 } }, { type: "coupon", code: " sale10 " });
+    expect(state.couponCode).toBe("SALE10");
+    expect(state.quote).toBeNull();
+    expect(state.quoteDirty).toBe(true);
+    const failed = retailCartReducer(state, { type: "quoteFailed" });
+    expect(failed.quote).toBeNull();
+    expect(failed.quoteDirty).toBe(false);
+    expect(retailCartReducer(failed, { type: "reset" }).couponCode).toBeUndefined();
+  });
   it("increases quantity when the same barcode is scanned repeatedly", () => {
     const once = retailCartReducer(empty, { type: "add", product });
     const twice = retailCartReducer(once, { type: "add", product });
