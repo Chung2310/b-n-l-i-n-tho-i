@@ -8,6 +8,12 @@ const series = [
   { label: "Lãi gộp", color: "#059669", get: (r: TrendRow) => r.cost == null ? null : r.revenue - r.cost },
   { label: "Lãi ròng", color: "#7c3aed", get: (r: TrendRow) => r.cost == null ? null : r.revenue - r.cost - r.expense },
 ];
+const axisMoney = (value: number) => {
+  const magnitude = Math.abs(value);
+  const divisor = magnitude >= 1e9 ? 1e9 : magnitude >= 1e6 ? 1e6 : magnitude >= 1e3 ? 1e3 : 1;
+  const unit = divisor === 1e9 ? " tỉ" : divisor === 1e6 ? " triệu" : divisor === 1e3 ? " nghìn" : "";
+  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: divisor === 1 ? 0 : 1 }).format(value / divisor) + unit;
+};
 const dateLabel = (date: string) => date.split("-").reverse().join("/");
 export default function FinanceTrendChart({ data }: { data: TrendRow[] }) {
   const [activeDate, setActiveDate] = useState<string>();
@@ -33,7 +39,7 @@ export default function FinanceTrendChart({ data }: { data: TrendRow[] }) {
         onKeyDown={e => { if (e.key === "Escape") setActiveDate(undefined); }}>
         {[0, 1, 2, 3].map(i => { const value = min + (max - min) * i / 3; return <g key={i}>
           <line x1="94" x2="820" y1={y(value)} y2={y(value)} stroke="#e2e8f0" strokeDasharray="3 4"/>
-          <text x="84" y={y(value) + 4} textAnchor="end" fontSize="10" fill="#64748b">{new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(value)}</text>
+          <text x="84" y={y(value) + 4} textAnchor="end" fontSize="10" fill="#64748b">{axisMoney(value)}</text>
         </g>; })}
         <line x1="94" x2="820" y1={y(0)} y2={y(0)} stroke="#94a3b8"/>
         {ticks.map(i => <text key={i} x={x(i)} y="242" textAnchor={i === 0 && rows.length > 1 ? "start" : i === rows.length - 1 && rows.length > 1 ? "end" : "middle"} fontSize="10" fill="#475569">{dateLabel(rows[i].date)}</text>)}
