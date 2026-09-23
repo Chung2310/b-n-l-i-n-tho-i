@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { BarChart3, PieChart, Calendar, Loader2 } from "lucide-react";
 import { BarChart, DonutCard } from "./DashboardWidgets";
-import { formatDashboardCurrency } from "./dashboardUtils";
 import { analyticsService } from "../../services/analyticsService";
 
 type TimeFilter = "month" | "quarter" | "year";
@@ -25,6 +24,8 @@ export function RevenueAnalysisPanel() {
   const [realRevenueData, setRealRevenueData] = useState<{ label: string; value: number }[]>([]);
   const [realCourseData, setRealCourseData] = useState<{ label: string; value: number; color: string; display: string }[]>([]);
   const [currentTotal, setCurrentTotal] = useState(0);
+  const revenueUnit = Math.abs(currentTotal) >= 1e9 ? { divisor: 1e9, label: "tỉ" } : Math.abs(currentTotal) >= 1e6 ? { divisor: 1e6, label: "triệu" } : { divisor: 1, label: "VND" };
+  const revenueLabel = (currentTotal / revenueUnit.divisor).toLocaleString("vi-VN", { maximumFractionDigits: revenueUnit.divisor === 1 ? 0 : 1 }) + " " + revenueUnit.label;
 
   useEffect(() => {
     let isMounted = true;
@@ -110,11 +111,11 @@ export function RevenueAnalysisPanel() {
         <div className="lg:col-span-2 rounded-3xl border border-slate-200/60 bg-white p-6 shadow-sm">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+              <h3 className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-800">
                 <BarChart3 className="h-4 w-4 text-cyan-500" />
-                Biểu đồ Doanh thu
+                DOANH THU
+                <span className="text-2xl font-black text-slate-900" title={`${currentTotal} VND`}>{revenueLabel}</span>
               </h3>
-              <p className="text-2xl font-black text-slate-900 mt-2">{formatDashboardCurrency(currentTotal, 1, false)}</p>
             </div>
             <div className="rounded-full bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 flex items-center gap-1.5">
               <Calendar className="h-3.5 w-3.5" />
