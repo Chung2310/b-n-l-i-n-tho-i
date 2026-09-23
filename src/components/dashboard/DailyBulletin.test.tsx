@@ -7,9 +7,9 @@ import { getEnergyGreeting } from "./energyGreeting";
 afterEach(cleanup);
 describe("daily bulletin", () => {
   it("changes greetings at noon and evening", () => {
-    expect(getEnergyGreeting(11).greeting).toBe("Chào buổi sáng");
-    expect(getEnergyGreeting(12).greeting).toBe("Chào buổi chiều");
-    expect(getEnergyGreeting(18).greeting).toBe("Chào buổi tối");
+    expect(getEnergyGreeting(11).greeting).toBe("Xin chào, chúc bạn một ngày làm việc hiệu quả!");
+    expect(getEnergyGreeting(12).greeting).toBe("Xin chào, chúc bạn một ngày làm việc đầy năng lượng!");
+    expect(getEnergyGreeting(18).greeting).toBe("Xin chào, cố gắng hoàn thành tốt nhiệm vụ nhé!");
   });
   it("stays visible while loading and reports failed requests", () => {
     const view = render(<DailyBulletin error={false} />);

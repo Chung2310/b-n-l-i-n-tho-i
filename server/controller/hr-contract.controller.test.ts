@@ -1,3 +1,4 @@
+import { HRContractExtensionModel } from "../model/hr-contract.model";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { managedUploadService } from "../service/managed-upload.service";
 import {
@@ -120,4 +121,33 @@ describe("hrContractController managed uploads", () => {
       sourceField: "extensionSignedImage",
     }));
   });
+});
+
+it("keeps extension signature separate from uploaded signed images", async () => {
+ const finalize = vi.fn(async (token: string) => ({ _id: token + "-resource" }));
+ const patch = await finalizeExtensionPendingUploads({
+  extension: { _id: "extension-new", employeeId: "employee-1", employeeName: "Employee" },
+  body: { extensionFileUploadToken: "file", extensionSignedImageUploadToken: "scan", electronicSignatureUploadToken: "signature" },
+  actor: { companyCode: "ACME", actorId: "user-1", actorName: "Admin" },
+  finalizeManagedUpload: finalize as any,
+ });
+ expect(patch).toEqual({ extensionResourceId: "file-resource", signedImageResourceId: "scan-resource", electronicSignatureResourceId: "signature-resource" });
+ expect(finalize).toHaveBeenLastCalledWith("signature", expect.any(Object), expect.objectContaining({ sourceRecordId: "extension-new", sourceField: "electronicSignature" }));
+ const extension = new HRContractExtensionModel({
+  companyCode: "ACME", contractId: "contract-1", employeeId: "employee-1", employeeName: "Employee",
+  previousEndDate: new Date("2026-01-01"), newEndDate: new Date("2027-01-01"), createdBy: "user-1",
+  signedImageUrl: "https://example.test/scan.png", electronicSignatureUrl: "https://example.test/signature.png",
+  electronicSignatureName: "signature.png", electronicSignatureMimeType: "image/png", electronicSignatureSize: 100,
+  ...patch,
+ });
+ expect(extension.validateSync()).toBeUndefined();
+ expect(extension.toObject()).toMatchObject({ electronicSignatureUrl: "https://example.test/signature.png", signedImageUrl: "https://example.test/scan.png", electronicSignatureResourceId: "signature-resource" });
+});
+it("propagates failed signature finalization instead of reporting success", async () => {
+ await expect(finalizeExtensionPendingUploads({
+  extension: { _id: "extension-new", employeeId: "employee-1", employeeName: "Employee" },
+  body: { electronicSignatureUploadToken: "expired-token" },
+  actor: { companyCode: "ACME", actorId: "user-1", actorName: "Admin" },
+  finalizeManagedUpload: vi.fn().mockRejectedValue(new Error("Expired token")),
+ })).rejects.toThrow("Expired token");
 });

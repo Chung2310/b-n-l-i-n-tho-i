@@ -94,6 +94,9 @@ export function DonutCard({
   centerLabel?: string;
   centerValue?: string;
 }) {
+  const [hoveredLabel, setHoveredLabel] = React.useState<string | null>(null);
+  const tooltipId = React.useId();
+  const activeSegment = segments?.find(segment => segment.label === hoveredLabel);
   const radius = 66;
   const circumference = 2 * Math.PI * radius;
 
@@ -122,6 +125,16 @@ export function DonutCard({
               const circle = (
                 <circle
                   key={segment.label}
+                  tabIndex={segments?.length ? 0 : undefined}
+                  aria-label={`${segment.label}: ${segment.display || `${segment.value}%`}`}
+                  aria-describedby={activeSegment?.label === segment.label ? tooltipId : undefined}
+                  className="cursor-pointer"
+                  onMouseEnter={() => setHoveredLabel(segment.label)}
+                  onMouseLeave={() => setHoveredLabel(null)}
+                  onFocus={() => setHoveredLabel(segment.label)}
+                  onBlur={() => setHoveredLabel(null)}
+                  onClick={() => setHoveredLabel(segment.label)}
+                  onKeyDown={event => { if (event.key === "Escape") setHoveredLabel(null); }}
                   cx="90"
                   cy="90"
                   r={radius}
@@ -139,10 +152,14 @@ export function DonutCard({
               return circle;
             })}
           </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
             <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">{centerLabel}</span>
             <strong className="font-sans text-xl font-extrabold text-gray-800">{localCenterValue}</strong>
           </div>
+          {activeSegment && <div id={tooltipId} role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 max-w-[75vw] -translate-x-1/2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[11px] leading-relaxed text-slate-700 shadow-md">
+            <p className="break-words font-semibold"><span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: activeSegment.color }} />{activeSegment.label}</p>
+            <p>{activeSegment.display || `${activeSegment.value}%`}</p>
+          </div>}
         </div>
         <div className="w-full space-y-2.5 text-xs border-t border-slate-100/85 pt-4">
           {localSegments.map((segment) => (
@@ -155,55 +172,94 @@ export function DonutCard({
 }
 
 export function BarChart({ data = [] }: { data?: Array<{ label: string; value: number }> }) {
-  const rawMax = Math.max(...data.map(d => d.value), 0);
-  const hasData = rawMax > 0;
-  const maxVal = hasData ? rawMax : 1; // only used for bar heights when hasData
-
-  const formatCurrencyShort = (val: number) => {
-    if (!hasData) return "₫0";
-    return formatDashboardCurrency(val, 1, true);
+  const [activeLabel, setActiveLabel] = React.useState<string | null>(null);
+  const tooltipId = React.useId();
+  const activeItem = data.find(item => item.label === activeLabel);
+  const formatPeriod = (label: string) => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(label)) return label.split("-").reverse().join("/");
+    if (/^\d{4}-\d{2}$/.test(label)) return label.split("-").reverse().join("/");
+    return label;
   };
+  const rawMax = Math.max(...data.map(item => item.value), 0);
+  const maxValue = rawMax || 1;
+  const plotWidth = 1000;
+  const plotHeight = 260;
+  const slotWidth = plotWidth / Math.max(data.length, 1);
+  const points = data.map((item, index) => ({
+    ...item,
+    x: (index + 0.5) * slotWidth,
+    y: plotHeight - (item.value / maxValue) * plotHeight,
+  }));
 
   return (
-    <div className="relative h-[320px]">
-      <div className="absolute inset-x-0 bottom-10 top-0 flex flex-col justify-between text-xs font-semibold text-gray-400">
-        {[
-          formatCurrencyShort(rawMax),
-          formatCurrencyShort(rawMax * 2 / 3),
-          formatCurrencyShort(rawMax / 3),
-          "₫0"
-        ].map((y, idx) => (
-          <div key={idx} className="flex items-center gap-3 h-0">
-            <span className="w-12 shrink-0 text-left">{y}</span>
-            <span className="h-px flex-1 border-t border-dashed border-slate-100" />
-          </div>
-        ))}
+    <div>
+      <div className="mb-4 flex flex-wrap gap-4 text-xs font-semibold text-slate-600">
+        <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-cyan-500" />Doanh thu</span>
+        <span className="inline-flex items-center gap-2"><span className="h-[0.75px] w-5 bg-[#b6cbe5]" />Xu hướng doanh thu</span>
       </div>
-      <div className="absolute bottom-0 left-16 right-4 top-6 flex items-end justify-between gap-4">
-        {data.map((item, i) => {
-          const h = (item.value / maxVal) * 80; // keep max at 80% to fit neatly
-          return (
-            <div key={i} className="flex flex-1 flex-col items-center gap-2 h-full justify-end">
-              <div
-                title={`${item.label}: ${item.value.toLocaleString("vi-VN")} ₫`}
-                className={`w-full max-w-16 rounded-t-lg transition-all duration-500 ${
-                  i === data.length - 1
-                    ? "bg-gradient-to-t from-blue-600 to-indigo-500 shadow-md shadow-blue-500/20"
-                    : "bg-gradient-to-t from-slate-200 to-slate-100 hover:from-blue-300 hover:to-blue-200"
-                }`}
-                style={{ height: `${h}%` }}
-              />
-              <span
-                className={`text-[10px] font-bold mt-1 ${i === data.length - 1 ? "text-blue-600" : "text-gray-450"} truncate max-w-full`}
-                title={item.label}
-                style={{ visibility: data.length >= 8 && i % 2 !== 0 && i !== data.length - 1 ? "hidden" : "visible" }}
-              >
+      {data.length === 0 ? <p className="py-12 text-center text-sm text-slate-600">Chưa có dữ liệu doanh thu trong kỳ này.</p> : (
+        <div className="relative h-[320px]" onPointerDown={() => setActiveLabel(null)} onKeyDown={event => { if (event.key === "Escape") setActiveLabel(null); }}>
+          <div className="absolute bottom-10 left-0 right-0 top-3 flex flex-col justify-between text-[11px] font-semibold text-slate-600">
+            {[rawMax, rawMax * 2 / 3, rawMax / 3, 0].map((value, index) => (
+              <div key={index} className="flex h-0 items-center gap-2">
+                <span className="w-14 shrink-0">{formatDashboardCurrency(value, 1, true)}</span>
+                <span className="flex-1 border-t border-dashed border-slate-200" />
+              </div>
+            ))}
+          </div>
+          <div className="absolute bottom-10 left-16 right-2 top-3">
+            <svg viewBox={`0 0 ${plotWidth} ${plotHeight}`} preserveAspectRatio="none"
+              className="h-full w-full overflow-visible" role="img" aria-label="Biểu đồ doanh thu kết hợp cột và đường">
+              {points.map((point, index) => {
+                const width = Math.min(slotWidth * 0.6, 64);
+                const left = point.x - width / 2;
+                const right = left + width;
+                const depth = Math.min(5, slotWidth * 0.08, (plotHeight - point.y) / 2);
+                return (
+                  <g key={index} className="group">
+                    {depth > 0 && <>
+                      <polygon points={`${right},${point.y} ${right + depth},${point.y - depth} ${right + depth},${plotHeight - depth} ${right},${plotHeight}`} fill="#38b5dc" />
+                      <polygon points={`${left},${point.y} ${left + depth},${point.y - depth} ${right + depth},${point.y - depth} ${right},${point.y}`} fill="#b5ecfa" />
+                    </>}
+                    <rect x={left} y={point.y} width={width} height={plotHeight - point.y} rx="1"
+                      className="fill-sky-300 group-hover:fill-sky-400">
+                      <title>{point.label}: {point.value.toLocaleString("vi-VN")} ₫</title>
+                    </rect>
+                  </g>
+                );
+              })}
+              <polyline points={`0,${plotHeight} ${points.map(point => `${point.x},${point.y}`).join(" ")} ${plotWidth},${plotHeight}`}
+                fill="none" stroke="#b6cbe5" strokeWidth="0.75" strokeOpacity="0.85" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+            </svg>
+            <div className="absolute inset-0 flex">
+              {data.map((item) => (
+                <button key={item.label} type="button"
+                  className="min-w-0 flex-1 cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-sky-500"
+                  aria-label={formatPeriod(item.label) + ': ' + item.value.toLocaleString('vi-VN') + ' ₫'}
+                  aria-describedby={activeLabel === item.label ? tooltipId : undefined}
+                  onPointerDown={event => event.stopPropagation()}
+                  onMouseEnter={() => setActiveLabel(item.label)}
+                  onMouseLeave={() => setActiveLabel(null)}
+                  onFocus={() => setActiveLabel(item.label)}
+                  onBlur={() => setActiveLabel(null)}
+                  onClick={() => setActiveLabel(item.label)} />
+              ))}
+            </div>
+            {activeItem && <div id={tooltipId} role="tooltip" className="pointer-events-none absolute right-0 top-0 z-10 max-w-full rounded-lg border border-[#d1d5db] bg-white px-3 py-2 text-xs text-slate-700 shadow-md">
+              <p className="font-semibold">{formatPeriod(activeItem.label)}</p>
+              <p className="mt-1 font-bold text-sky-700">Doanh thu: {activeItem.value.toLocaleString("vi-VN")} ₫</p>
+            </div>}
+          </div>
+          <div className="absolute bottom-0 left-16 right-2 flex h-8">
+            {data.map((item, index) => (
+              <span key={index} className="min-w-0 flex-1 truncate text-center text-[10px] font-semibold text-slate-600" title={item.label}
+                style={{ visibility: data.length >= 8 && index % 2 !== 0 && index !== data.length - 1 ? "hidden" : "visible" }}>
                 {item.label}
               </span>
-            </div>
-          );
-        })}
-      </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

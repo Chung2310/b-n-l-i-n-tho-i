@@ -80,7 +80,7 @@ export async function finalizeContractPendingUploads(input: {
 
 export async function finalizeExtensionPendingUploads(input: {
   extension: { _id: unknown; employeeId: string; employeeName: string };
-  body: { extensionFileUploadToken?: string; extensionSignedImageUploadToken?: string };
+  body: { extensionFileUploadToken?: string; extensionSignedImageUploadToken?: string; electronicSignatureUploadToken?: string };
   actor: ManagedUploadActor;
   finalizeManagedUpload?: FinalizeUpload;
 }) {
@@ -91,7 +91,7 @@ export async function finalizeExtensionPendingUploads(input: {
     entityLabel: input.extension.employeeName,
     sourceRecordId: String(input.extension._id),
   };
-  const patch: { extensionResourceId?: string; signedImageResourceId?: string } = {};
+  const patch: { extensionResourceId?: string; signedImageResourceId?: string; electronicSignatureResourceId?: string } = {};
   if (input.body.extensionFileUploadToken) {
     const resource = await finalize(input.body.extensionFileUploadToken, input.actor, {
       ...sourceBase,
@@ -105,6 +105,13 @@ export async function finalizeExtensionPendingUploads(input: {
       sourceField: "extensionSignedImage",
     });
     patch.signedImageResourceId = resource._id;
+  }
+  if (input.body.electronicSignatureUploadToken) {
+    const resource = await finalize(input.body.electronicSignatureUploadToken, input.actor, {
+      ...sourceBase,
+      sourceField: "electronicSignature",
+    });
+    patch.electronicSignatureResourceId = resource._id;
   }
   return patch;
 }

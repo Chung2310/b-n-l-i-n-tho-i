@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { BarChart3, PieChart, Calendar, TrendingUp, Loader2 } from "lucide-react";
-import { BarChart, DonutCard } from "./DashboardWidgets";
-import { formatDashboardCurrency } from "./dashboardUtils";
+import { BarChart3, Calendar, Loader2 } from "lucide-react";
+import { BarChart } from "./DashboardWidgets";
+import { BestSellingProductsCard } from "./BestSellingProductsCard";
 import { analyticsService } from "../../services/analyticsService";
 
 type TimeFilter = "month" | "quarter" | "year";
@@ -12,19 +12,14 @@ const revenueData: Record<TimeFilter, { label: string; value: number }[]> = {
   year: [],
 };
 
-const courseData: Record<TimeFilter, { label: string; value: number; color: string; display: string }[]> = {
-  month: [],
-  quarter: [],
-  year: [],
-};
-
 export function RevenueAnalysisPanel() {
   const [filter, setFilter] = useState<TimeFilter>("month");
 
   const [isLoading, setIsLoading] = useState(true);
   const [realRevenueData, setRealRevenueData] = useState<{ label: string; value: number }[]>([]);
-  const [realCourseData, setRealCourseData] = useState<{ label: string; value: number; color: string; display: string }[]>([]);
   const [currentTotal, setCurrentTotal] = useState(0);
+  const revenueUnit = Math.abs(currentTotal) >= 1e9 ? { divisor: 1e9, label: "tỉ" } : Math.abs(currentTotal) >= 1e6 ? { divisor: 1e6, label: "triệu" } : { divisor: 1, label: "VND" };
+  const revenueLabel = (currentTotal / revenueUnit.divisor).toLocaleString("vi-VN", { maximumFractionDigits: revenueUnit.divisor === 1 ? 0 : 1 }) + " " + revenueUnit.label;
 
   useEffect(() => {
     let isMounted = true;
@@ -57,15 +52,12 @@ export function RevenueAnalysisPanel() {
           setRealRevenueData(data.series.map(s => ({ label: s.bucket, value: s.amount })));
           setCurrentTotal(data.total);
           
-          // Mock course breakdown temporarily as backend analytics doesn't support tuition by course yet
-          setRealCourseData(courseData[filter]);
         }
       } catch (error) {
         console.error("Error fetching revenue data", error);
         if (isMounted) {
           setRealRevenueData(revenueData[filter]);
           setCurrentTotal(revenueData[filter].reduce((acc, curr) => acc + curr.value, 0));
-          setRealCourseData(courseData[filter]);
         }
       } finally {
         if (isMounted) setIsLoading(false);
@@ -80,19 +72,9 @@ export function RevenueAnalysisPanel() {
   }, [filter]);
 
   return (
-    <div className="space-y-6 pb-10">
+    <div className="space-y-3 pb-10">
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl bg-white p-4 border border-slate-200/60 shadow-sm">
-        <div className="flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-50 text-cyan-600">
-            <TrendingUp className="h-5 w-5" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-slate-800">Phân tích Doanh thu</h3>
-            <p className="text-xs text-slate-500">Xem chi tiết doanh thu theo thời gian và dịch vụ</p>
-          </div>
-        </div>
-        
+      <div className="flex justify-start">
         <div className="flex bg-slate-100 p-1 rounded-xl">
           <button
             onClick={() => setFilter("month")}
@@ -120,11 +102,11 @@ export function RevenueAnalysisPanel() {
         <div className="lg:col-span-2 rounded-3xl border border-slate-200/60 bg-white p-6 shadow-sm">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+              <h3 className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-800">
                 <BarChart3 className="h-4 w-4 text-cyan-500" />
-                Biểu đồ Doanh thu
+                DOANH THU
+                <span className="text-2xl font-black text-slate-900" title={`${currentTotal} VND`}>{revenueLabel}</span>
               </h3>
-              <p className="text-2xl font-black text-slate-900 mt-2">{formatDashboardCurrency(currentTotal, 1, false)}</p>
             </div>
             <div className="rounded-full bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 flex items-center gap-1.5">
               <Calendar className="h-3.5 w-3.5" />
@@ -142,30 +124,7 @@ export function RevenueAnalysisPanel() {
           </div>
         </div>
 
-        {/* Donut Chart */}
-        <div className="rounded-3xl border border-slate-200/60 bg-white p-6 shadow-sm flex flex-col">
-          <div className="mb-6">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
-              <PieChart className="h-4 w-4 text-indigo-500" />
-              Cơ cấu Khóa học
-            </h3>
-            <p className="text-xs text-slate-500 mt-1">Tỷ trọng doanh thu theo từng chương trình</p>
-          </div>
-          <div className="flex-1 flex items-center justify-center min-h-[200px]">
-            {isLoading ? (
-              <div className="flex h-full items-center justify-center text-slate-400">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
-            ) : (
-              <DonutCard
-                compact
-                centerLabel="Tổng"
-                centerValue="100%"
-                segments={realCourseData}
-              />
-            )}
-          </div>
-        </div>
+        <BestSellingProductsCard filter={filter} />
       </div>
     </div>
   );
