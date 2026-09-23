@@ -111,7 +111,7 @@ export default function CalendarTab({
       if (view === "requests" || view === "don-tu" || tab === "requests" || tab === "don-tu" || sub === "don-tu") {
         return "requests";
       }
-      if (view === "attendance" || tab === "attendance") {
+      if (view === "attendance" || tab === "attendance" || sub === "cham-cong" || sub === "lich-su-cham-cong") {
         return "attendance";
       }
     }
@@ -128,7 +128,7 @@ export default function CalendarTab({
       const sub = params.get("sub");
       if (view === "requests" || view === "don-tu" || tab === "requests" || tab === "don-tu" || sub === "don-tu") {
         setCurrentSubTab("requests");
-      } else if (view === "attendance" || tab === "attendance") {
+      } else if (view === "attendance" || tab === "attendance" || sub === "cham-cong" || sub === "lich-su-cham-cong") {
         setCurrentSubTab("attendance");
       } else if (view === "schedule" || tab === "schedule") {
         setCurrentSubTab("schedule");

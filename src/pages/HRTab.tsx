@@ -359,6 +359,11 @@ export default function HRTab() {
                 (new URLSearchParams(window.location.search).get("view") === "requests" ||
                  new URLSearchParams(window.location.search).get("sub") === "don-tu")
                   ? "requests"
+                  : typeof window !== "undefined" &&
+                    (new URLSearchParams(window.location.search).get("view") === "attendance" ||
+                     new URLSearchParams(window.location.search).get("sub") === "cham-cong" ||
+                     new URLSearchParams(window.location.search).get("sub") === "lich-su-cham-cong")
+                  ? "attendance"
                   : undefined
               }
             />

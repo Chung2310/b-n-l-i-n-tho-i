@@ -1041,9 +1041,14 @@ export function ModernAnalyticsDashboard({
         {/* Table 3: Attendance Summary (Col 3 - 4 cols) */}
         <div className="lg:col-span-4 rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-900">Tổng hợp chấm công</h3>
+            <h3
+              onClick={() => onNavigate("NHÂN SỰ", "lich&view=attendance")}
+              className="text-sm font-bold text-slate-900 cursor-pointer hover:text-indigo-600 transition"
+            >
+              Tổng hợp chấm công
+            </h3>
             <span
-              onClick={() => onNavigate("NHÂN SỰ", "lich")}
+              onClick={() => onNavigate("NHÂN SỰ", "lich&view=attendance")}
               className="text-xs font-bold text-indigo-600 cursor-pointer hover:underline"
             >
               Xem tất cả
@@ -1051,7 +1056,10 @@ export function ModernAnalyticsDashboard({
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">
-            <div className="rounded-xl bg-slate-50 p-3 border border-slate-100">
+            <div
+              onClick={() => onNavigate("NHÂN SỰ", "lich&view=attendance")}
+              className="rounded-xl bg-slate-50 p-3 border border-slate-100 cursor-pointer hover:bg-slate-100/70 transition"
+            >
               <span className="text-[11px] font-medium text-slate-500">Có mặt</span>
               <p className="text-lg font-black text-slate-900 mt-0.5">
                 {summary?.timekeeping?.checkedInToday ?? 0}
@@ -1059,7 +1067,10 @@ export function ModernAnalyticsDashboard({
               <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">Đã vào ca</p>
             </div>
 
-            <div className="rounded-xl bg-slate-50 p-3 border border-slate-100">
+            <div
+              onClick={() => onNavigate("NHÂN SỰ", "lich&view=attendance")}
+              className="rounded-xl bg-slate-50 p-3 border border-slate-100 cursor-pointer hover:bg-slate-100/70 transition"
+            >
               <span className="text-[11px] font-medium text-slate-500">Đi muộn</span>
               <p className="text-lg font-black text-slate-900 mt-0.5">
                 {summary?.timekeeping?.lateToday ?? 0}
@@ -1067,7 +1078,10 @@ export function ModernAnalyticsDashboard({
               <p className="text-[10px] text-amber-600 font-semibold mt-0.5">Vào ca trễ</p>
             </div>
 
-            <div className="rounded-xl bg-slate-50 p-3 border border-slate-100">
+            <div
+              onClick={() => onNavigate("NHÂN SỰ", "lich&view=attendance")}
+              className="rounded-xl bg-slate-50 p-3 border border-slate-100 cursor-pointer hover:bg-slate-100/70 transition"
+            >
               <span className="text-[11px] font-medium text-slate-500">Nghỉ phép</span>
               <p className="text-lg font-black text-slate-900 mt-0.5">
                 {summary?.timekeeping?.onApprovedLeaveToday ?? 0}
@@ -1075,7 +1089,10 @@ export function ModernAnalyticsDashboard({
               <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Có duyệt đơn</p>
             </div>
 
-            <div className="rounded-xl bg-slate-50 p-3 border border-slate-100">
+            <div
+              onClick={() => onNavigate("NHÂN SỰ", "lich&view=attendance")}
+              className="rounded-xl bg-slate-50 p-3 border border-slate-100 cursor-pointer hover:bg-slate-100/70 transition"
+            >
               <span className="text-[11px] font-medium text-slate-500">Chưa vào ca</span>
               <p className="text-lg font-black text-slate-900 mt-0.5">
                 {summary?.timekeeping?.absentWithoutLeave ??

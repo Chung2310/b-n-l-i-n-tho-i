@@ -166,6 +166,10 @@ describe("ModernAnalyticsDashboard", () => {
     // Click Hợp đồng & Cảnh báo đến hạn header
     fireEvent.click(screen.getByText("Hợp đồng & Cảnh báo đến hạn"));
     expect(onNavigate).toHaveBeenCalledWith("NHÂN SỰ", "hop-dong");
+
+    // Click Tổng hợp chấm công header
+    fireEvent.click(screen.getByText("Tổng hợp chấm công"));
+    expect(onNavigate).toHaveBeenCalledWith("NHÂN SỰ", "lich&view=attendance");
   });
 
   it("compares real totals from two API requests instead of placeholder previousTotal", async () => {
