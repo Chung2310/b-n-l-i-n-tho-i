@@ -53,15 +53,15 @@ export async function getDashboardBulletin(user: DashboardUser) {
   if (role === "manager") {
     if (access.retail) {
       const totals = await RetailOrderModel.aggregate([{ $match: { ...scope, status: "completed", completedAt: { $gte: yesterday, $lt: tomorrow } } }, { $group: { _id: { $cond: [{ $gte: ["$completedAt", start] }, "today", "yesterday"] }, total: { $sum: "$grandTotal" } } }]);
-      for (const [key, title] of [["today", "Doanh số hôm nay"], ["yesterday", "Doanh số hôm qua"]]) cards.push({ title, value: money(totals.find(t => t._id === key)?.total || 0), detail: "Tổng giá trị đơn bán lẻ đã hoàn tất.", href: "/ban-le" });
+      for (const [key, title] of [["today", "Doanh số hôm nay"], ["yesterday", "Doanh số hôm qua"]]) cards.push({ title, value: money(totals.find(t => t._id === key)?.total || 0), detail: "", href: "/ban-le" });
     }
     if (access.hr && access.timekeeping) {
       const [total, checked] = await Promise.all([UserModel.countDocuments({ ...scope, isActive: true, role: { $ne: "superadmin" } }), TimekeepingLogModel.distinct("uid", { ...scope, date: today, checkIn: { $ne: null } })]);
-      cards.push({ title: "Nhân sự hôm nay", value: `${checked.length} / ${total} đã vào ca`, detail: "Xem lịch làm việc, chấm công và đơn nghỉ phép.", href: "/nhan-su?sub=lich" });
+      cards.push({ title: "Nhân sự hôm nay", value: `${checked.length} / ${total} đã vào ca`, detail: "", href: "/nhan-su?sub=lich" });
     }
     if (access.inventory) {
       const low = await InventoryBalanceModel.find({ ...scope, $expr: { $lte: [{ $subtract: ["$quantity", "$reservedQuantity"] }, "$minStock"] } }).sort({ quantity: 1 }).limit(6).select("sku quantity reservedQuantity minStock").lean();
-      cards.push({ title: "Hàng chạm đáy an toàn", value: low.length ? `${low.length}${low.length === 6 ? "+" : ""} vị trí cần nhập` : "Tồn kho trong ngưỡng", detail: low.map(p => `${p.sku}: còn ${p.quantity - p.reservedQuantity}, ngưỡng ${p.minStock}`).join("; ") || "Chưa có cảnh báo tồn khả dụng thấp.", href: "/kho-san-pham?sub=nhap-hang" });
+      cards.push({ title: "Hàng chạm đáy an toàn", value: low.length ? `${low.length}${low.length === 6 ? "+" : ""} vị trí cần nhập` : "Tồn kho trong ngưỡng", detail: low.map(p => `${p.sku}: còn ${p.quantity - p.reservedQuantity}, ngưỡng ${p.minStock}`).join("; ") || "", href: "/kho-san-pham?sub=nhap-hang" });
     }
   }
   return { role, cards, updatedAt: new Date().toISOString() };
