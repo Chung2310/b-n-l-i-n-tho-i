@@ -170,7 +170,7 @@ export function BarChart({ data = [] }: { data?: Array<{ label: string; value: n
     <div>
       <div className="mb-4 flex flex-wrap gap-4 text-xs font-semibold text-slate-600">
         <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-cyan-500" />Doanh thu</span>
-        <span className="inline-flex items-center gap-2"><span className="h-px w-5 bg-blue-500" />Xu hướng doanh thu</span>
+        <span className="inline-flex items-center gap-2"><span className="h-[0.75px] w-5 bg-blue-500/50" />Xu hướng doanh thu</span>
       </div>
       {data.length === 0 ? <p className="py-12 text-center text-sm text-slate-600">Chưa có dữ liệu doanh thu trong kỳ này.</p> : (
         <div className="relative h-[320px]">
@@ -193,7 +193,7 @@ export function BarChart({ data = [] }: { data?: Array<{ label: string; value: n
                 </rect>
               ))}
               <polyline points={points.map(point => `${point.x},${point.y}`).join(" ")}
-                fill="none" stroke="#3b82f6" strokeWidth="1.25" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                fill="none" stroke="#3b82f6" strokeWidth="0.75" strokeOpacity="0.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             </svg>
           </div>
           <div className="absolute bottom-0 left-16 right-2 flex h-8">
