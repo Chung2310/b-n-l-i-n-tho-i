@@ -47,15 +47,9 @@ export function ActionItemsWidget({
             key={alert.id}
             type="button"
             onClick={() => onGoToContract(alert)}
-            className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition ${
-              alert.reminderDays === 3
-                ? "border-rose-200 bg-rose-50/80 hover:bg-rose-100/70"
-                : "border-amber-200 bg-amber-50/80 hover:bg-amber-100/70"
-            }`}
+            className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50"
           >
-            <span className={`flex min-w-0 items-start gap-2 text-xs font-semibold ${
-              alert.reminderDays === 3 ? "text-rose-800" : "text-amber-800"
-            }`}>
+            <span className="flex min-w-0 items-start gap-2 text-xs font-semibold text-red-700">
               <FileClock className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
                 {alert.contractType} của {alert.employeeName}{" "}
@@ -73,13 +67,13 @@ export function ActionItemsWidget({
           <button
             type="button"
             onClick={onGoToTasks}
-            className="flex w-full items-center justify-between rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-left transition hover:bg-rose-50"
+            className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50"
           >
-            <span className="flex items-center gap-2 text-xs font-semibold text-rose-800">
+            <span className="flex items-center gap-2 text-xs font-semibold text-red-700">
               <AlertTriangle className="h-4 w-4 shrink-0" />
               {overdueTasks.length} task quá hạn giao cho bạn
             </span>
-            <span className="truncate pl-2 text-xs font-semibold text-rose-800">{overdueTasks[0].title}</span>
+            <span className="truncate pl-2 text-xs font-semibold text-red-700">{overdueTasks[0].title}</span>
           </button>
         )}
 
@@ -87,13 +81,13 @@ export function ActionItemsWidget({
           <button
             type="button"
             onClick={onGoToApprovals}
-            className="flex w-full items-center justify-between rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2.5 text-left transition hover:bg-amber-50"
+            className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50"
           >
-            <span className="flex items-center gap-2 text-xs font-semibold text-amber-700">
+            <span className="flex items-center gap-2 text-xs font-semibold text-red-700">
               <ClipboardList className="h-4 w-4 shrink-0" />
               {pendingApprovals.length} phiếu chờ duyệt
             </span>
-            <span className="truncate pl-2 text-xs font-medium text-amber-800">
+            <span className="truncate pl-2 text-xs font-medium text-red-700">
               {pendingApprovals[0].employeeName} · {formatRelativeDate(pendingApprovals[0].since)}
             </span>
           </button>
@@ -103,13 +97,13 @@ export function ActionItemsWidget({
           <button
             type="button"
             onClick={onGoToInventory}
-            className="flex w-full items-center justify-between rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2.5 text-left transition hover:bg-blue-50"
+            className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50"
           >
-            <span className="flex items-center gap-2 text-xs font-semibold text-blue-700">
+            <span className="flex items-center gap-2 text-xs font-semibold text-red-700">
               <PackageCheck className="h-4 w-4 shrink-0" />
               {lowStockAlerts.length} sản phẩm sắp hết hàng
             </span>
-            <span className="truncate pl-2 text-xs font-medium text-blue-800">{lowStockAlerts[0].name}</span>
+            <span className="truncate pl-2 text-xs font-medium text-red-700">{lowStockAlerts[0].name}</span>
           </button>
         )}
       </div>
