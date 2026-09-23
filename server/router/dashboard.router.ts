@@ -4,6 +4,9 @@ import { dashboardController } from "../controller/dashboard.controller";
 import { requireAuth, requirePermission } from "../middleware/auth";
 import { validateRequest } from "../middleware/validation";
 
+import { retailReportController } from "../modules/retail/controllers/retail-report.controller";
+import { RETAIL_OPERATE_PERMISSION, RETAIL_MANAGER_PERMISSION } from "../modules/retail/permissions";
+
 export const dashboardRouter = Router();
 
 const summarySchema = {
@@ -41,4 +44,13 @@ dashboardRouter.get(
   requireAuth as any,
   requirePermission("dashboard:read") as any,
   dashboardController.getActionItems as any
+);
+
+// Reuse retail reporting with authentication scoped to this dashboard endpoint.
+dashboardRouter.get(
+  "/best-selling-products",
+  requireAuth as any,
+  requirePermission("dashboard:read") as any,
+  requirePermission([RETAIL_OPERATE_PERMISSION, RETAIL_MANAGER_PERMISSION]) as any,
+  retailReportController.summary as any
 );

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Loader2, PieChart } from "lucide-react";
-import { retailReportsApi } from "../../modules/retail/api/retailReports.api";
+import { dashboardService } from "../../services/dashboardService";
 import { useRetailScope } from "../../modules/retail/hooks/useRetailScope";
 import type { RetailProductReportRow } from "../../modules/retail/types";
 import { ApiClientError } from "../../services/apiClientError";
@@ -33,7 +33,7 @@ export function BestSellingProductsCard({ filter }: { filter: "month" | "quarter
     const to = new Date();
     const from = new Date(to);
     from.setDate(to.getDate() - (filter === "month" ? 30 : filter === "quarter" ? 90 : 365));
-    retailReportsApi.summary({ companyCode, branchId }, { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) })
+    dashboardService.getBestSellingProducts({ companyCode, branchId }, { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) })
       .then(report => { if (!cancelled) setResult({ key, segments: buildProductSegments(report.products || []), error: "" }); })
       .catch((error: unknown) => {
         if (!cancelled) setResult({ key, segments: [], error: error instanceof ApiClientError

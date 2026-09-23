@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ApiClientError } from "../../services/apiClientError";
 import { BestSellingProductsCard, buildProductSegments } from "./BestSellingProductsCard";
 const mocks = vi.hoisted(() => ({ summary: vi.fn(), scope: { companyCode: "C1", branchId: "B1" } }));
-vi.mock("../../modules/retail/api/retailReports.api", () => ({ retailReportsApi: { summary: mocks.summary } }));
+vi.mock("../../services/dashboardService", () => ({ dashboardService: { getBestSellingProducts: mocks.summary } }));
 vi.mock("../../modules/retail/hooks/useRetailScope", () => ({ useRetailScope: () => ({ scope: mocks.scope }) }));
 const product = (i: number, netSales: number) => ({ productId: String(i), sku: "SKU" + i, productName: "Product " + i, netSales, netQuantity: 1 });
 beforeEach(() => { mocks.summary.mockReset(); mocks.scope.branchId = "B1"; });
