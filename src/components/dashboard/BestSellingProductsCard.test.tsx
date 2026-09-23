@@ -43,13 +43,22 @@ it("shows errors and empty data without a fabricated chart", async () => {
  expect(screen.queryByRole("alert")).toBeNull();
 });
 
-it("preserves API error details and supports retry", async () => {
+it("hides API error details and supports retry", async () => {
  mocks.summary.mockRejectedValueOnce(new ApiClientError({ status: 403, code: "DENIED", message: "Không có quyền báo cáo" }))
    .mockResolvedValueOnce({ products: [product(1, 100)] });
  render(<BestSellingProductsCard filter="month" />);
- await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("403"));
- expect(screen.getByRole("alert").textContent).toContain("Không có quyền báo cáo");
+ await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Bạn không có quyền xem báo cáo này."));
+ expect(screen.getByRole("alert").textContent).not.toContain("403");
+ expect(screen.getByRole("alert").textContent).not.toContain("Không có quyền báo cáo");
+ expect(screen.getByRole("alert").querySelector("svg")).toBeTruthy();
  fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
  await waitFor(() => expect(screen.getByText("Product 1 (SKU1)")).toBeTruthy());
  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("does not expose server error messages or HTTP codes", async () => {
+ mocks.summary.mockRejectedValue(new ApiClientError({ status: 500, code: "DB_FAILURE", message: "Internal database failure" }));
+ render(<BestSellingProductsCard filter="month" />);
+ await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("Không tải được báo cáo sản phẩm. Vui lòng thử lại."));
+ expect(screen.getByRole("alert").textContent).not.toMatch(/500|DB_FAILURE|database/);
 });

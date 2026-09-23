@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, PieChart } from "lucide-react";
+import { Loader2, LockKeyhole, PieChart } from "lucide-react";
 import { dashboardService } from "../../services/dashboardService";
 import { useRetailScope } from "../../modules/retail/hooks/useRetailScope";
 import type { RetailProductReportRow } from "../../modules/retail/types";
@@ -36,8 +36,8 @@ export function BestSellingProductsCard({ filter }: { filter: "month" | "quarter
     dashboardService.getBestSellingProducts({ companyCode, branchId }, { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) })
       .then(report => { if (!cancelled) setResult({ key, segments: buildProductSegments(report.products || []), error: "" }); })
       .catch((error: unknown) => {
-        if (!cancelled) setResult({ key, segments: [], error: error instanceof ApiClientError
-          ? `Lỗi ${error.status}: ${error.message}`
+        if (!cancelled) setResult({ key, segments: [], error: error instanceof ApiClientError && error.status === 403
+          ? "Bạn không có quyền xem báo cáo này."
           : "Không tải được báo cáo sản phẩm. Vui lòng thử lại." });
       });
     return () => { cancelled = true; };
@@ -53,7 +53,7 @@ export function BestSellingProductsCard({ filter }: { filter: "month" | "quarter
     <div className="flex-1 flex items-center justify-center min-h-[200px]">
       {!scope ? <p className="text-sm text-slate-600">Chọn chi nhánh để xem sản phẩm bán chạy.</p>
         : !current ? <div role="status" aria-label="Đang tải sản phẩm bán chạy"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>
-        : current.error ? <div className="space-y-3"><p role="alert" className="text-sm text-red-600">{current.error}</p><button type="button" onClick={() => setRetry(value => value + 1)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-sky-700">Thử lại</button></div>
+        : current.error ? <div className="space-y-3"><p role="alert" className="flex items-center gap-2 text-sm text-slate-600"><LockKeyhole aria-hidden="true" className="h-5 w-5 shrink-0" />{current.error}</p><button type="button" onClick={() => setRetry(value => value + 1)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-sky-700">Thử lại</button></div>
         : !current.segments.length ? <p className="text-sm text-slate-600">Chưa có doanh thu sản phẩm trong kỳ này.</p>
         : <DonutCard compact title="Sản phẩm bán chạy" centerLabel="Tỷ trọng" centerValue="100%" segments={current.segments} />}
     </div>
