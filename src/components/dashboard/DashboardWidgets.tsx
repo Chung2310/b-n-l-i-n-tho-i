@@ -155,55 +155,63 @@ export function DonutCard({
 }
 
 export function BarChart({ data = [] }: { data?: Array<{ label: string; value: number }> }) {
-  const rawMax = Math.max(...data.map(d => d.value), 0);
-  const hasData = rawMax > 0;
-  const maxVal = hasData ? rawMax : 1; // only used for bar heights when hasData
-
-  const formatCurrencyShort = (val: number) => {
-    if (!hasData) return "₫0";
-    return formatDashboardCurrency(val, 1, true);
-  };
+  const rawMax = Math.max(...data.map(item => item.value), 0);
+  const maxValue = rawMax || 1;
+  const plotWidth = 1000;
+  const plotHeight = 260;
+  const slotWidth = plotWidth / Math.max(data.length, 1);
+  const points = data.map((item, index) => ({
+    ...item,
+    x: (index + 0.5) * slotWidth,
+    y: plotHeight - (item.value / maxValue) * plotHeight,
+  }));
 
   return (
-    <div className="relative h-[320px]">
-      <div className="absolute inset-x-0 bottom-10 top-0 flex flex-col justify-between text-xs font-semibold text-gray-400">
-        {[
-          formatCurrencyShort(rawMax),
-          formatCurrencyShort(rawMax * 2 / 3),
-          formatCurrencyShort(rawMax / 3),
-          "₫0"
-        ].map((y, idx) => (
-          <div key={idx} className="flex items-center gap-3 h-0">
-            <span className="w-12 shrink-0 text-left">{y}</span>
-            <span className="h-px flex-1 border-t border-dashed border-slate-100" />
-          </div>
-        ))}
+    <div>
+      <div className="mb-4 flex flex-wrap gap-4 text-xs font-semibold text-slate-600">
+        <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-cyan-500" />Doanh thu</span>
+        <span className="inline-flex items-center gap-2"><span className="h-0.5 w-5 bg-orange-600" />Xu hướng doanh thu</span>
       </div>
-      <div className="absolute bottom-0 left-16 right-4 top-6 flex items-end justify-between gap-4">
-        {data.map((item, i) => {
-          const h = (item.value / maxVal) * 80; // keep max at 80% to fit neatly
-          return (
-            <div key={i} className="flex flex-1 flex-col items-center gap-2 h-full justify-end">
-              <div
-                title={`${item.label}: ${item.value.toLocaleString("vi-VN")} ₫`}
-                className={`w-full max-w-16 rounded-t-lg transition-all duration-500 ${
-                  i === data.length - 1
-                    ? "bg-gradient-to-t from-blue-600 to-indigo-500 shadow-md shadow-blue-500/20"
-                    : "bg-gradient-to-t from-slate-200 to-slate-100 hover:from-blue-300 hover:to-blue-200"
-                }`}
-                style={{ height: `${h}%` }}
-              />
-              <span
-                className={`text-[10px] font-bold mt-1 ${i === data.length - 1 ? "text-blue-600" : "text-gray-450"} truncate max-w-full`}
-                title={item.label}
-                style={{ visibility: data.length >= 8 && i % 2 !== 0 && i !== data.length - 1 ? "hidden" : "visible" }}
-              >
+      {data.length === 0 ? <p className="py-12 text-center text-sm text-slate-600">Chưa có dữ liệu doanh thu trong kỳ này.</p> : (
+        <div className="relative h-[320px]">
+          <div className="absolute bottom-10 left-0 right-0 top-3 flex flex-col justify-between text-[11px] font-semibold text-slate-600">
+            {[rawMax, rawMax * 2 / 3, rawMax / 3, 0].map((value, index) => (
+              <div key={index} className="flex h-0 items-center gap-2">
+                <span className="w-14 shrink-0">{formatDashboardCurrency(value, 1, true)}</span>
+                <span className="flex-1 border-t border-dashed border-slate-200" />
+              </div>
+            ))}
+          </div>
+          <div className="absolute bottom-10 left-16 right-2 top-3">
+            <svg viewBox={`0 0 ${plotWidth} ${plotHeight}`} preserveAspectRatio="none"
+              className="h-full w-full overflow-visible" role="img" aria-label="Biểu đồ doanh thu kết hợp cột và đường">
+              {points.map((point, index) => (
+                <rect key={index} x={point.x - Math.min(slotWidth * 0.6, 64) / 2} y={point.y}
+                  width={Math.min(slotWidth * 0.6, 64)} height={plotHeight - point.y} rx="3"
+                  className="fill-cyan-400/70 hover:fill-cyan-500">
+                  <title>{point.label}: {point.value.toLocaleString("vi-VN")} ₫</title>
+                </rect>
+              ))}
+              <polyline points={points.map(point => `${point.x},${point.y}`).join(" ")}
+                fill="none" stroke="#ea580c" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+              {points.map((point, index) => (
+                <circle key={index} cx={point.x} cy={point.y} r="4" fill="#fff" stroke="#ea580c" strokeWidth="2" vectorEffect="non-scaling-stroke"
+                  tabIndex={0} aria-label={`${point.label}: ${point.value.toLocaleString("vi-VN")} ₫`}>
+                  <title>{point.label}: {point.value.toLocaleString("vi-VN")} ₫</title>
+                </circle>
+              ))}
+            </svg>
+          </div>
+          <div className="absolute bottom-0 left-16 right-2 flex h-8">
+            {data.map((item, index) => (
+              <span key={index} className="min-w-0 flex-1 truncate text-center text-[10px] font-semibold text-slate-600" title={item.label}
+                style={{ visibility: data.length >= 8 && index % 2 !== 0 && index !== data.length - 1 ? "hidden" : "visible" }}>
                 {item.label}
               </span>
-            </div>
-          );
-        })}
-      </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
