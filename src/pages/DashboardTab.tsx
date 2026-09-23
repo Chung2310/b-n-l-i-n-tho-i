@@ -1,40 +1,27 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState } from "react";
-import { LayoutDashboard, TrendingUp, Sun, Moon } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useBranch } from "../context/BranchContext";
-import { isModuleEnabled } from "../config/modules";
 import { dashboardService } from "../services/dashboardService";
 import { DashboardSummary, DashboardActionItems } from "../types/dashboard";
-import { OverviewPanel } from "../components/dashboard/OverviewPanel";
-import { RevenueAnalysisPanel } from "../components/dashboard/RevenueAnalysisPanel";
-import { DailyBulletin } from "../components/dashboard/DailyBulletin";
-import { getEnergyGreeting } from "../components/dashboard/energyGreeting";
+import { ModernAnalyticsDashboard } from "../components/dashboard/ModernAnalyticsDashboard";
+import { buildContractReviewUrl } from "../utils/contractExpiryNavigation";
 
 import "../components/dashboard/overview.css";
-
-type DashboardView = "overview" | "revenue";
 
 export default function DashboardTab() {
   const { userProfile } = useAuth();
   const { activeBranchId } = useBranch();
-  
-  const canSeeHr = isModuleEnabled(userProfile?.enabledModules, "hr");
-  const canSeeInventory = isModuleEnabled(userProfile?.enabledModules, "inventory");
-  const canSeeResource = isModuleEnabled(userProfile?.enabledModules, "resource");
-  const canSeeChat = isModuleEnabled(userProfile?.enabledModules, "chat");
 
-  const [activeView, setActiveView] = useState<DashboardView>("overview");
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const bulletinKey = `${userProfile?.uid}:${userProfile?.role}:${activeBranchId}`;
-  const [bulletinResult, setBulletinResult] = useState<{ key: string; data: DashboardActionItems | null; error: boolean } | null>(null);
+  const [bulletinResult, setBulletinResult] = useState<{
+    key: string;
+    data: DashboardActionItems | null;
+    error: boolean;
+  } | null>(null);
+
   const actionItems = bulletinResult?.key === bulletinKey ? bulletinResult.data : null;
-  const bulletinError = bulletinResult?.key === bulletinKey && bulletinResult.error;
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => { const timer = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(timer); }, []);
-  const greetingHour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: "Asia/Ho_Chi_Minh" }).format(now));
-  const greeting = getEnergyGreeting(greetingHour);
 
   // Poll summary data
   useEffect(() => {
@@ -42,7 +29,6 @@ export default function DashboardTab() {
     let cancelled = false;
 
     const loadSummary = () => {
-      // Mặc định lấy theo ngày cho Dashboard tổng quan
       dashboardService
         .getSummary({ filter: "day" })
         .then((data) => {
@@ -86,76 +72,36 @@ export default function DashboardTab() {
     };
   }, [userProfile?.uid, userProfile?.role, activeBranchId]);
 
-  const todayLabel = new Date().toLocaleDateString("vi-VN", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
+  const goToTab = (tab: string, subTab?: string) => {
+    let path = "/tong-quan";
+    if (tab === "NHÂN SỰ") path = "/nhan-su";
+    else if (tab === "KHO & SẢN PHẨM") path = "/kho-san-pham";
+    else if (tab === "BÁN LẺ") path = "/ban-le";
+    else if (tab === "TÀI CHÍNH") path = "/tai-chinh";
+
+    const url = subTab ? `${path}?sub=${subTab}` : path;
+    window.history.pushState(null, "", url);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  };
+
+  const goToContract = (employeeName: string) => {
+    window.history.pushState(null, "", buildContractReviewUrl(employeeName));
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  };
 
   return (
-    <div data-overview={activeView === "overview" ? "true" : undefined} className="w-full min-w-0 max-h-[85vh] overflow-y-auto px-0.5 pb-4 text-left sm:pr-2" id="dashboard_tab_view">
-      <div className="mb-3 flex flex-col gap-3">
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-1.5 bg-cyan-600 rounded-full shrink-0" />
-            <div>
-              <div className="min-w-0">
-              <h1 className="flex min-w-0 items-center gap-2 text-base font-medium leading-relaxed text-slate-700 md:text-xl">
-                {greetingHour >= 18
-                  ? <Moon aria-hidden="true" className="h-6 w-6 shrink-0 text-indigo-500" />
-                  : <Sun aria-hidden="true" className="h-6 w-6 shrink-0 text-amber-500" />}
-                <span className="min-w-0 break-words">
-                {greeting.greeting}{" "}<strong className="text-lg font-extrabold text-cyan-700 md:text-2xl">{userProfile?.displayName || "bạn"}</strong>
-                </span>
-              </h1>
-
-              </div>
-              <p className="text-xs text-slate-700 font-medium">Hôm nay, {todayLabel}</p>
-
-            </div>
-          </div>
-        </div>
-
-        <div className="flex min-w-0 flex-col gap-4 border-b border-slate-200/80 pb-0 md:flex-row md:items-center md:justify-between">
-          <div className="flex gap-1.5 overflow-x-auto select-none pb-1">
-            <button
-              onClick={() => setActiveView("overview")}
-              className={`flex items-center gap-2 px-4 py-2.5 text-xs transition-all duration-200 cursor-pointer shrink-0 rounded-xl ${
-                activeView === "overview"
-                  ? "bg-cyan-600 text-white font-bold shadow-sm"
-                  : "text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 font-semibold"
-              }`}
-            >
-              <LayoutDashboard className={`h-4 w-4 ${activeView === "overview" ? "text-white" : "text-slate-400"}`} />
-              <span>Tổng quan</span>
-            </button>
-            <button
-              onClick={() => setActiveView("revenue")}
-              className={`flex items-center gap-2 px-4 py-2.5 text-xs transition-all duration-200 cursor-pointer shrink-0 rounded-xl ${
-                activeView === "revenue"
-                  ? "bg-cyan-600 text-white font-bold shadow-sm"
-                  : "text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 font-semibold"
-              }`}
-            >
-              <TrendingUp className={`h-4 w-4 ${activeView === "revenue" ? "text-white" : "text-slate-400"}`} />
-              <span>Phân tích doanh thu</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {activeView === "overview" ? (
-        <>
-        <DailyBulletin data={actionItems?.bulletin} error={bulletinError} />
-        <OverviewPanel
-          summary={summary}
-          actionItems={actionItems}
-          canSeeHr={canSeeHr && actionItems?.bulletin?.role === "manager"}
-        />
-        </>
-      ) : (
-        <RevenueAnalysisPanel />
-      )}
+    <div
+      data-overview="true"
+      className="w-full min-w-0 max-h-[88vh] overflow-y-auto px-1 pb-10 text-left sm:pr-3"
+      id="dashboard_tab_view"
+    >
+      <ModernAnalyticsDashboard
+        summary={summary}
+        actionItems={actionItems}
+        userDisplayName={userProfile?.displayName}
+        onNavigate={goToTab}
+        onOpenContract={goToContract}
+      />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { exportCsv } from "../components/ManagementUI";
 import { useEffect, useState } from "react";
 import { financeAssetsApi, type AssetDepreciation } from "../api/financeAssets.api";
 import { canManageAssets } from "./FixedAssetsPage";
@@ -20,6 +21,7 @@ export default function AssetDepreciationPage({
   const [lines, setLines] = useState<AssetDepreciation[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [notice, setNotice] = useState("");
   const canManage = canManageAssets(permissions);
   const total = lines.reduce((sum, line) => sum + line.amount, 0);
@@ -110,13 +112,14 @@ export default function AssetDepreciationPage({
           </b>
           <b>Tổng khấu hao: {vnd(total)}</b>
         </div>
+        <div className="flex flex-wrap gap-3 border-b p-3 text-sm"><select aria-label="Trạng thái ghi sổ" className="rounded-lg border border-slate-300 p-2" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option value="">Tất cả trạng thái</option><option value="planned">Kế hoạch</option><option value="posted">Đã ghi sổ</option></select><button className="text-cyan-700" onClick={() => exportCsv("khau-hao-" + period, ["Tài sản", "Kỳ", "Khấu hao", "Lũy kế", "Còn lại", "Trạng thái", "Ngày ghi sổ"], lines.map(l => [l.assetName || l.assetCode, l.period, l.amount, l.accumulatedAfter, l.netBookValueAfter, l.status, l.postedAt]))}>Xuất CSV</button></div>
         <div className="divide-y">
-          {lines.map((line) => (
+          {lines.filter(line => !statusFilter || line.status === statusFilter).map((line) => (
             <div key={line._id} className="grid grid-cols-2 gap-2 p-4 text-sm sm:grid-cols-4">
-              <span>{line.assetId}</span>
-              <span>{vnd(line.amount)}</span>
-              <span>Luỹ kế: {vnd(line.accumulatedAfter)}</span>
-              <span>{line.status === "posted" ? "Đã ghi sổ" : "Kế hoạch"}</span>
+              <span>{line.assetName || line.assetCode || "Tài sản chưa có tên"}<small className="block text-slate-500">{line.assetCode}</small></span>
+              <span>Nguyên giá: {vnd(line.originalCost || 0)}<br />Kỳ này: {vnd(line.amount)}</span>
+              <span>Luỹ kế: {vnd(line.accumulatedAfter)}<br />Còn lại: {vnd(line.netBookValueAfter)}</span>
+              <span>{line.status === "posted" ? "Đã ghi sổ" : "Kế hoạch"}{line.postedAt && <small className="block">{new Date(line.postedAt).toLocaleString("vi-VN")}</small>}</span>
             </div>
           ))}
           {!lines.length && (

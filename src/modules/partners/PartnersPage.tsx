@@ -1,5 +1,6 @@
 import React from "react";
 import { createPortal } from "react-dom";
+import "./partners.css";
 import {
   Users,
   UserCheck,
@@ -120,19 +121,19 @@ function PartnerForm({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl">
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-600 to-sky-400 text-white shadow-md shadow-cyan-500/20">
               <ContactRound className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              <h2 className="text-lg font-bold text-slate-900">
                 {initial._id ? "Sửa thông tin đối tác" : "Thêm đối tác"}
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-slate-500">
                 Quản lý hồ sơ CTV, đại lý đối tác hoặc liên kết nhà cung cấp
               </p>
             </div>
@@ -140,7 +141,7 @@ function PartnerForm({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
@@ -151,7 +152,7 @@ function PartnerForm({
           {error && (
             <div
               role="alert"
-              className="flex items-center gap-2.5 rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300"
+              className="flex items-center gap-2.5 rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-sm text-rose-700"
             >
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{error}</span>
@@ -164,23 +165,23 @@ function PartnerForm({
               Thông tin định danh
             </h3>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 Mã đối tác <span className="text-rose-500">*</span>
                 <input
                   required
                   placeholder="VD: CTV-001, DL-MINH"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100 dark:focus:bg-slate-900"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20"
                   value={String(form.code || "")}
                   onChange={(e) => setForm({ ...form, code: e.target.value })}
                 />
               </label>
 
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 Tên đối tác <span className="text-rose-500">*</span>
                 <input
                   required
                   placeholder="Họ tên cá nhân hoặc tên đại lý"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100 dark:focus:bg-slate-900"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20"
                   value={String(form.name || "")}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                 />
@@ -194,30 +195,30 @@ function PartnerForm({
               Liên hệ & Địa chỉ
             </h3>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 Điện thoại
                 <input
                   placeholder="0912 345 678"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100 dark:focus:bg-slate-900"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20"
                   value={String(form.phone || "")}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 />
               </label>
 
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 Email
                 <input
                   required={!initial._id}
                   type="email"
                   placeholder="partner@example.com"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100 dark:focus:bg-slate-900"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20"
                   value={String(form.email || "")}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                 />
               </label>
 
               {!initial._id && (
-                <label className="sm:col-span-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <label className="sm:col-span-2 text-xs font-semibold text-slate-700">
                   Mật khẩu tài khoản <span className="text-rose-500">*</span>
                   <input
                     required
@@ -225,21 +226,21 @@ function PartnerForm({
                     maxLength={128}
                     type="password"
                     placeholder="Ít nhất 6 ký tự"
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100 dark:focus:bg-slate-900"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20"
                     value={String(form.accountPassword || "")}
                     onChange={(e) => setForm({ ...form, accountPassword: e.target.value })}
                   />
-                  <span className="mt-1.5 block text-xs font-normal text-slate-500 dark:text-slate-400">
+                  <span className="mt-1.5 block text-xs font-normal text-slate-500">
                     Tài khoản sẽ được cấp ngay sau khi lưu hồ sơ với quyền chỉ xem cổng Đối tác.
                   </span>
                 </label>
               )}
 
-              <label className="sm:col-span-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="sm:col-span-2 text-xs font-semibold text-slate-700">
                 Địa chỉ
                 <input
                   placeholder="Địa chỉ giao dịch, nhận hàng hoặc liên hệ"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100 dark:focus:bg-slate-900"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20"
                   value={String(form.address || "")}
                   onChange={(e) => setForm({ ...form, address: e.target.value })}
                 />
@@ -261,11 +262,11 @@ function PartnerForm({
                       key={key}
                       className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 transition ${
                         checked
-                          ? "border-cyan-500/40 bg-cyan-50/50 ring-1 ring-cyan-500/20 dark:border-cyan-500/40 dark:bg-cyan-950/20"
-                          : "border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 dark:border-slate-800 dark:bg-slate-800/30 dark:hover:bg-slate-800/50"
+                          ? "border-cyan-500/40 bg-cyan-50/50 ring-1 ring-cyan-500/20"
+                          : "border-slate-200 bg-slate-50/50 hover:bg-slate-100/50"
                       }`}
                     >
-                      <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                      <span className="text-sm font-medium text-slate-800">
                         {label}
                       </span>
                       <input
@@ -291,7 +292,7 @@ function PartnerForm({
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
                 Trạng thái
                 <select
-                  className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100 dark:focus:bg-slate-900 cursor-pointer"
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 cursor-pointer"
                   value={form.status}
                   onChange={(e) => setForm({ ...form, status: e.target.value })}
                 >
@@ -299,18 +300,18 @@ function PartnerForm({
                   <option value="inactive">Ngừng hoạt động</option>
                 </select>
               </label>
-              <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-500 dark:bg-slate-800/40 dark:text-slate-400 border border-slate-100 dark:border-slate-800">
-                <span className="font-semibold text-slate-700 dark:text-slate-300">Ghi chú:</span> Đối tác ngừng hoạt động sẽ không thể gắn vào đơn hàng mới hoặc tính hoa hồng phát sinh.
+              <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-500 border border-slate-100">
+                <span className="font-semibold text-slate-700">Ghi chú:</span> Đối tác ngừng hoạt động sẽ không thể gắn vào đơn hàng mới hoặc tính hoa hồng phát sinh.
               </div>
             </div>
           </div>
 
           {/* Footer Controls */}
-          <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+          <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
+              className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition cursor-pointer"
             >
               Đóng
             </button>
@@ -358,42 +359,42 @@ function PartnerAccountModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-100 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-100 text-cyan-700">
               <UserPlus className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Cấp tài khoản đối tác</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{partner.name} · {roles[partner.roles?.[0]] || "Đối tác"}</p>
+              <h2 className="text-lg font-bold text-slate-900">Cấp tài khoản đối tác</h2>
+              <p className="text-xs text-slate-500">{partner.name} · {roles[partner.roles?.[0]] || "Đối tác"}</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Đóng">
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 transition cursor-pointer" aria-label="Đóng">
             <X className="h-5 w-5" />
           </button>
         </div>
         <form onSubmit={submit} className="space-y-4 p-6">
-          {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300">{error}</div>}
-          <p className="rounded-xl border border-cyan-100 bg-cyan-50/70 p-3 text-xs leading-5 text-cyan-900 dark:border-cyan-900/40 dark:bg-cyan-950/30 dark:text-cyan-200">
+          {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
+          <p className="rounded-xl border border-cyan-100 bg-cyan-50/70 p-3 text-xs leading-5 text-cyan-900">
             Tài khoản chỉ được xem cổng Đối tác và dữ liệu thuộc hồ sơ này. Gửi thông tin đăng nhập cho đối tác qua kênh an toàn.
           </p>
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <label className="block text-xs font-semibold text-slate-700">
             Email đăng nhập <span className="text-rose-500">*</span>
-            <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100" />
+            <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:bg-white" />
           </label>
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <label className="block text-xs font-semibold text-slate-700">
             Tên hiển thị
-            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100" />
+            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:bg-white" />
           </label>
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <label className="block text-xs font-semibold text-slate-700">
             Mật khẩu tạm thời <span className="text-rose-500">*</span>
-            <input required minLength={6} maxLength={128} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Ít nhất 6 ký tự" className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100" />
+            <input required minLength={6} maxLength={128} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Ít nhất 6 ký tự" className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:bg-white" />
           </label>
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Hủy</button>
-            <button type="submit" disabled={busy} className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-sky-600 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-cyan-500/20 disabled:opacity-50">{busy ? "Đang cấp..." : "Cấp tài khoản"}</button>
+            <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition cursor-pointer">Hủy</button>
+            <button type="submit" disabled={busy} className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-sky-600 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-cyan-500/20 disabled:opacity-50 transition cursor-pointer">{busy ? "Đang cấp..." : "Cấp tài khoản"}</button>
           </div>
         </form>
       </div>
@@ -835,21 +836,21 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
   };
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs">
-      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Tạo chính sách hoa hồng" className="relative max-h-[90dvh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl outline-none dark:bg-slate-900">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Tạo chính sách hoa hồng" className="relative max-h-[90dvh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl outline-none">
         <button type="button" aria-label="Đóng popup chính sách" disabled={busy} onClick={onClose} className="absolute right-4 top-4 rounded-lg p-2 text-slate-400 hover:bg-slate-100 disabled:opacity-50"><X className="h-5 w-5" /></button>
     <form
       onSubmit={save}
-      className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+      className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
-      <div className="flex items-center gap-3 border-b border-slate-100 pb-4 pr-8 dark:border-slate-800">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-400">
+      <div className="flex items-center gap-3 border-b border-slate-100 pb-4 pr-8">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white">
           <SlidersHorizontal className="h-5 w-5" />
         </div>
         <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+          <h2 className="text-lg font-bold text-slate-900">
             Tạo chính sách hoa hồng
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-slate-500">
             Mỗi lần lưu tạo phiên bản mới. Quy tắc SKU ưu tiên hơn nhóm hàng. Cần khai báo nhóm/SKU cho mọi hàng bán có gắn CTV.
           </p>
         </div>
@@ -857,8 +858,8 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
 
       {message && (
         <div
-          role="alert"
-          className="flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-700 dark:border-cyan-900/40 dark:bg-cyan-950/30 dark:text-cyan-300"
+          role="status"
+          className="flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-700"
         >
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{message}</span>
@@ -872,10 +873,10 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
           Phạm vi & Mức hoa hồng cơ sở
         </h3>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <label className="text-xs font-semibold text-slate-700">
             Áp dụng cho
             <select
-              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100 cursor-pointer"
+              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500 cursor-pointer"
               value={partnerId}
               onChange={(e) => setPartnerId(e.target.value)}
             >
@@ -890,17 +891,17 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
             </select>
           </label>
 
-          <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <label className="text-xs font-semibold text-slate-700">
             Hiệu lực (để trống = ngay)
             <input
               type="datetime-local"
-              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100"
+              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500"
               value={effectiveAt}
               onChange={(e) => setEffectiveAt(e.target.value)}
             />
           </label>
 
-          <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <label className="text-xs font-semibold text-slate-700">
             Điện thoại / máy (VND)
             <div className="relative mt-1.5">
               <input
@@ -908,7 +909,7 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
                 min="150000"
                 max="300000"
                 step="1000"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500"
                 value={config.phoneAmount}
                 onChange={(e) =>
                   setConfig({ ...config, phoneAmount: Number(e.target.value) })
@@ -924,7 +925,7 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
             ["accessoryBps", "Phụ kiện (%)"],
             ["repairBps", "Tiền công sửa chữa (%)"],
           ].map(([key, label]) => (
-            <label key={key} className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <label key={key} className="text-xs font-semibold text-slate-700">
               {label}
               <div className="relative mt-1.5">
                 <input
@@ -932,7 +933,7 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
                   min="10"
                   max="15"
                   step="0.01"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500"
                   value={config[key] / 100}
                   onChange={(e) =>
                     setConfig({
@@ -965,11 +966,11 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
           {config.rules.map((r: any, index: number) => (
             <div
               key={index}
-              className="flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-800/40"
+              className="flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50/80 p-3"
             >
               <select
                 aria-label="Loại sản phẩm"
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
                 value={r.kind}
                 onChange={(e) =>
                   setConfig({
@@ -988,7 +989,7 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
 
               <select
                 aria-label="Loại quy tắc"
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
                 value={r.sku !== undefined ? "sku" : "category"}
                 onChange={(e) =>
                   setConfig({
@@ -1009,7 +1010,7 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
                 aria-label="SKU hoặc nhóm hàng"
                 required
                 placeholder="Nhập mã SKU hoặc tên nhóm..."
-                className="min-w-[150px] flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="min-w-[150px] flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
                 value={r.sku ?? r.category}
                 onChange={(e) =>
                   setConfig({
@@ -1027,7 +1028,7 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
                 aria-label="Mức riêng (để trống dùng mặc định)"
                 type="number"
                 placeholder={r.kind === "phone" ? "đ/máy (mặc định)" : "% (mặc định)"}
-                className="w-44 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="w-44 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
                 min={r.kind === "phone" ? 150000 : 10}
                 max={r.kind === "phone" ? 300000 : 15}
                 step={r.kind === "phone" ? 1000 : 0.01}
@@ -1060,7 +1061,7 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
 
               <button
                 type="button"
-                className="flex items-center gap-1 rounded-lg p-1.5 text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                className="flex items-center gap-1 rounded-lg p-1.5 text-xs text-rose-600 hover:bg-rose-50 cursor-pointer"
                 onClick={() =>
                   setConfig({
                     ...config,
@@ -1075,7 +1076,7 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
           ))}
 
           {config.rules.length === 0 && (
-            <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400 dark:border-slate-800">
+            <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
               Chưa có quy tắc riêng biệt nào. Hệ thống sẽ áp dụng mức cơ sở mặc định.
             </p>
           )}
@@ -1084,7 +1085,7 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <button
             type="button"
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 transition cursor-pointer"
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
             onClick={() =>
               setConfig({
                 ...config,
@@ -1106,9 +1107,17 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
         </div>
       </div>
 
-
       </fieldset>
-      <div className="flex justify-end border-t border-slate-100 pt-4"><button type="button" onClick={onClose} disabled={busy} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 disabled:opacity-50">Hủy</button></div>
+      <div className="flex justify-end border-t border-slate-100 pt-4">
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={busy}
+          className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition cursor-pointer"
+        >
+          Hủy
+        </button>
+      </div>
     </form>
       </div>
     </div>, document.body
@@ -1186,16 +1195,16 @@ export default function PartnersPage() {
   // Partner accounts without management permission use the self portal.
   if (!admin) {
     return (
-      <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 text-left">
+      <div id="partners-page" className="w-full min-w-0 space-y-6 px-0.5 py-4 sm:py-6 text-left">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-600 to-sky-400 text-white shadow-md shadow-cyan-500/20">
             <Coins className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
               Hoa hồng của tôi
             </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-500">
               Tra cứu doanh số, sao kê hoa hồng và tiến độ thưởng KPI cá nhân
             </p>
           </div>
@@ -1229,22 +1238,22 @@ export default function PartnersPage() {
             <ContactRound className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
               Quản lý đối tác
             </h1>
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+            <p className="text-xs font-medium text-slate-500">
               CTV, đại lý, nhà cung cấp và hoa hồng bán hàng.
             </p>
           </div>
         </div>
 
         {/* Tab Switcher */}
-        <nav className="flex items-center rounded-xl bg-slate-100 p-1 dark:bg-slate-800/80">
+        <nav className="flex items-center rounded-xl bg-slate-100 p-1">
           <button
             className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition cursor-pointer ${
               tab === "list"
-                ? "bg-white text-cyan-700 shadow-xs dark:bg-slate-900 dark:text-cyan-400"
-                : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                ? "bg-white text-cyan-700 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
             }`}
             onClick={() => setTab("list")}
           >
@@ -1255,8 +1264,8 @@ export default function PartnersPage() {
             <button
               className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition cursor-pointer ${
                 tab === "policy"
-                  ? "bg-white text-cyan-700 shadow-xs dark:bg-slate-900 dark:text-cyan-400"
-                : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                  ? "bg-white text-cyan-700 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
               }`}
               onClick={() => setTab("policy")}
             >
@@ -1269,53 +1278,45 @@ export default function PartnersPage() {
 
       {/* Top Metric Cards */}
       {tab === "list" && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-              <span className="text-xs font-medium">Tổng đối tác</span>
-              <div className="rounded-lg bg-slate-100 p-1.5 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                <Users className="h-4 w-4" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-gray-300 bg-white p-4 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
+                <Users className="h-5 w-5" />
               </div>
+              <p className="min-w-0 break-words text-2xl font-extrabold text-slate-900">{partners.length}</p>
             </div>
-            <p className="mt-2 text-2xl font-extrabold text-slate-900 dark:text-slate-100">
-              {partners.length}
-            </p>
+            <p className="mt-2 text-xs font-semibold text-slate-600">Tổng đối tác</p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-              <span className="text-xs font-medium">Cộng tác viên (CTV)</span>
-              <div className="rounded-lg bg-cyan-50 p-1.5 text-cyan-600 dark:bg-cyan-950/50 dark:text-cyan-400">
-                <UserCheck className="h-4 w-4" />
+          <div className="rounded-2xl border border-gray-300 bg-white p-4 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-600 text-white">
+                <UserCheck className="h-5 w-5" />
               </div>
+              <p className="min-w-0 break-words text-2xl font-extrabold text-slate-900">{totalCollaborators}</p>
             </div>
-            <p className="mt-2 text-2xl font-extrabold text-slate-900 dark:text-slate-100">
-              {totalCollaborators}
-            </p>
+            <p className="mt-2 text-xs font-semibold text-slate-600">Cộng tác viên (CTV)</p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-              <span className="text-xs font-medium">Đại lý & Nhà CC</span>
-              <div className="rounded-lg bg-indigo-50 p-1.5 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400">
-                <Building2 className="h-4 w-4" />
+          <div className="rounded-2xl border border-gray-300 bg-white p-4 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white">
+                <Building2 className="h-5 w-5" />
               </div>
+              <p className="min-w-0 break-words text-2xl font-extrabold text-slate-900">{totalDealers + totalSuppliers}</p>
             </div>
-            <p className="mt-2 text-2xl font-extrabold text-slate-900 dark:text-slate-100">
-              {totalDealers + totalSuppliers}
-            </p>
+            <p className="mt-2 text-xs font-semibold text-slate-600">Đại lý & Nhà CC</p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-              <span className="text-xs font-medium">Tổng số dư hoa hồng</span>
-              <div className="rounded-lg bg-emerald-50 p-1.5 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
-                <Coins className="h-4 w-4" />
+          <div className="rounded-2xl border border-gray-300 bg-white p-4 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white">
+                <Coins className="h-5 w-5" />
               </div>
+              <p className="min-w-0 break-words text-2xl font-extrabold text-slate-900">{money(totalBalance)}</p>
             </div>
-            <p className="mt-2 text-2xl font-extrabold text-slate-900 dark:text-slate-100">
-              {money(totalBalance)}
-            </p>
+            <p className="mt-2 text-xs font-semibold text-slate-600">Tổng số dư hoa hồng</p>
           </div>
         </div>
       )}
@@ -1323,7 +1324,7 @@ export default function PartnersPage() {
       {error && (
         <div
           role="alert"
-          className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300"
+          className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-sm text-rose-700"
         >
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{error}</span>
@@ -1358,14 +1359,14 @@ export default function PartnersPage() {
           )}
 
           {/* Action and Filter Toolbar */}
-          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-1 flex-wrap items-center gap-3">
               {/* Search Box */}
               <div className="relative min-w-[240px] flex-1">
                 <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   aria-label="Tìm đối tác"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-xs font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100 dark:focus:bg-slate-900"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-xs font-medium text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-500/20"
                   placeholder="Tìm mã, tên, điện thoại"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -1375,7 +1376,7 @@ export default function PartnersPage() {
               {/* Group Filter */}
               <select
                 aria-label="Nhóm đối tác"
-                className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-medium text-slate-800 outline-none transition focus:border-cyan-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-medium text-slate-800 outline-none transition focus:border-cyan-500 cursor-pointer"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
               >
@@ -1392,7 +1393,7 @@ export default function PartnersPage() {
             {hasPermission("partner:manage") && (
               <div className="flex flex-wrap items-center gap-2">
                 <button
-                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 transition cursor-pointer"
+                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
                   onClick={() =>
                     void partnerRequest("/import-suppliers", "POST", {})
                       .then(load)
@@ -1415,10 +1416,10 @@ export default function PartnersPage() {
           </div>
 
           {/* Partners Table Card */}
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
+                <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-bold uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="p-3.5">Đối tác</th>
                     <th className="p-3.5">Nhóm</th>
@@ -1428,20 +1429,20 @@ export default function PartnersPage() {
                     <th className="p-3.5 text-right">Thao tác</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                <tbody className="divide-y divide-slate-100">
                   {filtered.map((p) => (
                     <tr
                       key={p._id}
-                      className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition"
+                      className="group hover:bg-slate-50/80 transition"
                     >
                       {/* Name & Code */}
                       <td className="p-3.5">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-500/20 to-sky-500/20 font-bold text-xs text-cyan-700 dark:text-cyan-300">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-500/20 to-sky-500/20 font-bold text-xs text-cyan-700">
                             {getInitials(p.name || "DT")}
                           </div>
                           <div>
-                            <p className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-cyan-600 transition">
+                            <p className="font-bold text-slate-900 group-hover:text-cyan-600 transition">
                               {p.name}
                             </p>
                             <span className="font-mono text-xs font-medium text-slate-400">
@@ -1459,10 +1460,10 @@ export default function PartnersPage() {
                               key={r}
                               className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${
                                 r === "collaborator"
-                                  ? "bg-cyan-50 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300"
+                                  ? "bg-cyan-50 text-cyan-700"
                                   : r === "dealer"
-                                  ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300"
-                                  : "bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
+                                  ? "bg-indigo-50 text-indigo-700"
+                                  : "bg-amber-50 text-amber-700"
                               }`}
                             >
                               {roles[r] || r}
@@ -1472,9 +1473,9 @@ export default function PartnersPage() {
                       </td>
 
                       {/* Contact */}
-                      <td className="p-3.5 text-xs text-slate-600 dark:text-slate-400">
+                      <td className="p-3.5 text-xs text-slate-600">
                         {p.phone ? (
-                          <div className="flex items-center gap-1.5 font-medium text-slate-800 dark:text-slate-200">
+                          <div className="flex items-center gap-1.5 font-medium text-slate-800">
                             <Phone className="h-3.5 w-3.5 text-slate-400" />
                             <span>{p.phone}</span>
                           </div>
@@ -1494,8 +1495,8 @@ export default function PartnersPage() {
                         <span
                           className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
                             p.status === "active"
-                              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
-                              : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-slate-100 text-slate-600"
                           }`}
                         >
                           <span
@@ -1511,10 +1512,10 @@ export default function PartnersPage() {
                       <td
                         className={`whitespace-nowrap p-3.5 text-right font-extrabold text-sm ${
                           p.balance < 0
-                            ? "text-rose-600 dark:text-rose-400"
+                            ? "text-rose-600"
                             : p.balance > 0
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : "text-slate-700 dark:text-slate-300"
+                            ? "text-emerald-600"
+                            : "text-slate-700"
                         }`}
                       >
                         {money(p.balance)}
@@ -1525,7 +1526,7 @@ export default function PartnersPage() {
                         <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                           {p.roles.includes("collaborator") && (
                             <button
-                              className="flex items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50/80 px-2.5 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100 dark:border-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300 transition cursor-pointer"
+                              className="flex items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50/80 px-2.5 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100 transition cursor-pointer"
                               onClick={() => setSelected(p._id)}
                             >
                               <Receipt className="h-3.5 w-3.5" />
@@ -1535,13 +1536,13 @@ export default function PartnersPage() {
                           {hasPermission("partner:manage") && (
                             <>
                               {p.userId ? (
-                                <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" title="Đã liên kết tài khoản đăng nhập">
+                                <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700" title="Đã liên kết tài khoản đăng nhập">
                                   <CheckCircle2 className="h-3.5 w-3.5" />
                                   Đã cấp
                                 </span>
                               ) : (
                                 <button
-                                  className="flex items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-2.5 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100 dark:border-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300 transition cursor-pointer"
+                                  className="flex items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-2.5 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100 transition cursor-pointer"
                                   onClick={() => setAccountPartner(p)}
                                 >
                                   <UserPlus className="h-3.5 w-3.5" />
@@ -1549,7 +1550,7 @@ export default function PartnersPage() {
                                 </button>
                               )}
                               <button
-                                className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 transition cursor-pointer"
+                                className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                                 onClick={() => setEditing(p)}
                               >
                                 <Edit3 className="h-3.5 w-3.5 text-slate-400" />
@@ -1566,7 +1567,7 @@ export default function PartnersPage() {
             </div>
 
             {!filtered.length && (
-              <div className="p-12 text-center text-slate-400 dark:text-slate-500">
+              <div className="p-12 text-center text-slate-400">
                 <Users className="mx-auto mb-2 h-10 w-10 stroke-1 opacity-40" />
                 <p className="text-sm font-medium">Chưa có đối tác phù hợp.</p>
                 <p className="text-xs mt-1 text-slate-400">

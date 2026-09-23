@@ -58,12 +58,18 @@ export function createReceivableLedgerService(
         ? await repository.findByIdempotency(scope, requireText(input.idempotencyKey, "IDEMPOTENCY_KEY_REQUIRED"), session)
         : null;
       if (prior) {
+        if (prior.receivableId !== receivableId || prior.type !== input.type ||
+          Math.abs(prior.amount) !== input.amount || (prior.reversalOfEntryId || "") !== (input.reversalOfEntryId || "") ||
+          (prior.paymentMethod || "") !== (input.paymentMethod || "") || (prior.reference || "") !== (input.reference || "") ||
+          (prior.reason || "") !== (input.reason?.trim() || "") ||
+          input.type === "adjustment" && Math.sign(prior.amount) !== (input.direction === "decrease" ? -1 : 1))
+          throw new ConflictError("IDEMPOTENCY_CONFLICT", "Mã yêu cầu đã dùng cho giao dịch khác.");
         const existing = await repository.findById(scope, receivableId, session);
         return { receivable: existing, entry: prior, settledTransition: false };
       }
       const receivable = await repository.findById(scope, receivableId, session);
       if (!receivable) throw new NotFoundError("RECEIVABLE_NOT_FOUND", "RECEIVABLE_NOT_FOUND");
-      if (["settled", "void", "written_off"].includes(receivable.status)) throw new ConflictError("RECEIVABLE_ALREADY_SETTLED", "RECEIVABLE_ALREADY_SETTLED");
+      if (["void", "written_off"].includes(receivable.status) || receivable.status === "settled" && !(input.type === "reversal" && input.originalType === "payment")) throw new ConflictError("RECEIVABLE_ALREADY_SETTLED", "RECEIVABLE_ALREADY_SETTLED");
       const amount = assertReceivableOperation({
         type: input.type, balance: receivable.balance, amount: input.amount, reason: input.reason,
         direction: input.direction, originalSignedAmount: input.originalSignedAmount,
@@ -117,7 +123,9 @@ export function createReceivableLedgerService(
     },
     async reverse(scope: FinanceBranchScope, id: string, entryId: string, input: ReverseInput, actor: Actor) {
       const original = await repository.transaction(async (session) => {
-        if (await repository.findReversal(scope, id, entryId, session)) throw new ConflictError("ENTRY_ALREADY_REVERSED", "ENTRY_ALREADY_REVERSED");
+        const reversed = await repository.findReversal(scope, id, entryId, session);
+        if (reversed && (reversed.idempotencyKey !== input.idempotencyKey || reversed.reason !== input.reason.trim()))
+          throw new ConflictError("ENTRY_ALREADY_REVERSED", "ENTRY_ALREADY_REVERSED");
         const found = await repository.findEntry(scope, id, entryId, session);
         if (!found) throw new Error("ENTRY_NOT_FOUND");
         return found;
@@ -155,7 +163,11 @@ export function createReceivableLedgerService(
         const prior = repository.findByIdempotency ? await repository.findByIdempotency(scope, key, session) : null;
         const receivable = await repository.findById(scope, id, session);
         if (!receivable) throw new NotFoundError("RECEIVABLE_NOT_FOUND", "RECEIVABLE_NOT_FOUND");
-        if (prior) return { receivable, entry: prior };
+        if (prior) {
+          if (prior.receivableId !== id || prior.type !== "due_date_extension" || +new Date(prior.newDueDate) !== +input.dueDate || prior.reason !== input.reason.trim())
+            throw new ConflictError("IDEMPOTENCY_CONFLICT", "Mã yêu cầu đã dùng cho giao dịch khác.");
+          return { receivable, entry: prior };
+        }
         if (["settled", "void", "written_off"].includes(receivable.status)) throw new ConflictError("RECEIVABLE_ALREADY_SETTLED", "RECEIVABLE_ALREADY_SETTLED");
         if (
           !(input.dueDate instanceof Date)

@@ -20,6 +20,7 @@ interface WorkScheduleManagementTabProps {
   canManageCalendar?: boolean;
   canManageTimekeeping?: boolean;
   initialSubTab?: WorkScheduleSubTab;
+  initialCalendarSubTab?: "schedule" | "attendance" | "requests";
 }
 
 export default function WorkScheduleManagementTab({
@@ -34,6 +35,7 @@ export default function WorkScheduleManagementTab({
   canManageCalendar = true,
   canManageTimekeeping = true,
   initialSubTab,
+  initialCalendarSubTab,
 }: WorkScheduleManagementTabProps) {
   const [activeTab, setActiveTab] = useState<WorkScheduleSubTab>(
     initialSubTab || "attendance"
@@ -116,6 +118,7 @@ export default function WorkScheduleManagementTab({
             usersList={usersList}
             employees={employees}
             canApproveLeave={canApproveLeave}
+            initialSubTab={initialCalendarSubTab}
           />
         )}
         {activeTab === "shifts" && canManageTimekeeping && <WorkShiftsTab />}

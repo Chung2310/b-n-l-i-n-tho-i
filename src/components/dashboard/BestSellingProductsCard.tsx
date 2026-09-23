@@ -19,7 +19,17 @@ export function buildProductSegments(products: RetailProductReportRow[]) {
   }));
 }
 
-export function BestSellingProductsCard({ filter }: { filter: "month" | "quarter" | "year" }) {
+export function BestSellingProductsCard({
+  filter,
+  embedded = false,
+  compact = true,
+  className = "",
+}: {
+  filter: "month" | "quarter" | "year";
+  embedded?: boolean;
+  compact?: boolean;
+  className?: string;
+}) {
   const { scope } = useRetailScope();
   const companyCode = scope?.companyCode;
   const branchId = scope?.branchId;
@@ -43,19 +53,32 @@ export function BestSellingProductsCard({ filter }: { filter: "month" | "quarter
     return () => { cancelled = true; };
   }, [companyCode, branchId, filter, key, retry]);
   const current = result?.key === key ? result : null;
-  return <div className="rounded-3xl border border-[#d1d5db] bg-white p-6 shadow-sm flex flex-col">
-    <div className="mb-6">
-      <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
-        <PieChart className="h-4 w-4 text-indigo-500" />Sản phẩm bán chạy
-      </h3>
-      <p className="text-xs text-slate-600 mt-1">Tỷ trọng doanh thu · Top 5 sản phẩm và nhóm khác</p>
+
+  const content = (
+    <>
+      <div className="mb-3">
+        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+          <PieChart className="h-4 w-4 text-indigo-500" />Sản phẩm bán chạy
+        </h3>
+        <p className="text-xs text-slate-500 mt-0.5">Tỷ trọng doanh thu · Top 5 sản phẩm và nhóm khác</p>
+      </div>
+      <div className="flex-1 flex items-center justify-center min-h-[160px]">
+        {!scope ? <p className="text-xs text-slate-500">Chọn chi nhánh để xem sản phẩm bán chạy.</p>
+          : !current ? <div role="status" aria-label="Đang tải sản phẩm bán chạy"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div>
+          : current.error ? <div className="space-y-2"><p role="alert" className="flex items-center gap-2 text-xs text-slate-600"><LockKeyhole aria-hidden="true" className="h-4 w-4 shrink-0" />{current.error}</p><button type="button" onClick={() => setRetry(value => value + 1)} className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-sky-700">Thử lại</button></div>
+          : !current.segments.length ? <p className="text-xs text-slate-500">Chưa có doanh thu sản phẩm trong kỳ này.</p>
+          : <DonutCard compact={compact} title="Sản phẩm bán chạy" centerLabel="Tỷ trọng" centerValue="100%" segments={current.segments} />}
+      </div>
+    </>
+  );
+
+  if (embedded) {
+    return <div className={`flex flex-col justify-between h-full ${className}`}>{content}</div>;
+  }
+
+  return (
+    <div className={`rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm flex flex-col justify-between ${className}`}>
+      {content}
     </div>
-    <div className="flex-1 flex items-center justify-center min-h-[200px]">
-      {!scope ? <p className="text-sm text-slate-600">Chọn chi nhánh để xem sản phẩm bán chạy.</p>
-        : !current ? <div role="status" aria-label="Đang tải sản phẩm bán chạy"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>
-        : current.error ? <div className="space-y-3"><p role="alert" className="flex items-center gap-2 text-sm text-slate-600"><LockKeyhole aria-hidden="true" className="h-5 w-5 shrink-0" />{current.error}</p><button type="button" onClick={() => setRetry(value => value + 1)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-sky-700">Thử lại</button></div>
-        : !current.segments.length ? <p className="text-sm text-slate-600">Chưa có doanh thu sản phẩm trong kỳ này.</p>
-        : <DonutCard compact title="Sản phẩm bán chạy" centerLabel="Tỷ trọng" centerValue="100%" segments={current.segments} />}
-    </div>
-  </div>;
+  );
 }

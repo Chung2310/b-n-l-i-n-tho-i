@@ -1,3 +1,4 @@
+import { financeManagementRoutes } from "./routes/management.routes";
 import { Router } from "express";
 import { registerFinanceConsumers } from "./consumers";
 import { financeAssetInventoryRoutes } from "./routes/asset-inventory.routes";
@@ -9,6 +10,7 @@ import { runOverdueScansForAllScopes } from "./services/overdue-reminder.service
 registerFinanceConsumers();
 ensureOverdueScanScheduler(runOverdueScansForAllScopes);
 export const financeRouter = Router();
+financeRouter.use("/management", financeManagementRoutes);
 financeRouter.use("/assets", financeAssetRoutes);
 financeRouter.use("/asset-inventories", financeAssetInventoryRoutes);
 financeRouter.use("/receivables", financeReceivableRoutes);

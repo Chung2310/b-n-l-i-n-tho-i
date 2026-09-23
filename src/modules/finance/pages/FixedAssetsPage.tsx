@@ -1,3 +1,4 @@
+import { Stats, money } from "../components/ManagementUI";
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import {
@@ -9,7 +10,10 @@ import { toast } from "../../../pages/Toast";
 
 const STATUS_LABELS: Record<string, string> = {
   in_use: "Đang dùng",
-  idle: "Chờ dùng",
+  idle: "Tạm ngưng",
+  repairing: "Đang sửa",
+  lost: "Mất",
+  damaged: "Hỏng",
   disposed: "Đã thanh lý",
 };
 
@@ -30,6 +34,7 @@ const EMPTY_FORM = {
   salvageValue: "",
   inServiceDate: "",
   usefulLifeMonths: "",
+  supplierName: "", department: "", purchaseDate: "",
   location: "",
 };
 
@@ -37,7 +42,7 @@ type CreateForm = typeof EMPTY_FORM;
 type CreateFormField = keyof CreateForm;
 type CreateFormErrors = Partial<Record<CreateFormField, string>>;
 
-export const validateCreateForm = (form: CreateForm): CreateFormErrors => {
+export const validateCreateForm = (form: Omit<CreateForm, "supplierName" | "department" | "purchaseDate"> & Partial<Pick<CreateForm, "supplierName" | "department" | "purchaseDate">>): CreateFormErrors => {
   const errors: CreateFormErrors = {};
   if (!form.assetCode.trim()) errors.assetCode = "Vui lòng nhập mã tài sản.";
   if (!form.barcode.trim()) errors.barcode = "Vui lòng nhập mã vạch.";
@@ -64,9 +69,10 @@ export const validateCreateForm = (form: CreateForm): CreateFormErrors => {
   return errors;
 };
 
-const EDITABLE_FIELDS = ["name", "group", "location", "custodianName"] as const;
+const EDITABLE_FIELDS = ["name", "group", "location", "custodianName", "supplierName", "department"] as const;
 
 const editFormFrom = (asset: FixedAsset) => ({
+  supplierName: asset.supplierName || "", department: asset.department || "",
   name: asset.name,
   group: asset.group,
   location: asset.location || "",
@@ -161,6 +167,8 @@ export default function FixedAssetsPage({
         barcode: form.barcode.trim(),
         name: form.name.trim(),
         group: form.group.trim(),
+        supplierName: form.supplierName, department: form.department,
+        ...(form.purchaseDate ? { purchaseDate: toIso(form.purchaseDate) } : {}),
         originalCost: Number(form.originalCost),
         salvageValue: Number(form.salvageValue || 0),
         inServiceDate: toIso(form.inServiceDate),
@@ -253,6 +261,7 @@ export default function FixedAssetsPage({
 
   return (
     <section className="space-y-4">
+      <Stats values={[["Số tài sản", items.length], ["Nguyên giá", money(items.reduce((s, a) => s + a.originalCost, 0))], ["Khấu hao lũy kế", money(items.reduce((s, a) => s + a.accumulatedDepreciation, 0))], ["Giá trị còn lại", money(items.reduce((s, a) => s + a.netBookValue, 0))]]} />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Tài sản cố định</h1>
@@ -301,6 +310,7 @@ export default function FixedAssetsPage({
                 ["inServiceDate", "Ngày đưa vào dùng", "date"],
                 ["usefulLifeMonths", "Số tháng khấu hao", "number"],
                 ["location", "Vị trí", "text"],
+                ["supplierName", "Nhà cung cấp", "text"], ["department", "Bộ phận sử dụng", "text"], ["purchaseDate", "Ngày mua", "date"],
               ].map(([field, label, type]) => (
                 <label key={field} className="text-sm font-semibold text-slate-700">
                   {label}
@@ -438,7 +448,7 @@ export default function FixedAssetsPage({
                 ["name", "Tên tài sản"],
                 ["group", "Nhóm"],
                 ["location", "Vị trí"],
-                ["custodianName", "Người giữ"],
+                ["custodianName", "Người giữ"], ["supplierName", "Nhà cung cấp"], ["department", "Bộ phận sử dụng"],
                 ["note", "Ghi chú thay đổi"],
               ].map(([field, label]) => (
                 <label key={field} className="text-sm font-semibold text-slate-700">
@@ -460,7 +470,7 @@ export default function FixedAssetsPage({
                   className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 font-normal"
                 >
                   <option value="in_use">Đang dùng</option>
-                  <option value="idle">Chờ dùng</option>
+                  <option value="idle">Tạm ngưng</option><option value="repairing">Đang sửa</option><option value="lost">Mất</option><option value="damaged">Hỏng</option>
                 </select>
               </label>
               <button

@@ -49,6 +49,7 @@ interface CalendarTabProps {
   employees: EmployeeNode[];
   /** True when the user can approve leave applications and manage request templates. */
   canApproveLeave?: boolean;
+  initialSubTab?: "schedule" | "attendance" | "requests";
 }
 
 interface CalendarItem {
@@ -88,7 +89,8 @@ export default function CalendarTab({
   canEditAttendance = false,
   employees,
   usersList = [],
-  canApproveLeave
+  canApproveLeave,
+  initialSubTab,
 }: CalendarTabProps) {
   // Fall back to role-string checks only when the caller doesn't pass canManage,
   // so other embedders of this component keep working unchanged.
@@ -100,7 +102,43 @@ export default function CalendarTab({
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   // Sub-tab Navigation
-  const [currentSubTab, setCurrentSubTab] = useState<"schedule" | "attendance" | "requests">("schedule");
+  const resolveInitialSubTab = (): "schedule" | "attendance" | "requests" => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const view = params.get("view");
+      const tab = params.get("tab");
+      const sub = params.get("sub");
+      if (view === "requests" || view === "don-tu" || tab === "requests" || tab === "don-tu" || sub === "don-tu") {
+        return "requests";
+      }
+      if (view === "attendance" || tab === "attendance" || sub === "cham-cong" || sub === "lich-su-cham-cong") {
+        return "attendance";
+      }
+    }
+    return initialSubTab || "schedule";
+  };
+
+  const [currentSubTab, setCurrentSubTab] = useState<"schedule" | "attendance" | "requests">(resolveInitialSubTab);
+
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const params = new URLSearchParams(window.location.search);
+      const view = params.get("view");
+      const tab = params.get("tab");
+      const sub = params.get("sub");
+      if (view === "requests" || view === "don-tu" || tab === "requests" || tab === "don-tu" || sub === "don-tu") {
+        setCurrentSubTab("requests");
+      } else if (view === "attendance" || tab === "attendance" || sub === "cham-cong" || sub === "lich-su-cham-cong") {
+        setCurrentSubTab("attendance");
+      } else if (view === "schedule" || tab === "schedule") {
+        setCurrentSubTab("schedule");
+      }
+    };
+
+    handleUrlChange();
+    window.addEventListener("popstate", handleUrlChange);
+    return () => window.removeEventListener("popstate", handleUrlChange);
+  }, []);
 
   // Đơn nghỉ đã duyệt được dùng để tính công trong tab Lịch sử chấm công.
   const [applications, setApplications] = useState<any[]>([]);
@@ -1415,7 +1453,14 @@ export default function CalendarTab({
       <div className="flex border-b border-slate-200/60 pb-3 mb-5 justify-between items-center">
         <div className="flex gap-2 bg-slate-100/85 p-1 rounded-xl w-fit">
           <button
-            onClick={() => setCurrentSubTab("schedule")}
+            onClick={() => {
+              setCurrentSubTab("schedule");
+              if (typeof window !== "undefined") {
+                const url = new URL(window.location.href);
+                url.searchParams.delete("view");
+                window.history.replaceState(null, "", url.toString());
+              }
+            }}
             className={`px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${currentSubTab === "schedule"
                 ? "bg-white text-slate-900 shadow-xs border border-slate-200/40"
                 : "text-gray-500 hover:text-gray-800"
@@ -1424,7 +1469,14 @@ export default function CalendarTab({
             Lịch trình
           </button>
           <button
-            onClick={() => setCurrentSubTab("attendance")}
+            onClick={() => {
+              setCurrentSubTab("attendance");
+              if (typeof window !== "undefined") {
+                const url = new URL(window.location.href);
+                url.searchParams.set("view", "attendance");
+                window.history.replaceState(null, "", url.toString());
+              }
+            }}
             className={`px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${currentSubTab === "attendance"
                 ? "bg-white text-slate-900 shadow-xs border border-slate-200/40"
                 : "text-gray-500 hover:text-gray-800"
@@ -1433,7 +1485,14 @@ export default function CalendarTab({
             Lịch sử chấm công
           </button>
           <button
-            onClick={() => setCurrentSubTab("requests")}
+            onClick={() => {
+              setCurrentSubTab("requests");
+              if (typeof window !== "undefined") {
+                const url = new URL(window.location.href);
+                url.searchParams.set("view", "requests");
+                window.history.replaceState(null, "", url.toString());
+              }
+            }}
             className={`px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${currentSubTab === "requests"
                 ? "bg-white text-slate-900 shadow-xs border border-slate-200/40"
                 : "text-gray-500 hover:text-gray-800"
