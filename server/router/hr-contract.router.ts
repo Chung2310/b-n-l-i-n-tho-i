@@ -89,6 +89,12 @@ const extensionBody = Joi.object({
   signedImageMimeType: Joi.string().allow("").max(200),
   signedImageSize: Joi.number().min(0),
   signedImageResourceId: Joi.string().hex().length(24).allow("", null),
+  electronicSignatureUrl: url,
+  electronicSignatureName: Joi.string().allow("").max(300),
+  electronicSignatureMimeType: Joi.string().allow("").max(200),
+  electronicSignatureSize: Joi.number().min(0),
+  electronicSignatureResourceId: Joi.string().hex().length(24).allow("", null),
+  electronicSignatureUploadToken: Joi.string().guid({ version: ["uuidv4"] }).allow("").optional(),
   extensionFileUploadToken: Joi.string().guid({ version: ["uuidv4"] }).allow("").optional(),
   extensionSignedImageUploadToken: Joi.string().guid({ version: ["uuidv4"] }).allow("").optional(),
 });

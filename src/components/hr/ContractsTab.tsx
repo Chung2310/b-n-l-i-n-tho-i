@@ -94,6 +94,11 @@ type Extension = {
   signedImageMimeType?: string;
   signedImageSize?: number;
   signedImageResourceId?: string;
+  electronicSignatureUrl?: string;
+  electronicSignatureName?: string;
+  electronicSignatureMimeType?: string;
+  electronicSignatureSize?: number;
+  electronicSignatureResourceId?: string;
 };
 type ContractExpiryAlert = {
   id: string;
@@ -190,6 +195,12 @@ const emptyExtension = {
   signedImageSize: 0,
   signedImageResourceId: "",
   extensionSignedImageUploadToken: "",
+  electronicSignatureUrl: "",
+  electronicSignatureName: "",
+  electronicSignatureMimeType: "",
+  electronicSignatureSize: 0,
+  electronicSignatureResourceId: "",
+  electronicSignatureUploadToken: "",
 };
 
 const inputClass =
@@ -261,7 +272,7 @@ export default function ContractsTab({
   const [extensionForm, setExtensionForm] = useState(emptyExtension);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<
-    "contract" | "signed" | "electronicSignature" | "extension" | "extensionSigned" | null
+    "contract" | "signed" | "electronicSignature" | "extension" | "extensionSigned" | "extensionElectronicSignature" | null
   >(null);
   const [previewItem, setPreviewItem] = useState<ResourceItem | null>(null);
   const [signatureZoomUrl, setSignatureZoomUrl] = useState<string | null>(null);
@@ -508,9 +519,9 @@ export default function ContractsTab({
 
   const uploadExtensionFile = async (
     file: File,
-    target: "extension" | "extensionSigned"
+    target: "extension" | "extensionSigned" | "extensionElectronicSignature"
   ) => {
-    const isSigned = target === "extensionSigned";
+    const isSigned = target !== "extension";
     const allowed = isSigned
       ? file.type.startsWith("image/")
       : [
@@ -542,13 +553,23 @@ export default function ContractsTab({
           name: file.name,
           mimeType: file.type,
           size: file.size,
-          kind: target,
+          kind: target === "extensionElectronicSignature" ? "electronicSignature" : target,
         }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || "Tải tệp thất bại.");
       setExtensionForm((current) =>
-        isSigned
+        target === "extensionElectronicSignature"
+          ? {
+              ...current,
+              electronicSignatureUrl: result.data.url,
+              electronicSignatureName: file.name,
+              electronicSignatureMimeType: file.type,
+              electronicSignatureSize: file.size,
+              electronicSignatureResourceId: "",
+              electronicSignatureUploadToken: result.data.uploadToken,
+            }
+          : isSigned
           ? {
               ...current,
               signedImageUrl: result.data.url,
@@ -569,6 +590,7 @@ export default function ContractsTab({
             }
       );
       toast.success(`Đã tải lên ${file.name}.`);
+      return true;
     } catch (error) {
       toast.error(
         getApiErrorMessage(error, "Không thể tải tệp gia hạn hợp đồng.")
@@ -1226,7 +1248,13 @@ export default function ContractsTab({
                             <span>Ảnh ký</span>
                           </a>
                         )}
-                        {!x.extensionFileUrl && !x.signedImageUrl && (
+                        {x.electronicSignatureUrl && (
+                          <button type="button" onClick={() => setSignatureZoomUrl(x.electronicSignatureUrl || null)}
+                            className="rounded-lg border border-slate-200 bg-white p-1">
+                            <img src={x.electronicSignatureUrl} alt="Chữ ký gia hạn" className="h-12 w-24 object-contain" />
+                          </button>
+                        )}
+                        {!x.extensionFileUrl && !x.signedImageUrl && !x.electronicSignatureUrl && (
                           <span className="text-slate-400 text-[11px]">—</span>
                         )}
                       </div>
@@ -1613,6 +1641,11 @@ export default function ContractsTab({
                 )}
               </div>
             </div>
+            <ContractSignaturePad
+              value={extensionForm.electronicSignatureUrl}
+              saving={uploading !== null}
+              onSave={async (file) => (await uploadExtensionFile(file, "extensionElectronicSignature")) === true}
+            />
           </div>
         </Modal>
       )}
