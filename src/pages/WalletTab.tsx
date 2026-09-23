@@ -152,7 +152,7 @@ export default function WalletTab() {
     try {
       const result = await walletService.createDepositLink(amountVND);
       toast.success("Đang chuyển hướng tới trang thanh toán...");
-      
+
       // Chuyển hướng tới link thanh toán của PayOS (hoặc trang mock)
       window.location.href = result.checkoutUrl;
     } catch (err: any) {
@@ -219,7 +219,7 @@ export default function WalletTab() {
     return (
       <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center bg-gray-50/50 p-4 font-sans">
         <div className="w-full max-w-md overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-2xl transition-all">
-          
+
           {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-8 text-center text-white relative">
             <div className="absolute top-4 right-4 flex items-center gap-1 bg-white/10 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-xs">
@@ -291,7 +291,7 @@ export default function WalletTab() {
   // 2. GIAO DIỆN QUẢN LÝ VÍ CHÍNH (MAIN WALLET PANEL)
   return (
     <div className="h-full flex flex-col space-y-6 overflow-y-auto pr-1 font-sans" id="wallet_tab_root">
-      
+
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-4">
         <div className="flex items-center gap-3">
@@ -320,10 +320,10 @@ export default function WalletTab() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
+
           {/* CỘT TRÁI - CHI TIẾT SỐ DƯ & FORM NẠP */}
           <div className="lg:col-span-1 space-y-6">
-            
+
             {/* Balance Warning Banner if low balance */}
             {balance < 10 && (
               <div className="rounded-2xl border border-amber-100 bg-amber-50/80 p-4 text-xs text-amber-800 leading-normal flex items-start gap-2.5 shadow-xs">
@@ -339,7 +339,7 @@ export default function WalletTab() {
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-700 p-6 text-white shadow-xl shadow-blue-600/10">
               <div className="pointer-events-none absolute left-[-10%] top-[-10%] h-48 w-48 rounded-full bg-white/10 blur-xl" />
               <div className="pointer-events-none absolute bottom-[-10%] right-[-10%] h-48 w-48 rounded-full bg-black/10 blur-xl" />
-              
+
               <div className="relative z-10 flex flex-col justify-between h-40">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 bg-white/10 px-3.5 py-1.5 rounded-2xl backdrop-blur-md">
@@ -348,15 +348,15 @@ export default function WalletTab() {
                   </div>
                   <CreditCard className="h-7 w-7 text-white/80" />
                 </div>
-                
+
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-blue-200">Số dư hiện tại</p>
                   <p className="text-3xl font-black mt-1.5 tracking-tight">{formatCredit(balance)}</p>
                 </div>
-                
+
                 <div className="flex justify-between items-center text-[10px] text-white/75 font-mono">
                   <span>Ví hoạt động</span>
-                  <span>iGEN ERP</span>
+                  <span>Anh Khoa Mobile</span>
                 </div>
               </div>
             </div>
@@ -399,11 +399,10 @@ export default function WalletTab() {
                       key={preset}
                       type="button"
                       onClick={() => setDepositAmount(formatNumberWithDots(preset))}
-                      className={`rounded-xl border py-2 text-center text-[10px] font-bold transition-all active:scale-95 ${
-                        depositAmount.replace(/\D/g, "") === preset
+                      className={`rounded-xl border py-2 text-center text-[10px] font-bold transition-all active:scale-95 ${depositAmount.replace(/\D/g, "") === preset
                           ? "border-blue-500 bg-blue-50 text-blue-700"
                           : "border-gray-100 text-gray-500 hover:bg-gray-50"
-                      }`}
+                        }`}
                     >
                       +{parseInt(preset).toLocaleString("vi-VN")}đ
                     </button>

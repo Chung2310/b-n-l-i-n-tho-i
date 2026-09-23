@@ -1,5 +1,5 @@
 import type { PipelineStage } from "mongoose";
-import type { RetailBranchScope } from "../contracts";
+import type { RetailScope } from "../contracts";
 import { CashierShiftModel } from "../models/cashier-shift.model";
 import { RetailOrderModel } from "../models/retail-order.model";
 import { buildRetailReportModel } from "./retail-report-metrics";
@@ -15,10 +15,10 @@ type ReportShift = ReportInput["shifts"][number];
 type RetailReportRepository = {
   loadOrders(pipeline: PipelineStage[]): Promise<ReportOrder[]>;
   loadShifts(pipeline: PipelineStage[]): Promise<ReportShift[]>;
-  loadAnalyticsNetSales?(scope: RetailBranchScope, range: ReportRange): Promise<number>;
+  loadAnalyticsNetSales?(scope: RetailScope, range: ReportRange): Promise<number>;
 };
 
-export function buildRetailReportOrderPipeline(scope: RetailBranchScope, range: ReportRange, filters: ReportFilters = {}): PipelineStage[] {
+export function buildRetailReportOrderPipeline(scope: RetailScope, range: ReportRange, filters: ReportFilters = {}): PipelineStage[] {
   const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const itemFilters = Object.fromEntries(["productId", "sku", "category", "brand"].filter((key) => filters[key as keyof ReportFilters]).map((key) => {
     const value = filters[key as keyof ReportFilters] as string;
@@ -28,7 +28,7 @@ export function buildRetailReportOrderPipeline(scope: RetailBranchScope, range: 
     {
       $match: {
         companyCode: scope.companyCode,
-        branchId: scope.branchId,
+        ...(scope.branchId ? { branchId: scope.branchId } : {}),
         businessDate: { $gte: range.from, $lte: range.to },
         ...(filters.salespersonId ? { salespersonId: filters.salespersonId } : {}),
         ...(Object.keys(itemFilters).length ? { items: { $elemMatch: itemFilters } } : {}),
@@ -38,6 +38,8 @@ export function buildRetailReportOrderPipeline(scope: RetailBranchScope, range: 
       $project: {
         _id: 0,
         orderCode: 1,
+        createdBy: 1,
+        createdByName: 1,
         shiftId: 1,
         businessDate: 1,
         status: 1,
@@ -58,12 +60,12 @@ export function buildRetailReportOrderPipeline(scope: RetailBranchScope, range: 
   ];
 }
 
-export function buildRetailReportShiftPipeline(scope: RetailBranchScope, range: ReportRange): PipelineStage[] {
+export function buildRetailReportShiftPipeline(scope: RetailScope, range: ReportRange): PipelineStage[] {
   return [
     {
       $match: {
         companyCode: scope.companyCode,
-        branchId: scope.branchId,
+        ...(scope.branchId ? { branchId: scope.branchId } : {}),
         businessDate: { $gte: range.from, $lte: range.to },
       },
     },
@@ -85,7 +87,7 @@ export function buildRetailReportShiftPipeline(scope: RetailBranchScope, range: 
 
 export function createRetailReportService(repository: RetailReportRepository) {
   return {
-    async summary(scope: RetailBranchScope, query: unknown, includeProfit: boolean) {
+    async summary(scope: RetailScope, query: unknown, includeProfit: boolean) {
       const range = parseRetailReportRange((query || {}) as Record<string, unknown>);
       const raw = (query || {}) as Record<string, unknown>;
       const filters = Object.fromEntries(["salespersonId", "productId", "sku", "category", "brand"].map((key) => [key, String(raw[key] || "").trim()]).filter(([, value]) => value)) as ReportFilters;

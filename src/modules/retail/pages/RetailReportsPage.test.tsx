@@ -9,10 +9,16 @@ import RetailReportsPage from "./RetailReportsPage";
 
 const retailScopeState = vi.hoisted(() => ({
   scope: { companyCode: "ACME", branchId: "B1" } as { companyCode: string; branchId: string } | null,
+  branchName: "Chi nhánh Hà Nội",
 }));
 
 vi.mock("../hooks/useRetailScope", () => ({
-  useRetailScope: () => ({ scope: retailScopeState.scope, userProfile: { role: "admin", permissions: ["retail:manage"] } }),
+  useRetailScope: () => ({
+    scope: retailScopeState.scope,
+    branchName: retailScopeState.branchName,
+    activeBranch: { _id: "B1", name: retailScopeState.branchName },
+    userProfile: { role: "admin", permissions: ["retail:manage"] },
+  }),
 }));
 
 vi.mock("../api/retailReports.api", () => ({
@@ -282,7 +288,7 @@ describe("RetailReportsPage", () => {
   it("renders backend metrics, charts and tables without exposing absent profit fields", async () => {
     render(<RetailReportsPage />);
 
-    expect((await screen.findAllByText("Nguyễn An")).length).toBe(2);
+    expect((await screen.findAllByText("Nguyễn An")).length).toBe(1);
     const kpis = screen.getByLabelText("Chỉ số tổng quan");
     expect(within(kpis).getByText("Doanh thu thuần")).toBeTruthy();
     expect(within(kpis).getByText(/1\.200\.000/)).toBeTruthy();
@@ -294,8 +300,8 @@ describe("RetailReportsPage", () => {
     expect(screen.getByText("Tiền mặt")).toBeTruthy();
     expect(screen.getByText("Chuyển khoản")).toBeTruthy();
     expect(screen.getByRole("table", { name: "Hiệu suất thu ngân" })).toBeTruthy();
-    expect(screen.getByRole("table", { name: "Ca bán hàng" })).toBeTruthy();
-    expect(screen.getByText("CA-001")).toBeTruthy();
+    expect(screen.queryByRole("table", { name: "Ca bán hàng" })).toBeNull();
+    expect(screen.queryByText("CA-001")).toBeNull();
     expect(screen.getByRole("table", { name: "Công nợ khách hàng" })).toBeTruthy();
     expect(screen.getByText("Trần Bình")).toBeTruthy();
   });
@@ -327,18 +333,18 @@ describe("RetailReportsPage", () => {
     const kpis = await screen.findByLabelText("Chỉ số tổng quan");
     expect(within(kpis).getAllByText(/0/).length).toBeGreaterThanOrEqual(6);
     expect(screen.getByText("Chưa có dữ liệu thu ngân trong khoảng này.")).toBeTruthy();
-    expect(screen.getByText("Chưa có ca bán hàng trong khoảng này.")).toBeTruthy();
+    expect(screen.queryByText("Chưa có ca bán hàng trong khoảng này.")).toBeNull();
     expect(screen.getByText("Không có khách hàng đang nợ trong khoảng này.")).toBeTruthy();
   });
 
   it("keeps the last successful dashboard when refresh or export fails and allows retry", async () => {
     render(<RetailReportsPage />);
-    expect((await screen.findAllByText("Nguyễn An")).length).toBe(2);
+    expect((await screen.findAllByText("Nguyễn An")).length).toBe(1);
 
     vi.mocked(retailReportsApi.summary).mockRejectedValueOnce(new Error("Mất kết nối báo cáo"));
     await userEvent.click(screen.getByRole("button", { name: "Tải lại báo cáo" }));
     expect(await screen.findByText("Mất kết nối báo cáo")).toBeTruthy();
-    expect(screen.getAllByText("Nguyễn An").length).toBe(2);
+    expect(screen.getAllByText("Nguyễn An").length).toBe(1);
 
     vi.mocked(retailReportsApi.export).mockRejectedValueOnce(new Error("Không xuất được Excel"));
     await userEvent.click(screen.getByRole("button", { name: "Xuất Excel" }));
@@ -348,7 +354,7 @@ describe("RetailReportsPage", () => {
       {},
       expect.any(AbortSignal),
     );
-    expect(screen.getAllByText("Nguyễn An").length).toBe(2);
+    expect(screen.getAllByText("Nguyễn An").length).toBe(1);
 
     vi.mocked(retailReportsApi.summary).mockResolvedValueOnce(emptyReport);
     await userEvent.click(screen.getByRole("button", { name: "Thử tải lại" }));
@@ -357,7 +363,7 @@ describe("RetailReportsPage", () => {
 
   it("ignores an older response that resolves after a newer filter request", async () => {
     render(<RetailReportsPage />);
-    expect((await screen.findAllByText("Nguyễn An")).length).toBe(2);
+    expect((await screen.findAllByText("Nguyễn An")).length).toBe(1);
 
     const oldRequest = deferred<RetailReport>();
     const newRequest = deferred<RetailReport>();
@@ -386,7 +392,7 @@ describe("RetailReportsPage", () => {
 
   it("ignores an older summary rejection after a newer filter response succeeds", async () => {
     render(<RetailReportsPage />);
-    expect((await screen.findAllByText("Nguyễn An")).length).toBe(2);
+    expect((await screen.findAllByText("Nguyễn An")).length).toBe(1);
 
     const oldRequest = deferred<RetailReport>();
     const newRequest = deferred<RetailReport>();
@@ -415,7 +421,7 @@ describe("RetailReportsPage", () => {
 
   it("invalidates pending exports when the filter or branch changes", async () => {
     const view = render(<RetailReportsPage />);
-    expect((await screen.findAllByText("Nguyễn An")).length).toBe(2);
+    expect((await screen.findAllByText("Nguyễn An")).length).toBe(1);
 
     const staleFailure = deferred<void>();
     vi.mocked(retailReportsApi.export).mockImplementationOnce(() => staleFailure.promise);
@@ -461,7 +467,7 @@ describe("RetailReportsPage", () => {
     }
 
     const view = render(<CommitRaceHarness commitToken={0} />);
-    expect((await screen.findAllByText("Nguyễn An")).length).toBe(2);
+    expect((await screen.findAllByText("Nguyễn An")).length).toBe(1);
     await userEvent.click(screen.getByRole("button", { name: "Xuất Excel" }));
     const staleSignal = vi.mocked(retailReportsApi.export).mock.calls[0]?.[2] as AbortSignal;
     expect(staleSignal.aborted).toBe(false);
@@ -476,7 +482,7 @@ describe("RetailReportsPage", () => {
 
   it("does not display or restore data from the previously active branch", async () => {
     const firstView = render(<RetailReportsPage />);
-    expect((await screen.findAllByText("Nguyễn An")).length).toBe(2);
+    expect((await screen.findAllByText("Nguyễn An")).length).toBe(1);
 
     const branchRequest = deferred<RetailReport>();
     vi.mocked(retailReportsApi.summary).mockImplementationOnce(() => branchRequest.promise);
@@ -534,4 +540,25 @@ describe("RetailReportsPage", () => {
     setDocumentVisibility("visible");
     expect(retailReportsApi.summary).toHaveBeenCalledTimes(2);
   });
+
+  it("displays the branch name in header instead of the branch ID", async () => {
+    vi.mocked(retailReportsApi.summary).mockResolvedValue(report());
+    render(<RetailReportsPage />);
+    expect(await screen.findByText("Chi nhánh Hà Nội", { selector: "span" })).toBeTruthy();
+    expect(screen.queryByText("Chi nhánh: B1")).toBeNull();
+  });
+});
+
+it("selects all branches for both report and Excel without changing the working branch", async () => {
+  vi.mocked(retailReportsApi.summary).mockResolvedValue(report());
+  vi.mocked(retailReportsApi.export).mockResolvedValue(undefined);
+  render(<RetailReportsPage />);
+  await waitFor(() => expect(retailReportsApi.summary).toHaveBeenCalled());
+  await userEvent.selectOptions(screen.getByLabelText("Chi nhánh báo cáo"), "all");
+  await waitFor(() => expect(retailReportsApi.summary).toHaveBeenLastCalledWith({ companyCode: "ACME", branchId: "all" }, expect.any(Object)));
+  await userEvent.click(screen.getByRole("button", { name: "Xuất Excel" }));
+  expect(retailReportsApi.export).toHaveBeenCalledWith({ companyCode: "ACME", branchId: "all" }, expect.any(Object), expect.any(AbortSignal));
+  expect(retailScopeState.scope?.branchId).toBe("B1");
+  await userEvent.selectOptions(screen.getByLabelText("Chi nhánh báo cáo"), "B1");
+  await waitFor(() => expect(retailReportsApi.summary).toHaveBeenLastCalledWith({ companyCode: "ACME", branchId: "B1" }, expect.any(Object)));
 });

@@ -1,9 +1,11 @@
+import { HRContractExtensionModel } from "../model/hr-contract.model";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { managedUploadService } from "../service/managed-upload.service";
 import {
   finalizeContractPendingUploads,
   finalizeExtensionPendingUploads,
   hrContractController,
+  resolveContractBranchId,
 } from "./hr-contract.controller";
 
 afterEach(() => vi.restoreAllMocks());
@@ -19,6 +21,18 @@ function response() {
 }
 
 describe("hrContractController managed uploads", () => {
+  it("keeps branch owners in their assigned branch", () => {
+    expect(resolveContractBranchId({
+      user: { role: "branch_owner", branchId: "branch-a" },
+      query: { branchId: "branch-b" },
+    } as any)).toBe("branch-a");
+
+    expect(resolveContractBranchId({
+      user: { role: "admin", branchId: "branch-a" },
+      query: { branchId: "branch-b" },
+    } as any)).toBe("branch-b");
+  });
+
   it("returns a pending token without creating an ad-hoc ResourceItem", async () => {
     const createPendingUpload = vi.spyOn(managedUploadService, "createPendingUpload").mockResolvedValue({
       _id: "pending-1", token: "token-1", companyCode: "ACME", branchId: "branch-a", actorId: "user-1",
@@ -47,14 +61,23 @@ describe("hrContractController managed uploads", () => {
     });
   });
 
-  it("finalizes contract and signed-image tokens against the saved contract", async () => {
+  it("finalizes contract, signed-image and electronic-signature tokens against the saved contract", async () => {
     const finalizeManagedUpload = vi.fn(async (token: string) => ({
-      _id: token === "contract-token" ? "resource-contract" : "resource-signed",
+      _id:
+        token === "contract-token"
+          ? "resource-contract"
+          : token === "signed-token"
+            ? "resource-signed"
+            : "resource-electronic-signature",
     }));
 
     const patch = await finalizeContractPendingUploads({
       contract: { _id: "contract-1", employeeId: "employee-1", employeeName: "NV001 - Nguyễn Văn A" },
-      body: { contractFileUploadToken: "contract-token", signedImageUploadToken: "signed-token" },
+      body: {
+        contractFileUploadToken: "contract-token",
+        signedImageUploadToken: "signed-token",
+        electronicSignatureUploadToken: "electronic-signature-token",
+      },
       actor: { companyCode: "ACME", branchId: "branch-a", actorId: "user-1", actorName: "Admin" },
       finalizeManagedUpload: finalizeManagedUpload as any,
     });
@@ -66,7 +89,18 @@ describe("hrContractController managed uploads", () => {
       sourceRecordId: "contract-1",
       sourceField: "contractFile",
     });
-    expect(patch).toEqual({ contractResourceId: "resource-contract", signedImageResourceId: "resource-signed" });
+    expect(finalizeManagedUpload).toHaveBeenNthCalledWith(3, "electronic-signature-token", expect.any(Object), {
+      entityType: "employee",
+      entityId: "employee-1",
+      entityLabel: "NV001 - Nguyễn Văn A",
+      sourceRecordId: "contract-1",
+      sourceField: "electronicSignature",
+    });
+    expect(patch).toEqual({
+      contractResourceId: "resource-contract",
+      signedImageResourceId: "resource-signed",
+      electronicSignatureResourceId: "resource-electronic-signature",
+    });
   });
 
   it("finalizes extension tokens against the saved extension", async () => {
@@ -87,4 +121,33 @@ describe("hrContractController managed uploads", () => {
       sourceField: "extensionSignedImage",
     }));
   });
+});
+
+it("keeps extension signature separate from uploaded signed images", async () => {
+ const finalize = vi.fn(async (token: string) => ({ _id: token + "-resource" }));
+ const patch = await finalizeExtensionPendingUploads({
+  extension: { _id: "extension-new", employeeId: "employee-1", employeeName: "Employee" },
+  body: { extensionFileUploadToken: "file", extensionSignedImageUploadToken: "scan", electronicSignatureUploadToken: "signature" },
+  actor: { companyCode: "ACME", actorId: "user-1", actorName: "Admin" },
+  finalizeManagedUpload: finalize as any,
+ });
+ expect(patch).toEqual({ extensionResourceId: "file-resource", signedImageResourceId: "scan-resource", electronicSignatureResourceId: "signature-resource" });
+ expect(finalize).toHaveBeenLastCalledWith("signature", expect.any(Object), expect.objectContaining({ sourceRecordId: "extension-new", sourceField: "electronicSignature" }));
+ const extension = new HRContractExtensionModel({
+  companyCode: "ACME", contractId: "contract-1", employeeId: "employee-1", employeeName: "Employee",
+  previousEndDate: new Date("2026-01-01"), newEndDate: new Date("2027-01-01"), createdBy: "user-1",
+  signedImageUrl: "https://example.test/scan.png", electronicSignatureUrl: "https://example.test/signature.png",
+  electronicSignatureName: "signature.png", electronicSignatureMimeType: "image/png", electronicSignatureSize: 100,
+  ...patch,
+ });
+ expect(extension.validateSync()).toBeUndefined();
+ expect(extension.toObject()).toMatchObject({ electronicSignatureUrl: "https://example.test/signature.png", signedImageUrl: "https://example.test/scan.png", electronicSignatureResourceId: "signature-resource" });
+});
+it("propagates failed signature finalization instead of reporting success", async () => {
+ await expect(finalizeExtensionPendingUploads({
+  extension: { _id: "extension-new", employeeId: "employee-1", employeeName: "Employee" },
+  body: { electronicSignatureUploadToken: "expired-token" },
+  actor: { companyCode: "ACME", actorId: "user-1", actorName: "Admin" },
+  finalizeManagedUpload: vi.fn().mockRejectedValue(new Error("Expired token")),
+ })).rejects.toThrow("Expired token");
 });

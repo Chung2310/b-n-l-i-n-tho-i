@@ -13,6 +13,7 @@ import { startMarketingScheduler } from "./server/modules/marketing/services/mar
 import { startResourceRetentionScheduler } from "./server/service/resource-retention.service";
 import { startRetailDebtReminderScheduler } from "./server/modules/retail/services/retail-debt-reminder.service";
 import { startRetailReminderRetryScheduler } from "./server/modules/retail/services/retail-reminder-retry.service";
+import { startRetailCouponAutomationScheduler } from "./server/modules/retail/services/retail-coupon-automation.service";
 import { startRetailCustomerTierScheduler } from "./server/modules/retail/services/retail-customer-tier.service";
 import { startMonthlyKpiScheduler } from "./server/service/kanban-monthly-kpi-scheduler.service";
 import { startPayrollPublicationScheduler } from "./server/service/payroll-publication-scheduler.service";
@@ -233,6 +234,7 @@ async function startServer() {
   startRetailDebtReminderScheduler();
   startRetailReminderRetryScheduler();
   startRetailCustomerTierScheduler();
+  startRetailCouponAutomationScheduler();
   startMonthlyKpiScheduler();
   startPayrollPublicationScheduler();
 
@@ -400,9 +402,11 @@ async function startServer() {
 
         const personalizedHtml = injectSeoMeta(indexHtmlCached, req.path);
         res.setHeader("Content-Type", "text/html");
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         res.send(personalizedHtml);
       } catch (err) {
         console.error("Lỗi khi xử lý server SEO fallback:", err);
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         res.sendFile(path.join(distPath, "index.html"));
       }
     });

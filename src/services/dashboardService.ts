@@ -1,3 +1,5 @@
+import { apiFetch } from "../modules/shared/lib/apiFetch";
+import type { RetailReport, RetailScope } from "../modules/retail/types";
 import { getAccessToken } from "./authService";
 import { DashboardSummary, DashboardDateFilter, DashboardActionItems } from "../types/dashboard";
 
@@ -8,6 +10,10 @@ export interface DashboardSummaryParams {
 }
 
 export const dashboardService = {
+  async getBestSellingProducts(scope: RetailScope, range: { from: string; to: string }): Promise<RetailReport> {
+    const response = await apiFetch<{ success: true; data: RetailReport }>("/dashboard/best-selling-products", { params: { ...scope, ...range } });
+    return response.data;
+  },
   /**
    * Lấy số liệu tổng hợp tất cả module cho trang tổng quan trong một request.
    */

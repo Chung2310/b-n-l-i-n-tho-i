@@ -171,10 +171,10 @@ export const resourceService = {
       const messages = await ChatMessageModel.find({ roomId, isDeleted: { $ne: true } })
         .sort({ createdAt: -1 })
         .lean();
-      
+
       const virtualItems: any[] = [];
       let uniqueIndex = 1;
-      
+
       for (const msg of messages) {
         if (msg.content) {
           const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -202,7 +202,7 @@ export const resourceService = {
           }
         }
       }
-      
+
       const merged = [...items, ...virtualItems];
       merged.sort((a, b) => {
         if (a.type !== b.type) {
@@ -409,7 +409,7 @@ export const resourceService = {
    */
   async rename(companyCode: string, id: string, name: string, userId?: string, userRole?: string) {
     if (!isValidObjectId(id)) throw new Error("Mã tài nguyên không hợp lệ.");
-    
+
     const query: any = { _id: id, companyCode };
     const isAdmin = userRole === "admin" || userRole === "superadmin";
     if (!isAdmin && userId) {
@@ -437,7 +437,7 @@ export const resourceService = {
    */
   async remove(companyCode: string, id: string, userId?: string, userRole?: string) {
     if (!isValidObjectId(id)) throw new Error("Mã tài nguyên không hợp lệ.");
-    
+
     const query: any = { _id: id, companyCode, isDeleted: { $ne: true } };
     const isAdmin = userRole === "admin" || userRole === "superadmin";
     if (!isAdmin && userId) {
@@ -618,13 +618,13 @@ export const resourceService = {
     targetOwnerId?: string | null
   ) {
     if (!isValidObjectId(id)) throw new Error("Mã tài nguyên cần di chuyển không hợp lệ.");
-    
+
     // 1. Tìm mục cần di chuyển
     const item = await ResourceItemModel.findOne({ _id: id, companyCode }).lean();
     if (!item) throw new Error("Không tìm thấy tài nguyên cần di chuyển.");
     assertResourceMutable(item);
     if (item.isFixed) throw new Error("Không thể di chuyển thư mục hệ thống cố định.");
-    
+
     // Kiểm tra quyền (nếu không phải admin và không phải người tạo)
     const isAdmin = userRole === "admin" || userRole === "superadmin";
     if (!isAdmin && userId && item.creatorUid !== userId) {
@@ -639,7 +639,7 @@ export const resourceService = {
       if (String(normalizedParent) === String(id)) {
         throw new Error("Không thể di chuyển thư mục vào chính nó.");
       }
-      
+
       if (item.type === "folder") {
         let currentParentId = normalizedParent;
         const guard = new Set<string>();
@@ -662,7 +662,7 @@ export const resourceService = {
 
     // 4. Chuẩn hóa không gian đích (Target Space)
     const updateFields: any = { parentId: normalizedParent };
-    
+
     if (targetRoomId) {
       // Di chuyển vào nhóm
       updateFields.roomId = targetRoomId;
@@ -792,7 +792,7 @@ export const resourceDriveService = {
     if (!company.driveFolderId) {
       const folder = await googleDriveService.createFolder(
         accessToken,
-        `iGen ERP - Tài liệu ${company.name || company.code}`
+        `Anh Khoa Mobile - Tài liệu ${company.name || company.code}`
       );
       company.driveFolderId = folder.id;
       company.driveFolderLink = folder.webViewLink || "";

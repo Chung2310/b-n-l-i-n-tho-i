@@ -1,7 +1,6 @@
 import type { Request, Response } from "express";
 import { requireRetailBranch, retailScopeFromRequest } from "../contracts";
 import { hasEffectiveRetailCapability } from "../permissions";
-import { CashierShiftService } from "../services/cashier-shift.service";
 import { RetailOrderService, serializeRetailOrder } from "../services/retail-order.service";
 import { RetailProductService } from "../services/retail-product.service";
 const scope = (req: Request) => requireRetailBranch(retailScopeFromRequest((req as any).user || {}, { companyCode: req.query.companyCode, branchId: req.query.branchId }));
@@ -65,14 +64,14 @@ export const retailOrderController = {
   confirm: async (req: Request, res: Response) => {
     try {
       const actor = (req as any).user || {};
-      res.json({ success: true, data: await RetailOrderService.confirm(scope(req), req.params.id, req.body || {}, actor, (req as any).currentShift, await hasEffectiveRetailCapability(actor, "manager")) });
+      res.json({ success: true, data: await RetailOrderService.confirm(scope(req), req.params.id, req.body || {}, actor, undefined, await hasEffectiveRetailCapability(actor, "manager")) });
     } catch (error: any) {
       res.status(400).json({ success: false, error: error.message });
     }
   },
   collect: async (req: Request, res: Response) => {
     try {
-      res.json({ success: true, data: await RetailOrderService.collect(scope(req), req.params.id, req.body || {}, (req as any).user, (req as any).currentShift) });
+      res.json({ success: true, data: await RetailOrderService.collect(scope(req), req.params.id, req.body || {}, (req as any).user, undefined) });
     } catch (error: any) {
       res.status(400).json({ success: false, error: error.message });
     }
@@ -80,8 +79,7 @@ export const retailOrderController = {
   cancel: async (req: Request, res: Response) => {
     try {
       const retailScope = scope(req);
-      const shift = await CashierShiftService.current(retailScope, (req as any).user);
-      res.json({ success: true, data: await RetailOrderService.cancel(retailScope, req.params.id, req.body || {}, (req as any).user, shift || undefined, await hasEffectiveRetailCapability((req as any).user || {}, "manager")) });
+      res.json({ success: true, data: await RetailOrderService.cancel(retailScope, req.params.id, req.body || {}, (req as any).user, undefined, await hasEffectiveRetailCapability((req as any).user || {}, "manager")) });
     } catch (error: any) {
       res.status(error.status || 400).json({ success: false, error: error.message, ...(error.code ? { code: error.code } : {}) });
     }

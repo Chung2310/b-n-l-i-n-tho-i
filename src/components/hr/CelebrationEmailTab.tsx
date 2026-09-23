@@ -329,9 +329,8 @@ export default function CelebrationEmailTab() {
               {config.birthdayEnabled ? "Đang bật" : "Đã tắt"}
             </p>
             <span
-              className={`inline-block h-2 w-2 rounded-full ${
-                config.birthdayEnabled ? "bg-emerald-500" : "bg-slate-300"
-              }`}
+              className={`inline-block h-2 w-2 rounded-full ${config.birthdayEnabled ? "bg-emerald-500" : "bg-slate-300"
+                }`}
             />
           </div>
           <p className="text-[11px] text-slate-400 mt-0.5">Gửi đúng ngày sinh</p>
@@ -351,9 +350,8 @@ export default function CelebrationEmailTab() {
               {config.holidayEnabled ? "Đang bật" : "Đã tắt"}
             </p>
             <span
-              className={`inline-block h-2 w-2 rounded-full ${
-                config.holidayEnabled ? "bg-emerald-500" : "bg-slate-300"
-              }`}
+              className={`inline-block h-2 w-2 rounded-full ${config.holidayEnabled ? "bg-emerald-500" : "bg-slate-300"
+                }`}
             />
           </div>
           <p className="text-[11px] text-slate-400 mt-0.5">Theo lịch nghỉ lễ</p>
@@ -498,7 +496,7 @@ export default function CelebrationEmailTab() {
                   Từ:
                 </span>
                 <span className="text-slate-800 font-medium">
-                  Hệ thống iGen ERP &lt;no-reply@igen.vn&gt;
+                  Hệ thống Anh Khoa Mobile &lt;no-reply@igen.vn&gt;
                 </span>
               </div>
               <div className="flex items-center gap-3">
@@ -592,11 +590,10 @@ export default function CelebrationEmailTab() {
                     </td>
                     <td className="px-3">
                       <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
-                          row.eventType === "birthday"
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${row.eventType === "birthday"
                             ? "bg-rose-50 text-rose-700 border border-rose-200/60"
                             : "bg-amber-50 text-amber-700 border border-amber-200/60"
-                        }`}
+                          }`}
                       >
                         {row.eventType === "birthday" ? (
                           <>
@@ -619,11 +616,10 @@ export default function CelebrationEmailTab() {
                     </td>
                     <td className="px-3">
                       <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                          row.status === "sent"
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${row.status === "sent"
                             ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                             : "bg-amber-50 text-amber-700 border border-amber-200"
-                        }`}
+                          }`}
                       >
                         {row.status === "sent" && (
                           <CheckCircle2 className="h-3 w-3" />
@@ -663,14 +659,12 @@ function Toggle({
           className="sr-only"
         />
         <div
-          className={`h-6 w-11 rounded-full transition-colors duration-200 ease-in-out ${
-            checked ? "bg-cyan-600" : "bg-slate-200 group-hover:bg-slate-300"
-          }`}
+          className={`h-6 w-11 rounded-full transition-colors duration-200 ease-in-out ${checked ? "bg-cyan-600" : "bg-slate-200 group-hover:bg-slate-300"
+            }`}
         >
           <div
-            className={`h-5 w-5 transform rounded-full bg-white shadow-xs transition-transform duration-200 ease-in-out mt-0.5 ml-0.5 ${
-              checked ? "translate-x-5" : "translate-x-0"
-            }`}
+            className={`h-5 w-5 transform rounded-full bg-white shadow-xs transition-transform duration-200 ease-in-out mt-0.5 ml-0.5 ${checked ? "translate-x-5" : "translate-x-0"
+              }`}
           />
         </div>
       </div>

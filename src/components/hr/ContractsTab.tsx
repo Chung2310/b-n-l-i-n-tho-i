@@ -29,8 +29,22 @@ import { toast } from "../../pages/Toast";
 import { getApiErrorMessage } from "../../utils/errorMessage";
 import { FilePreviewModal } from "../resource/FilePreviewModal";
 import type { ResourceItem } from "../../types";
+import { readContractSearch } from "../../utils/contractExpiryNavigation";
+import { calculateContractEndDate } from "../../utils/hrContractDates";
+import {
+  ContractSignaturePad,
+  SignatureZoomModal,
+} from "./ContractSignaturePad";
 
 type ContractStatus = "draft" | "active" | "expired" | "terminated";
+const CONTRACT_TYPES = [
+  "Hợp đồng thử việc 3 ngày",
+  "Hợp đồng thử việc 7 ngày",
+  "Hợp đồng thử việc 2 tháng",
+  "Hợp đồng chính thức",
+  "Khác",
+] as const;
+type ContractType = (typeof CONTRACT_TYPES)[number];
 type Contract = {
   _id: string;
   contractType: string;
@@ -49,6 +63,11 @@ type Contract = {
   signedImageMimeType?: string;
   signedImageSize?: number;
   signedImageResourceId?: string;
+  electronicSignatureUrl?: string;
+  electronicSignatureName?: string;
+  electronicSignatureMimeType?: string;
+  electronicSignatureSize?: number;
+  electronicSignatureResourceId?: string;
   note?: string;
 };
 type Employee = {
@@ -75,6 +94,20 @@ type Extension = {
   signedImageMimeType?: string;
   signedImageSize?: number;
   signedImageResourceId?: string;
+  electronicSignatureUrl?: string;
+  electronicSignatureName?: string;
+  electronicSignatureMimeType?: string;
+  electronicSignatureSize?: number;
+  electronicSignatureResourceId?: string;
+};
+type ContractExpiryAlert = {
+  id: string;
+  contractType: string;
+  employeeId: string;
+  employeeName: string;
+  endDate: string;
+  daysRemaining: number;
+  reminderDays: 3 | 7;
 };
 
 const headers = () => ({
@@ -120,7 +153,7 @@ const isExpiringSoon = (contract: Contract) => {
   return contract.status === "active" && remaining >= 1 && remaining <= 20;
 };
 const emptyContract = {
-  contractType: "Hợp đồng xác định thời hạn",
+  contractType: "" as ContractType | "",
   employeeId: "",
   startDate: "",
   endDate: "",
@@ -137,6 +170,12 @@ const emptyContract = {
   signedImageSize: 0,
   signedImageResourceId: "",
   signedImageUploadToken: "",
+  electronicSignatureUrl: "",
+  electronicSignatureName: "",
+  electronicSignatureMimeType: "",
+  electronicSignatureSize: 0,
+  electronicSignatureResourceId: "",
+  electronicSignatureUploadToken: "",
   note: "",
 };
 const emptyExtension = {
@@ -156,6 +195,12 @@ const emptyExtension = {
   signedImageSize: 0,
   signedImageResourceId: "",
   extensionSignedImageUploadToken: "",
+  electronicSignatureUrl: "",
+  electronicSignatureName: "",
+  electronicSignatureMimeType: "",
+  electronicSignatureSize: 0,
+  electronicSignatureResourceId: "",
+  electronicSignatureUploadToken: "",
 };
 
 const inputClass =
@@ -211,9 +256,12 @@ export default function ContractsTab({
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [extensions, setExtensions] = useState<Extension[]>([]);
+  const [expiryAlerts, setExpiryAlerts] = useState<ContractExpiryAlert[]>([]);
+  const [expiryAlertsExpanded, setExpiryAlertsExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const initialSearch = readContractSearch(window.location.search);
+  const [search, setSearch] = useState(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
@@ -224,9 +272,10 @@ export default function ContractsTab({
   const [extensionForm, setExtensionForm] = useState(emptyExtension);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<
-    "contract" | "signed" | "extension" | "extensionSigned" | null
+    "contract" | "signed" | "electronicSignature" | "extension" | "extensionSigned" | "extensionElectronicSignature" | null
   >(null);
   const [previewItem, setPreviewItem] = useState<ResourceItem | null>(null);
+  const [signatureZoomUrl, setSignatureZoomUrl] = useState<string | null>(null);
   const suffix = `?companyCode=${encodeURIComponent(companyCode)}${
     branchId ? `&branchId=${encodeURIComponent(branchId)}` : ""
   }`;
@@ -251,6 +300,7 @@ export default function ContractsTab({
       if (!a.ok || !b.ok) throw new Error(ar.message || br.message);
       setContracts(ar.data?.contracts || []);
       setEmployees(ar.data?.employees || []);
+      setExpiryAlerts(ar.data?.expiryAlerts || []);
       setTotal(ar.data?.total || 0);
       setExtensions(br.data || []);
     } catch (e) {
@@ -299,7 +349,9 @@ export default function ContractsTab({
     setContractForm(
       contract
         ? {
-            contractType: contract.contractType,
+            contractType: CONTRACT_TYPES.includes(contract.contractType as ContractType)
+              ? (contract.contractType as ContractType)
+              : "Khác",
             employeeId: contract.employeeId,
             startDate: isoDate(contract.startDate),
             endDate: isoDate(contract.endDate),
@@ -316,6 +368,12 @@ export default function ContractsTab({
             signedImageSize: contract.signedImageSize || 0,
             signedImageResourceId: contract.signedImageResourceId || "",
             signedImageUploadToken: "",
+            electronicSignatureUrl: contract.electronicSignatureUrl || "",
+            electronicSignatureName: contract.electronicSignatureName || "",
+            electronicSignatureMimeType: contract.electronicSignatureMimeType || "",
+            electronicSignatureSize: contract.electronicSignatureSize || 0,
+            electronicSignatureResourceId: contract.electronicSignatureResourceId || "",
+            electronicSignatureUploadToken: "",
             note: contract.note || "",
           }
         : emptyContract
@@ -378,10 +436,11 @@ export default function ContractsTab({
 
   const uploadContractFile = async (
     file: File,
-    target: "contract" | "signed"
+    target: "contract" | "signed" | "electronicSignature"
   ) => {
+    const isImage = target !== "contract";
     const allowed =
-      target === "signed"
+      isImage
         ? file.type.startsWith("image/")
         : [
             "application/pdf",
@@ -390,8 +449,8 @@ export default function ContractsTab({
           ].includes(file.type);
     if (!allowed)
       return toast.error(
-        target === "signed"
-          ? "Ảnh đã ký phải là tệp hình ảnh."
+        isImage
+          ? "Chữ ký và ảnh đã ký phải là tệp hình ảnh."
           : "Hợp đồng chỉ hỗ trợ PDF, DOC hoặc DOCX."
       );
     if (file.size > 10 * 1024 * 1024)
@@ -417,8 +476,19 @@ export default function ContractsTab({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Tải tệp thất bại.");
-      setContractForm((current) =>
-        target === "signed"
+      setContractForm((current) => {
+        if (target === "electronicSignature") {
+          return {
+            ...current,
+            electronicSignatureUrl: data.data.url,
+            electronicSignatureName: file.name,
+            electronicSignatureMimeType: file.type,
+            electronicSignatureSize: file.size,
+            electronicSignatureResourceId: "",
+            electronicSignatureUploadToken: data.data.uploadToken,
+          };
+        }
+        return target === "signed"
           ? {
               ...current,
               signedImageUrl: data.data.url,
@@ -436,9 +506,10 @@ export default function ContractsTab({
               contractFileSize: file.size,
               contractResourceId: "",
               contractFileUploadToken: data.data.uploadToken,
-            }
-      );
+            };
+      });
       toast.success(`Đã tải lên ${file.name}.`);
+      return true;
     } catch (e) {
       toast.error(getApiErrorMessage(e, "Không thể tải tệp hợp đồng."));
     } finally {
@@ -448,9 +519,9 @@ export default function ContractsTab({
 
   const uploadExtensionFile = async (
     file: File,
-    target: "extension" | "extensionSigned"
+    target: "extension" | "extensionSigned" | "extensionElectronicSignature"
   ) => {
-    const isSigned = target === "extensionSigned";
+    const isSigned = target !== "extension";
     const allowed = isSigned
       ? file.type.startsWith("image/")
       : [
@@ -482,13 +553,23 @@ export default function ContractsTab({
           name: file.name,
           mimeType: file.type,
           size: file.size,
-          kind: target,
+          kind: target === "extensionElectronicSignature" ? "electronicSignature" : target,
         }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || "Tải tệp thất bại.");
       setExtensionForm((current) =>
-        isSigned
+        target === "extensionElectronicSignature"
+          ? {
+              ...current,
+              electronicSignatureUrl: result.data.url,
+              electronicSignatureName: file.name,
+              electronicSignatureMimeType: file.type,
+              electronicSignatureSize: file.size,
+              electronicSignatureResourceId: "",
+              electronicSignatureUploadToken: result.data.uploadToken,
+            }
+          : isSigned
           ? {
               ...current,
               signedImageUrl: result.data.url,
@@ -509,6 +590,7 @@ export default function ContractsTab({
             }
       );
       toast.success(`Đã tải lên ${file.name}.`);
+      return true;
     } catch (error) {
       toast.error(
         getApiErrorMessage(error, "Không thể tải tệp gia hạn hợp đồng.")
@@ -725,6 +807,61 @@ export default function ContractsTab({
       </div>
 
       {/* Main Tab Content */}
+      {tab === "contracts" && expiryAlerts.length > 0 && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 shadow-xs">
+          <div className="mb-3 flex items-center gap-2">
+            <FileSignature className="h-5 w-5 text-amber-700" />
+            <div>
+              <h3 className="text-sm font-bold text-amber-900">Nhắc hạn hợp đồng</h3>
+              <p className="text-[11px] text-amber-700">Các hợp đồng còn tối đa 7 ngày trước khi hết hạn.</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {(expiryAlertsExpanded ? expiryAlerts : expiryAlerts.slice(0, 1)).map((alert) => (
+              <button
+                key={alert.id}
+                type="button"
+                onClick={() => {
+                  setSearch(alert.employeeName);
+                  setDebouncedSearch(alert.employeeName);
+                  setPage(1);
+                }}
+                className={`flex w-full items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2.5 text-left transition hover:shadow-sm ${
+                  alert.reminderDays === 3 ? "border-rose-200" : "border-amber-200"
+                }`}
+              >
+                <span className="min-w-0 text-xs font-semibold text-slate-700">
+                  {alert.contractType} của <strong>{alert.employeeName}</strong>{" "}
+                  {alert.daysRemaining === 0
+                    ? "hết hạn hôm nay"
+                    : `${alert.daysRemaining} ngày nữa hết hạn`}
+                  .
+                </span>
+                <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                  alert.reminderDays === 3
+                    ? "bg-rose-100 text-rose-700"
+                    : "bg-amber-100 text-amber-700"
+                }`}>
+                  Mốc {alert.reminderDays} ngày
+                </span>
+              </button>
+            ))}
+            {expiryAlerts.length > 1 && (
+              <button
+                type="button"
+                aria-expanded={expiryAlertsExpanded}
+                onClick={() => setExpiryAlertsExpanded((expanded) => !expanded)}
+                className="rounded-lg px-3 py-2 text-xs font-bold text-amber-800 transition hover:bg-amber-100"
+              >
+                {expiryAlertsExpanded
+                  ? "Thu gọn"
+                  : `+${expiryAlerts.length - 1} hợp đồng khác`}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex flex-col items-center justify-center p-14 rounded-2xl border border-slate-200/80 bg-white shadow-xs">
           <Loader2 className="h-7 w-7 animate-spin text-cyan-600 mb-2" />
@@ -906,7 +1043,22 @@ export default function ContractsTab({
                               <span>Ảnh ký</span>
                             </button>
                           )}
-                          {!c.contractFileUrl && !c.signedImageUrl && (
+                          {c.electronicSignatureUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setSignatureZoomUrl(c.electronicSignatureUrl || null)}
+                              className="group rounded-lg border border-slate-200 bg-white p-1 shadow-2xs transition-colors hover:border-cyan-300 hover:bg-cyan-50"
+                              title="Bấm để phóng to chữ ký điện tử"
+                              aria-label={`Phóng to chữ ký của ${c.employeeName}`}
+                            >
+                              <img
+                                src={c.electronicSignatureUrl}
+                                alt={`Chữ ký của ${c.employeeName}`}
+                                className="h-8 w-20 rounded bg-white object-contain transition-transform group-hover:scale-105"
+                              />
+                            </button>
+                          )}
+                          {!c.contractFileUrl && !c.signedImageUrl && !c.electronicSignatureUrl && (
                             <span className="text-slate-400 text-[11px]">—</span>
                           )}
                         </div>
@@ -1096,7 +1248,13 @@ export default function ContractsTab({
                             <span>Ảnh ký</span>
                           </a>
                         )}
-                        {!x.extensionFileUrl && !x.signedImageUrl && (
+                        {x.electronicSignatureUrl && (
+                          <button type="button" onClick={() => setSignatureZoomUrl(x.electronicSignatureUrl || null)}
+                            className="rounded-lg border border-slate-200 bg-white p-1">
+                            <img src={x.electronicSignatureUrl} alt="Chữ ký gia hạn" className="h-12 w-24 object-contain" />
+                          </button>
+                        )}
+                        {!x.extensionFileUrl && !x.signedImageUrl && !x.electronicSignatureUrl && (
                           <span className="text-slate-400 text-[11px]">—</span>
                         )}
                       </div>
@@ -1164,17 +1322,29 @@ export default function ContractsTab({
 
             <label className="sm:col-span-2 text-xs font-semibold text-slate-700">
               Loại hợp đồng <span className="text-rose-500">*</span>
-              <input
+              <select
                 className={inputClass + " mt-1.5"}
-                placeholder="VD: Hợp đồng xác định thời hạn 12 tháng"
                 value={contractForm.contractType}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const contractType = e.target.value as ContractType;
+                  const automaticEndDate = calculateContractEndDate(
+                    contractType,
+                    contractForm.startDate,
+                  );
                   setContractForm({
                     ...contractForm,
-                    contractType: e.target.value,
-                  })
-                }
-              />
+                    contractType,
+                    endDate: automaticEndDate || contractForm.endDate,
+                  });
+                }}
+              >
+                <option value="">-- Chọn loại hợp đồng --</option>
+                {CONTRACT_TYPES.map((contractType) => (
+                  <option key={contractType} value={contractType}>
+                    {contractType}
+                  </option>
+                ))}
+              </select>
             </label>
 
             <label className="text-xs font-semibold text-slate-700">
@@ -1183,12 +1353,18 @@ export default function ContractsTab({
                 type="date"
                 className={inputClass + " mt-1.5"}
                 value={contractForm.startDate}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const startDate = e.target.value;
+                  const automaticEndDate = calculateContractEndDate(
+                    contractForm.contractType,
+                    startDate,
+                  );
                   setContractForm({
                     ...contractForm,
-                    startDate: e.target.value,
-                  })
-                }
+                    startDate,
+                    endDate: automaticEndDate || contractForm.endDate,
+                  });
+                }}
               />
             </label>
 
@@ -1286,6 +1462,15 @@ export default function ContractsTab({
                   </span>
                 </div>
               )}
+            </div>
+
+            <div className="sm:col-span-2 space-y-2">
+              <ContractSignaturePad
+                value={contractForm.electronicSignatureUrl}
+                saving={uploading !== null}
+                onSave={async (file) => (await uploadContractFile(file, "electronicSignature")) === true}
+              />
+
             </div>
 
             <label className="sm:col-span-2 text-xs font-semibold text-slate-700">
@@ -1456,6 +1641,11 @@ export default function ContractsTab({
                 )}
               </div>
             </div>
+            <ContractSignaturePad
+              value={extensionForm.electronicSignatureUrl}
+              saving={uploading !== null}
+              onSave={async (file) => (await uploadExtensionFile(file, "extensionElectronicSignature")) === true}
+            />
           </div>
         </Modal>
       )}
@@ -1465,6 +1655,10 @@ export default function ContractsTab({
         item={previewItem}
         onClose={() => setPreviewItem(null)}
         hideShare
+      />
+      <SignatureZoomModal
+        url={signatureZoomUrl}
+        onClose={() => setSignatureZoomUrl(null)}
       />
     </div>
   );

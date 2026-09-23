@@ -4,6 +4,7 @@ import { hrContractController } from "../controller/hr-contract.controller";
 import { requireAuth, requirePermission } from "../middleware/auth";
 import { requireModule } from "../middleware/require-module";
 import { validateRequest } from "../middleware/validation";
+import { HR_CONTRACT_TYPES } from "../interface/hr-contract.interface";
 
 export const hrContractRouter = Router();
 const id = Joi.string().hex().length(24).required();
@@ -40,11 +41,16 @@ const fileMetadata = {
   signedImageMimeType: Joi.string().allow("").max(200),
   signedImageSize: Joi.number().min(0),
   signedImageResourceId: Joi.string().hex().length(24).allow("", null),
+  electronicSignatureName: Joi.string().allow("").max(300),
+  electronicSignatureMimeType: Joi.string().allow("").max(200),
+  electronicSignatureSize: Joi.number().min(0),
+  electronicSignatureResourceId: Joi.string().hex().length(24).allow("", null),
   contractFileUploadToken: Joi.string().guid({ version: ["uuidv4"] }).allow("").optional(),
   signedImageUploadToken: Joi.string().guid({ version: ["uuidv4"] }).allow("").optional(),
+  electronicSignatureUploadToken: Joi.string().guid({ version: ["uuidv4"] }).allow("").optional(),
 };
 const contractBody = Joi.object({
-  contractType: Joi.string().trim().max(100).required(),
+  contractType: Joi.string().valid(...HR_CONTRACT_TYPES).required(),
   employeeId: id,
   startDate: Joi.date().iso().required(),
   endDate: Joi.date().iso().min(Joi.ref("startDate")).required(),
@@ -53,17 +59,19 @@ const contractBody = Joi.object({
     .required(),
   contractFileUrl: url,
   signedImageUrl: url,
+  electronicSignatureUrl: url,
   ...fileMetadata,
   note: Joi.string().allow("").max(1000),
 });
 const updateBody = Joi.object({
-  contractType: Joi.string().trim().max(100),
+  contractType: Joi.string().valid(...HR_CONTRACT_TYPES),
   employeeId: Joi.string().hex().length(24),
   startDate: Joi.date().iso(),
   endDate: Joi.date().iso(),
   status: Joi.string().valid("draft", "active", "expired", "terminated"),
   contractFileUrl: url,
   signedImageUrl: url,
+  electronicSignatureUrl: url,
   ...fileMetadata,
   note: Joi.string().allow("").max(1000),
 }).min(1);
@@ -81,6 +89,12 @@ const extensionBody = Joi.object({
   signedImageMimeType: Joi.string().allow("").max(200),
   signedImageSize: Joi.number().min(0),
   signedImageResourceId: Joi.string().hex().length(24).allow("", null),
+  electronicSignatureUrl: url,
+  electronicSignatureName: Joi.string().allow("").max(300),
+  electronicSignatureMimeType: Joi.string().allow("").max(200),
+  electronicSignatureSize: Joi.number().min(0),
+  electronicSignatureResourceId: Joi.string().hex().length(24).allow("", null),
+  electronicSignatureUploadToken: Joi.string().guid({ version: ["uuidv4"] }).allow("").optional(),
   extensionFileUploadToken: Joi.string().guid({ version: ["uuidv4"] }).allow("").optional(),
   extensionSignedImageUploadToken: Joi.string().guid({ version: ["uuidv4"] }).allow("").optional(),
 });
@@ -99,7 +113,7 @@ hrContractRouter.post(
         .max(10 * 1024 * 1024)
         .required(),
       kind: Joi.string()
-        .valid("contract", "signed", "extension", "extensionSigned")
+        .valid("contract", "signed", "electronicSignature", "extension", "extensionSigned")
         .required(),
     }),
   }),

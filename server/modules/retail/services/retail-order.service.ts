@@ -1,4 +1,4 @@
-﻿import { resolveCollaborator, snapshotRetail } from "../../partners/commission-snapshot";
+import { resolveCollaborator, snapshotRetail } from "../../partners/commission-snapshot";
 import { reconcileCommission } from "../../partners/commission.service";
 import type { RetailPaymentStatus } from "../interfaces/retail-order.interface";
 import { RETAIL_PAYMENT_METHODS } from "../models/retail-order.model";
@@ -16,10 +16,11 @@ import { RetailIdempotencyModel } from "../models/retail-idempotency.model";
 import { RetailInvoiceModel } from "../models/retail-invoice.model";
 import { getBillingProfile, getCustomerBrief } from "../../customer-management/contracts";
 import { calculateOrderTotals, toDiscountInput } from "./retail-pricing.service";
+import { consumeCoupon, releaseCoupon, resolveCoupon } from "./retail-coupon.service";
 import { getResolvedRetailSettings } from "./retail-settings.service";
 import { applyOrderStockOut, revertOrderStock } from "./retail-stock.service";
 import { issueRetailInvoice } from "./retail-invoice.service";
-import { assertRetailShiftOperational, businessDateInVietnam } from "./cashier-shift.service";
+import { businessDateInVietnam } from "./cashier-shift.service";
 import { buildOrderListQuery } from "./retail-query.service";
 import type { PostReceivableEntryInput } from "../interfaces/retail-receivable.interface";
 import { enqueueTierRefresh, processTierRefreshBySourceKey } from "./retail-customer-tier.service";
@@ -165,7 +166,7 @@ export function snapshotRetailProductForPricing(product: any, item: any) {
   };
 }
 
-async function priceInput(scope: RetailBranchScope, input: any) {
+async function priceInput(scope: RetailBranchScope, input: any, session?: mongoose.ClientSession) {
   const settings = await getResolvedRetailSettings(scope);
   const rawItems = Array.isArray(input.items) ? input.items : [];
   const ids = rawItems.map((item: any) => String(item.productId || ""));
@@ -187,10 +188,20 @@ async function priceInput(scope: RetailBranchScope, input: any) {
   if (byId.size !== new Set(ids).size) throw new Error("SKU không thuộc danh mục đang bán.");
   const items = rawItems.map((item: any) => { const variant: any = byId.get(String(item.productId)); const product: any = productById.get(String(variant.productId)); const price: any = priceById.get(String(variant._id)); const balance: any = balanceById.get(String(variant._id)); if (!product || !price) throw new Error("Sản phẩm chưa được khai báo giá bán."); const available = Number(balance?.quantity || 0) - Number(balance?.reservedQuantity || 0); if (available < Number(item.quantity)) throw new Error(`Tồn kho của ${product.name} không đủ.`); return { product: { _id: variant._id, sku: variant.sku, name: product.name, unit: variant.unitCode, category: product.categoryCode, brand: product.brandCode, price: price.sellingPrice, costPrice: price.costPrice, trackingMode: variant.trackingMode, variantId: variant._id }, item }; }).map(({ product, item }: any) => snapshotRetailProductForPricing(product, item));
   validateRetailSerialItems(items);
-  return { settings, pricing: calculateOrderTotals({ items, orderDiscount: toDiscountInput(input.orderDiscount) || { type: "amount", value: 0 }, taxRate: input.taxRate === undefined ? settings.defaultTaxRate : Number(input.taxRate), shippingFee: Number(input.shippingFee || 0), maxDiscountPercent: settings.maxDiscountPercent }) };
+  const couponCode = typeof input.couponCode === "string" ? input.couponCode.trim() : "";
+  let orderDiscount = toDiscountInput(input.orderDiscount) || { type: "amount" as const, value: 0 };
+  let couponSnapshot: Awaited<ReturnType<typeof resolveCoupon>> | null = null;
+  if (couponCode) {
+    // Persisted drafts store the calculated coupon amount in orderDiscount.
+    if ((!session && orderDiscount.value !== 0) || items.some((item) => Number(item.discount?.value || 0) !== 0)) throw new Error("Mã ưu đãi không cộng dồn với giảm giá thủ công.");
+    const base = calculateOrderTotals({ items, orderDiscount: { type: "amount", value: 0 }, taxRate: 0, shippingFee: 0, maxDiscountPercent: settings.maxDiscountPercent });
+    couponSnapshot = await resolveCoupon(scope, couponCode, base.subtotal, session, input.customerId);
+    orderDiscount = { type: "amount", value: couponSnapshot.amount };
+  }
+  return { settings, pricing: { ...calculateOrderTotals({ items, orderDiscount, taxRate: input.taxRate === undefined ? settings.defaultTaxRate : Number(input.taxRate), shippingFee: Number(input.shippingFee || 0), maxDiscountPercent: settings.maxDiscountPercent }), couponCode: couponSnapshot?.code || "", couponSnapshot } };
 }
 
-function snapshotPayment(item: any, shift: any, actor: any) { return { ...item, paidAt: new Date(), receivedBy: actorId(actor), receivedByName: actorName(actor), shiftId: String(shift._id), businessDate: shift.businessDate }; }
+function snapshotPayment(item: any, shift: any, actor: any) { return { ...item, paidAt: new Date(), receivedBy: actorId(actor), receivedByName: actorName(actor), shiftId: shift?._id ? String(shift._id) : undefined, businessDate: shift?.businessDate || businessDateInVietnam(new Date()) }; }
 
 export function customerLookupFilter(scope: RetailBranchScope, customerId: string) {
   return { _id: customerId, companyCode: scope.companyCode };
@@ -240,7 +251,7 @@ export const RetailOrderService = {
     for (let slot = 1; slot <= 5; slot += 1) {
       if (occupied.has(slot)) continue;
       try {
-        return await RetailOrderModel.create({ ...scope, collaboratorId: collaborator ? String(collaborator._id) : undefined, items: pricing.lines, subtotal: pricing.subtotal, orderDiscount: pricing.orderDiscount, taxRate: pricing.taxRate, taxAmount: pricing.taxAmount, shippingFee: pricing.shippingFee, grandTotal: pricing.grandTotal, totalCost: pricing.totalCost, payments: [], refunds: [], paidAmount: 0, refundedAmount: 0, dueAmount: pricing.grandTotal, paymentStatus: "unpaid", status: "draft", businessDate: currentBusinessDate, heldAt: new Date(), heldSlot: slot, salespersonId: String(input.salespersonId || creator), salespersonName: String(input.salespersonName || actorName(actor)), createdBy: creator, createdByName: actorName(actor), stockApplied: false, version: 0, ...(customerSnapshot || {}), dueDate: input.dueDate });
+        return await RetailOrderModel.create({ ...scope, collaboratorId: collaborator ? String(collaborator._id) : undefined, couponCode: pricing.couponCode, couponSnapshot: pricing.couponSnapshot, items: pricing.lines, subtotal: pricing.subtotal, orderDiscount: pricing.orderDiscount, taxRate: pricing.taxRate, taxAmount: pricing.taxAmount, shippingFee: pricing.shippingFee, grandTotal: pricing.grandTotal, totalCost: pricing.totalCost, payments: [], refunds: [], paidAmount: 0, refundedAmount: 0, dueAmount: pricing.grandTotal, paymentStatus: "unpaid", status: "draft", businessDate: currentBusinessDate, heldAt: new Date(), heldSlot: slot, salespersonId: String(input.salespersonId || creator), salespersonName: String(input.salespersonName || actorName(actor)), createdBy: creator, createdByName: actorName(actor), stockApplied: false, version: 0, ...(customerSnapshot || {}), dueDate: input.dueDate });
       } catch (error) {
         if (!duplicate(error)) throw error;
       }
@@ -256,9 +267,9 @@ export const RetailOrderService = {
     const collaborator = await resolveCollaborator(scope.companyCode, input.collaboratorId === undefined ? existing.collaboratorId : input.collaboratorId);
     const expectedVersion = Number(input.version);
     if (!Number.isSafeInteger(expectedVersion)) throw retailError("Phiên bản đơn hàng là bắt buộc.", "ORDER_VERSION_CONFLICT");
-    const [{ pricing }, customerSnapshot] = await Promise.all([priceInput(scope, input), resolveOrderCustomerSnapshots(scope, input.customerId, input.billingProfileId)]); const order = await RetailOrderModel.findOneAndUpdate({ _id: id, ...scope, status: "draft", version: expectedVersion }, { $set: { collaboratorId: collaborator ? String(collaborator._id) : null, items: pricing.lines, subtotal: pricing.subtotal, orderDiscount: pricing.orderDiscount, taxRate: pricing.taxRate, taxAmount: pricing.taxAmount, shippingFee: pricing.shippingFee, grandTotal: pricing.grandTotal, totalCost: pricing.totalCost, dueAmount: pricing.grandTotal, ...(customerSnapshot || { customerId: undefined, customerName: undefined, customerPhone: undefined, billingProfileId: undefined, customerSnapshot: undefined, billingSnapshot: undefined }), dueDate: input.dueDate }, $inc: { version: 1 } }, { returnDocument: 'after' }); if (!order) throw retailError("Đơn đã được thay đổi ở màn hình khác.", "ORDER_VERSION_CONFLICT"); return order;
+    const [{ pricing }, customerSnapshot] = await Promise.all([priceInput(scope, input), resolveOrderCustomerSnapshots(scope, input.customerId, input.billingProfileId)]); const order = await RetailOrderModel.findOneAndUpdate({ _id: id, ...scope, status: "draft", version: expectedVersion }, { $set: { collaboratorId: collaborator ? String(collaborator._id) : null, couponCode: pricing.couponCode, couponSnapshot: pricing.couponSnapshot, items: pricing.lines, subtotal: pricing.subtotal, orderDiscount: pricing.orderDiscount, taxRate: pricing.taxRate, taxAmount: pricing.taxAmount, shippingFee: pricing.shippingFee, grandTotal: pricing.grandTotal, totalCost: pricing.totalCost, dueAmount: pricing.grandTotal, ...(customerSnapshot || { customerId: undefined, customerName: undefined, customerPhone: undefined, billingProfileId: undefined, customerSnapshot: undefined, billingSnapshot: undefined }), dueDate: input.dueDate }, $inc: { version: 1 } }, { returnDocument: 'after' }); if (!order) throw retailError("Đơn đã được thay đổi ở màn hình khác.", "ORDER_VERSION_CONFLICT"); return order;
   },
-  async confirm(scope: RetailBranchScope, id: string, input: any, actor: any, shift: any, canManage = false) {
+  async confirm(scope: RetailBranchScope, id: string, input: any, actor: any, shift: any = undefined, canManage = false) {
     const key = String(input.idempotencyKey || "").trim(); if (!key) throw new Error("Idempotency key là bắt buộc.");
     const existing = await RetailIdempotencyModel.findOne({ companyCode: scope.companyCode, key, status: "completed" }).lean(); if (existing?.orderId) return { order: await RetailOrderModel.findById(existing.orderId).lean(), invoice: await RetailInvoiceModel.findById(existing.invoiceId).lean() };
     const session = await mongoose.startSession(); let result: any;
@@ -267,17 +278,18 @@ export const RetailOrderService = {
       const draft: any = await RetailOrderModel.findOne({ _id: id, ...scope, status: "draft" }).session(session); if (!draft) throw Object.assign(new Error("Đơn hàng không thể xác nhận."), { code: "ORDER_NOT_EDITABLE", status: 409 });
       requireRetailPaymentCustomer(draft.customerId);
       assertHeldDraftAccess(String(draft.createdBy), actorId(actor), canManage);
-      const { settings, pricing } = await priceInput(scope, draft.toObject()); if (Number(input.expectedGrandTotal) !== pricing.grandTotal) throw Object.assign(new Error("Tổng tiền đã thay đổi."), { code: "ORDER_TOTAL_MISMATCH", status: 409, details: { expected: Number(input.expectedGrandTotal), actual: pricing.grandTotal } });
+      const { settings, pricing } = await priceInput(scope, draft.toObject(), session); if (Number(input.expectedGrandTotal) !== pricing.grandTotal) throw Object.assign(new Error("Tổng tiền đã thay đổi."), { code: "ORDER_TOTAL_MISMATCH", status: 409, details: { expected: Number(input.expectedGrandTotal), actual: pricing.grandTotal } });
       const normalized = normalizePayments(input.payments || [], pricing.grandTotal); const dueAmount = pricing.grandTotal - normalized.total;
       if (dueAmount > 0 && !draft.dueDate) throw new Error("Bán nợ cần khách hàng và hạn thanh toán.");
       const customerSnapshots = await resolveOrderCustomerSnapshots(scope, draft.customerId, draft.billingProfileId);
       const customer: any = customerSnapshots ? { name: customerSnapshots.customerName, phone: customerSnapshots.customerPhone } : null;
       const branch = await BranchModel.findOne({ _id: scope.branchId, companyCode: scope.companyCode, isActive: true }).session(session).lean(); if (!branch) throw new Error("Chi nhánh bán hàng không hợp lệ.");
-      const scopeKey = monthlyScope(shift.businessDate); const counter = await RetailOrderCounterModel.findOneAndUpdate({ ...scope, scope: scopeKey }, { $inc: { seq: 1 } }, { returnDocument: 'after', upsert: true, session }); const orderCode = formatRetailDocumentCode(settings.orderPrefix, branch.code, scopeKey, counter!.seq);
+      const scopeKey = monthlyScope(shift?.businessDate || businessDateInVietnam(new Date())); const counter = await RetailOrderCounterModel.findOneAndUpdate({ ...scope, scope: scopeKey }, { $inc: { seq: 1 } }, { returnDocument: 'after', upsert: true, session }); const orderCode = formatRetailDocumentCode(settings.orderPrefix, branch.code, scopeKey, counter!.seq);
       draft.paymentCode = retailPaymentCode(orderCode);
+      if (pricing.couponSnapshot) await consumeCoupon(scope, pricing.couponSnapshot, session, draft.customerId);
       await applyOrderStockOut(scope, String(draft._id), orderCode, pricing.lines, actorName(actor), settings.allowNegativeStock, session);
-      Object.assign(draft, { orderCode, shiftId: String(shift._id), businessDate: shift.businessDate, items: pricing.lines, ...pricing, ...(customerSnapshots || {}), customerName: customer?.name || draft.customerName, customerPhone: customer?.phone || draft.customerPhone, payments: normalized.payments.map((payment) => snapshotPayment(payment, shift, actor)), paidAmount: normalized.total, dueAmount, paymentStatus: paymentStatusFor(normalized.total, pricing.grandTotal, 0), status: dueAmount === 0 ? "completed" : "confirmed", stockApplied: true, confirmedAt: new Date(), completedAt: dueAmount === 0 ? new Date() : undefined, version: draft.version + 1 });
-      await claimSerialsForOrder(scope, draft.items as any, String(draft._id), String(draft.customerId), actorId(actor), session, actorName(actor), { businessDate: shift.businessDate, orderCode }); await draft.save({ session });
+      Object.assign(draft, { orderCode, shiftId: shift?._id ? String(shift._id) : undefined, businessDate: shift?.businessDate || businessDateInVietnam(new Date()), items: pricing.lines, ...pricing, ...(customerSnapshots || {}), customerName: customer?.name || draft.customerName, customerPhone: customer?.phone || draft.customerPhone, payments: normalized.payments.map((payment) => snapshotPayment(payment, shift, actor)), paidAmount: normalized.total, dueAmount, paymentStatus: paymentStatusFor(normalized.total, pricing.grandTotal, 0), status: dueAmount === 0 ? "completed" : "confirmed", stockApplied: true, confirmedAt: new Date(), completedAt: dueAmount === 0 ? new Date() : undefined, version: draft.version + 1 });
+      await claimSerialsForOrder(scope, draft.items as any, String(draft._id), String(draft.customerId), actorId(actor), session, actorName(actor), { businessDate: draft.businessDate, orderCode }); await draft.save({ session });
       await enqueueOrderTierRefresh(scope, "confirm", draft, session);
       const invoice = await issueRetailInvoice(draft, settings.invoicePrefix, branch.code, scopeKey, actor, session);
       draft.commissionSnapshot = await snapshotRetail(draft, session);
@@ -289,7 +301,7 @@ export const RetailOrderService = {
     scheduleOrderTierRefreshAfterCommit(scope, "confirm", result.order);
     return result;
   },
-  async collect(scope: RetailBranchScope, id: string, input: any, actor: any, shift: any) {
+  async collect(scope: RetailBranchScope, id: string, input: any, actor: any, shift?: any) {
     const session = await mongoose.startSession(); let result: any; try { await session.withTransaction(async () => { const order: any = await RetailOrderModel.findOne({ _id: id, ...scope, status: "confirmed" }).session(session); if (!order) throw new Error("Đơn không thể thu thêm."); const normalized = normalizePayments(input.payments || [], order.dueAmount); const transactionKey = String(input.idempotencyKey || `v${order.version}:${normalized.total}:${order.dueAmount}`); order.payments.push(...normalized.payments.map((payment) => snapshotPayment(payment, shift, actor))); order.paidAmount += normalized.total; order.dueAmount = order.grandTotal - order.paidAmount; order.paymentStatus = paymentStatusFor(order.paidAmount, order.grandTotal, order.refundedAmount); if (order.dueAmount === 0) { order.status = "completed"; order.completedAt = new Date(); } order.version += 1; await order.save({ session }); if (order.commissionSnapshot) await reconcileCommission("retail", String(order._id), scope.companyCode, session); await publishRetailOrderEvent("paid", scope, order, actor, { session, amount: normalized.total, transactionKey }); result = order; }); } finally { await session.endSession(); } return result;
   },
   async cancel(scope: RetailBranchScope, id: string, input: any, actor: any, shift: any | undefined, canManage: boolean) {
@@ -316,14 +328,13 @@ export const RetailOrderService = {
         if (!order) throw new Error("Đơn không thể hủy.");
         if (order.status === "draft") assertHeldDraftAccess(String(order.createdBy), actorId(actor), canManage);
         if (order.status === "completed" && !canManage) throw Object.assign(new Error("Chỉ quản lý được hủy đơn hoàn tất."), { status: 403 });
-        if (order.paidAmount > order.refundedAmount && !shift) throw Object.assign(new Error("Bạn chưa mở ca bán hàng."), { code: "SHIFT_NOT_OPEN", status: 409 });
         const remainingRefund = order.paidAmount - order.refundedAmount;
-        if (remainingRefund > 0) assertRetailShiftOperational(shift);
         const refunds = remainingRefund > 0 ? normalizePayments(input.refunds || [], remainingRefund) : { payments: [], total: 0 };
         if (refunds.total !== remainingRefund) throw new Error("Phải ghi nhận đủ số tiền hoàn khi hủy đơn.");
         if (order.stockApplied && !order.stockRevertedAt) { await revertOrderStock(scope, String(order._id), order.orderCode, order.items, actorName(actor), session); await releaseSerialsForOrder(scope, String(order._id), actorId(actor), actorName(actor), session); order.stockRevertedAt = new Date(); }
+        if (order.couponSnapshot && order.status !== "draft") await releaseCoupon(scope, order.couponSnapshot.id, session);
         await enqueueOrderTierRefresh(scope, "cancel", order, session);
-        order.refunds.push(...refunds.payments.map((item: any) => ({ method: item.method, amount: item.amount, reference: item.reference, refundedAt: new Date(), refundedBy: actorId(actor), refundedByName: actorName(actor), shiftId: String(shift?._id || ""), businessDate: shift?.businessDate || order.businessDate, reason })));
+        order.refunds.push(...refunds.payments.map((item: any) => ({ method: item.method, amount: item.amount, reference: item.reference, refundedAt: new Date(), refundedBy: actorId(actor), refundedByName: actorName(actor), shiftId: shift?._id ? String(shift._id) : undefined, businessDate: shift?.businessDate || businessDateInVietnam(new Date()), reason })));
         order.refundedAmount += refunds.total; order.paymentStatus = paymentStatusFor(order.paidAmount, order.grandTotal, order.refundedAmount); order.status = "cancelled"; order.cancelReason = reason; order.cancelledAt = new Date(); order.version += 1;
         await order.save({ session });
         if (order.commissionSnapshot) await reconcileCommission("retail", String(order._id), scope.companyCode, session);

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState } from "react";
-import { LayoutDashboard, TrendingUp } from "lucide-react";
+import { LayoutDashboard, TrendingUp, Sun, Moon } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useBranch } from "../context/BranchContext";
 import { isModuleEnabled } from "../config/modules";
@@ -11,6 +11,8 @@ import { OverviewPanel } from "../components/dashboard/OverviewPanel";
 import { RevenueAnalysisPanel } from "../components/dashboard/RevenueAnalysisPanel";
 import { DailyBulletin } from "../components/dashboard/DailyBulletin";
 import { getEnergyGreeting } from "../components/dashboard/energyGreeting";
+
+import "../components/dashboard/overview.css";
 
 type DashboardView = "overview" | "revenue";
 
@@ -31,7 +33,8 @@ export default function DashboardTab() {
   const bulletinError = bulletinResult?.key === bulletinKey && bulletinResult.error;
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const timer = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(timer); }, []);
-  const greeting = getEnergyGreeting(Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: "Asia/Ho_Chi_Minh" }).format(now)));
+  const greetingHour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: "Asia/Ho_Chi_Minh" }).format(now));
+  const greeting = getEnergyGreeting(greetingHour);
 
   // Poll summary data
   useEffect(() => {
@@ -90,17 +93,25 @@ export default function DashboardTab() {
   });
 
   return (
-    <div className="mx-auto max-h-[85vh] max-w-7xl overflow-y-auto px-0.5 pb-4 text-left sm:pr-2" id="dashboard_tab_view">
-      <div className="mb-6 flex flex-col gap-4">
+    <div data-overview={activeView === "overview" ? "true" : undefined} className="w-full min-w-0 max-h-[85vh] overflow-y-auto px-0.5 pb-4 text-left sm:pr-2" id="dashboard_tab_view">
+      <div className="mb-3 flex flex-col gap-3">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <div className="h-8 w-1.5 bg-cyan-600 rounded-full shrink-0" />
             <div>
-              <h1 className="font-extrabold text-xl md:text-2xl tracking-tight text-cyan-700 dark:text-cyan-400">
-                {greeting.greeting}, {userProfile?.displayName || "bạn"}!
+              <div className="min-w-0">
+              <h1 className="flex min-w-0 items-center gap-2 text-base font-medium leading-relaxed text-slate-700 md:text-xl">
+                {greetingHour >= 18
+                  ? <Moon aria-hidden="true" className="h-6 w-6 shrink-0 text-indigo-500" />
+                  : <Sun aria-hidden="true" className="h-6 w-6 shrink-0 text-amber-500" />}
+                <span className="min-w-0 break-words">
+                {greeting.greeting}{" "}<strong className="text-lg font-extrabold text-cyan-700 md:text-2xl">{userProfile?.displayName || "bạn"}</strong>
+                </span>
               </h1>
-              <p className="text-xs text-slate-500 font-medium">Hôm nay, {todayLabel}</p>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{greeting.message}</p>
+
+              </div>
+              <p className="text-xs text-slate-700 font-medium">Hôm nay, {todayLabel}</p>
+
             </div>
           </div>
         </div>

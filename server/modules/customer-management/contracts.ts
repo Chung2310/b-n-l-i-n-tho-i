@@ -1,6 +1,7 @@
 import type { CustomerStatus, CustomerType, ICustomerTierState } from "./interfaces/customer.interface";
 import { CustomerService, type CustomerActor, type CustomerScope } from "./customer.service";
 import { CustomerModel } from "./models/customer.model";
+import { Types, type ClientSession } from "mongoose";
 import { CustomerSettingsService } from "./services/customer-settings.service";
 export { getBillingProfile } from "./billing-profile.service";
 
@@ -109,4 +110,27 @@ export async function applyCustomerTier(
       },
     },
   );
+}
+
+/** Hạng hiện tại của khách, đọc cùng transaction khi xác nhận đơn. */
+export async function getCustomerTierForPromotion(companyCode: string, customerId: unknown, session?: ClientSession) {
+  if (typeof customerId !== "string" || !Types.ObjectId.isValid(customerId)) return null;
+  const customer = await CustomerModel.findOne({ _id: customerId, companyCode: companyCode.toUpperCase(), status: "active" })
+    .select("tier.code").session(session ?? null).lean();
+  return customer?.tier?.code || null;
+}
+
+/** Active customer identity, read from the owning module inside checkout's transaction. */
+export async function getPromotionCustomer(companyCode: string, customerId: unknown, session?: ClientSession) {
+  if (typeof customerId !== "string" || !Types.ObjectId.isValid(customerId)) return null;
+  return CustomerModel.findOne({ _id: customerId, companyCode, status: "active" })
+    .select("_id name customerCode tier dateOfBirth email").session(session ?? null).lean();
+}
+
+/** Stream birthday candidates without loading the entire customer directory into memory. */
+export function birthdayPromotionCustomers(companyCode: string, monthDays: string[], customerId?: string) {
+  return CustomerModel.find({ companyCode, status: "active", dateOfBirth: { $type: "date" },
+    ...(customerId ? { _id: customerId } : {}),
+    $expr: { $in: [{ $dateToString: { date: "$dateOfBirth", format: "%m-%d", timezone: "UTC", onNull: "" } }, monthDays] },
+  }).select("_id name customerCode dateOfBirth").lean().cursor();
 }
