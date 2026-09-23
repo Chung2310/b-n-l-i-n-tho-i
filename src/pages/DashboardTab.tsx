@@ -108,7 +108,7 @@ export default function DashboardTab() {
                 {greeting.greeting}, {userProfile?.displayName || "bạn"}!
                 </span>
               </h1>
-              <p className="min-w-0 text-base font-bold italic leading-relaxed text-slate-700 md:text-lg">&quot;{greeting.message}&quot;</p>
+
               </div>
               <p className="text-xs text-slate-700 font-medium">Hôm nay, {todayLabel}</p>
 
