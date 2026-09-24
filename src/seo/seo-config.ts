@@ -256,17 +256,6 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
     priority: "0.5",
     changeFrequency: "weekly",
   },
-  CSKH: {
-    title: "Hộp thư CSKH 1-1 & Zalo OA - Anh Khoa Mobile",
-    description:
-      "Quản lý hội thoại khách hàng 1-1 đa kênh (Zalo OA, SMS, Webchat) tích hợp AI Marketing Copilot và tra cứu phiếu sửa chữa tức thì.",
-    keywords:
-      "chăm sóc khách hàng, hộp thư CSKH, chat 1-1, Zalo OA, AI Marketing Copilot, hỗ trợ sửa chữa",
-    path: "/cskh",
-    robots: "noindex, nofollow",
-    priority: "0.6",
-    changeFrequency: "weekly",
-  },
 };
 
 export const PUBLIC_SEO_PAGES: SeoMeta[] = [
