@@ -81,6 +81,22 @@ describe("gửi thông báo phiếu sửa chữa", () => {
     expect(result).toEqual({ status: "skipped", reason: "NO_RECIPIENT" });
   });
 
+  it("gửi thông báo khi phân công kỹ thuật viên (technician_assigned)", async () => {
+    const send = vi.fn(async () => ({ messageId: "msg-tech" }));
+    const result = await sendRepairNotification({ ...ticket(), technicianName: "Nguyễn Văn Thợ" }, "technician_assigned", { resolveChannel: async () => emailAdapter(send) });
+    expect(result.status).toBe("sent");
+    const msg = (send.mock.calls[0] as any[])[1];
+    expect(msg.html).toContain("Nguyễn Văn Thợ");
+  });
+
+  it("gửi thông báo cảm ơn khi bàn giao thiết bị (delivered)", async () => {
+    const send = vi.fn(async () => ({ messageId: "msg-delivered" }));
+    const result = await sendRepairNotification(ticket(), "delivered", { resolveChannel: async () => emailAdapter(send) });
+    expect(result.status).toBe("sent");
+    const msg = (send.mock.calls[0] as any[])[1];
+    expect(msg.subject).toContain("Cảm ơn quý khách");
+  });
+
   it("chặn biến lạ trong mẫu tin và escape nội dung khách nhập", () => {
     const variables = buildRepairVariables({ ...ticket(), customerName: "<script>x</script>" }, { companyName: "Igen", branchName: "CN1", feedbackUrl: "https://x/y" });
     expect(renderRepairTemplate("Chào {{customerName}}", variables)).toBe("Chào &lt;script&gt;x&lt;/script&gt;");

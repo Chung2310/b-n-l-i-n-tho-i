@@ -137,6 +137,16 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
     priority: "0.7",
     changeFrequency: "weekly",
   },
+  "CSKH": {
+    title: "Hộp thư CSKH 1-1 & AI Marketing - Anh Khoa Mobile",
+    description:
+      "Kênh chăm sóc khách hàng 1-1 qua Zalo/SMS, kết nối trực tiếp với phiếu sửa chữa và trợ lý AI gợi ý phản hồi nhanh.",
+    keywords:
+      "CSKH, chat 1-1, Zalo ZNS, nhắn tin khách hàng, chăm sóc khách hàng sửa chữa, AI Marketing, Anh Khoa Mobile",
+    path: "/cskh",
+    priority: "0.8",
+    changeFrequency: "daily",
+  },
   "QUẢN LÝ KHÁCH HÀNG": {
     title: "Quản lý khách hàng - Hồ sơ, chăm sóc và lịch sử tương tác",
     description:
