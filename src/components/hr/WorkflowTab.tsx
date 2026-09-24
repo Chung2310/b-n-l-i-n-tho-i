@@ -383,24 +383,55 @@ export default function WorkflowTab({
     }));
   }, [steps]);
 
-  // =================== VIEW: DANH SÁCH ===================
+  // =================== VIEW: CHI TIẾT ===================
   if (view === "detail") {
     return (
-      <WorkflowReader
-        workflow={{
-          id: activeId,
-          name: wfName,
-          category: wfCategory,
-          description: wfDescription,
-          steps,
-        }}
-        canEdit={canEdit}
-        saving={saving}
-        onBack={backToList}
-        onAddStep={openNewStep}
-        onSave={handleSave}
-        onDelete={handleDeleteWorkflow}
-      />
+      <>
+        <WorkflowReader
+          workflow={{
+            id: activeId,
+            name: wfName,
+            category: wfCategory,
+            description: wfDescription,
+            steps,
+          }}
+          canEdit={canEdit}
+          saving={saving}
+          onBack={backToList}
+          onAddStep={openNewStep}
+          onEditStep={(step) => setStepDraft(step)}
+          onDeleteStep={deleteStep}
+          onSave={handleSave}
+          onDelete={handleDeleteWorkflow}
+        />
+
+        {/* Modal chỉnh sửa / thêm bước — dùng chung editor với wizard tạo quy trình */}
+        {stepDraft && (
+          <WizardStepEditorModal
+            step={stepDraft}
+            steps={steps}
+            stepIndex={(() => {
+              const i = steps.findIndex((s) => s.id === stepDraft.id);
+              return i >= 0 ? i : steps.length;
+            })()}
+            isDark={isDark}
+            onClose={() => setStepDraft(null)}
+            onSave={saveStepDraft}
+          />
+        )}
+
+        {confirmState && (
+          <ConfirmDialog
+            isOpen={confirmState.isOpen}
+            title={confirmState.title}
+            description={confirmState.description}
+            confirmLabel={confirmState.confirmLabel}
+            cancelLabel={confirmState.cancelLabel}
+            onClose={() => setConfirmState(null)}
+            onConfirm={confirmState.onConfirm}
+          />
+        )}
+      </>
     );
   }
 
@@ -529,6 +560,17 @@ export default function WorkflowTab({
             </div>
           )}
         </div>
+        {confirmState && (
+          <ConfirmDialog
+            isOpen={confirmState.isOpen}
+            title={confirmState.title}
+            description={confirmState.description}
+            confirmLabel={confirmState.confirmLabel}
+            cancelLabel={confirmState.cancelLabel}
+            onClose={() => setConfirmState(null)}
+            onConfirm={confirmState.onConfirm}
+          />
+        )}
       </div>
     );
   }
@@ -855,6 +897,8 @@ export function WorkflowReader({
   saving = false,
   onBack,
   onAddStep,
+  onEditStep,
+  onDeleteStep,
   onSave,
   onDelete,
 }: {
@@ -863,86 +907,304 @@ export function WorkflowReader({
   saving?: boolean;
   onBack: () => void;
   onAddStep: () => void;
+  onEditStep?: (step: WorkflowStep) => void;
+  onDeleteStep?: (stepId: string) => void;
   onSave: () => void;
   onDelete: () => void;
 }) {
   const [selectedStep, setSelectedStep] = useState<WorkflowStep | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<TaskAttachment | null>(null);
 
+  const totalSubTasks = useMemo(
+    () => workflow.steps.reduce((sum, s) => sum + (s.subTasks?.length || 0), 0),
+    [workflow.steps]
+  );
+  const totalAttachments = useMemo(
+    () => workflow.steps.reduce((sum, s) => sum + (s.attachments?.length || 0), 0),
+    [workflow.steps]
+  );
+
   return (
     <>
-      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-slate-50" id="workflow_tab">
-        <div className="flex flex-wrap items-center gap-3 border-b border-gray-200 bg-white px-4 py-3">
-          <button onClick={onBack} className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-650 hover:bg-gray-100">
-            <ArrowLeft className="h-4 w-4" /> Danh sách quy trình
-          </button>
-          <div className="ml-auto flex items-center gap-2">
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-slate-50/70" id="workflow_tab">
+        {/* Top Navbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 bg-white px-5 py-3.5 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-all cursor-pointer shadow-3xs active:scale-95"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Danh sách quy trình</span>
+            </button>
+            <div className="h-5 w-px bg-slate-200" />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400 font-medium">Chi tiết quy trình</span>
+              {workflow.category && (
+                <span className="rounded-lg bg-cyan-50 border border-cyan-200/80 px-2 py-0.5 text-[10px] font-bold text-cyan-700 uppercase">
+                  {workflow.category}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600">
+              <Layers className="h-3.5 w-3.5 text-cyan-600" />
+              {workflow.steps.length} bước
+            </span>
+
             {canEdit && (
               <>
-                <button onClick={onAddStep} className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-500">
-                  <Plus className="h-3.5 w-3.5" /> Thêm bước
+                <button
+                  type="button"
+                  onClick={onAddStep}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs transition hover:from-cyan-500 hover:to-blue-500 cursor-pointer active:scale-95"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Thêm bước
                 </button>
-                <button onClick={onSave} disabled={saving} className="flex items-center gap-1 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-700 disabled:opacity-50">
-                  <Save className="h-3.5 w-3.5" /> {saving ? "Đang lưu..." : "Lưu"}
+                <button
+                  type="button"
+                  onClick={onSave}
+                  disabled={saving}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 px-3.5 py-2 text-xs font-bold text-white hover:bg-slate-700 shadow-xs transition cursor-pointer active:scale-95 disabled:opacity-50"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  {saving ? "Đang lưu..." : "Lưu"}
                 </button>
-                <button onClick={onDelete} className="flex items-center gap-1 rounded-lg border border-red-200 px-2 py-1.5 text-xs font-bold text-red-650 hover:bg-red-50" title="Xóa quy trình">
-                  <Trash2 className="h-3.5 w-3.5" />
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  className="inline-flex items-center rounded-xl border border-rose-200 bg-rose-50/50 p-2 text-rose-600 hover:bg-rose-100 transition cursor-pointer"
+                  title="Xóa quy trình"
+                >
+                  <Trash2 className="h-4 w-4" />
                 </button>
               </>
             )}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-8">
-          <div className="mx-auto max-w-3xl">
-            <div className="rounded-3xl border border-indigo-100 bg-white p-6 shadow-sm sm:p-8">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-500">Hướng dẫn quy trình</p>
-                  <h1 className="mt-2 text-2xl font-extrabold text-cyan-700">{workflow.name}</h1>
-                  {workflow.category && <p className="mt-1 text-xs font-semibold text-slate-400">{workflow.category}</p>}
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
+          <div className="mx-auto max-w-4xl space-y-6">
+            {/* Header / Hero Overview Card */}
+            <div className="rounded-3xl border border-slate-200/90 bg-white p-6 sm:p-8 shadow-xs relative overflow-hidden">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/20">
+                    <WorkflowIcon className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-600">
+                        Quy trình chuẩn
+                      </span>
+                      {workflow.category && (
+                        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                          {workflow.category}
+                        </span>
+                      )}
+                    </div>
+                    <h1 className="mt-1 text-2xl font-extrabold text-slate-900 tracking-tight">
+                      {workflow.name}
+                    </h1>
+                  </div>
                 </div>
-                <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-2xl bg-emerald-50 border border-emerald-200/80 px-3 py-1.5 text-xs font-bold text-emerald-700">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Đang hoạt động
+                  </span>
+                </div>
               </div>
-              {workflow.description && <p className="mt-5 whitespace-pre-wrap text-sm leading-6 text-slate-600">{workflow.description}</p>}
+
+              {workflow.description && (
+                <div className="mt-4 rounded-2xl bg-slate-50/70 p-4 border border-slate-100 text-xs sm:text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
+                  {workflow.description}
+                </div>
+              )}
+
+              {/* Stat Counters */}
+              <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4 text-xs font-semibold text-slate-600">
+                <div className="flex items-center gap-1.5 rounded-xl bg-slate-100/80 px-3 py-1.5">
+                  <Layers className="h-3.5 w-3.5 text-cyan-600" />
+                  <span>{workflow.steps.length} bước tuần tự</span>
+                </div>
+                {totalSubTasks > 0 && (
+                  <div className="flex items-center gap-1.5 rounded-xl bg-slate-100/80 px-3 py-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>{totalSubTasks} việc cần làm</span>
+                  </div>
+                )}
+                {totalAttachments > 0 && (
+                  <div className="flex items-center gap-1.5 rounded-xl bg-slate-100/80 px-3 py-1.5">
+                    <FileText className="h-3.5 w-3.5 text-indigo-600" />
+                    <span>{totalAttachments} tệp đính kèm</span>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {workflow.steps.length === 0 ? (
-              <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm font-semibold text-slate-400">
-                Chưa có bước nào trong quy trình.
+            {/* Steps Timeline / Pipeline */}
+            <div>
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
+                  Các bước thực hiện ({workflow.steps.length})
+                </h3>
+                <span className="text-xs text-slate-400">
+                  Nhấn vào từng bước để xem chi tiết hướng dẫn
+                </span>
               </div>
-            ) : (
-              <ol className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {workflow.steps.map((step, index) => (
-                  <li
-                    key={step.id}
-                    onClick={() => setSelectedStep(step)}
-                    className="relative h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer"
-                  >
-                    {index < workflow.steps.length - 1 && <ArrowRight className="pointer-events-none absolute -bottom-3 left-1/2 z-10 h-5 w-5 -translate-x-1/2 rotate-90 rounded-full bg-white text-indigo-500 sm:-right-3 sm:bottom-auto sm:left-auto sm:top-1/2 sm:translate-x-0 sm:-translate-y-1/2 sm:rotate-0" aria-hidden="true" />}
-                    <div className="flex items-start gap-4">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-extrabold text-white">{index + 1}</span>
-                      <div className="min-w-0 flex-1">
-                        <h2 className="text-base font-extrabold text-slate-800 break-words leading-snug">{step.title || `Bước ${index + 1}`}</h2>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            )}
+
+              {workflow.steps.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center">
+                  <Layers className="h-10 w-10 text-slate-300 mb-3" />
+                  <p className="text-sm font-bold text-slate-700">Chưa có bước nào trong quy trình</p>
+                  <p className="text-xs text-slate-400 mt-1">Bấm “Thêm bước” để tạo các giai đoạn thực hiện.</p>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={onAddStep}
+                      className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-cyan-600 px-4 py-2 text-xs font-bold text-white hover:bg-cyan-500 transition cursor-pointer"
+                    >
+                      <Plus className="h-4 w-4" /> Thêm bước mới
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <ol className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {workflow.steps.map((step, index) => {
+                    const isFirst = index === 0;
+                    const isLast = index === workflow.steps.length - 1;
+
+                    return (
+                      <li
+                        key={step.id}
+                        onClick={() => setSelectedStep(step)}
+                        className="group relative flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition-all hover:border-cyan-400 hover:shadow-md cursor-pointer"
+                      >
+                        {/* Connecting Arrow */}
+                        {!isLast && (
+                          <ArrowRight
+                            aria-hidden="true"
+                            className="pointer-events-none absolute -bottom-3 left-1/2 z-10 h-5 w-5 -translate-x-1/2 rotate-90 rounded-full bg-white text-cyan-600 shadow-2xs sm:-right-3 sm:bottom-auto sm:left-auto sm:top-1/2 sm:translate-x-0 sm:-translate-y-1/2 sm:rotate-0"
+                          />
+                        )}
+
+                        <div>
+                          {/* Step Header */}
+                          <div className="flex items-center justify-between gap-2 mb-3">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-600 to-blue-600 text-xs font-black text-white shadow-2xs">
+                              {index + 1}
+                            </span>
+                            {isFirst && (
+                              <span className="rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700 uppercase">
+                                Bắt đầu
+                              </span>
+                            )}
+                            {isLast && (
+                              <span className="rounded-md bg-blue-50 border border-blue-200 px-2 py-0.5 text-[10px] font-bold text-blue-700 uppercase">
+                                Hoàn tất
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Title & Description */}
+                          <h2 className="text-sm sm:text-base font-extrabold text-slate-800 group-hover:text-cyan-700 transition-colors break-words leading-snug">
+                            {step.title || `Bước ${index + 1}`}
+                          </h2>
+
+                          {step.description && (
+                            <p className="mt-2 text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                              {step.description}
+                            </p>
+                          )}
+
+                          {/* Highlights pills */}
+                          <div className="mt-3.5 flex flex-wrap gap-1.5 text-[11px] font-medium text-slate-500">
+                            {!!step.subTasks?.length && (
+                              <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-slate-700">
+                                <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                {step.subTasks.length} việc con
+                              </span>
+                            )}
+                            {!!step.attachments?.length && (
+                              <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-slate-700">
+                                <FileText className="h-3 w-3 text-cyan-600" />
+                                {step.attachments.length} tệp
+                              </span>
+                            )}
+                            {step.note && (
+                              <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 border border-amber-200 px-2 py-0.5 text-amber-700">
+                                Có lưu ý
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Step Card Footer / Action Button */}
+                        <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedStep(step);
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-lg text-xs font-bold text-cyan-700 hover:text-cyan-800 transition cursor-pointer"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            Xem / Sửa chi tiết
+                          </button>
+
+                          {canEdit && (
+                            <div className="flex items-center gap-1">
+                              {onDeleteStep && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDeleteStep(step.id);
+                                  }}
+                                  className="rounded-lg p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                                  title="Xóa bước này"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
       {selectedStep && (
         <WorkflowStepDetailModal
           step={selectedStep}
           stepIndex={workflow.steps.findIndex((step) => step.id === selectedStep.id)}
           canEdit={canEdit}
           onClose={() => setSelectedStep(null)}
+          onEdit={onEditStep}
+          onDelete={onDeleteStep}
           onPreview={setPreviewAttachment}
         />
       )}
-      {previewAttachment && <WorkflowAttachmentPreview attachment={previewAttachment} onClose={() => setPreviewAttachment(null)} />}
+      {previewAttachment && (
+        <WorkflowAttachmentPreview
+          attachment={previewAttachment}
+          onClose={() => setPreviewAttachment(null)}
+        />
+      )}
     </>
   );
 }
@@ -952,32 +1214,169 @@ function WorkflowStepDetailModal({
   stepIndex,
   canEdit,
   onClose,
+  onEdit,
+  onDelete,
   onPreview,
 }: {
   step: WorkflowStep;
   stepIndex: number;
   canEdit: boolean;
   onClose: () => void;
+  onEdit?: (step: WorkflowStep) => void;
+  onDelete?: (stepId: string) => void;
   onPreview: (attachment: TaskAttachment) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" role="presentation" onClick={onClose}>
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="workflow-step-detail-title" onClick={(event) => event.stopPropagation()}>
-        <div className="flex items-start justify-between gap-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 sm:p-4 backdrop-blur-xs animate-in fade-in"
+      role="presentation"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-3xl border border-slate-100 bg-white shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="workflow-step-detail-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {/* Header */}
+        <header className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-indigo-500">Bước {stepIndex + 1}</p>
-            <h2 id="workflow-step-detail-title" className="mt-1 text-xl font-extrabold text-cyan-700">{step.title || `Bước ${stepIndex + 1}`}</h2>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-600">
+              Giai đoạn thực hiện · Bước {stepIndex + 1}
+            </span>
+            <h2 id="workflow-step-detail-title" className="mt-0.5 text-lg font-extrabold text-slate-900">
+              {step.title || `Bước ${stepIndex + 1}`}
+            </h2>
           </div>
-          <button onClick={onClose} className="rounded-lg px-2 py-1 text-xl text-slate-400 hover:bg-slate-100" aria-label="Đóng">×</button>
+          <button
+            onClick={onClose}
+            className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
+            aria-label="Đóng"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </header>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {/* Description */}
+          {step.description && (
+            <div>
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wide block mb-1.5">
+                Mô tả hướng dẫn
+              </span>
+              <p className="whitespace-pre-wrap rounded-2xl bg-slate-50/70 p-4 border border-slate-100 text-xs sm:text-sm leading-relaxed text-slate-700">
+                {step.description}
+              </p>
+            </div>
+          )}
+
+          {/* Note */}
+          {step.note && (
+            <div className="rounded-2xl border border-amber-200/80 bg-amber-50/70 p-4 text-xs sm:text-sm text-amber-900 leading-relaxed flex items-start gap-2.5">
+              <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <strong className="font-bold">Lưu ý:</strong> {step.note}
+              </div>
+            </div>
+          )}
+
+          {/* Deliverable */}
+          {step.deliverable && (
+            <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/70 p-4 text-xs sm:text-sm text-emerald-900 leading-relaxed flex items-start gap-2.5">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <strong className="font-bold">Kết quả cần đạt:</strong> {step.deliverable}
+              </div>
+            </div>
+          )}
+
+          {/* SubTasks / Checklist */}
+          {!!step.subTasks?.length && (
+            <div>
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wide block mb-2">
+                Công việc cần làm ({step.subTasks.length})
+              </span>
+              <ul className="space-y-2">
+                {step.subTasks.map((task) => (
+                  <li
+                    key={task.id}
+                    className="flex items-center gap-2.5 rounded-xl border border-slate-200/80 bg-white p-3 text-xs sm:text-sm font-semibold text-slate-800 shadow-3xs"
+                  >
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>{task.title}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Attachments */}
+          {!!step.attachments?.length && (
+            <div>
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wide block mb-2">
+                Tệp đính kèm & tài liệu ({step.attachments.length})
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {step.attachments.map((attachment) => (
+                  <button
+                    key={attachment.id}
+                    type="button"
+                    onClick={() => onPreview(attachment)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-bold text-cyan-700 hover:bg-cyan-50 hover:border-cyan-200 transition cursor-pointer shadow-3xs"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 text-cyan-600" />
+                    Xem preview: {attachment.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-        {step.description && <p className="mt-5 whitespace-pre-wrap text-sm leading-6 text-slate-700">{step.description}</p>}
-        {step.note && <div className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800"><strong>Lưu ý:</strong> {step.note}</div>}
-        {step.deliverable && <div className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800"><strong>Kết quả cần đạt:</strong> {step.deliverable}</div>}
-        {!!step.subTasks?.length && <div className="mt-5"><h3 className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Công việc cần làm</h3><ul className="mt-2 space-y-2">{step.subTasks.map((task) => <li key={task.id} className="flex items-center gap-2 text-sm text-slate-700"><CheckCircle2 className="h-4 w-4 text-emerald-500" />{task.title}</li>)}</ul></div>}
-        {!!step.attachments?.length && <div className="mt-5"><h3 className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Tệp đính kèm</h3><div className="mt-2 flex flex-wrap gap-2">{step.attachments.map((attachment) => <button key={attachment.id} type="button" onClick={() => onPreview(attachment)} className="flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"><ExternalLink className="h-3.5 w-3.5" />Xem preview: {attachment.name}</button>)}</div></div>}
-        <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
-          <button onClick={onClose} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">Đóng</button>
-        </div>
+
+        {/* Footer */}
+        <footer className="flex shrink-0 items-center justify-between border-t border-slate-100 px-6 py-3.5 bg-slate-50/50 rounded-b-3xl">
+          <div className="flex items-center gap-2">
+            {canEdit && (
+              <>
+                {onEdit && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onEdit(step);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-cyan-500 shadow-xs transition cursor-pointer active:scale-95"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Chỉnh sửa bước
+                  </button>
+                )}
+                {onDelete && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onDelete(step.id);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2 text-xs font-bold text-rose-600 hover:bg-rose-100 shadow-xs transition cursor-pointer active:scale-95"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Xóa bước này
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 bg-white px-5 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer shadow-3xs"
+          >
+            Đóng
+          </button>
+        </footer>
       </div>
     </div>
   );
@@ -993,7 +1392,109 @@ function WorkflowAttachmentPreview({ attachment, onClose }: { attachment: TaskAt
   const downloadUrl = `/api/v1/media/download?url=${encodeURIComponent(attachment.url)}&filename=${encodeURIComponent(attachment.name || "tai-lieu-quy-trinh")}&token=${encodeURIComponent(accessToken)}`; const previewUrl = `${downloadUrl}&inline=true`;
   useEffect(() => { const fn = (e: KeyboardEvent) => e.key === "Escape" && onClose(); document.addEventListener("keydown", fn); return () => document.removeEventListener("keydown", fn); }, [onClose]);
   useEffect(() => { if (!isDocx || !containerRef.current) return; let cancelled = false; void fetch(attachment.url).then((r) => r.ok ? r.blob() : Promise.reject(new Error("download failed"))).then((blob) => !cancelled && containerRef.current && renderAsync(blob, containerRef.current, undefined, { className: "docx-preview" })).catch(() => !cancelled && setDocxError(true)); return () => { cancelled = true; }; }, [attachment.url, isDocx]);
-  return <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" role="presentation" onClick={onClose}><div className="w-full max-w-5xl rounded-2xl bg-white p-5 shadow-2xl max-h-[90dvh] overflow-y-auto overscroll-contain" role="dialog" aria-modal="true" aria-label="Preview tệp" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between gap-3"><h2 className="truncate text-base font-bold text-slate-800">{attachment.name}</h2><button type="button" onClick={onClose} aria-label="Đóng preview" className="rounded-lg px-2 py-1 text-xl text-slate-400 hover:bg-slate-100">×</button></div><div className="mt-4 flex min-h-48 max-h-[70vh] items-center justify-center overflow-auto rounded-xl bg-slate-100 p-4">{isImage && <img src={attachment.url} alt={attachment.name} className="max-h-[65vh] max-w-full object-contain" />}{isVideo && <video src={attachment.url} controls className="max-h-[65vh] max-w-full" />}{isAudio && <audio src={attachment.url} controls />}{isPdf && <iframe src={previewUrl} className="h-[65vh] w-full border-0 bg-white" title={attachment.name} />}{isDocx && !docxError && <div ref={containerRef} className="w-full bg-white p-4" />}{isOffice && !isPdf && !isDocx && <iframe src={`https://docs.google.com/gview?url=${encodeURIComponent(attachment.url)}&embedded=true`} className="h-[65vh] w-full border-0 bg-white" title={attachment.name} />}{!isImage && !isVideo && !isAudio && !isPdf && !isOffice && <PreviewFallback downloadUrl={downloadUrl} />}{docxError && <PreviewFallback downloadUrl={downloadUrl} />}</div><div className="mt-4 flex justify-end gap-2"><a href={downloadUrl} target="_blank" rel="noreferrer" className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white">Tải xuống</a><button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600">Đóng</button></div></div></div>;
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in"
+      role="presentation"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-3xl border border-slate-100 bg-white shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Preview tệp"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
+          <div className="flex items-center gap-3 min-w-0 pr-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-50 text-cyan-600">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                Xem trước tài liệu
+              </span>
+              <h2 className="truncate text-base font-extrabold text-slate-900">
+                {attachment.name}
+              </h2>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Đóng preview"
+            className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Content Preview Container */}
+        <div className="flex-1 overflow-auto p-4 sm:p-6 bg-slate-50/50">
+          <div className="flex min-h-64 max-h-[68vh] items-center justify-center overflow-auto rounded-2xl border border-slate-200/80 bg-white p-4 shadow-3xs">
+            {isImage && (
+              <img
+                src={attachment.url}
+                alt={attachment.name}
+                className="max-h-[65vh] max-w-full rounded-lg object-contain shadow-xs"
+              />
+            )}
+            {isVideo && (
+              <video
+                src={attachment.url}
+                controls
+                className="max-h-[65vh] max-w-full rounded-lg"
+              />
+            )}
+            {isAudio && <audio src={attachment.url} controls className="w-full max-w-md" />}
+            {isPdf && (
+              <iframe
+                src={previewUrl}
+                className="h-[65vh] w-full rounded-lg border-0 bg-white"
+                title={attachment.name}
+              />
+            )}
+            {isDocx && !docxError && <div ref={containerRef} className="w-full bg-white p-4" />}
+            {isOffice && !isPdf && !isDocx && (
+              <iframe
+                src={`https://docs.google.com/gview?url=${encodeURIComponent(
+                  attachment.url
+                )}&embedded=true`}
+                className="h-[65vh] w-full rounded-lg border-0 bg-white"
+                title={attachment.name}
+              />
+            )}
+            {!isImage && !isVideo && !isAudio && !isPdf && !isOffice && (
+              <PreviewFallback downloadUrl={downloadUrl} />
+            )}
+            {docxError && <PreviewFallback downloadUrl={downloadUrl} />}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex shrink-0 items-center justify-end border-t border-slate-100 px-6 py-3.5 bg-white rounded-b-3xl">
+          <div className="flex items-center gap-2">
+            <a
+              href={downloadUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-600 px-4 py-2 text-xs font-bold text-white hover:bg-cyan-500 shadow-xs transition cursor-pointer"
+            >
+              Tải xuống
+            </a>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 function PreviewFallback({ downloadUrl }: { downloadUrl: string }) { return <div className="text-center text-sm text-slate-600"><p>Không thể xem trước trực tiếp loại tệp này.</p><a href={downloadUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-lg bg-indigo-600 px-3 py-2 font-bold text-white">Mở tệp</a></div>; }
 function NewWorkflowWizard({

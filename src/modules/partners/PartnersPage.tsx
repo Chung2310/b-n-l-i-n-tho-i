@@ -15,7 +15,6 @@ import {
   AlertCircle,
   Edit3,
   Trash2,
-  Copy,
   Coins,
   Shield,
   X,
@@ -260,11 +259,10 @@ function PartnerForm({
                   return (
                     <label
                       key={key}
-                      className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 transition ${
-                        checked
-                          ? "border-cyan-500/40 bg-cyan-50/50 ring-1 ring-cyan-500/20"
-                          : "border-slate-200 bg-slate-50/50 hover:bg-slate-100/50"
-                      }`}
+                      className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 transition ${checked
+                        ? "border-cyan-500/40 bg-cyan-50/50 ring-1 ring-cyan-500/20"
+                        : "border-slate-200 bg-slate-50/50 hover:bg-slate-100/50"
+                        }`}
                     >
                       <span className="text-sm font-medium text-slate-800">
                         {label}
@@ -300,9 +298,6 @@ function PartnerForm({
                   <option value="inactive">Ngừng hoạt động</option>
                 </select>
               </label>
-              <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-500 border border-slate-100">
-                <span className="font-semibold text-slate-700">Ghi chú:</span> Đối tác ngừng hoạt động sẽ không thể gắn vào đơn hàng mới hoặc tính hoa hồng phát sinh.
-              </div>
             </div>
           </div>
 
@@ -410,11 +405,13 @@ function Statement({
   self,
   canPay,
   onClose,
+  asModal = false,
 }: {
   partnerId?: string;
   self: boolean;
   canPay: boolean;
   onClose?: () => void;
+  asModal?: boolean;
 }) {
   const [period, setPeriod] = React.useState(month);
   const [page, setPage] = React.useState(1);
@@ -428,6 +425,15 @@ function Statement({
   const partnerGroup = String(data?.partner?.roles?.[0] || "collaborator");
   const partnerGroupLabel = roles[partnerGroup] || "Đối tác";
   const isCommissionPartner = partnerGroup === "collaborator";
+
+  React.useEffect(() => {
+    if (!asModal || !onClose) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [asModal, onClose]);
 
   const load = React.useCallback(async () => {
     const request = ++requestNumber.current;
@@ -475,10 +481,10 @@ function Statement({
     }
   };
 
-  return (
-    <section className="mt-6 space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+  const content = (
+    <>
       {/* Top Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4 dark:border-slate-800">
+      <div className={`flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4 dark:border-slate-800 ${asModal ? "sticky top-0 z-20 -mx-6 -mt-6 border-b border-slate-200 bg-white/95 px-6 py-4.5 backdrop-blur-xs shadow-xs dark:border-slate-800 dark:bg-slate-900/95" : ""}`}>
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-100 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-400">
             <Receipt className="h-5 w-5" />
@@ -516,8 +522,10 @@ function Statement({
           </button>
           {onClose && (
             <button
+              type="button"
+              aria-label="Đóng popup sao kê"
               onClick={onClose}
-              className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 cursor-pointer"
+              className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 cursor-pointer transition"
             >
               <X className="h-4 w-4" />
             </button>
@@ -555,251 +563,304 @@ function Statement({
           </div>
 
           <div className={isCommissionPartner ? "contents" : "hidden"}>
-          {/* Summary Metric Cards */}
-          <div className="grid gap-4 sm:grid-cols-3">
-            {/* Balance Card */}
-            <div className="relative overflow-hidden rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 to-cyan-50/40 p-4.5 dark:border-sky-950 dark:from-sky-950/30 dark:to-cyan-950/20">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wider text-sky-800 dark:text-sky-300">
-                  Số dư toàn bộ kỳ
-                </p>
-                <Coins className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-              </div>
-              <p className={`mt-2 text-2xl font-extrabold ${data.partner.balance < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-slate-100'}`}>
-                {money(data.partner.balance)}
-              </p>
-              <p className="mt-1 text-xs text-sky-900/70 dark:text-sky-300/70">
-                Số âm được bù trừ vào khoản phát sinh tiếp theo.
-              </p>
-            </div>
-
-            {/* Machines KPI */}
-            <div className="relative overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-purple-50/40 p-4.5 dark:border-indigo-950 dark:from-indigo-950/30 dark:to-purple-950/20">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wider text-indigo-800 dark:text-indigo-300">
-                  Máy hợp lệ trong tháng
-                </p>
-                <Smartphone className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-              </div>
-              <p className="mt-2 text-2xl font-extrabold text-slate-900 dark:text-slate-100">
-                {data.kpi.machines} máy
-              </p>
-              <p className="mt-1 text-xs text-indigo-900/70 dark:text-indigo-300/70">
-                {data.kpi.nextThreshold
-                  ? `Còn ${data.kpi.nextThreshold - data.kpi.machines} máy đến mốc ${data.kpi.nextThreshold}`
-                  : "Đã đạt bậc cao nhất"}
-              </p>
-            </div>
-
-            {/* Bonus Card */}
-            <div className="relative overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-teal-50/40 p-4.5 dark:border-emerald-950 dark:from-emerald-950/30 dark:to-teal-950/20">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
-                  Thưởng KPI {data.kpi.provisional ? "(tạm tính)" : "(quyền lợi hiện tại)"}
-                </p>
-                <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <p className="mt-2 text-2xl font-extrabold text-emerald-700 dark:text-emerald-400">
-                {money(data.kpi.bonus)}
-              </p>
-              <p className="mt-1 text-xs text-emerald-900/70 dark:text-emerald-300/70">
-                10 máy: 1 triệu · 20 máy: 2,5 triệu
-              </p>
-            </div>
-          </div>
-
-          {/* Pending Orders Notice */}
-          <details className="group rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 transition dark:border-slate-800 dark:bg-slate-800/40">
-            <summary className="cursor-pointer text-xs font-bold text-slate-700 select-none hover:text-cyan-600 dark:text-slate-300 dark:hover:text-cyan-400 flex items-center justify-between">
-              <span>Đơn đang chờ đủ điều kiện (toàn bộ kỳ)</span>
-              <span className="text-[11px] text-slate-400 font-normal">
-                {data.pending?.length || 0} khoản đang chờ
-              </span>
-            </summary>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-              Tối đa 100 đơn bán và 100 phiếu sửa. Khoản dự kiến chưa cộng vào số dư khả dụng.
-            </p>
-            <div className="mt-2.5 space-y-1.5 divide-y divide-slate-100 dark:divide-slate-800">
-              {(data.pending || []).map((r: any, i: number) => (
-                <div key={i} className="pt-1.5 text-xs text-slate-700 dark:text-slate-300 flex items-center justify-between">
-                  <span className="font-mono font-medium text-cyan-600 dark:text-cyan-400">{r.code}</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">{money(r.amount)} dự kiến</span>
-                  <span className="text-slate-500">{r.reason}</span>
+            {/* Summary Metric Cards */}
+            <div className="grid gap-4 sm:grid-cols-3">
+              {/* Balance Card */}
+              <div className="relative overflow-hidden rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 to-cyan-50/40 p-4.5 dark:border-sky-950 dark:from-sky-950/30 dark:to-cyan-950/20">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-sky-800 dark:text-sky-300">
+                    Số dư toàn bộ kỳ
+                  </p>
+                  <Coins className="h-4 w-4 text-sky-600 dark:text-sky-400" />
                 </div>
+                <p className={`mt-2 text-2xl font-extrabold ${data.partner.balance < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-slate-100'}`}>
+                  {money(data.partner.balance)}
+                </p>
+                <p className="mt-1 text-xs text-sky-900/70 dark:text-sky-300/70">
+                  Số âm được bù trừ vào khoản phát sinh tiếp theo.
+                </p>
+              </div>
+
+              {/* Machines KPI */}
+              <div className="relative overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-purple-50/40 p-4.5 dark:border-indigo-950 dark:from-indigo-950/30 dark:to-purple-950/20">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-indigo-800 dark:text-indigo-300">
+                    Máy hợp lệ trong tháng
+                  </p>
+                  <Smartphone className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <p className="mt-2 text-2xl font-extrabold text-slate-900 dark:text-slate-100">
+                  {data.kpi.machines} máy
+                </p>
+                <p className="mt-1 text-xs text-indigo-900/70 dark:text-indigo-300/70">
+                  {data.kpi.nextThreshold
+                    ? `Còn ${data.kpi.nextThreshold - data.kpi.machines} máy đến mốc ${data.kpi.nextThreshold}`
+                    : "Đã đạt bậc cao nhất"}
+                </p>
+              </div>
+
+              {/* Bonus Card */}
+              <div className="relative overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-teal-50/40 p-4.5 dark:border-emerald-950 dark:from-emerald-950/30 dark:to-teal-950/20">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                    Thưởng KPI {data.kpi.provisional ? "(tạm tính)" : "(quyền lợi hiện tại)"}
+                  </p>
+                  <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <p className="mt-2 text-2xl font-extrabold text-emerald-700 dark:text-emerald-400">
+                  {money(data.kpi.bonus)}
+                </p>
+                <p className="mt-1 text-xs text-emerald-900/70 dark:text-emerald-300/70">
+                  10 máy: 1 triệu · 20 máy: 2,5 triệu
+                </p>
+              </div>
+            </div>
+
+            {/* Pending Orders Notice */}
+            <details className="group rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 transition dark:border-slate-800 dark:bg-slate-800/40">
+              <summary className="cursor-pointer text-xs font-bold text-slate-700 select-none hover:text-cyan-600 dark:text-slate-300 dark:hover:text-cyan-400 flex items-center justify-between">
+                <span>Đơn đang chờ đủ điều kiện (toàn bộ kỳ)</span>
+                <span className="text-[11px] text-slate-400 font-normal">
+                  {data.pending?.length || 0} khoản đang chờ
+                </span>
+              </summary>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Tối đa 100 đơn bán và 100 phiếu sửa. Khoản dự kiến chưa cộng vào số dư khả dụng.
+              </p>
+              <div className="mt-2.5 space-y-1.5 divide-y divide-slate-100 dark:divide-slate-800">
+                {(data.pending || []).map((r: any, i: number) => (
+                  <div key={i} className="pt-1.5 text-xs text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                    <span className="font-mono font-medium text-cyan-600 dark:text-cyan-400">{r.code}</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{money(r.amount)} dự kiến</span>
+                    <span className="text-slate-500">{r.reason}</span>
+                  </div>
+                ))}
+                {(!data.pending || data.pending.length === 0) && (
+                  <p className="pt-2 text-xs text-slate-400 italic">Không có khoản nào đang chờ duyệt.</p>
+                )}
+              </div>
+            </details>
+
+            {/* Sums Breakdown Pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Tổng kết tháng:</span>
+              {data.sums.map((s: any) => (
+                <span
+                  key={s._id}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300"
+                >
+                  <span>{kindNames[s._id]}:</span>
+                  <b className={s._id === 'reversal' || s._id === 'payout' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
+                    {money(s._id === "payout" ? -s.amount : s.amount)}
+                  </b>
+                </span>
               ))}
-              {(!data.pending || data.pending.length === 0) && (
-                <p className="pt-2 text-xs text-slate-400 italic">Không có khoản nào đang chờ duyệt.</p>
+            </div>
+
+            {/* Statement Entries Table */}
+            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold text-slate-500 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
+                  <tr>
+                    <th className="p-3">Ngày</th>
+                    <th className="p-3">Chứng từ</th>
+                    <th className="p-3">Loại / cách tính</th>
+                    <th className="p-3 text-right">Số tiền</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {data.entries.map((r: any) => (
+                    <tr key={r._id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                      <td className="whitespace-nowrap p-3 text-xs text-slate-600 dark:text-slate-400">
+                        {new Date(r.createdAt).toLocaleDateString("vi-VN")}
+                      </td>
+                      <td className="p-3 text-xs font-mono font-medium text-slate-900 dark:text-slate-100">
+                        {r.sourceCode || r.reference || "—"}
+                      </td>
+                      <td className="p-3 text-xs">
+                        <p className="font-semibold text-slate-800 dark:text-slate-200">
+                          {kindNames[r.kind] || r.kind}
+                        </p>
+                        {r.reason && (
+                          <p className="text-slate-500 dark:text-slate-400">{r.reason}</p>
+                        )}
+                        {r.calculation?.label && (
+                          <p className="mt-0.5 font-mono text-[11px] text-cyan-600 dark:text-cyan-400">
+                            {r.calculation.label}:{" "}
+                            {r.calculation.kind === "phone"
+                              ? `${r.calculation.quantity} máy × ${money(r.calculation.rate)}`
+                              : `${money(r.calculation.base)} × ${r.calculation.rate / 100}%`}
+                            {r.calculation.returnedQuantity > 0 ? ` · trả ${r.calculation.returnedQuantity}` : ""}
+                            {r.calculation.refundedBase > 0 ? ` · hoàn ${money(r.calculation.refundedBase)}` : ""}
+                          </p>
+                        )}
+                        {r.calculation?.entitlement !== undefined && (
+                          <p className="text-[11px] text-indigo-600 dark:text-indigo-400">
+                            Quyền lợi còn lại: {money(r.calculation.entitlement)}
+                          </p>
+                        )}
+                      </td>
+                      <td
+                        className={`whitespace-nowrap p-3 text-right font-bold text-sm ${r.amount < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
+                          }`}
+                      >
+                        {money(r.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {data.total === 0 && (
+                <div className="py-10 text-center text-slate-400 dark:text-slate-500">
+                  <Receipt className="mx-auto mb-2 h-8 w-8 stroke-1 opacity-50" />
+                  <p>Chưa có phát sinh trong tháng này.</p>
+                </div>
               )}
             </div>
-          </details>
 
-          {/* Sums Breakdown Pills */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Tổng kết tháng:</span>
-            {data.sums.map((s: any) => (
-              <span
-                key={s._id}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300"
-              >
-                <span>{kindNames[s._id]}:</span>
-                <b className={s._id === 'reversal' || s._id === 'payout' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
-                  {money(s._id === "payout" ? -s.amount : s.amount)}
-                </b>
+            {/* Pagination */}
+            <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+              <span>
+                Trang {page} · {data.total} khoản
               </span>
-            ))}
-          </div>
-
-          {/* Statement Entries Table */}
-          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold text-slate-500 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
-                <tr>
-                  <th className="p-3">Ngày</th>
-                  <th className="p-3">Chứng từ</th>
-                  <th className="p-3">Loại / cách tính</th>
-                  <th className="p-3 text-right">Số tiền</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {data.entries.map((r: any) => (
-                  <tr key={r._id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                    <td className="whitespace-nowrap p-3 text-xs text-slate-600 dark:text-slate-400">
-                      {new Date(r.createdAt).toLocaleDateString("vi-VN")}
-                    </td>
-                    <td className="p-3 text-xs font-mono font-medium text-slate-900 dark:text-slate-100">
-                      {r.sourceCode || r.reference || "—"}
-                    </td>
-                    <td className="p-3 text-xs">
-                      <p className="font-semibold text-slate-800 dark:text-slate-200">
-                        {kindNames[r.kind] || r.kind}
-                      </p>
-                      {r.reason && (
-                        <p className="text-slate-500 dark:text-slate-400">{r.reason}</p>
-                      )}
-                      {r.calculation?.label && (
-                        <p className="mt-0.5 font-mono text-[11px] text-cyan-600 dark:text-cyan-400">
-                          {r.calculation.label}:{" "}
-                          {r.calculation.kind === "phone"
-                            ? `${r.calculation.quantity} máy × ${money(r.calculation.rate)}`
-                            : `${money(r.calculation.base)} × ${r.calculation.rate / 100}%`}
-                          {r.calculation.returnedQuantity > 0 ? ` · trả ${r.calculation.returnedQuantity}` : ""}
-                          {r.calculation.refundedBase > 0 ? ` · hoàn ${money(r.calculation.refundedBase)}` : ""}
-                        </p>
-                      )}
-                      {r.calculation?.entitlement !== undefined && (
-                        <p className="text-[11px] text-indigo-600 dark:text-indigo-400">
-                          Quyền lợi còn lại: {money(r.calculation.entitlement)}
-                        </p>
-                      )}
-                    </td>
-                    <td
-                      className={`whitespace-nowrap p-3 text-right font-bold text-sm ${
-                        r.amount < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
-                      }`}
-                    >
-                      {money(r.amount)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {data.total === 0 && (
-              <div className="py-10 text-center text-slate-400 dark:text-slate-500">
-                <Receipt className="mx-auto mb-2 h-8 w-8 stroke-1 opacity-50" />
-                <p>Chưa có phát sinh trong tháng này.</p>
-              </div>
-            )}
-          </div>
-
-          {/* Pagination */}
-          <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
-            <span>
-              Trang {page} · {data.total} khoản
-            </span>
-            <div className="flex gap-2">
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage(page - 1)}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 font-medium hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800 cursor-pointer"
-              >
-                Trước
-              </button>
-              <button
-                disabled={page * 100 >= data.total}
-                onClick={() => setPage(page + 1)}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 font-medium hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800 cursor-pointer"
-              >
-                Sau
-              </button>
-            </div>
-          </div>
-
-          {/* Payout Confirmation Section */}
-          {canPay && !self && (
-            <form
-              className="mt-6 space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4.5 dark:border-emerald-900/40 dark:bg-emerald-950/20"
-              onSubmit={payout}
-            >
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-emerald-600" />
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                  Xác nhận chi trả
-                </h3>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Chỉ xác nhận sau khi đã chuyển tiền. Hoàn/hủy đơn sau chi sẽ ghi số dư cần bù trừ.
-              </p>
-              <div className="flex flex-wrap gap-2.5">
-                <input
-                  required
-                  aria-label="Số tiền chi"
-                  type="number"
-                  min="1"
-                  max={Math.max(0, data.partner.balance)}
-                  value={amount}
-                  onChange={(e) => {
-                    setAmount(e.target.value);
-                    payoutKey.current = crypto.randomUUID();
-                  }}
-                  placeholder="Số tiền chi (VND)"
-                  className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                />
-                <input
-                  required
-                  aria-label="Chứng từ chi"
-                  value={reference}
-                  onChange={(e) => {
-                    setReference(e.target.value);
-                    payoutKey.current = crypto.randomUUID();
-                  }}
-                  placeholder="Mã chứng từ chuyển tiền (UNC, mã giao dịch...)"
-                  className="min-w-[220px] flex-1 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                />
+              <div className="flex gap-2">
                 <button
-                  type="submit"
-                  disabled={busy || data.partner.balance <= 0}
-                  className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-40 transition cursor-pointer"
+                  disabled={page <= 1}
+                  onClick={() => setPage(page - 1)}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 font-medium hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800 cursor-pointer"
                 >
-                  {busy ? "Đang xử lý..." : "Xác nhận đã chi"}
+                  Trước
+                </button>
+                <button
+                  disabled={page * 100 >= data.total}
+                  onClick={() => setPage(page + 1)}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 font-medium hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Sau
                 </button>
               </div>
-            </form>
-          )}
+            </div>
+
+            {/* Payout Confirmation Section */}
+            {canPay && !self && (
+              <form
+                className="mt-6 space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4.5 dark:border-emerald-900/40 dark:bg-emerald-950/20"
+                onSubmit={payout}
+              >
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-emerald-600" />
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    Xác nhận chi trả
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Chỉ xác nhận sau khi đã chuyển tiền. Hoàn/hủy đơn sau chi sẽ ghi số dư cần bù trừ.
+                </p>
+                <div className="flex flex-wrap gap-2.5">
+                  <input
+                    required
+                    aria-label="Số tiền chi"
+                    type="number"
+                    min="1"
+                    max={Math.max(0, data.partner.balance)}
+                    value={amount}
+                    onChange={(e) => {
+                      setAmount(e.target.value);
+                      payoutKey.current = crypto.randomUUID();
+                    }}
+                    placeholder="Số tiền chi (VND)"
+                    className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                  <input
+                    required
+                    aria-label="Chứng từ chi"
+                    value={reference}
+                    onChange={(e) => {
+                      setReference(e.target.value);
+                      payoutKey.current = crypto.randomUUID();
+                    }}
+                    placeholder="Mã chứng từ chuyển tiền (UNC, mã giao dịch...)"
+                    className="min-w-[220px] flex-1 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                  <button
+                    type="submit"
+                    disabled={busy || data.partner.balance <= 0}
+                    className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-40 transition cursor-pointer"
+                  >
+                    {busy ? "Đang xử lý..." : "Xác nhận đã chi"}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </>
       )}
+    </>
+  );
+
+  if (asModal) {
+    return createPortal(
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs animate-in fade-in duration-200"
+        onClick={(e) => {
+          if (e.target === e.currentTarget && onClose) onClose();
+        }}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={isCommissionPartner ? `Sao kê hoa hồng ${data?.partner?.name || ""}` : `Cổng ${partnerGroupLabel}: ${data?.partner?.name || ""}`}
+          className="relative flex max-h-[92vh] w-full max-w-5xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900 overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="overflow-y-auto p-6 space-y-5 flex-1">
+            {content}
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  }
+
+  return (
+    <section className="mt-6 space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      {content}
     </section>
   );
+}
+
+function toDateTimeLocal(value: string | Date | undefined | null): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function resolvePolicyConfig(initial: any) {
+  const c = initial?.config || (initial?.phoneAmount !== undefined ? initial : null);
+  return {
+    phoneAmount: c?.phoneAmount ?? 200000,
+    accessoryBps: c?.accessoryBps ?? 1000,
+    repairBps: c?.repairBps ?? 1000,
+    rules: Array.isArray(c?.rules) ? structuredClone(c.rules) : [],
+  };
 }
 
 // ---------------------------------------------------------
 // COMMISSION POLICY EDITOR
 // ---------------------------------------------------------
 function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner[]; initial: any; onClose: () => void; onSaved: () => void }) {
-  const [config, setConfig] = React.useState<any>(() => initial?.config ? structuredClone(initial.config) : { phoneAmount: 200000, accessoryBps: 1000, repairBps: 1000, rules: [] });
-  const [partnerId, setPartnerId] = React.useState(initial?.partnerId || "");
-  const [effectiveAt, setEffectiveAt] = React.useState("");
+  const isEditing = Boolean(initial?._id);
+  const [config, setConfig] = React.useState<any>(() => resolvePolicyConfig(initial));
+  const [partnerId, setPartnerId] = React.useState(() => initial?.partnerId || "");
+  const [effectiveAt, setEffectiveAt] = React.useState(() => toDateTimeLocal(initial?.effectiveAt));
   const [message, setMessage] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const dialogRef = React.useRef<HTMLDivElement>(null);
@@ -807,6 +868,15 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
   busyRef.current = busy;
   const closeRef = React.useRef(onClose);
   closeRef.current = onClose;
+
+  React.useEffect(() => {
+    if (initial) {
+      setConfig(resolvePolicyConfig(initial));
+      setPartnerId(initial.partnerId || "");
+      setEffectiveAt(toDateTimeLocal(initial.effectiveAt));
+    }
+  }, [initial]);
+
   React.useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const overflow = document.body.style.overflow;
@@ -824,301 +894,317 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
     document.addEventListener("keydown", keydown);
     return () => { document.body.style.overflow = overflow; document.removeEventListener("keydown", keydown); previous?.focus(); };
   }, []);
+
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     if (busyRef.current) return;
     busyRef.current = true; setBusy(true); setMessage("");
     try {
-      await partnerRequest("/policies", "POST", { partnerId, ...(effectiveAt ? { effectiveAt: new Date(effectiveAt).toISOString() } : {}), config });
+      const payload = {
+        partnerId,
+        ...(effectiveAt ? { effectiveAt: new Date(effectiveAt).toISOString() } : {}),
+        config: {
+          ...config,
+          phoneAmount: Number(config.phoneAmount) || 200000,
+          accessoryBps: Number(config.accessoryBps) || 1000,
+          repairBps: Number(config.repairBps) || 1000,
+        },
+      };
+      if (isEditing) {
+        await partnerRequest(`/policies/${initial._id}`, "PATCH", payload);
+      } else {
+        await partnerRequest("/policies", "POST", payload);
+      }
       onSaved();
-    } catch (error) { setMessage((error as Error).message); }
-    finally { busyRef.current = false; setBusy(false); }
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
   };
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs">
-      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Tạo chính sách hoa hồng" className="relative max-h-[90dvh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl outline-none">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={initial?._id ? "Sửa chính sách hoa hồng" : "Tạo chính sách hoa hồng"} className="relative max-h-[90dvh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl outline-none">
         <button type="button" aria-label="Đóng popup chính sách" disabled={busy} onClick={onClose} className="absolute right-4 top-4 rounded-lg p-2 text-slate-400 hover:bg-slate-100 disabled:opacity-50"><X className="h-5 w-5" /></button>
-    <form
-      onSubmit={save}
-      className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
-    >
-      <div className="flex items-center gap-3 border-b border-slate-100 pb-4 pr-8">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white">
-          <SlidersHorizontal className="h-5 w-5" />
-        </div>
-        <div>
-          <h2 className="text-lg font-bold text-slate-900">
-            Tạo chính sách hoa hồng
-          </h2>
-          <p className="text-xs text-slate-500">
-            Mỗi lần lưu tạo phiên bản mới. Quy tắc SKU ưu tiên hơn nhóm hàng. Cần khai báo nhóm/SKU cho mọi hàng bán có gắn CTV.
-          </p>
-        </div>
-      </div>
-
-      {message && (
-        <div
-          role="status"
-          className="flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-700"
+        <form
+          onSubmit={save}
+          className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
         >
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span>{message}</span>
-        </div>
-      )}
-
-      <fieldset disabled={busy} className="space-y-6 border-0 p-0">
-      {/* Scope and Base Settings */}
-      <div>
-        <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
-          Phạm vi & Mức hoa hồng cơ sở
-        </h3>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-xs font-semibold text-slate-700">
-            Áp dụng cho
-            <select
-              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500 cursor-pointer"
-              value={partnerId}
-              onChange={(e) => setPartnerId(e.target.value)}
-            >
-              <option value="">Mặc định toàn công ty</option>
-              {partners
-                .filter((p) => p.roles.includes("collaborator"))
-                .map((p) => (
-                  <option key={p._id} value={p._id}>
-                    {p.name} ({p.code})
-                  </option>
-                ))}
-            </select>
-          </label>
-
-          <label className="text-xs font-semibold text-slate-700">
-            Hiệu lực (để trống = ngay)
-            <input
-              type="datetime-local"
-              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500"
-              value={effectiveAt}
-              onChange={(e) => setEffectiveAt(e.target.value)}
-            />
-          </label>
-
-          <label className="text-xs font-semibold text-slate-700">
-            Điện thoại / máy (VND)
-            <div className="relative mt-1.5">
-              <input
-                type="number"
-                min="150000"
-                max="300000"
-                step="1000"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500"
-                value={config.phoneAmount}
-                onChange={(e) =>
-                  setConfig({ ...config, phoneAmount: Number(e.target.value) })
-                }
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-semibold">
-                đ / máy
-              </span>
+          <div className="flex items-center gap-3 border-b border-slate-100 pb-4 pr-8">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white">
+              <SlidersHorizontal className="h-5 w-5" />
             </div>
-          </label>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">
+                {initial?._id ? "Sửa chính sách hoa hồng" : "Tạo chính sách hoa hồng"}
+              </h2>
+            </div>
+          </div>
 
-          {[
-            ["accessoryBps", "Phụ kiện (%)"],
-            ["repairBps", "Tiền công sửa chữa (%)"],
-          ].map(([key, label]) => (
-            <label key={key} className="text-xs font-semibold text-slate-700">
-              {label}
-              <div className="relative mt-1.5">
-                <input
-                  type="number"
-                  min="10"
-                  max="15"
-                  step="0.01"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500"
-                  value={config[key] / 100}
-                  onChange={(e) =>
-                    setConfig({
-                      ...config,
-                      [key]: Math.round(Number(e.target.value) * 100),
-                    })
-                  }
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-semibold">
-                  %
+          {message && (
+            <div
+              role="status"
+              className="flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-700"
+            >
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{message}</span>
+            </div>
+          )}
+
+          <fieldset disabled={busy} className="space-y-6 border-0 p-0">
+            {/* Scope and Base Settings */}
+            <div>
+              <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
+                Phạm vi & Mức hoa hồng cơ sở
+              </h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-xs font-semibold text-slate-700">
+                  Áp dụng cho
+                  <select
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500 cursor-pointer"
+                    value={partnerId}
+                    onChange={(e) => setPartnerId(e.target.value)}
+                  >
+                    <option value="">Mặc định toàn công ty</option>
+                    {partners
+                      .filter((p) => p.roles.includes("collaborator"))
+                      .map((p) => (
+                        <option key={p._id} value={p._id}>
+                          {p.name} ({p.code})
+                        </option>
+                      ))}
+                  </select>
+                </label>
+
+                <label className="text-xs font-semibold text-slate-700">
+                  Hiệu lực (để trống = ngay)
+                  <input
+                    type="datetime-local"
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500"
+                    value={effectiveAt}
+                    onChange={(e) => setEffectiveAt(e.target.value)}
+                  />
+                </label>
+
+                <label className="text-xs font-semibold text-slate-700">
+                  Điện thoại / máy (VND)
+                  <div className="relative mt-1.5">
+                    <input
+                      type="number"
+                      min="150000"
+                      max="300000"
+                      step="1000"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500"
+                      value={config.phoneAmount}
+                      onChange={(e) =>
+                        setConfig({ ...config, phoneAmount: Number(e.target.value) })
+                      }
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-semibold">
+                      đ / máy
+                    </span>
+                  </div>
+                </label>
+
+                {[
+                  ["accessoryBps", "Phụ kiện (%)"],
+                  ["repairBps", "Tiền công sửa chữa (%)"],
+                ].map(([key, label]) => (
+                  <label key={key} className="text-xs font-semibold text-slate-700">
+                    {label}
+                    <div className="relative mt-1.5">
+                      <input
+                        type="number"
+                        min="10"
+                        max="15"
+                        step="0.01"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500"
+                        value={config[key] / 100}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            [key]: Math.round(Number(e.target.value) * 100),
+                          })
+                        }
+                      />
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-semibold">
+                        %
+                      </span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Specific Rules */}
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Quy tắc hoa hồng riêng biệt (SKU / Nhóm hàng)
+                </h3>
+                <span className="text-xs text-slate-400">
+                  {config.rules.length} quy tắc
                 </span>
               </div>
-            </label>
-          ))}
-        </div>
-      </div>
 
-      {/* Specific Rules */}
-      <div>
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-            Quy tắc hoa hồng riêng biệt (SKU / Nhóm hàng)
-          </h3>
-          <span className="text-xs text-slate-400">
-            {config.rules.length} quy tắc
-          </span>
-        </div>
+              <div className="space-y-2.5">
+                {config.rules.map((r: any, index: number) => (
+                  <div
+                    key={index}
+                    className="flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50/80 p-3"
+                  >
+                    <select
+                      aria-label="Loại sản phẩm"
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
+                      value={r.kind}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          rules: config.rules.map((v: any, i: number) =>
+                            i === index
+                              ? { ...v, kind: e.target.value, amount: undefined, rateBps: undefined }
+                              : v
+                          ),
+                        })
+                      }
+                    >
+                      <option value="phone">Điện thoại</option>
+                      <option value="accessory">Phụ kiện</option>
+                    </select>
 
-        <div className="space-y-2.5">
-          {config.rules.map((r: any, index: number) => (
-            <div
-              key={index}
-              className="flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50/80 p-3"
-            >
-              <select
-                aria-label="Loại sản phẩm"
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
-                value={r.kind}
-                onChange={(e) =>
-                  setConfig({
-                    ...config,
-                    rules: config.rules.map((v: any, i: number) =>
-                      i === index
-                        ? { ...v, kind: e.target.value, amount: undefined, rateBps: undefined }
-                        : v
-                    ),
-                  })
-                }
-              >
-                <option value="phone">Điện thoại</option>
-                <option value="accessory">Phụ kiện</option>
-              </select>
+                    <select
+                      aria-label="Loại quy tắc"
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
+                      value={r.sku !== undefined ? "sku" : "category"}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          rules: config.rules.map((v: any, i: number) =>
+                            i === index
+                              ? { kind: v.kind, [e.target.value]: "" }
+                              : v
+                          ),
+                        })
+                      }
+                    >
+                      <option value="category">Nhóm hàng</option>
+                      <option value="sku">SKU</option>
+                    </select>
 
-              <select
-                aria-label="Loại quy tắc"
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
-                value={r.sku !== undefined ? "sku" : "category"}
-                onChange={(e) =>
-                  setConfig({
-                    ...config,
-                    rules: config.rules.map((v: any, i: number) =>
-                      i === index
-                        ? { kind: v.kind, [e.target.value]: "" }
-                        : v
-                    ),
-                  })
-                }
-              >
-                <option value="category">Nhóm hàng</option>
-                <option value="sku">SKU</option>
-              </select>
+                    <input
+                      aria-label="SKU hoặc nhóm hàng"
+                      required
+                      placeholder="Nhập mã SKU hoặc tên nhóm..."
+                      className="min-w-[150px] flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
+                      value={r.sku ?? r.category}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          rules: config.rules.map((v: any, i: number) =>
+                            i === index
+                              ? { ...v, [r.sku !== undefined ? "sku" : "category"]: e.target.value }
+                              : v
+                          ),
+                        })
+                      }
+                    />
 
-              <input
-                aria-label="SKU hoặc nhóm hàng"
-                required
-                placeholder="Nhập mã SKU hoặc tên nhóm..."
-                className="min-w-[150px] flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
-                value={r.sku ?? r.category}
-                onChange={(e) =>
-                  setConfig({
-                    ...config,
-                    rules: config.rules.map((v: any, i: number) =>
-                      i === index
-                        ? { ...v, [r.sku !== undefined ? "sku" : "category"]: e.target.value }
-                        : v
-                    ),
-                  })
-                }
-              />
+                    <input
+                      aria-label="Mức riêng (để trống dùng mặc định)"
+                      type="number"
+                      placeholder={r.kind === "phone" ? "đ/máy (mặc định)" : "% (mặc định)"}
+                      className="w-44 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
+                      min={r.kind === "phone" ? 150000 : 10}
+                      max={r.kind === "phone" ? 300000 : 15}
+                      step={r.kind === "phone" ? 1000 : 0.01}
+                      value={
+                        r.kind === "phone"
+                          ? r.amount ?? ""
+                          : r.rateBps === undefined
+                            ? ""
+                            : r.rateBps / 100
+                      }
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          rules: config.rules.map((v: any, i: number) =>
+                            i === index
+                              ? {
+                                ...v,
+                                [r.kind === "phone" ? "amount" : "rateBps"]:
+                                  e.target.value === ""
+                                    ? undefined
+                                    : Math.round(
+                                      Number(e.target.value) * (r.kind === "phone" ? 1 : 100)
+                                    ),
+                              }
+                              : v
+                          ),
+                        })
+                      }
+                    />
 
-              <input
-                aria-label="Mức riêng (để trống dùng mặc định)"
-                type="number"
-                placeholder={r.kind === "phone" ? "đ/máy (mặc định)" : "% (mặc định)"}
-                className="w-44 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
-                min={r.kind === "phone" ? 150000 : 10}
-                max={r.kind === "phone" ? 300000 : 15}
-                step={r.kind === "phone" ? 1000 : 0.01}
-                value={
-                  r.kind === "phone"
-                    ? r.amount ?? ""
-                    : r.rateBps === undefined
-                    ? ""
-                    : r.rateBps / 100
-                }
-                onChange={(e) =>
-                  setConfig({
-                    ...config,
-                    rules: config.rules.map((v: any, i: number) =>
-                      i === index
-                        ? {
-                            ...v,
-                            [r.kind === "phone" ? "amount" : "rateBps"]:
-                              e.target.value === ""
-                                ? undefined
-                                : Math.round(
-                                    Number(e.target.value) * (r.kind === "phone" ? 1 : 100)
-                                  ),
-                          }
-                        : v
-                    ),
-                  })
-                }
-              />
+                    <button
+                      type="button"
+                      className="flex items-center gap-1 rounded-lg p-1.5 text-xs text-rose-600 hover:bg-rose-50 cursor-pointer"
+                      onClick={() =>
+                        setConfig({
+                          ...config,
+                          rules: config.rules.filter((_: any, i: number) => i !== index),
+                        })
+                      }
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span>Xóa</span>
+                    </button>
+                  </div>
+                ))}
 
-              <button
-                type="button"
-                className="flex items-center gap-1 rounded-lg p-1.5 text-xs text-rose-600 hover:bg-rose-50 cursor-pointer"
-                onClick={() =>
-                  setConfig({
-                    ...config,
-                    rules: config.rules.filter((_: any, i: number) => i !== index),
-                  })
-                }
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>Xóa</span>
-              </button>
+                {config.rules.length === 0 && (
+                  <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
+                    Chưa có quy tắc riêng biệt nào. Hệ thống sẽ áp dụng mức cơ sở mặc định.
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                  onClick={() =>
+                    setConfig({
+                      ...config,
+                      rules: [...config.rules, { kind: "phone", category: "" }],
+                    })
+                  }
+                >
+                  <Plus className="h-4 w-4" />
+                  Thêm quy tắc
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-sky-600 px-6 py-2 text-xs font-bold text-white shadow-md shadow-cyan-500/20 hover:from-cyan-500 hover:to-sky-500 disabled:opacity-50 transition cursor-pointer"
+                >
+                  {busy ? "Đang lưu..." : isEditing ? "Cập nhật chính sách" : "Lưu phiên bản"}
+                </button>
+              </div>
             </div>
-          ))}
 
-          {config.rules.length === 0 && (
-            <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
-              Chưa có quy tắc riêng biệt nào. Hệ thống sẽ áp dụng mức cơ sở mặc định.
-            </p>
-          )}
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
-            onClick={() =>
-              setConfig({
-                ...config,
-                rules: [...config.rules, { kind: "phone", category: "" }],
-              })
-            }
-          >
-            <Plus className="h-4 w-4" />
-            Thêm quy tắc
-          </button>
-
-          <button
-            type="submit"
-            disabled={busy}
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-sky-600 px-6 py-2 text-xs font-bold text-white shadow-md shadow-cyan-500/20 hover:from-cyan-500 hover:to-sky-500 disabled:opacity-50 transition cursor-pointer"
-          >
-            {busy ? "Đang lưu..." : "Lưu phiên bản"}
-          </button>
-        </div>
-      </div>
-
-      </fieldset>
-      <div className="flex justify-end border-t border-slate-100 pt-4">
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={busy}
-          className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition cursor-pointer"
-        >
-          Hủy
-        </button>
-      </div>
-    </form>
+          </fieldset>
+          <div className="flex justify-end border-t border-slate-100 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={busy}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition cursor-pointer"
+            >
+              Hủy
+            </button>
+          </div>
+        </form>
       </div>
     </div>, document.body
   );
@@ -1140,23 +1226,23 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
   }, [revision]);
   return <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Chính sách hoa hồng</h2><p className="mt-1 text-xs text-slate-500">Danh sách phiên bản chính sách áp dụng cho công ty và từng cộng tác viên.</p></div>
+      <div><h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Chính sách hoa hồng</h2><p className="mt-1 text-xs text-slate-500"></p></div>
       <button type="button" onClick={() => { setDraft({}); setMessage(""); }} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-sky-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:from-cyan-500 hover:to-sky-500"><Plus className="h-4 w-4" />Tạo mới</button>
     </div>
     {message && <p role="status" className="rounded-xl bg-cyan-50 p-3 text-sm text-cyan-700">{message}</p>}
     {error ? <div role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}<button type="button" onClick={() => setRevision(value => value + 1)} className="ml-3 font-semibold underline">Thử lại</button></div> : loading ? <p role="status" className="py-8 text-center text-sm text-slate-500">Đang tải chính sách...</p> : items.length === 0 ? <p className="rounded-xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">Chưa có chính sách. Chọn “Tạo mới” để thêm chính sách hoa hồng.</p> : <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
       <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs text-slate-500 dark:bg-slate-800"><tr>{["Áp dụng cho", "Hiệu lực từ", "Điện thoại / máy", "Phụ kiện", "Công sửa chữa", "Quy tắc riêng", "Thao tác"].map(label => <th key={label} className="whitespace-nowrap px-4 py-3 font-semibold">{label}</th>)}</tr></thead>
-      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">{items.map(policy => <tr key={policy._id} className="text-slate-700 dark:text-slate-300">
-        <td className="px-4 py-3 font-semibold">{policy.partnerId ? partners.find(partner => partner._id === policy.partnerId)?.name || policy.partnerId : "Toàn công ty"}</td>
-        <td className="whitespace-nowrap px-4 py-3">{new Date(policy.effectiveAt).toLocaleString("vi-VN")}</td>
-        <td className="whitespace-nowrap px-4 py-3">{money(policy.config?.phoneAmount)}</td>
-        <td className="px-4 py-3">{(policy.config?.accessoryBps || 0) / 100}%</td>
-        <td className="px-4 py-3">{(policy.config?.repairBps || 0) / 100}%</td>
-        <td className="px-4 py-3">{policy.config?.rules?.length || 0}</td>
-        <td className="px-4 py-3"><button type="button" onClick={() => { setDraft(policy); setMessage(""); }} className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold text-cyan-600 hover:text-cyan-500"><Copy className="h-3.5 w-3.5" />Sao chép cấu hình</button></td>
-      </tr>)}</tbody></table>
+        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">{items.map(policy => <tr key={policy._id} className="text-slate-700 dark:text-slate-300">
+          <td className="px-4 py-3 font-semibold">{policy.partnerId ? partners.find(partner => partner._id === policy.partnerId)?.name || policy.partnerId : "Toàn công ty"}</td>
+          <td className="whitespace-nowrap px-4 py-3">{new Date(policy.effectiveAt).toLocaleString("vi-VN")}</td>
+          <td className="whitespace-nowrap px-4 py-3">{money(policy.config?.phoneAmount)}</td>
+          <td className="px-4 py-3">{(policy.config?.accessoryBps || 0) / 100}%</td>
+          <td className="px-4 py-3">{(policy.config?.repairBps || 0) / 100}%</td>
+          <td className="px-4 py-3">{policy.config?.rules?.length || 0}</td>
+          <td className="px-4 py-3"><button type="button" onClick={() => { setDraft(policy); setMessage(""); }} className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold text-cyan-600 hover:text-cyan-500 cursor-pointer"><Edit3 className="h-3.5 w-3.5" />Sửa</button></td>
+        </tr>)}</tbody></table>
     </div>}
-    {draft && <PolicyForm partners={partners} initial={draft} onClose={() => setDraft(null)} onSaved={() => { setDraft(null); setMessage("Đã tạo phiên bản chính sách mới."); setRevision(value => value + 1); }} />}
+    {draft && <PolicyForm key={draft._id || "new-policy"} partners={partners} initial={draft} onClose={() => setDraft(null)} onSaved={() => { const wasEdit = Boolean(draft?._id); setDraft(null); setMessage(wasEdit ? "Đã cập nhật chính sách hoa hồng thành công." : "Đã tạo phiên bản chính sách mới."); setRevision(value => value + 1); }} />}
   </section>;
 }
 
@@ -1242,7 +1328,6 @@ export default function PartnersPage() {
               Quản lý đối tác
             </h1>
             <p className="text-xs font-medium text-slate-500">
-              CTV, đại lý, nhà cung cấp và hoa hồng bán hàng.
             </p>
           </div>
         </div>
@@ -1250,11 +1335,10 @@ export default function PartnersPage() {
         {/* Tab Switcher */}
         <nav className="flex items-center rounded-xl bg-slate-100 p-1">
           <button
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition cursor-pointer ${
-              tab === "list"
-                ? "bg-white text-cyan-700 shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition cursor-pointer ${tab === "list"
+              ? "bg-white text-cyan-700 shadow-xs"
+              : "text-slate-600 hover:text-slate-900"
+              }`}
             onClick={() => setTab("list")}
           >
             <Users className="h-3.5 w-3.5" />
@@ -1262,11 +1346,10 @@ export default function PartnersPage() {
           </button>
           {hasPermission("commission-policy:manage") && (
             <button
-              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition cursor-pointer ${
-                tab === "policy"
-                  ? "bg-white text-cyan-700 shadow-xs"
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition cursor-pointer ${tab === "policy"
+                ? "bg-white text-cyan-700 shadow-xs"
                 : "text-slate-600 hover:text-slate-900"
-              }`}
+                }`}
               onClick={() => setTab("policy")}
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -1393,18 +1476,6 @@ export default function PartnersPage() {
             {hasPermission("partner:manage") && (
               <div className="flex flex-wrap items-center gap-2">
                 <button
-                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
-                  onClick={() =>
-                    void partnerRequest("/import-suppliers", "POST", {})
-                      .then(load)
-                      .catch((e) => setError(e.message))
-                  }
-                >
-                  <Building2 className="h-3.5 w-3.5 text-slate-500" />
-                  Liên kết NCC hiện có
-                </button>
-
-                <button
                   className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-sky-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-cyan-500/20 hover:from-cyan-500 hover:to-sky-500 transition cursor-pointer"
                   onClick={() => setEditing({})}
                 >
@@ -1458,13 +1529,12 @@ export default function PartnersPage() {
                           {p.roles.map((r) => (
                             <span
                               key={r}
-                              className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${
-                                r === "collaborator"
-                                  ? "bg-cyan-50 text-cyan-700"
-                                  : r === "dealer"
+                              className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${r === "collaborator"
+                                ? "bg-cyan-50 text-cyan-700"
+                                : r === "dealer"
                                   ? "bg-indigo-50 text-indigo-700"
                                   : "bg-amber-50 text-amber-700"
-                              }`}
+                                }`}
                             >
                               {roles[r] || r}
                             </span>
@@ -1493,16 +1563,14 @@ export default function PartnersPage() {
                       {/* Status */}
                       <td className="p-3.5">
                         <span
-                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-                            p.status === "active"
-                              ? "bg-emerald-50 text-emerald-700"
-                              : "bg-slate-100 text-slate-600"
-                          }`}
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${p.status === "active"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-slate-100 text-slate-600"
+                            }`}
                         >
                           <span
-                            className={`h-1.5 w-1.5 rounded-full ${
-                              p.status === "active" ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
-                            }`}
+                            className={`h-1.5 w-1.5 rounded-full ${p.status === "active" ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
+                              }`}
                           />
                           {p.status === "active" ? "Hoạt động" : "Ngừng hoạt động"}
                         </span>
@@ -1510,13 +1578,12 @@ export default function PartnersPage() {
 
                       {/* Balance */}
                       <td
-                        className={`whitespace-nowrap p-3.5 text-right font-extrabold text-sm ${
-                          p.balance < 0
-                            ? "text-rose-600"
-                            : p.balance > 0
+                        className={`whitespace-nowrap p-3.5 text-right font-extrabold text-sm ${p.balance < 0
+                          ? "text-rose-600"
+                          : p.balance > 0
                             ? "text-emerald-600"
                             : "text-slate-700"
-                        }`}
+                          }`}
                       >
                         {money(p.balance)}
                       </td>
@@ -1526,6 +1593,9 @@ export default function PartnersPage() {
                         <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                           {p.roles.includes("collaborator") && (
                             <button
+                              type="button"
+                              aria-haspopup="dialog"
+                              aria-label={`Xem sao kê của ${p.name}`}
                               className="flex items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50/80 px-2.5 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100 transition cursor-pointer"
                               onClick={() => setSelected(p._id)}
                             >
@@ -1577,7 +1647,7 @@ export default function PartnersPage() {
             )}
           </div>
 
-          {/* Statement View for Selected Partner */}
+          {/* Statement View for Selected Partner (Popup Dialog) */}
           {selected && (
             <Statement
               key={selected}
@@ -1585,6 +1655,7 @@ export default function PartnersPage() {
               self={false}
               canPay={hasPermission("commission-payment:manage")}
               onClose={() => setSelected("")}
+              asModal={true}
             />
           )}
         </>

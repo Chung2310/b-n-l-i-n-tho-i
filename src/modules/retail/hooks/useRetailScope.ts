@@ -4,11 +4,11 @@ import { useBranch } from "../../../context/BranchContext";
 export function useRetailScope() {
   const { userProfile } = useAuth();
   const branchContext = useBranch();
-  const activeBranchId = branchContext?.activeBranchId;
+  const activeBranchId = branchContext?.activeBranchId || userProfile?.branchId;
   const activeBranch = branchContext?.activeBranch || branchContext?.branches?.find((b) => b._id === activeBranchId);
   const branchName =
     activeBranch?.name ||
-    (userProfile?.branchId === activeBranchId ? userProfile?.branchName : undefined) ||
+    userProfile?.branchName ||
     "";
 
   return {

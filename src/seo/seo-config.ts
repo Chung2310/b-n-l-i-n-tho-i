@@ -118,11 +118,11 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
     changeFrequency: "weekly",
   },
   "QUẢN LÝ TÀI NGUYÊN": {
-    title: "Quản lý tài nguyên - Lưu trữ và đồng bộ Google Drive",
+    title: "Quản lý tài nguyên - Lưu trữ và quản lý tài liệu nội bộ",
     description:
-      "Không gian quản lý tài nguyên, tài liệu nội bộ và liên kết đồng bộ trực tiếp với tài khoản Google Drive cá nhân của nhân viên trên Anh Khoa Mobile.",
+      "Không gian quản lý tài nguyên, tài liệu nội bộ và chia sẻ tài nguyên an toàn cho nhân viên trên Anh Khoa Mobile.",
     keywords:
-      "quản lý tài nguyên, lưu trữ tài liệu, google drive erp, đồng bộ google drive, thư mục tài nguyên, Anh Khoa Mobile",
+      "quản lý tài nguyên, lưu trữ tài liệu, tài liệu nội bộ, thư mục tài nguyên, Anh Khoa Mobile",
     path: "/quan-ly-tai-nguyen",
     priority: "0.8",
     changeFrequency: "weekly",
@@ -235,11 +235,11 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
     changeFrequency: "weekly",
   },
   "TÀI NGUYÊN": {
-    title: "Tài nguyên - Quản lý tài liệu & Drive nội bộ",
+    title: "Tài nguyên - Quản lý tài liệu nội bộ",
     description:
-      "Lưu trữ và quản lý tài liệu nội bộ, kết nối Google Drive và chia sẻ tài nguyên doanh nghiệp tập trung trên Anh Khoa Mobile.",
+      "Lưu trữ và quản lý tài liệu nội bộ, chia sẻ tài nguyên doanh nghiệp tập trung trên Anh Khoa Mobile.",
     keywords:
-      "tài liệu nội bộ, google drive, quản lý tài nguyên, lưu trữ doanh nghiệp, tài nguyên ERP",
+      "tài liệu nội bộ, quản lý tài nguyên, lưu trữ doanh nghiệp, tài nguyên ERP",
     path: "/tai-nguyen",
     robots: "noindex, nofollow",
     priority: "0.5",
@@ -254,6 +254,17 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
     path: "/huong-dan",
     robots: "noindex, nofollow",
     priority: "0.5",
+    changeFrequency: "weekly",
+  },
+  CSKH: {
+    title: "Hộp thư CSKH 1-1 & Zalo OA - Anh Khoa Mobile",
+    description:
+      "Quản lý hội thoại khách hàng 1-1 đa kênh (Zalo OA, SMS, Webchat) tích hợp AI Marketing Copilot và tra cứu phiếu sửa chữa tức thì.",
+    keywords:
+      "chăm sóc khách hàng, hộp thư CSKH, chat 1-1, Zalo OA, AI Marketing Copilot, hỗ trợ sửa chữa",
+    path: "/cskh",
+    robots: "noindex, nofollow",
+    priority: "0.6",
     changeFrequency: "weekly",
   },
 };
