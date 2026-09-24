@@ -63,6 +63,14 @@ function AppContent() {
   }, [activeTab, resolvedActiveTab, setActiveTab]);
 
   React.useEffect(() => {
+    const handleCskhOpen = () => {
+      setActiveTab("CSKH");
+    };
+    window.addEventListener("cskh:open-chat", handleCskhOpen);
+    return () => window.removeEventListener("cskh:open-chat", handleCskhOpen);
+  }, [setActiveTab]);
+
+  React.useEffect(() => {
     const token = localStorage.getItem("accessToken");
     if (user && token) {
       console.log("[App] Connecting global socket...");

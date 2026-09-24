@@ -27,6 +27,7 @@ export const MODULE_READ_PERMISSIONS: Partial<Record<TabType, string[]>> = {
   "QUẢN LÝ KHÁCH HÀNG": ["customer:read", "customer:manage"], "SỬA CHỮA & BẢO HÀNH": ["repair:read", "repair:manage"], "QUẢN LÝ TÀI NGUYÊN": ["resource:read"],
   "BÁN LẺ": ["retail:read", "retail:manage"], "TÀI CHÍNH": ["finance-wallet:read", "finance-wallet:manage", "finance-receivable:read", "finance-receivable:manage", "asset:read", "asset:manage"],
   "TRÒ CHUYỆN": ["chat:read"], "MARKETING": ["marketing:read", "marketing:manage"],
+  "CSKH": ["repair:read", "repair:manage", "customer:read", "customer:manage", "marketing:read", "marketing:manage"],
 };
 
 export const HIDDEN_TABS = new Set<TabType>();

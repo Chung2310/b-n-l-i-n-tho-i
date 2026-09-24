@@ -83,6 +83,26 @@ export const APP_ROUTES: AppRoute[] = [
       ),
   },
   {
+    tab: "CSKH",
+    component: lazy(() => import("../modules/cskh/CSKHInboxPage")),
+    canAccess: (userProfile) =>
+      userProfile.role === "superadmin" ||
+      userProfile.role === "admin" ||
+      Boolean(
+        userProfile.permissions?.includes("*") ||
+          userProfile.permissions?.some((permission) =>
+            [
+              "repair:read",
+              "repair:manage",
+              "customer:read",
+              "customer:manage",
+              "marketing:read",
+              "marketing:manage",
+            ].includes(permission)
+          )
+      ),
+  },
+  {
     tab: "PHÂN TÍCH & BÁO CÁO",
     component: lazy(() => import("../pages/AnalyticsTab")),
     canAccess: (userProfile) => userProfile.role === "superadmin" || userProfile.role === "admin",

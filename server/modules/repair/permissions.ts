@@ -18,6 +18,11 @@ export const REPAIR_PERMISSIONS = [
   { code: REPAIR_COST_READ_PERMISSION, label: "Xem giá vốn linh kiện & lãi dịch vụ", group: "Sửa chữa" },
 ] as const;
 
-/** Loại thông báo tự động gửi cho khách trong luồng sửa chữa. */
-export const REPAIR_NOTIFICATION_EVENTS = ["received", "done"] as const;
+/** Loại thông báo tự động gửi cho khách trong luồng sửa chữa (4 bước). */
+export const REPAIR_NOTIFICATION_EVENTS = [
+  "received",
+  "technician_assigned",
+  "done",
+  "delivered",
+] as const;
 export type RepairNotificationEvent = (typeof REPAIR_NOTIFICATION_EVENTS)[number];

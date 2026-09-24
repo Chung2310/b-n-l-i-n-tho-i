@@ -37,7 +37,10 @@ export async function assignRepairTechnician(scope: RepairScope, ticketId: strin
   ticket.assignedBy = actor.id;
   ticket.updatedBy = actor.id;
   await ticket.save();
-  return ticket.toObject();
+  const saved = ticket.toObject();
+  const { dispatchRepairNotification } = await import("./repair-notify.service");
+  void dispatchRepairNotification(saved, "technician_assigned").catch(() => undefined);
+  return saved;
 }
 
 /** Nhân viên nhập điểm hộ khi khách nhận máy tại quầy. Vẫn chỉ 1 đánh giá cho 1 phiếu. */
