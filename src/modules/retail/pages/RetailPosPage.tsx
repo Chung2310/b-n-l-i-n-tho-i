@@ -66,7 +66,12 @@ const money = (value: number) =>
   new Intl.NumberFormat("vi-VN").format(value) + " ₫";
 
 export default function RetailPosPage() {
-  const { scope, userProfile } = useRetailScope();
+  const { scope, userProfile, branchName, activeBranch } = useRetailScope() as any;
+  const branchDisplayName =
+    branchName ||
+    activeBranch?.name ||
+    userProfile?.branchName ||
+    (scope?.branchId && !/^[0-9a-fA-F]{24}$/.test(scope.branchId) ? scope.branchId : "");
   const [cart, dispatch] = React.useReducer(
     retailCartReducer,
     initialRetailCart,
@@ -545,9 +550,11 @@ export default function RetailPosPage() {
                 <h1 className="text-xl font-bold tracking-tight text-slate-900">
                   Bán hàng
                 </h1>
-                <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-xs font-semibold text-cyan-700">
-                  {scope.branchId}
-                </span>
+                {branchDisplayName && (
+                  <span className="rounded-full bg-cyan-50 px-2.5 py-0.5 text-xs font-semibold text-cyan-700">
+                    {branchDisplayName}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500">
                 Thu ngân: <span className="font-semibold text-slate-700">{userProfile?.displayName || userProfile?.email || "Nhân viên"}</span>

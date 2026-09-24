@@ -81,6 +81,21 @@ partnerRouter.post("/policies", policies, route(async req => {
   if (!Number.isFinite(effectiveAt.getTime()) || effectiveAt.getTime() < Date.now() - 60000) throw invalid("Ngày hiệu lực không được hồi tố.");
   return CommissionPolicyModel.create({ companyCode, partnerId, effectiveAt, config: validatePolicy(req.body.config), createdBy: req.user.id });
 }));
+partnerRouter.patch("/policies/:id", policies, route(async req => {
+  const companyCode = partnerCompany(req), policyId = id(req.params.id);
+  const existing = await CommissionPolicyModel.findOne({ companyCode, _id: policyId });
+  if (!existing) throw invalid("Chính sách không tồn tại.", 404);
+  const partnerId = req.body.partnerId !== undefined ? (req.body.partnerId ? id(req.body.partnerId) : "") : existing.partnerId;
+  if (partnerId && !await PartnerModel.exists({ companyCode, _id: partnerId, roles: "collaborator" })) throw invalid("CTV không tồn tại.");
+  const effectiveAt = req.body.effectiveAt ? new Date(req.body.effectiveAt) : existing.effectiveAt;
+  if (!Number.isFinite(effectiveAt.getTime())) throw invalid("Ngày hiệu lực không hợp lệ.");
+  const config = req.body.config ? validatePolicy(req.body.config) : existing.config;
+  existing.partnerId = partnerId;
+  existing.effectiveAt = effectiveAt;
+  existing.config = config;
+  await existing.save();
+  return existing;
+}));
 partnerRouter.post("/import-suppliers", manage, route(async req => {
   const companyCode = partnerCompany(req); let count = 0;
   for await (const supplier of SupplierModel.find({ companyCode }).cursor()) {

@@ -1,5 +1,7 @@
 import FinancialManagementPage from "./pages/FinancialManagementPage";
 import DebtManagementPanel from "./pages/DebtManagementPanel";
+import TreasuryPage from "./pages/TreasuryPage";
+import FinancialReportsPage from "./pages/FinancialReportsPage";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BellRing, Boxes, ChartNoAxesColumnIncreasing, ClipboardCheck, Landmark, TrendingDown } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
@@ -14,19 +16,28 @@ import FinanceRemindersPage from "./pages/FinanceRemindersPage";
 import ReceivablesPage from "./pages/ReceivablesPage";
 
 type FinanceSubTab =
-  | "TỔNG QUAN" | "THU CHI" | "LÃI LỖ" | "VAT" | "HÒA VỐN"
+  | "TỔNG QUAN"
+  | "THU CHI"
+  | "LÃI LỖ"
+  | "VAT"
+  | "HÒA VỐN"
+  | "SỔ QUỸ"
+  | "BÁO CÁO TÀI CHÍNH"
   | "CÔNG NỢ"
   | "TUỔI NỢ"
   | "NHẮC NỢ"
   | "TÀI SẢN"
   | "KHẤU HAO"
   | "KIỂM KÊ";
+
 export const FINANCE_SUB_TABS = [
   { slug: "tong-quan", value: "TỔNG QUAN" as const, label: "Tổng quan", icon: ChartNoAxesColumnIncreasing },
   { slug: "thu-chi", value: "THU CHI" as const, label: "Thu - Chi", icon: Landmark },
   { slug: "lai-lo", value: "LÃI LỖ" as const, label: "Lãi lỗ", icon: TrendingDown },
   { slug: "vat", value: "VAT" as const, label: "VAT", icon: Landmark },
   { slug: "hoa-von", value: "HÒA VỐN" as const, label: "Hòa vốn", icon: ChartNoAxesColumnIncreasing },
+  { slug: "so-quy", value: "SỔ QUỸ" as const, label: "Sổ quỹ & dòng tiền", icon: Landmark },
+  { slug: "bao-cao-tai-chinh", value: "BÁO CÁO TÀI CHÍNH" as const, label: "Báo cáo tài chính", icon: ChartNoAxesColumnIncreasing },
   {
     slug: "cong-no",
     value: "CÔNG NỢ" as const,
@@ -68,7 +79,9 @@ export const FINANCE_SUB_TABS = [
 export function getAllowedFinanceTabSlugs(permissions: readonly string[] = []) {
   if (permissions.includes("*")) return FINANCE_SUB_TABS.map((tab) => tab.slug);
   const allowed: Array<(typeof FINANCE_SUB_TABS)[number]["slug"]> = [];
-  if (permissions.includes("finance-wallet:manage")) allowed.push("tong-quan", "thu-chi", "lai-lo", "vat", "hoa-von");
+  if (permissions.some(permission => ["finance-wallet:read", "finance-wallet:manage"].includes(permission))) {
+    allowed.push("tong-quan", "thu-chi", "lai-lo", "vat", "hoa-von", "so-quy", "bao-cao-tai-chinh");
+  }
   const canReadReceivables = permissions.some((item) =>
     ["finance-receivable:read", "finance-receivable:manage"].includes(item),
   );
@@ -153,46 +166,79 @@ export default function FinanceWorkspace() {
       </div>
     );
   return (
-    <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col overflow-hidden bg-slate-50">
-      <div ref={tabBarRef} className="flex w-full min-w-0 max-w-full shrink-0 gap-1 overflow-x-auto border-b border-slate-200 bg-white px-2 pt-2">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.slug}
-              ref={activeTab === tab.value ? activeTabRef : undefined}
-              aria-current={activeTab === tab.value ? "page" : undefined}
-              type="button"
-              onClick={() => setActiveTab(tab.value)}
-              className={`flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-t-xl px-3 py-2.5 text-sm font-semibold ${activeTab === tab.value ? "bg-cyan-600 text-white" : "text-slate-600 hover:bg-cyan-50"}`}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {tab.label}
-            </button>
-          );
-        })}
+    <div className="flex h-full min-h-0 flex-col bg-slate-50/50">
+      <div ref={tabBarRef} className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 px-4 py-2.5 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+          <div className="flex gap-1.5 overflow-x-auto rounded-2xl border border-slate-200/90 bg-slate-100/80 p-1.5 shadow-xs">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.value;
+              return (
+                <button
+                  key={tab.slug}
+                  ref={isActive ? activeTabRef : undefined}
+                  aria-current={isActive ? "page" : undefined}
+                  type="button"
+                  onClick={() => setActiveTab(tab.value)}
+                  className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-xs font-semibold transition-all sm:text-sm ${
+                    isActive
+                      ? "bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-sm shadow-cyan-600/20"
+                      : "text-slate-600 hover:bg-white hover:text-slate-900"
+                  }`}
+                >
+                  <Icon className={`h-4 w-4 ${isActive ? "text-white" : "text-slate-400"}`} />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-        {(["TỔNG QUAN", "THU CHI", "LÃI LỖ", "VAT", "HÒA VỐN"].includes(activeTab)) && <FinancialManagementPage key={activeTab} view={({ "TỔNG QUAN": "overview", "THU CHI": "cash", "LÃI LỖ": "profit", "VAT": "vat", "HÒA VỐN": "breakeven" } as const)[activeTab as "TỔNG QUAN" | "THU CHI" | "LÃI LỖ" | "VAT" | "HÒA VỐN"]} />}
-        {(["CÔNG NỢ", "TUỔI NỢ", "NHẮC NỢ"].includes(activeTab)) && <DebtManagementPanel key={activeTab + refreshKey} mode={activeTab === "CÔNG NỢ" ? "debt" : activeTab === "TUỔI NỢ" ? "aging" : "reminders"} permissions={permissions} onOpen={setSelectedId} />}
-        {activeTab === "CÔNG NỢ" && (
-          <ReceivablesPage
-            key={refreshKey}
-            permissions={permissions}
-            onOpen={setSelectedId}
-          />
-        )}{" "}
-        {activeTab === "TUỔI NỢ" && <details className="mt-5"><summary className="mb-3 cursor-pointer text-sm text-slate-600">Báo cáo nhóm tuổi nợ cũ</summary><AgingReportPage onDrillDown={drillDown} /></details>}{" "}
-        {activeTab === "NHẮC NỢ" && (
-          <FinanceRemindersPage permissions={permissions} />
-        )}{" "}
-        {activeTab === "TÀI SẢN" && <FixedAssetsPage permissions={permissions} />}{" "}
-        {activeTab === "KHẤU HAO" && (
-          <AssetDepreciationPage permissions={permissions} />
-        )}{" "}
-        {activeTab === "KIỂM KÊ" && (
-          <AssetInventoryPage permissions={permissions} />
-        )}
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <div className="mx-auto max-w-7xl space-y-6">
+          {(["TỔNG QUAN", "THU CHI", "LÃI LỖ", "VAT", "HÒA VỐN"].includes(activeTab)) && (
+            <FinancialManagementPage
+              key={activeTab}
+              view={
+                ({
+                  "TỔNG QUAN": "overview",
+                  "THU CHI": "cash",
+                  "LÃI LỖ": "profit",
+                  "VAT": "vat",
+                  "HÒA VỐN": "breakeven",
+                } as const)[activeTab as "TỔNG QUAN" | "THU CHI" | "LÃI LỖ" | "VAT" | "HÒA VỐN"]
+              }
+            />
+          )}
+          {activeTab === "SỔ QUỸ" && <TreasuryPage permissions={permissions} />}
+          {activeTab === "BÁO CÁO TÀI CHÍNH" && <FinancialReportsPage permissions={permissions} />}
+          {(["CÔNG NỢ", "TUỔI NỢ", "NHẮC NỢ"].includes(activeTab)) && (
+            <DebtManagementPanel
+              key={activeTab + refreshKey}
+              mode={activeTab === "CÔNG NỢ" ? "debt" : activeTab === "TUỔI NỢ" ? "aging" : "reminders"}
+              permissions={permissions}
+              onOpen={setSelectedId}
+            />
+          )}
+          {activeTab === "CÔNG NỢ" && (
+            <ReceivablesPage
+              key={refreshKey}
+              permissions={permissions}
+              onOpen={setSelectedId}
+            />
+          )}{" "}
+          {activeTab === "TUỔI NỢ" && <AgingReportPage onDrillDown={drillDown} />}{" "}
+          {activeTab === "NHẮC NỢ" && (
+            <FinanceRemindersPage permissions={permissions} />
+          )}{" "}
+          {activeTab === "TÀI SẢN" && <FixedAssetsPage permissions={permissions} />}{" "}
+          {activeTab === "KHẤU HAO" && (
+            <AssetDepreciationPage permissions={permissions} />
+          )}{" "}
+          {activeTab === "KIỂM KÊ" && (
+            <AssetInventoryPage permissions={permissions} />
+          )}
+        </div>
       </div>
       {selectedId && (
         <ReceivableDetailDrawer

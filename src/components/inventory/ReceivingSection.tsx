@@ -550,6 +550,8 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
   const [quantity, setQuantity] = useState("1");
   const [unitCost, setUnitCost] = useState("0");
   const [notes, setNotes] = useState("");
+  const [financeEnabled, setFinanceEnabled] = useState(!initialReceipt || Boolean(initialReceipt.financeTerms));
+  const [financeTerms, setFinanceTerms] = useState(initialReceipt?.financeTerms || { dueOn: new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10), paidAmount: 0, paymentMethod: "cash" });
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -780,6 +782,7 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
       const payload = {
         supplierId,
         notes: notes.trim() || undefined,
+        financeTerms: financeEnabled ? financeTerms : null,
         items: lines.map(({ key: _key, displayName: _displayName, ...line }) => {
           // Không gửi unitDetails rỗng (hàng serial được phép không cấp mã nội bộ).
           const unitDetails = (line.unitDetails || []).filter((detail) => (detail.internalBarcode || "").trim());
@@ -1069,6 +1072,11 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">Ghi chú phiếu nhập</label>
+            <div className="mb-4 space-y-3 rounded-xl border border-cyan-100 bg-cyan-50/40 p-4">
+              <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={financeEnabled} onChange={e => setFinanceEnabled(e.target.checked)} /> Tự ghi nhận công nợ nhà cung cấp khi hoàn thành nhập kho</label>
+              {financeEnabled && <div className="grid gap-3 sm:grid-cols-3"><label className="text-sm">Hạn thanh toán<input className="mt-1 w-full rounded-lg border p-2" type="date" required value={financeTerms.dueOn} onChange={e => setFinanceTerms({ ...financeTerms, dueOn: e.target.value })} /></label><label className="text-sm">Đã thanh toán (VND)<input className="mt-1 w-full rounded-lg border p-2" type="number" min="0" step="1" required value={financeTerms.paidAmount} onChange={e => setFinanceTerms({ ...financeTerms, paidAmount: Number(e.target.value) })} /></label><label className="text-sm">Phương thức đã trả<select className="mt-1 w-full rounded-lg border p-2" value={financeTerms.paymentMethod} onChange={e => setFinanceTerms({ ...financeTerms, paymentMethod: e.target.value })}><option value="cash">Tiền mặt</option><option value="bank">Ngân hàng</option></select></label></div>}
+              <p className="text-xs text-slate-500">Nợ = giá trị phiếu nhập trừ số đã thanh toán. Khoản đã trả cần gán quỹ tại Tài chính → Sổ quỹ. Không nhập lại công nợ này thủ công.</p>
+            </div>
             <textarea rows={2} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Nhập ghi chú hoặc thông tin tham chiếu..." className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600" />
           </div>
 

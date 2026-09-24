@@ -534,8 +534,8 @@ export default function Header({ currentTab, onSearchSelect, onMenuClick }: Head
                         { label: "Dự báo AI", subTab: "DỰ BÁO AI" },
                       ],
                       "QUẢN LÝ TÀI NGUYÊN": [
-                        { label: "Tài liệu cục bộ", subTab: "TÀI LIỆU KHÁC" },
-                        { label: "Google Drive", subTab: "GOOGLE DRIVE" },
+                        { label: "Tài liệu nội bộ", subTab: "TÀI LIỆU KHÁC" },
+
                       ],
                       "CÀI ĐẶT": [
                         { label: "Hồ sơ cá nhân", subTab: "profile" },

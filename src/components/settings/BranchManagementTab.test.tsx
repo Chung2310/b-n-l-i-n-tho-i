@@ -88,4 +88,22 @@ describe("BranchManagementTab", () => {
     await user.click(within(row).getByRole("button", { name: /Vô hiệu hóa/ }));
     await waitFor(() => expect(branchMocks.update).toHaveBeenCalledWith("b1", { isActive: false }));
   });
+
+  it("edits an existing branch when clicking Sửa", async () => {
+    const user = userEvent.setup();
+    render(<BranchManagementTab />);
+    const row = (await screen.findByText("Head Office")).closest("li") as HTMLElement;
+    await user.click(within(row).getByRole("button", { name: /Sửa/ }));
+    expect(await screen.findByText("Sửa chi nhánh")).toBeTruthy();
+    const nameInput = screen.getByLabelText(/Tên chi nhánh/);
+    await user.clear(nameInput);
+    await user.type(nameInput, "Head Office Updated");
+    await user.click(screen.getByRole("button", { name: /Lưu cập nhật/ }));
+    await waitFor(() =>
+      expect(branchMocks.update).toHaveBeenCalledWith(
+        "b1",
+        expect.objectContaining({ name: "Head Office Updated" })
+      )
+    );
+  });
 });
