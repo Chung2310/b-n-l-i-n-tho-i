@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { ChevronDown, Check, Search, X } from "lucide-react";
+import { ChevronDown, Check, Search, X, Plus } from "lucide-react";
 
 export interface DropdownOption<T = string> {
   value: T;
@@ -30,6 +30,12 @@ export interface DropdownProps<T = string> {
   name?: string;
   id?: string;
   maxHeight?: string;
+  actionButton?: {
+    label: string;
+    icon?: React.ReactNode;
+    onClick: () => void;
+    className?: string;
+  };
 }
 
 export function Dropdown<T = string>({
@@ -52,6 +58,7 @@ export function Dropdown<T = string>({
   name,
   id,
   maxHeight = "max-h-48",
+  actionButton,
 }: DropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [openUpward, setOpenUpward] = useState(direction === "up");
@@ -322,6 +329,23 @@ export function Dropdown<T = string>({
               })
             )}
           </div>
+
+          {actionButton && (
+            <div className="pt-1 mt-1 border-t border-slate-100 px-0.5">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsOpen(false);
+                  actionButton.onClick();
+                }}
+                className={`flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-50 transition cursor-pointer select-none ${actionButton.className || ""}`}
+              >
+                {actionButton.icon || <Plus className="h-3.5 w-3.5 text-cyan-600" />}
+                <span>{actionButton.label}</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
