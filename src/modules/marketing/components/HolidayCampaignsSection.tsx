@@ -1,127 +1,174 @@
 import { useCallback, useEffect, useState } from "react";
-import { CalendarPlus, Loader2, Trash2 } from "lucide-react";
+import { Calendar, CalendarPlus, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { marketingApi, type MarketingCampaign } from "../api/marketing.api";
-import TemplateEditor from "./TemplateEditor";
+import HolidayCampaignModal from "./HolidayCampaignModal";
 
-const emptyDraft = () => ({ name: "", runDate: "", targetTierCodes: "", subject: "", html: "" });
+import { toast } from "../../../pages/Toast";
 
 export default function HolidayCampaignsSection({ canManage }: { canManage: boolean }) {
   const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([]);
-  const [draft, setDraft] = useState(emptyDraft());
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
+  const [openModal, setOpenModal] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       setCampaigns(await marketingApi.listCampaigns());
     } catch (err: any) {
-      setError(err?.message || "Không tải được danh sách chiến dịch.");
+      toast.error(err?.message || "Không tải được danh sách chiến dịch.");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
-
-  const create = async () => {
-    if (!draft.name.trim() || !draft.runDate || !draft.subject.trim() || !draft.html.trim()) {
-      setError("Cần nhập tên, ngày chạy, tiêu đề và nội dung.");
-      return;
-    }
-    setBusy(true);
-    setError(undefined);
-    try {
-      await marketingApi.createCampaign({
-        name: draft.name.trim(),
-        runDate: draft.runDate,
-        subject: draft.subject.trim(),
-        html: draft.html.trim(),
-        targetTierCodes: draft.targetTierCodes.split(",").map((item) => item.trim()).filter(Boolean),
-      });
-      setDraft(emptyDraft());
-      await load();
-    } catch (err: any) {
-      setError(err?.message || "Tạo chiến dịch thất bại.");
-    } finally {
-      setBusy(false);
-    }
-  };
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const toggle = async (campaign: MarketingCampaign) => {
-    await marketingApi.updateCampaign(campaign._id, { enabled: !campaign.enabled });
-    await load();
+    try {
+      await marketingApi.updateCampaign(campaign._id, { enabled: !campaign.enabled });
+      await load();
+      toast.success(campaign.enabled ? "Đã tắt chiến dịch." : "Đã bật chiến dịch.");
+    } catch (err: any) {
+      toast.error(err?.message || "Cập nhật trạng thái chiến dịch thất bại.");
+    }
   };
 
   const remove = async (campaign: MarketingCampaign) => {
-    await marketingApi.deleteCampaign(campaign._id);
-    await load();
+    if (!window.confirm(`Bạn có chắc chắn muốn xoá chiến dịch "${campaign.name}"?`)) return;
+    try {
+      await marketingApi.deleteCampaign(campaign._id);
+      await load();
+      toast.success(`Đã xoá chiến dịch "${campaign.name}".`);
+    } catch (err: any) {
+      toast.error(err?.message || "Xoá chiến dịch thất bại.");
+    }
   };
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4">
-      <h3 className="font-bold text-slate-800">Chiến dịch lễ tết</h3>
-      <p className="text-xs text-slate-500">
-        Mỗi chiến dịch chạy đúng ngày đã đặt, gửi cho các hạng khách hàng được chọn (để trống = mọi khách hàng đang hoạt động).
-      </p>
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="font-bold text-slate-800 text-base">Chiến dịch lễ tết theo lịch</h3>
+            <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-xs font-semibold text-cyan-700">
+              {campaigns.length} chiến dịch
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Hệ thống tự động quét và gửi thông điệp vào đúng ngày đã định cho từng nhóm khách hàng.
+          </p>
+        </div>
 
-      {error && <div className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{error}</div>}
+        {canManage && (
+          <button
+            type="button"
+            onClick={() => setOpenModal(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-50 border border-cyan-200/80 px-3.5 py-2 text-xs font-bold text-cyan-700 hover:bg-cyan-100 transition cursor-pointer shadow-2xs shrink-0"
+          >
+            <CalendarPlus className="h-4 w-4 text-cyan-600" />
+            Thêm chiến dịch lễ tết
+          </button>
+        )}
+      </div>
 
       {loading ? (
-        <div className="mt-3 flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Đang tải…</div>
+        <div className="mt-4 flex items-center justify-center gap-2 py-8 text-xs text-slate-500">
+          <Loader2 className="h-4 w-4 animate-spin text-cyan-600" /> Đang tải danh sách chiến dịch…
+        </div>
+      ) : campaigns.length === 0 ? (
+        <div className="mt-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-8 text-center">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 mb-2">
+            <Calendar className="h-5 w-5" />
+          </div>
+          <p className="text-xs font-semibold text-slate-600">Chưa có chiến dịch lễ tết nào</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Tạo chiến dịch để gửi lời chúc tự động vào các dịp Tết, 8/3, 20/10...</p>
+          {canManage && (
+            <button
+              type="button"
+              onClick={() => setOpenModal(true)}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-cyan-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-cyan-500 transition cursor-pointer"
+            >
+              <CalendarPlus className="h-3.5 w-3.5" />
+              Tạo chiến dịch ngay
+            </button>
+          )}
+        </div>
       ) : (
-        <ul className="mt-3 space-y-2">
-          {campaigns.length === 0 && <li className="text-sm text-slate-400">Chưa có chiến dịch nào.</li>}
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {campaigns.map((campaign) => (
-            <li key={campaign._id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2">
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-slate-700">{campaign.name}</p>
-                <p className="text-xs text-slate-500">
-                  {campaign.runDate} ·{" "}
-                  {campaign.targetTierCodes?.length ? `Hạng: ${campaign.targetTierCodes.join(", ")}` : "Tất cả khách hàng"}
-                </p>
+            <div
+              key={campaign._id}
+              className="flex flex-col justify-between rounded-xl border border-slate-200/90 bg-slate-50/40 p-3.5 hover:border-slate-300 transition"
+            >
+              <div>
+                <div className="flex items-start justify-between gap-2">
+                  <h4 className="font-bold text-slate-800 text-sm truncate">{campaign.name}</h4>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold shrink-0 ${
+                      campaign.enabled
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {campaign.enabled ? "Đang bật" : "Đang tắt"}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-white border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                    <Calendar className="h-3 w-3 text-cyan-600" />
+                    {campaign.runDate}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-white border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                    {campaign.targetTierCodes?.length
+                      ? `Hạng: ${campaign.targetTierCodes.join(", ")}`
+                      : "Tất cả khách hàng"}
+                  </span>
+                </div>
+                {campaign.subject && (
+                  <p className="mt-2 text-xs text-slate-600 line-clamp-1 italic">
+                    Tiêu đề: &ldquo;{campaign.subject}&rdquo;
+                  </p>
+                )}
               </div>
+
               {canManage && (
-                <div className="flex items-center gap-2">
+                <div className="mt-3 flex items-center justify-between border-t border-slate-200/60 pt-2.5">
                   <button
                     type="button"
                     onClick={() => toggle(campaign)}
-                    className={`rounded-lg px-3 py-1 text-xs font-semibold ${campaign.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold cursor-pointer transition ${
+                      campaign.enabled
+                        ? "bg-emerald-100/70 text-emerald-800 hover:bg-emerald-200/70"
+                        : "bg-slate-200/80 text-slate-700 hover:bg-slate-300/80"
+                    }`}
                   >
-                    {campaign.enabled ? "Đang bật" : "Đang tắt"}
+                    {campaign.enabled ? "Tắt chiến dịch" : "Bật chiến dịch"}
                   </button>
-                  <button type="button" onClick={() => remove(campaign)} className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50" aria-label={`Xoá ${campaign.name}`}>
+                  <button
+                    type="button"
+                    onClick={() => remove(campaign)}
+                    className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition cursor-pointer"
+                    aria-label={`Xoá ${campaign.name}`}
+                    title="Xoá chiến dịch"
+                  >
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               )}
-            </li>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
 
-      {canManage && (
-        <div className="mt-4 grid gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-2">
-          <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Tên dịp (VD: Tết Nguyên Đán)" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-          <input type="date" value={draft.runDate} onChange={(event) => setDraft({ ...draft, runDate: event.target.value })} className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-          <input value={draft.targetTierCodes} onChange={(event) => setDraft({ ...draft, targetTierCodes: event.target.value })} placeholder="Mã hạng khách hàng, cách nhau dấu phẩy (để trống = gửi tất cả)" className="rounded-lg border border-slate-200 px-3 py-2 text-sm sm:col-span-2" />
-          <div className="sm:col-span-2">
-            <TemplateEditor
-              automationType="holiday"
-              subject={draft.subject}
-              html={draft.html}
-              disabled={false}
-              onChange={(values) => setDraft({ ...draft, ...values })}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <button type="button" onClick={create} disabled={busy} className="flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-60">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarPlus className="h-4 w-4" />}
-              Thêm chiến dịch
-            </button>
-          </div>
-        </div>
+      {openModal && (
+        <HolidayCampaignModal
+          onClose={() => setOpenModal(false)}
+          onCreated={() => {
+            void load();
+          }}
+        />
       )}
     </section>
   );

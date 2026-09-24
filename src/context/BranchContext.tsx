@@ -37,9 +37,9 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
   }, [userProfile?.companyCode]);
 
   useEffect(() => {
-    if (!userProfile?.companyCode || !canSwitch) {
+    if (!userProfile?.companyCode) {
       setBranches([]);
-      setActiveBranchIdState(userProfile?.branchId || "");
+      setActiveBranchIdState("");
       return;
     }
 
@@ -48,13 +48,20 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
       try {
         const list = (await branchService.list()).filter((branch) => branch.isActive);
         setBranches(list);
-        const key = `igen.activeBranch.${userProfile.companyCode}`;
-        const saved = localStorage.getItem(key);
-        const resolvedBranchId = resolveActiveBranchId(list, saved);
-        setActiveBranchIdState(resolvedBranchId);
-        localStorage.setItem(key, resolvedBranchId);
+        if (canSwitch) {
+          const key = `igen.activeBranch.${userProfile.companyCode}`;
+          const saved = localStorage.getItem(key);
+          const resolvedBranchId = resolveActiveBranchId(list, saved);
+          setActiveBranchIdState(resolvedBranchId);
+          localStorage.setItem(key, resolvedBranchId);
+        } else {
+          setActiveBranchIdState(userProfile?.branchId || list[0]?._id || "");
+        }
       } catch {
         setBranches([]);
+        if (!canSwitch) {
+          setActiveBranchIdState(userProfile?.branchId || "");
+        }
       } finally {
         setLoading(false);
       }

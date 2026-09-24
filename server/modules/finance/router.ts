@@ -1,4 +1,6 @@
 import { financeManagementRoutes } from "./routes/management.routes";
+import { financialReportingRoutes } from "./routes/financial-reporting.routes";
+import { runTradeDebtAlerts } from "./services/trade-debt-alerts.service";
 import { Router } from "express";
 import { registerFinanceConsumers } from "./consumers";
 import { financeAssetInventoryRoutes } from "./routes/asset-inventory.routes";
@@ -8,10 +10,12 @@ import { financeReminderRoutes } from "./routes/reminder.routes";
 import { ensureOverdueScanScheduler } from "./jobs/overdue-scan.job";
 import { runOverdueScansForAllScopes } from "./services/overdue-reminder.service";
 registerFinanceConsumers();
-ensureOverdueScanScheduler(runOverdueScansForAllScopes);
+ensureOverdueScanScheduler(async now => { await Promise.all([runOverdueScansForAllScopes(now), runTradeDebtAlerts(now)]); });
 export const financeRouter = Router();
 financeRouter.use("/management", financeManagementRoutes);
 financeRouter.use("/assets", financeAssetRoutes);
 financeRouter.use("/asset-inventories", financeAssetInventoryRoutes);
 financeRouter.use("/receivables", financeReceivableRoutes);
 financeRouter.use("/reminders", financeReminderRoutes);
+
+financeRouter.use("/reporting", financialReportingRoutes);

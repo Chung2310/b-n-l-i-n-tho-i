@@ -6,7 +6,6 @@ import {
   Image as ImageIcon,
   Sliders,
   Shield,
-  HardDrive,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -18,7 +17,7 @@ import { SETTINGS_SUB_TAB_ROUTES, type SettingsSubTabType } from "../router/subT
 const ProfileTab = lazy(() => import("../components/settings/ProfileTab"));
 const SecurityTab = lazy(() => import("../components/settings/SecurityTab"));
 const ErpConfigTab = lazy(() => import("../components/settings/ErpConfigTab"));
-const GoogleDriveTab = lazy(() => import("../components/settings/GoogleDriveTab"));
+
 
 export default function SettingsTab() {
   const subTabsRef = React.useRef<HTMLDivElement>(null);
@@ -132,7 +131,7 @@ export default function SettingsTab() {
               { id: "profile", label: "Hồ sơ cá nhân", icon: User },
               { id: "security", label: "Bảo mật", icon: Shield },
               { id: "erp", label: "Cấu hình ERP", icon: Sliders },
-              { id: "google-drive", label: "Google Drive", icon: HardDrive },
+
             ].map((tab) => {
               const isActive = activeSubTab === tab.id;
               const Icon = tab.icon;
@@ -225,7 +224,7 @@ export default function SettingsTab() {
             {activeSubTab === "profile" && <ProfileTab />}
             {activeSubTab === "security" && <SecurityTab />}
             {activeSubTab === "erp" && <ErpConfigTab />}
-            {activeSubTab === "google-drive" && <GoogleDriveTab />}
+
           </Suspense>
         </div>
 
