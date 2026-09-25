@@ -2312,17 +2312,18 @@ function KanbanCard({
         );
       })()}
 
-      {/* Interactive transition buttons - visible on hover */}
-      <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+      {/* Interactive action buttons */}
+      <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between">
         {canDelete ? (
           <button
             onClick={(e) => {
               e.stopPropagation();
               onDelete();
             }}
-            className="text-rose-650 hover:text-rose-800 text-[10px] font-extrabold font-mono transition-colors cursor-pointer"
+            className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+            title="Xóa công việc"
           >
-            Xóa bỏ
+            <Trash2 className="h-3.5 w-3.5" />
           </button>
         ) : (
           <div />
