@@ -19,6 +19,15 @@ describe("useVariantMatrix", () => {
     expect(ean.startsWith("20")).toBe(true);
   });
 
+  it("generateEAN13 produces stable and deterministic barcode for identical seed", () => {
+    const code1 = generateEAN13("IP16-VANG-128GB");
+    const code2 = generateEAN13("IP16-VANG-128GB");
+    const code3 = generateEAN13("IP16-VANG-256GB");
+    expect(code1).toBe(code2); // Không bao giờ nhảy số!
+    expect(code1).not.toBe(code3); // Phân biệt giữa các SKU
+    expect(code1).toHaveLength(13);
+  });
+
   it("generateMatrixFromOptions returns empty array if no options or values", () => {
     expect(generateMatrixFromOptions([])).toEqual([]);
     expect(generateMatrixFromOptions([{ code: "COLOR", name: "Màu", values: [] }])).toEqual([]);
