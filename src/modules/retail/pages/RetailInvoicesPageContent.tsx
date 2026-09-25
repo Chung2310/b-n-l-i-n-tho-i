@@ -128,22 +128,20 @@ export default function RetailInvoicesPageContent() {
   }, 0);
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-3.5">
       {/* Header card */}
-      <header className="flex flex-col gap-4 rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
-        <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/20">
-            <FileText className="h-6 w-6" />
+      <header className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-2.5 shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-xs">
+            <FileText className="h-4 w-4" />
           </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-                Hóa đơn nội bộ
-              </h1>
-              <span className="rounded-full bg-cyan-50 px-2.5 py-0.5 text-xs font-semibold text-cyan-700">
-                {items.length} chứng từ
-              </span>
-            </div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900">
+              Hóa đơn nội bộ
+            </h1>
+            <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-xs font-semibold text-cyan-700 border border-cyan-200/60">
+              {items.length} chứng từ
+            </span>
           </div>
         </div>
 
@@ -151,59 +149,55 @@ export default function RetailInvoicesPageContent() {
           type="button"
           onClick={() => void loadInvoices()}
           disabled={loading}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-95 disabled:opacity-60"
+          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 active:scale-95 disabled:opacity-60 cursor-pointer"
         >
-          <RefreshCw className={`h-4 w-4 text-cyan-600 ${loading ? "animate-spin" : ""}`} />
-          Làm mới
+          <RefreshCw className={`h-3.5 w-3.5 text-cyan-600 ${loading ? "animate-spin" : ""}`} />
+          <span>Làm mới</span>
         </button>
       </header>
 
       {/* Quick Summary KPIs */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:shadow-md">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <div className="rounded-xl border border-slate-200/80 bg-white px-3.5 py-2.5 shadow-2xs">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Tổng hóa đơn</span>
-            <FileText className="h-4 w-4 text-cyan-600" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tổng hóa đơn</span>
+            <FileText className="h-3.5 w-3.5 text-cyan-600" />
           </div>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">{items.length}</p>
-          <p className="mt-0.5 text-xs text-slate-400">Đã ghi nhận trong bộ lọc</p>
+          <p className="mt-1 text-lg sm:text-xl font-bold tracking-tight text-slate-900">{items.length}</p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:shadow-md">
+        <div className="rounded-xl border border-slate-200/80 bg-white px-3.5 py-2.5 shadow-2xs">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Tổng doanh số</span>
-            <DollarSign className="h-4 w-4 text-emerald-600" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tổng doanh số</span>
+            <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
           </div>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-emerald-700">{money(totalGrand)}</p>
-          <p className="mt-0.5 text-xs text-slate-400">Giá trị xuất hóa đơn</p>
+          <p className="mt-1 text-lg sm:text-xl font-bold tracking-tight text-emerald-700">{money(totalGrand)}</p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:shadow-md">
+        <div className="rounded-xl border border-slate-200/80 bg-white px-3.5 py-2.5 shadow-2xs">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Đã thu tiền</span>
-            <Wallet className="h-4 w-4 text-blue-600" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Đã thu tiền</span>
+            <Wallet className="h-3.5 w-3.5 text-blue-600" />
           </div>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-blue-700">{money(totalPaid)}</p>
-          <p className="mt-0.5 text-xs text-slate-400">Thực thu từ khách</p>
+          <p className="mt-1 text-lg sm:text-xl font-bold tracking-tight text-blue-700">{money(totalPaid)}</p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:shadow-md">
+        <div className="rounded-xl border border-slate-200/80 bg-white px-3.5 py-2.5 shadow-2xs">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Công nợ còn lại</span>
-            <AlertCircle className="h-4 w-4 text-amber-500" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Công nợ còn lại</span>
+            <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
           </div>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-amber-600">{money(totalDue)}</p>
-          <p className="mt-0.5 text-xs text-slate-400">Chưa thanh toán</p>
+          <p className="mt-1 text-lg sm:text-xl font-bold tracking-tight text-amber-600">{money(totalDue)}</p>
         </div>
       </div>
 
       {/* Filter and Search toolbar */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2.5 rounded-xl border border-slate-200/80 bg-white p-2.5 shadow-2xs sm:flex-row sm:items-center">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             aria-label="Tìm hóa đơn"
-            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-9 text-sm text-slate-800 placeholder-slate-400 transition focus:border-cyan-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-cyan-500/10"
+            className="w-full rounded-lg border border-slate-200 bg-slate-50/50 py-2 pl-9 pr-8 text-xs sm:text-sm text-slate-800 placeholder-slate-400 transition focus:border-cyan-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/10"
             placeholder="Số hóa đơn, mã đơn, khách hàng..."
             value={q}
             onChange={(event) => setQ(event.target.value)}
@@ -212,7 +206,7 @@ export default function RetailInvoicesPageContent() {
             <button
               type="button"
               onClick={() => setQ("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -222,7 +216,7 @@ export default function RetailInvoicesPageContent() {
         <div className="w-full sm:w-52">
           <select
             aria-label="Trạng thái hóa đơn"
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition focus:border-cyan-500 focus:outline-none focus:ring-4 focus:ring-cyan-500/10"
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 transition focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/10 cursor-pointer"
             value={status}
             onChange={(event) => setStatus(event.target.value)}
           >
@@ -235,12 +229,12 @@ export default function RetailInvoicesPageContent() {
 
       {/* Invoice list */}
       {items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white p-12 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-50 text-slate-400">
-            <FileText className="h-8 w-8" />
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-400">
+            <FileText className="h-6 w-6" />
           </div>
-          <h3 className="mt-4 text-base font-bold text-slate-800">Không tìm thấy hóa đơn</h3>
-          <p className="mt-1 text-sm text-slate-500">
+          <h3 className="mt-3 text-sm font-bold text-slate-800">Không tìm thấy hóa đơn</h3>
+          <p className="mt-1 text-xs text-slate-500">
             Không có hóa đơn nào khớp với từ khóa tìm kiếm hoặc bộ lọc hiện tại.
           </p>
           {(q || status) && (
@@ -250,122 +244,147 @@ export default function RetailInvoicesPageContent() {
                 setQ("");
                 setStatus("");
               }}
-              className="mt-4 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-100"
+              className="mt-3 rounded-xl border border-cyan-200 bg-cyan-50 px-3.5 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100 cursor-pointer"
             >
               Xóa bộ lọc
             </button>
           )}
         </div>
       ) : (
-        <div className="grid gap-3.5">
-          {items.map((invoice) => {
-            const summary = invoicePaymentSummary(invoice.snapshot);
-            const isVoid = invoice.status === "void";
-            const hasDue = Number(invoice.snapshot?.dueAmount || 0) > 0;
+        <div className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[840px] text-left text-xs">
+              <thead className="bg-slate-50/90 border-b border-slate-200/80 text-[11px] uppercase tracking-wider text-slate-500 font-bold select-none">
+                <tr>
+                  <th className="px-4 py-3">Số hóa đơn</th>
+                  <th className="px-4 py-3">Mã đơn & Khách hàng</th>
+                  <th className="px-4 py-3">Thanh toán & Công nợ</th>
+                  <th className="px-4 py-3 text-right">Tổng tiền</th>
+                  <th className="px-4 py-3 text-center">Trạng thái</th>
+                  <th className="px-4 py-3 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {items.map((invoice) => {
+                  const summary = invoicePaymentSummary(invoice.snapshot);
+                  const isVoid = invoice.status === "void";
+                  const hasDue = Number(invoice.snapshot?.dueAmount || 0) > 0;
 
-            return (
-              <article
-                key={invoice._id}
-                className="group rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm transition hover:border-cyan-400 hover:shadow-md sm:p-5"
-              >
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  {/* Left: Invoice info */}
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-mono text-base font-bold text-slate-900 group-hover:text-cyan-700">
-                        {invoice.invoiceNo}
-                      </p>
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${isVoid
-                            ? "bg-rose-50 text-rose-700 border border-rose-200"
-                            : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  return (
+                    <tr
+                      key={invoice._id}
+                      onClick={() => void detail(invoice._id)}
+                      className="hover:bg-cyan-50/40 transition-colors group cursor-pointer"
+                    >
+                      <td className="px-4 py-3">
+                        <span className="font-mono font-bold text-slate-900 group-hover:text-cyan-700 transition">
+                          {invoice.invoiceNo}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-slate-800">
+                          {invoice.snapshot.customerName || "Khách lẻ"}
+                        </div>
+                        <div className="text-[11px] text-slate-400 font-mono">
+                          {invoice.orderCode}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-xs font-medium text-cyan-700">
+                          {summary.label}
+                          {summary.paidAmount !== undefined && ` · Đã thanh toán ${money(summary.paidAmount)}`}
+                          {summary.dueAmount !== undefined && ` · Còn nợ ${money(summary.dueAmount)}`}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <span className="font-mono text-sm font-bold text-slate-900">
+                          {money(invoice.snapshot.grandTotal)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                            isVoid
+                              ? "bg-rose-50 text-rose-700 border border-rose-200"
+                              : "bg-emerald-50 text-emerald-700 border border-emerald-200"
                           }`}
-                      >
-                        {isVoid ? (
-                          <AlertCircle className="h-3 w-3" />
-                        ) : (
-                          <CheckCircle2 className="h-3 w-3" />
-                        )}
-                        {isVoid ? "Đã vô hiệu" : "Đã phát hành"}
-                      </span>
-                    </div>
-
-                    <p className="text-sm text-slate-500">
-                      <span className="font-semibold text-slate-700">{invoice.orderCode}</span> ·{" "}
-                      <span>{invoice.snapshot.customerName}</span>
-                    </p>
-
-                    <p className="mt-1 text-sm font-medium text-cyan-700">
-                      {summary.label}
-                      {summary.paidAmount !== undefined && ` · Đã thanh toán ${money(summary.paidAmount)}`}
-                      {summary.dueAmount !== undefined && ` · Còn nợ ${money(summary.dueAmount)}`}
-                    </p>
-                  </div>
-
-                  {/* Right: Amounts & Actions */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
-                    <div className="text-left sm:text-right">
-                      <p className="font-mono text-lg font-bold text-slate-900">
-                        {money(invoice.snapshot.grandTotal)}
-                      </p>
-                      <p className="text-xs uppercase font-medium text-slate-400">
-                        {invoice.status}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        aria-label={`Xem hóa đơn ${invoice.invoiceNo}`}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700 active:scale-95 shadow-sm"
-                        onClick={() => void detail(invoice._id)}
-                        title="Xem chi tiết hóa đơn"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
-
-                      <button
-                        type="button"
-                        aria-label={`In lại hóa đơn ${invoice.invoiceNo}`}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700 active:scale-95 shadow-sm"
-                        onClick={() => void reprint(invoice._id)}
-                        title="In lại hóa đơn"
-                      >
-                        <Printer className="h-4 w-4" />
-                      </button>
-
-                      <button
-                        type="button"
-                        aria-label={`Tải PDF hóa đơn ${invoice.invoiceNo}`}
-                        disabled={downloadingId === invoice._id}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700 active:scale-95 disabled:opacity-50 shadow-sm"
-                        onClick={() => void download(invoice._id)}
-                        title="Tải tệp PDF"
-                      >
-                        {downloadingId === invoice._id ? (
-                          <Loader2 className="h-4 w-4 animate-spin text-cyan-600" />
-                        ) : (
-                          <Download className="h-4 w-4" />
-                        )}
-                      </button>
-
-                      {!isVoid && hasDue && (
-                        <button
-                          type="button"
-                          onClick={() => void showPaymentQr(invoice.orderId)}
-                          className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-2.5 text-xs font-semibold text-cyan-700 transition hover:bg-cyan-100 active:scale-95"
-                          title="Tạo mã QR thu nợ SePay"
                         >
-                          <QrCode className="h-3.5 w-3.5" />
-                          <span className="hidden sm:inline">QR nợ</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
+                          {isVoid ? (
+                            <AlertCircle className="h-3 w-3" />
+                          ) : (
+                            <CheckCircle2 className="h-3 w-3" />
+                          )}
+                          {isVoid ? "Đã vô hiệu" : "Đã phát hành"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            aria-label={`Xem hóa đơn ${invoice.invoiceNo}`}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700 active:scale-95 shadow-2xs cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void detail(invoice._id);
+                            }}
+                            title="Xem chi tiết hóa đơn"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            aria-label={`In lại hóa đơn ${invoice.invoiceNo}`}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700 active:scale-95 shadow-2xs cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void reprint(invoice._id);
+                            }}
+                            title="In lại hóa đơn"
+                          >
+                            <Printer className="h-3.5 w-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            aria-label={`Tải PDF hóa đơn ${invoice.invoiceNo}`}
+                            disabled={downloadingId === invoice._id}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700 active:scale-95 disabled:opacity-50 shadow-2xs cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void download(invoice._id);
+                            }}
+                            title="Tải tệp PDF"
+                          >
+                            {downloadingId === invoice._id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-600" />
+                            ) : (
+                              <Download className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+
+                          {!isVoid && hasDue && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void showPaymentQr(invoice.orderId);
+                              }}
+                              className="inline-flex h-7 items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-2 text-[11px] font-semibold text-cyan-700 transition hover:bg-cyan-100 active:scale-95 cursor-pointer"
+                              title="Tạo mã QR thu nợ SePay"
+                            >
+                              <QrCode className="h-3 w-3" />
+                              <span className="hidden sm:inline">QR nợ</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
