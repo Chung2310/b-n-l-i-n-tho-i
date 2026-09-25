@@ -197,7 +197,7 @@ async function getActionItems(user: DashboardUser) {
   const access = resolveDashboardModuleAccess(user);
   const manages = isManagerOrAbove(user.role);
 
-  const [overdueTasksRaw, pendingApprovalsRaw, lowStockRaw, contractExpiryAlerts] = await Promise.all([
+  const [overdueTasksRaw, pendingApprovalsRaw, lowStockRaw, contractExpiryAlerts, helpTasksRaw] = await Promise.all([
     access.hr
       ? KanbanTaskModel.find({
           ...companyQ,
@@ -230,6 +230,17 @@ async function getActionItems(user: DashboardUser) {
           limit: 10,
         })
       : Promise.resolve([]),
+    access.hr
+      ? KanbanTaskModel.find({
+          ...companyQ,
+          status: { $nin: ["Done", "done"] },
+          helpRequested: true,
+        })
+          .select("_id title assignee assigneeUid helpReason")
+          .sort({ updatedAt: -1, createdAt: -1 })
+          .limit(5)
+          .lean()
+      : Promise.resolve([]),
   ]);
 
   return {
@@ -243,6 +254,13 @@ async function getActionItems(user: DashboardUser) {
     })),
     lowStockAlerts: lowStockRaw.map((p: any) => ({ id: String(p._id), name: p.name, sku: p.sku, stock: p.stock, minStockAlert: p.minStockAlert })),
     contractExpiryAlerts,
+    helpTasks: (helpTasksRaw || []).map((t: any) => ({
+      id: String(t._id),
+      title: t.title,
+      assignee: t.assignee || "Nhân sự",
+      assigneeUid: t.assigneeUid,
+      helpReason: t.helpReason || "",
+    })),
   };
 }
 

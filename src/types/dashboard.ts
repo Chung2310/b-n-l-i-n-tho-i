@@ -63,4 +63,11 @@ export interface DashboardActionItems {
     daysRemaining: number;
     reminderDays: 3 | 7;
   }[];
+  helpTasks?: {
+    id: string;
+    title: string;
+    assignee: string;
+    assigneeUid: string;
+    helpReason?: string;
+  }[];
 }
