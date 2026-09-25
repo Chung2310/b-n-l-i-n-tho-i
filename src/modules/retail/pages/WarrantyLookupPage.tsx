@@ -176,15 +176,12 @@ export default function WarrantyLookupPage() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2.5 text-2xl font-black tracking-tight text-slate-900">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-600">
-              <ShieldCheck className="h-6 w-6" />
+          <h1 className="flex items-center gap-2.5 text-xl sm:text-2xl font-black tracking-tight text-slate-900">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-600">
+              <ShieldCheck className="h-5 w-5" />
             </div>
             <span>Tra cứu bảo hành thiết bị</span>
           </h1>
-          <p className="mt-1 text-xs sm:text-sm text-slate-500 font-medium">
-            Kiểm tra nguồn gốc xuất bán từ shop và hiệu lực bảo hành theo IMEI, Serial hoặc mã tem vạch.
-          </p>
         </div>
 
         {result && (
@@ -195,7 +192,7 @@ export default function WarrantyLookupPage() {
               setResult(null);
               setSearchedCode("");
             }}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-2xs"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-2xs"
           >
             <RotateCw className="h-3.5 w-3.5" />
             <span>Tra cứu máy khác</span>
@@ -204,19 +201,19 @@ export default function WarrantyLookupPage() {
       </div>
 
       {/* Main Search Hero Box */}
-      <div className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-xs">
+      <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs">
 
-        <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
+        <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2.5 max-w-3xl">
           <div className="relative flex-1">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-cyan-600">
-              <QrCode className="h-5 w-5" />
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-cyan-600">
+              <QrCode className="h-4 w-4" />
             </div>
             <input
               autoFocus
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="Nhập IMEI (15 số), Serial máy hoặc quét mã vạch tem..."
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-3.5 pl-12 pr-10 text-sm sm:text-base font-medium text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition shadow-2xs"
+              placeholder="Nhập IMEI (15 số), Serial máy hoặc quét mã vạch..."
+              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-9 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition shadow-2xs"
             />
             {code && (
               <button
@@ -225,7 +222,7 @@ export default function WarrantyLookupPage() {
                 className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 cursor-pointer"
                 title="Xóa nhập liệu"
               >
-                <span className="rounded-full bg-slate-200/70 p-1 text-xs hover:bg-slate-300">✕</span>
+                <span className="rounded-full bg-slate-200/70 p-1 text-[10px] hover:bg-slate-300">✕</span>
               </button>
             )}
           </div>
@@ -233,22 +230,22 @@ export default function WarrantyLookupPage() {
           <button
             type="submit"
             disabled={busy || !code.trim()}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 px-7 py-3.5 font-bold text-white shadow-md shadow-cyan-600/20 hover:from-cyan-700 hover:to-teal-700 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer text-sm sm:text-base"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 px-5 py-2.5 font-bold text-white shadow-sm shadow-cyan-600/20 hover:from-cyan-700 hover:to-teal-700 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer text-sm shrink-0"
           >
             {busy ? (
-              <RotateCw className="h-5 w-5 animate-spin" />
+              <RotateCw className="h-4 w-4 animate-spin" />
             ) : (
-              <Search className="h-5 w-5" />
+              <Search className="h-4 w-4" />
             )}
             <span>{busy ? "Đang tra cứu..." : "Kiểm tra bảo hành"}</span>
           </button>
         </form>
 
         {/* Tip & Recent Lookups */}
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
           <p className="text-slate-500 flex items-center gap-1.5">
-            <span className="text-amber-500 font-bold">💡 Mẹo quầy tiếp nhận:</span>
-            <span>Dùng máy quét barcode quét trực tiếp tem dán sau lưng máy hoặc hóa đơn mua hàng.</span>
+            <span className="text-amber-500 font-bold">💡 Mẹo:</span>
+            <span>Quét mã vạch trên tem máy hoặc hóa đơn để tra cứu nhanh.</span>
           </p>
 
           {recentLookups.length > 0 && (
@@ -277,39 +274,39 @@ export default function WarrantyLookupPage() {
 
       {/* IDLE STATE: When no search has been performed yet */}
       {!result && !busy && (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center space-y-4">
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center space-y-3">
           <div className="flex justify-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-100/70 text-cyan-700">
-              <ShieldCheck className="h-8 w-8" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-100/70 text-cyan-700">
+              <ShieldCheck className="h-6 w-6" />
             </div>
           </div>
           <div className="max-w-md mx-auto space-y-1">
-            <h3 className="text-base font-bold text-slate-800">
+            <h3 className="text-sm sm:text-base font-bold text-slate-800">
               Sẵn sàng kiểm tra thông tin bảo hành
             </h3>
-            <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
-              Nhập mã số IMEI hoặc quét mã vạch tem máy ở trên để xác minh xem thiết bị có phải mua tại shop không và kiểm tra hạn bảo hành còn lại.
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Nhập IMEI/Serial hoặc quét tem máy để tra cứu nguồn gốc và thời hạn bảo hành.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto pt-2 text-left text-xs">
-            <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl mx-auto pt-1 text-left text-xs">
+            <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-1">
               <div className="flex items-center gap-1.5 font-bold text-slate-800">
                 <Store className="h-4 w-4 text-cyan-600" />
                 <span>1. Xác thực nguồn gốc từ shop</span>
               </div>
               <p className="text-slate-500">
-                Nhận diện ngay máy do shop bán ra hay là máy mua ngoài; xem thông tin đơn hàng và ngày xuất bán.
+                Xác định máy bán tại shop hay máy ngoài; thông tin đơn hàng và ngày xuất bán.
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-1">
+            <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-1">
               <div className="flex items-center gap-1.5 font-bold text-slate-800">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                 <span>2. Kiểm tra hiệu lực bảo hành</span>
               </div>
               <p className="text-slate-500">
-                Tính toán chính xác số ngày bảo hành còn lại tại Shop và bảo hành từ Hãng/NCC để tiếp nhận máy.
+                Tính toán thời hạn bảo hành còn lại tại Shop và bảo hành từ Hãng/NCC.
               </p>
             </div>
           </div>
