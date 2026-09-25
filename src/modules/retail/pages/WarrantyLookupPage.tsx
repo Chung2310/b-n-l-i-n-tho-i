@@ -172,7 +172,7 @@ export default function WarrantyLookupPage() {
   };
 
   return (
-    <div className="space-y-5 max-w-5xl mx-auto">
+    <div className="space-y-5 w-full">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -292,7 +292,7 @@ export default function WarrantyLookupPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg mx-auto pt-2 text-left text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto pt-2 text-left text-xs">
             <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-1">
               <div className="flex items-center gap-1.5 font-bold text-slate-800">
                 <Store className="h-4 w-4 text-cyan-600" />
