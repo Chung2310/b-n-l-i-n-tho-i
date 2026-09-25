@@ -53,28 +53,62 @@ function formatDate(value: string): string {
   return `${day}/${month}/${year}`;
 }
 
+function formatShortDate(value: string): string {
+  if (!value) return "";
+  const parts = value.split("-");
+  return parts.length === 3 ? `${parts[2]}/${parts[1]}` : value;
+}
+
+const CHART_PADDING = {
+  left: 55,
+  right: 15,
+  top: 14,
+  bottom: 24,
+};
+const SVG_WIDTH = 700;
+const SVG_HEIGHT = 210;
+const plotWidth = SVG_WIDTH - CHART_PADDING.left - CHART_PADDING.right;
+const plotHeight = SVG_HEIGHT - CHART_PADDING.top - CHART_PADDING.bottom;
+const baselineY = CHART_PADDING.top + plotHeight;
+
+function getCoord(index: number, total: number, value: number, maxValue: number) {
+  const x = total <= 1 ? CHART_PADDING.left + plotWidth / 2 : CHART_PADDING.left + (index / (total - 1)) * plotWidth;
+  const clamped = Math.max(0, value);
+  const y = baselineY - (clamped / maxValue) * plotHeight;
+  return { x, y };
+}
+
 function linePath(values: number[], maxValue: number): string {
-  const width = 700;
-  const height = 170;
+  if (!values.length) return "";
   return values
-    .map((value, index) => {
-      const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * width;
-      const y = 10 + height - (Math.max(0, value) / maxValue) * height;
-      return `${index === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+    .map((val, idx) => {
+      const { x, y } = getCoord(idx, values.length, val, maxValue);
+      return `${idx === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
 }
 
 function areaPath(values: number[], maxValue: number): string {
-  const width = 700;
-  const height = 170;
   if (!values.length) return "";
-  const points = values.map((value, index) => {
-    const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * width;
-    const y = 10 + height - (Math.max(0, value) / maxValue) * height;
+  const points = values.map((val, idx) => {
+    const { x, y } = getCoord(idx, values.length, val, maxValue);
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
-  return `M${points[0]} L${points.join(" L")} L${width},${10 + height} L0,${10 + height} Z`;
+  const firstX = getCoord(0, values.length, 0, maxValue).x.toFixed(1);
+  const lastX = getCoord(values.length - 1, values.length, 0, maxValue).x.toFixed(1);
+  return `M${firstX},${baselineY} L${points.join(" L")} L${lastX},${baselineY} Z`;
+}
+
+function getXAxisTicks(total: number): number[] {
+  if (total <= 1) return [0];
+  if (total <= 6) return Array.from({ length: total }, (_, i) => i);
+  const count = 5;
+  const step = (total - 1) / (count - 1);
+  const set = new Set<number>();
+  for (let i = 0; i < count; i++) {
+    set.add(Math.round(i * step));
+  }
+  return Array.from(set).sort((a, b) => a - b);
 }
 
 export default function RetailSalesCharts({ report }: RetailSalesChartsProps) {
@@ -87,6 +121,19 @@ export default function RetailSalesCharts({ report }: RetailSalesChartsProps) {
   const paymentMaximum = Math.max(1, ...report.paymentMix.map((row) => row.amount));
   const firstDay = report.timeSeries[0]?.businessDate || report.range.from;
   const lastDay = report.timeSeries.at(-1)?.businessDate || report.range.to;
+
+  const yTicks = [1.0, 0.75, 0.5, 0.25, 0].map((ratio) => ({
+    ratio,
+    y: baselineY - ratio * plotHeight,
+    label:
+      ratio === 0
+        ? "0"
+        : actualTrendMaximum > 0
+        ? compactMoneyFormatter.format(ratio * actualTrendMaximum)
+        : "",
+  }));
+
+  const xAxisTicks = getXAxisTicks(report.timeSeries.length);
 
   return (
     <section className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
@@ -109,15 +156,15 @@ export default function RetailSalesCharts({ report }: RetailSalesChartsProps) {
             aria-label="Chú giải biểu đồ"
           >
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-cyan-500 shadow-xs" />
+              <span className="h-2 w-2 rounded-full bg-cyan-500 shadow-xs" />
               Doanh thu thuần
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-xs" />
+              <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-xs" />
               Đã thu
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-rose-400 shadow-xs" />
+              <span className="h-2 w-2 rounded-full bg-rose-400 shadow-xs" />
               Hoàn tiền
             </span>
           </div>
@@ -135,24 +182,64 @@ export default function RetailSalesCharts({ report }: RetailSalesChartsProps) {
               <title>Xu hướng doanh thu theo ngày</title>
               <defs>
                 <linearGradient id="retailNetSalesArea" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.22" />
+                  <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.14" />
                   <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.0" />
                 </linearGradient>
               </defs>
 
-              {/* Grid Lines */}
-              {[10, 52.5, 95, 137.5, 180].map((y) => (
-                <line
-                  key={y}
-                  x1="0"
-                  x2="700"
-                  y1={y}
-                  y2={y}
-                  stroke="#f1f5f9"
-                  strokeWidth="1"
-                  strokeDasharray="4 4"
-                />
+              {/* Grid Lines & Y-axis labels */}
+              {yTicks.map((tick) => (
+                <g key={tick.ratio}>
+                  <line
+                    x1={CHART_PADDING.left}
+                    x2={CHART_PADDING.left + plotWidth}
+                    y1={tick.y}
+                    y2={tick.y}
+                    stroke="#f1f5f9"
+                    strokeWidth="1"
+                    strokeDasharray={tick.ratio === 0 ? undefined : "3 3"}
+                  />
+                  {tick.label ? (
+                    <text
+                      x={CHART_PADDING.left - 8}
+                      y={tick.y + 3.5}
+                      textAnchor="end"
+                      className="fill-slate-400 font-mono text-[9.5px] select-none"
+                    >
+                      {tick.label}
+                    </text>
+                  ) : null}
+                </g>
               ))}
+
+              {/* X-axis ticks & date markers */}
+              {xAxisTicks.map((idx) => {
+                const item = report.timeSeries[idx];
+                if (!item) return null;
+                const { x } = getCoord(idx, report.timeSeries.length, 0, 1);
+                const isFirst = idx === 0;
+                const isLast = idx === report.timeSeries.length - 1;
+                return (
+                  <g key={`x-${item.businessDate || idx}`}>
+                    <line
+                      x1={x}
+                      x2={x}
+                      y1={baselineY}
+                      y2={baselineY + 4}
+                      stroke="#e2e8f0"
+                      strokeWidth="1"
+                    />
+                    <text
+                      x={x}
+                      y={baselineY + 16}
+                      textAnchor={isFirst ? "start" : isLast ? "end" : "middle"}
+                      className="fill-slate-400 text-[10px] select-none font-medium"
+                    >
+                      {formatShortDate(item.businessDate)}
+                    </text>
+                  </g>
+                );
+              })}
 
               {/* Area fill under net sales */}
               <path
@@ -163,7 +250,7 @@ export default function RetailSalesCharts({ report }: RetailSalesChartsProps) {
                 fill="url(#retailNetSalesArea)"
               />
 
-              {/* Net Sales Line */}
+              {/* Net Sales Line - Thin elegant stroke */}
               <path
                 d={linePath(
                   report.timeSeries.map((row) => row.netSales),
@@ -171,13 +258,13 @@ export default function RetailSalesCharts({ report }: RetailSalesChartsProps) {
                 )}
                 fill="none"
                 stroke="#06b6d4"
-                strokeWidth="4"
+                strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 vectorEffect="non-scaling-stroke"
               />
 
-              {/* Collected Amount Line */}
+              {/* Collected Amount Line - Thin elegant stroke */}
               <path
                 d={linePath(
                   report.timeSeries.map((row) => row.collectedAmount),
@@ -185,13 +272,13 @@ export default function RetailSalesCharts({ report }: RetailSalesChartsProps) {
                 )}
                 fill="none"
                 stroke="#10b981"
-                strokeWidth="3"
+                strokeWidth="1.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 vectorEffect="non-scaling-stroke"
               />
 
-              {/* Refunds Line */}
+              {/* Refunds Line - Subtle dashed thin stroke */}
               <path
                 d={linePath(
                   report.timeSeries.map((row) => row.refunds),
@@ -199,18 +286,39 @@ export default function RetailSalesCharts({ report }: RetailSalesChartsProps) {
                 )}
                 fill="none"
                 stroke="#fb7185"
-                strokeWidth="2.5"
+                strokeWidth="1.25"
+                strokeDasharray="4 3"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 vectorEffect="non-scaling-stroke"
               />
+
+              {/* Peak highlight dots for non-zero netSales */}
+              {report.timeSeries.map((row, idx) => {
+                if (row.netSales <= 0) return null;
+                const { x, y } = getCoord(idx, report.timeSeries.length, row.netSales, trendScaleMaximum);
+                return (
+                  <g key={`dot-${row.businessDate || idx}`} className="cursor-pointer">
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r="3"
+                      fill="#ffffff"
+                      stroke="#06b6d4"
+                      strokeWidth="1.5"
+                    />
+                    <title>{`${formatDate(row.businessDate)}: Doanh thu thuần ${moneyFormatter.format(row.netSales)}`}</title>
+                  </g>
+                );
+              })}
             </svg>
             <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
-              <span className="font-medium">{formatDate(firstDay)}</span>
+              <span className="font-medium text-slate-500">
+                Khoảng: <span className="font-semibold text-slate-700">{formatDate(firstDay)} – {formatDate(lastDay)}</span>
+              </span>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 font-bold text-slate-700">
                 Cao nhất: {compactMoneyFormatter.format(actualTrendMaximum)} ₫
               </span>
-              <span className="font-medium">{formatDate(lastDay)}</span>
             </div>
           </div>
         ) : (
