@@ -431,8 +431,16 @@ kanbanRouter.patch("/tasks/:id", async (req: AuthenticatedRequest, res: Response
   }
 });
 
-kanbanRouter.delete("/tasks/:id", requirePermission("work:manage") as any, async (req: AuthenticatedRequest, res: Response) => {
+kanbanRouter.delete("/tasks/:id", requirePermission(["work:read", "work:manage"]) as any, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const existingTask: any = await KanbanTaskModel.findOne({ _id: req.params.id, ...companyFilter(req) });
+    if (!existingTask) throw httpError(404, "Không tìm thấy công việc.");
+
+    const isAdmin = req.user?.role === "superadmin" || req.user?.role === "admin";
+    if (!isAdmin && existingTask.creatorUid !== req.user?.id) {
+      throw httpError(403, "Bạn không có quyền xóa công việc này. Chỉ Quản trị viên (Admin) hoặc người tạo công việc mới có quyền xóa.");
+    }
+
     const task: any = await KanbanTaskModel.findOneAndDelete({ _id: req.params.id, ...companyFilter(req) });
     if (!task) throw httpError(404, "Không tìm thấy công việc.");
     await syncProjectLifecycle(task.companyCode, [task.projectId]);

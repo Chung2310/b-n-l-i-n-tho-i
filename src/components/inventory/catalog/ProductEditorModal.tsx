@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Folder, FolderTree, Pencil, Plus, Search, Sparkles, Tag } from "lucide-react";
+import { Building2, CheckCircle2, Folder, FolderTree, Pencil, Plus, Search, Sparkles, Tag, X } from "lucide-react";
 import { toast } from "../../../pages/Toast";
 import { getApiErrorMessage } from "../../../utils/errorMessage";
 import {
@@ -12,6 +12,7 @@ import {
   type VariantInput,
   productCatalogService,
 } from "../../../services/productCatalogService";
+import { inventoryReceivingService } from "../../../services/inventoryReceivingService";
 import { generateEAN13, type Option, type GeneratedVariant, cleanOptionSlug } from "../../../hooks/useVariantMatrix";
 import { buildMatrixVariantInput } from "../productVariantPayload";
 import { shouldCreateInitialPrice } from "../productCatalogCreation";
@@ -120,6 +121,54 @@ export function ProductEditorModal({
   );
   const [variantQuery, setVariantQuery] = useState("");
   const [pricesByVariant, setPricesByVariant] = useState<Record<string, { sellingPrice: number; costPrice: number }>>({});
+
+  // Local brands state for instant update upon creation
+  const [localBrands, setLocalBrands] = useState<ProductResource[]>(() => resources.brands || []);
+  useEffect(() => {
+    setLocalBrands(resources.brands || []);
+  }, [resources.brands]);
+
+  // Quick create brand/supplier state
+  const [isQuickCreatingBrand, setIsQuickCreatingBrand] = useState(false);
+  const [quickBrandName, setQuickBrandName] = useState("");
+  const [quickBrandCode, setQuickBrandCode] = useState("");
+  const [quickCreating, setQuickCreating] = useState(false);
+
+  const handleQuickCreateBrand = async () => {
+    const trimmedName = quickBrandName.trim();
+    if (!trimmedName) {
+      toast.error("Vui lòng nhập tên nhà cung cấp / hãng.");
+      return;
+    }
+    setQuickCreating(true);
+    try {
+      const code = quickBrandCode.trim() || undefined;
+      const created = await productCatalogService.createResource("brands", {
+        name: trimmedName,
+        code,
+        status: "active",
+      });
+
+      // Sync to supplier management if available
+      void inventoryReceivingService.createSupplier({ name: trimmedName, code: created.code }).catch(() => {});
+
+      setLocalBrands((prev) => {
+        if (prev.some((b) => b.code === created.code)) return prev;
+        return [...prev, created];
+      });
+
+      setField("brandCode", created.code);
+      toast.success(`Đã tạo nhà cung cấp "${created.name}" thành công!`);
+      setIsQuickCreatingBrand(false);
+      setQuickBrandName("");
+      setQuickBrandCode("");
+      void onDataChanged();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Không thể tạo nhà cung cấp / hãng."));
+    } finally {
+      setQuickCreating(false);
+    }
+  };
 
   useEffect(() => {
     if (!currentProduct) return;
@@ -534,11 +583,11 @@ export function ProductEditorModal({
 
   const brandDropdownOptions = useMemo<DropdownOption<string>[]>(() => [
     { value: "", label: "Không chọn thương hiệu" },
-    ...resources.brands.map((item) => ({
+    ...localBrands.map((item) => ({
       value: item.code,
       label: item.name,
     })),
-  ], [resources.brands]);
+  ], [localBrands]);
 
   const statusDropdownOptions = useMemo<DropdownOption<ProductCatalogStatus>[]>(() => [
     { value: "draft", label: "Bản nháp", icon: <span className="h-2 w-2 rounded-full bg-amber-400" /> },
@@ -625,13 +674,18 @@ export function ProductEditorModal({
                     value={form.brandCode}
                     onChange={(val) => setField("brandCode", val)}
                     options={brandDropdownOptions}
-                    searchable={resources.brands.length > 8}
+                    searchable={localBrands.length > 8}
                     searchPlaceholder="Tìm hãng..."
                     placeholder="Không chọn thương hiệu"
                     variant="form"
                     size="md"
                     className="w-full"
                     triggerClassName="w-full text-xs font-medium"
+                    actionButton={{
+                      label: "Tạo mới nhà cung cấp",
+                      icon: <Plus className="h-3.5 w-3.5 text-cyan-600" />,
+                      onClick: () => setIsQuickCreatingBrand(true),
+                    }}
                   />
                 </Field>
                 <Field label="Trạng thái">
@@ -948,6 +1002,86 @@ export function ProductEditorModal({
         onClose={() => !deletingVariants && setDeleteVariantIds(null)}
         onConfirm={confirmDeleteVariants}
       />
+
+      {isQuickCreatingBrand && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/40 p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700">
+                  <Building2 className="h-4 w-4" />
+                </div>
+                <h3 className="text-sm font-bold text-slate-900">Tạo mới nhà cung cấp / Hãng</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsQuickCreatingBrand(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Tên nhà cung cấp / Hãng <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  autoFocus
+                  type="text"
+                  value={quickBrandName}
+                  onChange={(e) => setQuickBrandName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void handleQuickCreateBrand();
+                    }
+                  }}
+                  placeholder="VD: Apple, Samsung, Xiaomi, Viettel..."
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  Mã viết tắt (tùy chọn)
+                </label>
+                <input
+                  type="text"
+                  value={quickBrandCode}
+                  onChange={(e) => setQuickBrandCode(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void handleQuickCreateBrand();
+                    }
+                  }}
+                  placeholder="Tự động sinh (VD: APPLE, SAMSUNG...)"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono uppercase text-slate-700 placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none focus:bg-white focus:ring-2 focus:ring-cyan-500/20"
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setIsQuickCreatingBrand(false)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={quickCreating || !quickBrandName.trim()}
+                onClick={() => void handleQuickCreateBrand()}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-700 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-cyan-800 disabled:opacity-50 transition"
+              >
+                {quickCreating ? "Đang tạo..." : "Tạo ngay"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

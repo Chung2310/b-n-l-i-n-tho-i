@@ -1406,7 +1406,6 @@ export default function OrgChartTab({
                                 {renderAvatar(employee.avatar, "w-8 h-8", "text-xs")}
                                 <div>
                                   <div className="font-bold text-slate-800">{employee.name || missingValue}</div>
-                                  <div className="text-[10px] text-slate-400">{employee.id}</div>
                                 </div>
                               </div>
                             </td>

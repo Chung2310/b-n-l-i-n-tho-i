@@ -143,22 +143,20 @@ export default function RetailOrdersPageV2() {
   const pendingCount = orders.filter((o) => o.status === "confirmed" || Number(o.dueAmount || 0) > 0).length;
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-3.5">
       {/* Header Card */}
-      <header className="flex flex-col gap-4 rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
-        <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-indigo-600 text-white shadow-md shadow-cyan-500/20">
-            <ListOrdered className="h-6 w-6" />
+      <header className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-2.5 shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-indigo-600 text-white shadow-xs">
+            <ListOrdered className="h-4 w-4" />
           </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-                Đơn hàng
-              </h1>
-              <span className="rounded-full bg-cyan-50 px-2.5 py-0.5 text-xs font-semibold text-cyan-700">
-                {orders.length} đơn
-              </span>
-            </div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900">
+              Đơn hàng
+            </h1>
+            <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-xs font-semibold text-cyan-700 border border-cyan-200/60">
+              {orders.length} đơn
+            </span>
           </div>
         </div>
 
@@ -166,59 +164,55 @@ export default function RetailOrdersPageV2() {
           type="button"
           onClick={() => void refresh()}
           disabled={loading}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-95 disabled:opacity-60"
+          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 active:scale-95 disabled:opacity-60 cursor-pointer"
         >
-          <RefreshCw className={`h-4 w-4 text-cyan-600 ${loading ? "animate-spin" : ""}`} />
-          Làm mới
+          <RefreshCw className={`h-3.5 w-3.5 text-cyan-600 ${loading ? "animate-spin" : ""}`} />
+          <span>Làm mới</span>
         </button>
       </header>
 
       {/* Overview KPI Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:shadow-md">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <div className="rounded-xl border border-slate-200/80 bg-white px-3.5 py-2.5 shadow-2xs">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Tổng đơn hàng</span>
-            <ShoppingBag className="h-4 w-4 text-cyan-600" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tổng đơn hàng</span>
+            <ShoppingBag className="h-3.5 w-3.5 text-cyan-600" />
           </div>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">{orders.length}</p>
-          <p className="mt-0.5 text-xs text-slate-400">Trong danh sách hiển thị</p>
+          <p className="mt-1 text-lg sm:text-xl font-bold tracking-tight text-slate-900">{orders.length}</p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:shadow-md">
+        <div className="rounded-xl border border-slate-200/80 bg-white px-3.5 py-2.5 shadow-2xs">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Tổng doanh số</span>
-            <DollarSign className="h-4 w-4 text-emerald-600" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tổng doanh số</span>
+            <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
           </div>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-emerald-700">{money(totalGrand)}</p>
-          <p className="mt-0.5 text-xs text-slate-400">Giá trị đơn hàng</p>
+          <p className="mt-1 text-lg sm:text-xl font-bold tracking-tight text-emerald-700">{money(totalGrand)}</p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:shadow-md">
+        <div className="rounded-xl border border-slate-200/80 bg-white px-3.5 py-2.5 shadow-2xs">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Đã hoàn tất</span>
-            <CheckCircle2 className="h-4 w-4 text-blue-600" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Đã hoàn tất</span>
+            <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" />
           </div>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-blue-700">{completedCount}</p>
-          <p className="mt-0.5 text-xs text-slate-400">Giao dịch thành công</p>
+          <p className="mt-1 text-lg sm:text-xl font-bold tracking-tight text-blue-700">{completedCount}</p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:shadow-md">
+        <div className="rounded-xl border border-slate-200/80 bg-white px-3.5 py-2.5 shadow-2xs">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Chờ xử lý / Nợ</span>
-            <Clock className="h-4 w-4 text-amber-500" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Chờ xử lý / Nợ</span>
+            <Clock className="h-3.5 w-3.5 text-amber-500" />
           </div>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-amber-600">{pendingCount}</p>
-          <p className="mt-0.5 text-xs text-slate-400">Chưa quyết toán xong</p>
+          <p className="mt-1 text-lg sm:text-xl font-bold tracking-tight text-amber-600">{pendingCount}</p>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2.5 rounded-xl border border-slate-200/80 bg-white p-2.5 shadow-2xs sm:flex-row sm:items-center">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             aria-label="Tìm đơn hàng"
-            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-9 text-sm text-slate-800 placeholder-slate-400 transition focus:border-cyan-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-cyan-500/10"
+            className="w-full rounded-lg border border-slate-200 bg-slate-50/50 py-2 pl-9 pr-8 text-xs sm:text-sm text-slate-800 placeholder-slate-400 transition focus:border-cyan-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/10"
             placeholder="Tìm mã đơn, khách hàng, số điện thoại..."
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -227,17 +221,17 @@ export default function RetailOrdersPageV2() {
             <button
               type="button"
               onClick={() => setQ("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
             >
               <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
 
-        <div className="w-full sm:w-56">
+        <div className="w-full sm:w-52">
           <select
             aria-label="Trạng thái đơn"
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition focus:border-cyan-500 focus:outline-none focus:ring-4 focus:ring-cyan-500/10"
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 transition focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/10 cursor-pointer"
             value={status}
             onChange={(e) => setStatus(e.target.value)}
           >
@@ -252,22 +246,22 @@ export default function RetailOrdersPageV2() {
 
       {/* Inline Error banner */}
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-3.5 text-sm font-medium text-red-700 shadow-sm flex items-center justify-between">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs sm:text-sm font-medium text-red-700 shadow-2xs flex items-center justify-between">
           <span>{error}</span>
-          <button type="button" onClick={() => setError("")} className="text-red-400 hover:text-red-600">
+          <button type="button" onClick={() => setError("")} className="text-red-400 hover:text-red-600 cursor-pointer">
             <X className="h-4 w-4" />
           </button>
         </div>
       )}
 
-      {/* Orders List */}
+      {/* Orders Data Table */}
       {orders.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white p-12 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-50 text-slate-400">
-            <ShoppingBag className="h-8 w-8" />
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-400">
+            <ShoppingBag className="h-6 w-6" />
           </div>
-          <h3 className="mt-4 text-base font-bold text-slate-800">Không tìm thấy đơn hàng</h3>
-          <p className="mt-1 text-sm text-slate-500">
+          <h3 className="mt-3 text-sm font-bold text-slate-800">Không tìm thấy đơn hàng</h3>
+          <p className="mt-1 text-xs text-slate-500">
             Không có đơn hàng nào khớp với điều kiện tìm kiếm hoặc bộ lọc hiện tại.
           </p>
           {(q || status) && (
@@ -277,113 +271,144 @@ export default function RetailOrdersPageV2() {
                 setQ("");
                 setStatus("");
               }}
-              className="mt-4 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-100"
+              className="mt-3 rounded-xl border border-cyan-200 bg-cyan-50 px-3.5 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100 cursor-pointer"
             >
               Xóa bộ lọc
             </button>
           )}
         </div>
       ) : (
-        <div className="grid gap-3.5">
-          {orders.map((order) => {
-            const isCompleted = order.status === "completed";
-            const isCancelled = order.status === "cancelled";
-            const isConfirmed = order.status === "confirmed";
+        <div className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[840px] text-left text-xs">
+              <thead className="bg-slate-50/90 border-b border-slate-200/80 text-[11px] uppercase tracking-wider text-slate-500 font-bold select-none">
+                <tr>
+                  <th className="px-4 py-3">Mã đơn hàng</th>
+                  <th className="px-4 py-3">Khách hàng</th>
+                  <th className="px-4 py-3">Ngày bán</th>
+                  <th className="px-4 py-3">Sản phẩm</th>
+                  <th className="px-4 py-3 text-right">Tổng tiền</th>
+                  <th className="px-4 py-3 text-center">Trạng thái</th>
+                  <th className="px-4 py-3 text-center">Thanh toán</th>
+                  <th className="px-4 py-3 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {orders.map((order) => {
+                  const isCompleted = order.status === "completed";
+                  const isCancelled = order.status === "cancelled";
+                  const isConfirmed = order.status === "confirmed";
 
-            return (
-              <article
-                key={order._id}
-                className="group rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm transition hover:border-cyan-400 hover:shadow-md sm:p-5"
-              >
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  {/* Left info */}
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-mono text-base font-bold text-slate-900 group-hover:text-cyan-700">
-                        {order.orderCode || `Đơn #${order._id.slice(-6)}`}
-                      </p>
-
-                      {/* Status Badges */}
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${isCompleted
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : isCancelled
-                              ? "bg-rose-50 text-rose-700 border border-rose-200"
-                              : isConfirmed
-                                ? "bg-blue-50 text-blue-700 border border-blue-200"
-                                : "bg-slate-100 text-slate-700 border border-slate-200"
-                          }`}
-                      >
-                        {isCompleted && <CheckCircle2 className="h-3 w-3" />}
-                        {isCancelled && <Ban className="h-3 w-3" />}
-                        {isConfirmed && <Clock className="h-3 w-3" />}
-                        {order.status === "completed"
-                          ? "Hoàn tất"
-                          : order.status === "cancelled"
-                            ? "Đã hủy"
-                            : order.status === "confirmed"
-                              ? "Còn xử lý"
-                              : "Đơn treo"}
-                      </span>
-
-                      {order.paymentStatus && (
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${order.paymentStatus === "paid"
-                              ? "bg-cyan-50 text-cyan-700"
-                              : order.paymentStatus === "partial"
-                                ? "bg-amber-50 text-amber-700"
-                                : "bg-slate-100 text-slate-600"
-                            }`}
-                        >
-                          {order.paymentStatus === "paid"
-                            ? "Đã thanh toán"
-                            : order.paymentStatus === "partial"
-                              ? "Thanh toán một phần"
-                              : order.paymentStatus === "refunded"
-                                ? "Đã hoàn tiền"
-                                : "Chưa thanh toán"}
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="text-sm text-slate-500">
-                      <span className="font-semibold text-slate-700">{order.customerName || "Khách lẻ"}</span>
-                      {order.customerPhone && <span> · {order.customerPhone}</span>}
-                      {order.businessDate && <span> · Ngày {order.businessDate}</span>}
-                    </p>
-
-                    {order.items && order.items.length > 0 && (
-                      <p className="text-xs text-slate-400 line-clamp-1">
-                        {order.items.map((i) => `${i.sku} × ${i.quantity}`).join("; ")}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Right: Amounts & Actions */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
-                    <div className="text-left sm:text-right">
-                      <p className="font-mono text-lg font-bold text-cyan-700">
-                        {money(order.grandTotal)}
-                      </p>
-                      <p className="text-xs uppercase font-medium text-slate-400">
-                        {order.status} · {order.paymentStatus}
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      aria-label="Xem chi tiết"
-                      className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700 active:scale-95"
+                  return (
+                    <tr
+                      key={order._id}
                       onClick={() => void detail(order._id)}
+                      className="hover:bg-cyan-50/40 transition-colors group cursor-pointer"
                     >
-                      <Eye className="h-4 w-4" />
-                      <span>Xem</span>
-                    </button>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
+                      <td className="px-4 py-3">
+                        <span className="font-mono font-bold text-slate-900 group-hover:text-cyan-700 transition">
+                          {order.orderCode || `Đơn #${order._id.slice(-6)}`}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-slate-800">
+                          {order.customerName || "Khách lẻ"}
+                        </div>
+                        {order.customerPhone && (
+                          <div className="text-[11px] text-slate-400 font-mono">
+                            {order.customerPhone}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                        {order.businessDate ? `Ngày ${order.businessDate}` : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        {order.items && order.items.length > 0 ? (
+                          <p
+                            className="text-slate-500 max-w-[200px] truncate"
+                            title={order.items.map((i) => `${i.sku} × ${i.quantity}`).join("; ")}
+                          >
+                            {order.items.map((i) => `${i.sku} × ${i.quantity}`).join("; ")}
+                          </p>
+                        ) : (
+                          <span className="text-slate-400 italic">Trống</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <span className="font-mono text-sm font-bold text-cyan-700">
+                          {money(order.grandTotal)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                            isCompleted
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : isCancelled
+                                ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                : isConfirmed
+                                  ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                  : "bg-slate-100 text-slate-700 border border-slate-200"
+                          }`}
+                        >
+                          {isCompleted && <CheckCircle2 className="h-3 w-3" />}
+                          {isCancelled && <Ban className="h-3 w-3" />}
+                          {isConfirmed && <Clock className="h-3 w-3" />}
+                          {order.status === "completed"
+                            ? "Hoàn tất"
+                            : order.status === "cancelled"
+                              ? "Đã hủy"
+                              : order.status === "confirmed"
+                                ? "Còn xử lý"
+                                : "Đơn treo"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap">
+                        {order.paymentStatus ? (
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                              order.paymentStatus === "paid"
+                                ? "bg-cyan-50 text-cyan-700"
+                                : order.paymentStatus === "partial"
+                                  ? "bg-amber-50 text-amber-700"
+                                  : order.paymentStatus === "refunded"
+                                    ? "bg-rose-50 text-rose-700"
+                                    : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            {order.paymentStatus === "paid"
+                              ? "Đã thanh toán"
+                              : order.paymentStatus === "partial"
+                                ? "Thanh toán một phần"
+                                : order.paymentStatus === "refunded"
+                                  ? "Đã hoàn tiền"
+                                  : "Chưa thanh toán"}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          aria-label="Xem chi tiết"
+                          className="inline-flex h-7 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700 active:scale-95 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void detail(order._id);
+                          }}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          <span>Xem</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

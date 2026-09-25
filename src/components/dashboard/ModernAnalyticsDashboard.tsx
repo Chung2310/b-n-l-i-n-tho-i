@@ -18,6 +18,7 @@ import {
   Moon,
   TrendingUp,
   TrendingDown,
+  LifeBuoy,
 } from "lucide-react";
 import type { DashboardSummary, DashboardActionItems } from "../../types/dashboard";
 import { analyticsService } from "../../services/analyticsService";
@@ -270,8 +271,45 @@ export function ModernAnalyticsDashboard({
     ? `-${Math.abs(monthPct)}% giảm ${monthDiffFormatted}`
     : `0% so với ${previousLabel}`;
 
+  // Fallback query for tasks requesting help if actionItems.helpTasks is not yet populated
+  const [fallbackHelpTasks, setFallbackHelpTasks] = useState<
+    { id: string; title: string; assignee: string; helpReason?: string }[]
+  >([]);
+
+  useEffect(() => {
+    if (actionItems?.helpTasks !== undefined) return;
+    let cancelled = false;
+    const token = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+    fetch("/api/v1/kanban/tasks", {
+      headers: {
+        Authorization: token ? `Bearer ${token}` : "",
+      },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (cancelled || !json) return;
+        const tasks = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
+        const needingHelp = tasks.filter(
+          (t: any) => t.helpRequested && !["Done", "done"].includes(t.status)
+        );
+        setFallbackHelpTasks(
+          needingHelp.map((t: any) => ({
+            id: String(t._id || t.id),
+            title: t.title || "Công việc",
+            assignee: t.assignee || t.assigneeName || "Nhân sự",
+            helpReason: t.helpReason || "",
+          }))
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [actionItems?.helpTasks]);
+
   // Real Alerts from actionItems
   const overdueTasks = actionItems?.overdueTasks || [];
+  const helpTasks = actionItems?.helpTasks ?? fallbackHelpTasks;
   const contractAlerts = actionItems?.contractExpiryAlerts || [];
   const pendingApprovals = actionItems?.pendingApprovals || [];
   const lowStockAlerts = actionItems?.lowStockAlerts || [];
@@ -798,16 +836,16 @@ export function ModernAnalyticsDashboard({
             </span>
           </div>
 
-          <div className="space-y-3 flex-1 flex flex-col justify-center">
+          <div className="space-y-2 sm:space-y-2.5 flex-1 flex flex-col justify-center">
             {/* 1. Red Alert: Overdue Tasks */}
             <div
               onClick={() => onNavigate("NHÂN SỰ", "kanban")}
-              className="flex items-center justify-between rounded-2xl bg-rose-50/70 p-3.5 border border-rose-100/60 hover:bg-rose-50 transition cursor-pointer"
+              className="flex items-center justify-between rounded-2xl bg-rose-50/70 p-2.5 sm:p-3 border border-rose-100/60 hover:bg-rose-50 transition cursor-pointer"
               style={{ animation: "alertItemSlideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) 100ms both" }}
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
-                  <AlertTriangle className="h-5 w-5" />
+                <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+                  <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-rose-900 truncate">
@@ -821,7 +859,33 @@ export function ModernAnalyticsDashboard({
               <ChevronRight className="h-4 w-4 text-rose-400 shrink-0" />
             </div>
 
-            {/* 2. Orange Alert: Contracts Expiring */}
+            {/* 2. Orange Alert: Help Requests */}
+            <div
+              onClick={() => onNavigate("NHÂN SỰ", "kanban")}
+              className="flex items-center justify-between rounded-2xl bg-orange-50/70 p-2.5 sm:p-3 border border-orange-100/60 hover:bg-orange-50 transition cursor-pointer"
+              style={{ animation: "alertItemSlideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) 180ms both" }}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-600">
+                  <LifeBuoy className="h-4 w-4 sm:h-5 sm:w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-orange-900 truncate">
+                    {helpTasks.length > 0
+                      ? `${helpTasks.length} việc cần trợ giúp`
+                      : "Không có yêu cầu trợ giúp"}
+                  </p>
+                  <p className="text-[11px] text-orange-700/80 truncate">
+                    {helpTasks.length > 0
+                      ? `${helpTasks[0].assignee}: ${helpTasks[0].helpReason || helpTasks[0].title}`
+                      : "Đang phối hợp tốt"}
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-orange-400 shrink-0" />
+            </div>
+
+            {/* 3. Amber Alert: Contracts Expiring */}
             <div
               onClick={() => {
                 if (contractAlerts.length > 0 && onOpenContract) {
@@ -830,12 +894,12 @@ export function ModernAnalyticsDashboard({
                   onNavigate("NHÂN SỰ", "hop-dong");
                 }
               }}
-              className="flex items-center justify-between rounded-2xl bg-amber-50/70 p-3.5 border border-amber-100/60 hover:bg-amber-50 transition cursor-pointer"
-              style={{ animation: "alertItemSlideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) 220ms both" }}
+              className="flex items-center justify-between rounded-2xl bg-amber-50/70 p-2.5 sm:p-3 border border-amber-100/60 hover:bg-amber-50 transition cursor-pointer"
+              style={{ animation: "alertItemSlideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) 260ms both" }}
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
-                  <FileClock className="h-5 w-5" />
+                <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                  <FileClock className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-amber-900 truncate">
@@ -851,15 +915,15 @@ export function ModernAnalyticsDashboard({
               <ChevronRight className="h-4 w-4 text-amber-400 shrink-0" />
             </div>
 
-            {/* 3. Blue Alert: Pending Approvals */}
+            {/* 4. Blue Alert: Pending Approvals */}
             <div
               onClick={() => onNavigate("NHÂN SỰ", "lich&view=requests")}
-              className="flex items-center justify-between rounded-2xl bg-sky-50/70 p-3.5 border border-sky-100/60 hover:bg-sky-50 transition cursor-pointer"
+              className="flex items-center justify-between rounded-2xl bg-sky-50/70 p-2.5 sm:p-3 border border-sky-100/60 hover:bg-sky-50 transition cursor-pointer"
               style={{ animation: "alertItemSlideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) 340ms both" }}
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
-                  <ClipboardList className="h-5 w-5" />
+                <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
+                  <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-sky-900 truncate">
@@ -875,15 +939,15 @@ export function ModernAnalyticsDashboard({
               <ChevronRight className="h-4 w-4 text-sky-400 shrink-0" />
             </div>
 
-            {/* 4. Purple Alert: Low Stock */}
+            {/* 5. Purple Alert: Low Stock */}
             <div
               onClick={() => onNavigate("KHO & SẢN PHẨM", "nhap-hang")}
-              className="flex items-center justify-between rounded-2xl bg-purple-50/70 p-3.5 border border-purple-100/60 hover:bg-purple-50 transition cursor-pointer"
-              style={{ animation: "alertItemSlideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) 460ms both" }}
+              className="flex items-center justify-between rounded-2xl bg-purple-50/70 p-2.5 sm:p-3 border border-purple-100/60 hover:bg-purple-50 transition cursor-pointer"
+              style={{ animation: "alertItemSlideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) 420ms both" }}
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-purple-100 text-purple-600">
-                  <Boxes className="h-5 w-5" />
+                <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-purple-100 text-purple-600">
+                  <Boxes className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-purple-900 truncate">

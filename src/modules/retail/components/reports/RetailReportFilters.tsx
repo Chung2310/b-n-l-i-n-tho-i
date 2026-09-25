@@ -18,7 +18,7 @@ type RetailReportFiltersProps = {
 };
 
 const buttonClass =
-  "rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer";
+  "rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer";
 
 export default function RetailReportFilters({
   filters,
@@ -111,15 +111,14 @@ export default function RetailReportFilters({
   const activeDimensionsCount = Object.values(dimensions).filter((v) => v.trim()).length;
 
   return (
-    <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs transition hover:border-slate-300">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-50 text-cyan-600">
-            <CalendarDays aria-hidden="true" className="h-4 w-4" />
+    <div className="rounded-2xl border border-slate-200/80 bg-white px-4 py-2.5 shadow-2xs transition hover:border-slate-300">
+      <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600">
+            <CalendarDays aria-hidden="true" className="h-3.5 w-3.5" />
           </div>
           <div>
             <span className="text-xs font-bold text-slate-800 block">Khoảng thời gian báo cáo</span>
-            <span className="text-[11px] text-slate-400">Chọn khoảng thời gian thống kê số liệu</span>
           </div>
         </div>
 

@@ -316,14 +316,13 @@ export default function CustomerWorkspace() {
       ) : (
         <div className="space-y-6 max-w-4xl">
           {/* Banner Explanation */}
-          <div className="rounded-2xl border border-cyan-100 bg-gradient-to-r from-cyan-50/70 to-teal-50/40 p-5">
-            <div className="flex items-center gap-2 text-cyan-900 font-bold text-base">
-              <Award className="h-5 w-5 text-cyan-600" />
-              <span>Chính sách Phân hạng VIP theo LỢI NHUẬN GỘP (Gross Profit)</span>
+          <div className="rounded-2xl border border-cyan-100 bg-gradient-to-r from-cyan-50/70 to-teal-50/40 p-4">
+            <div className="flex items-center gap-2 text-cyan-900 font-bold text-sm sm:text-base">
+              <Award className="h-5 w-5 text-cyan-600 shrink-0" />
+              <span>Chính sách Phân hạng VIP theo Lợi nhuận gộp</span>
             </div>
-            <p className="mt-1.5 text-xs sm:text-sm text-slate-600 leading-relaxed">
-              Hệ thống tự động phân hạng thành viên dựa trên <b>Tổng Lợi Nhuận Gộp (Giá bán - Giá vốn)</b> thực tế mà khách hàng mang lại từ cả đơn bán máy/phụ kiện và phiếu sửa chữa.
-              Giúp doanh nghiệp tri ân và bảo vệ chính xác tệp khách hàng nuôi sống cửa hàng, tránh thất thoát dòng tiền do phân hạng theo doanh thu ảo.
+            <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+              Tự động phân hạng thành viên dựa trên Lợi nhuận gộp thực tế mang lại từ đơn bán hàng và phiếu sửa chữa.
             </p>
           </div>
 

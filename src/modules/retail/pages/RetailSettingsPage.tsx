@@ -108,7 +108,7 @@ export default function RetailSettingsPage() {
   const todayStr = new Date().toISOString().slice(2, 10).replace(/-/g, "");
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 pb-12">
+    <div className="w-full space-y-6 pb-12">
       {/* Top Header Card */}
       <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs sm:p-8">
         <div className="absolute right-0 top-0 -mr-16 -mt-16 h-64 w-64 rounded-full bg-gradient-to-br from-cyan-100/50 to-blue-100/30 blur-2xl pointer-events-none" />

@@ -632,6 +632,9 @@ export default function KanbanTab({
 }: KanbanTabProps) {
   const [tasks, setTasks] = useState<HRTask[]>([]);
   const tasksRef = React.useRef<HRTask[]>([]);
+  const isAdmin = userProfile?.role === "admin" || userProfile?.role === "superadmin";
+  const currentUid = userProfile?.uid || (userProfile as any)?.id;
+  const canDeleteTask = (task: HRTask) => isAdmin || Boolean(task.creatorUid && task.creatorUid === currentUid);
   const [projects, setProjects] = useState<Project[]>([]);
   const [kanbanViewTab, setKanbanViewTab] = useState<KanbanViewTab>("By project");
   const tabRefs = React.useRef<Partial<Record<KanbanViewTab, HTMLButtonElement | null>>>({});
@@ -1336,7 +1339,7 @@ export default function KanbanTab({
       return true;
     } catch (error: any) {
       console.error("Lỗi khi xóa công việc:", error);
-      toast.error(error.message || "Không thể xóa công việc. Chỉ quản lý mới có quyền.");
+      toast.error(error.message || "Không thể xóa công việc. Bạn chỉ có thể xóa công việc do chính mình tạo.");
       return false;
     } finally {
       setIsDeletingTask(false);
@@ -1614,7 +1617,7 @@ export default function KanbanTab({
                       task={task}
                       onMove={(newSt) => moveTaskStatus(task.id, newSt)}
                       onDelete={() => deleteTask(task.id)}
-                      canDelete={isManager || task.creatorUid === userProfile?.uid}
+                      canDelete={canDeleteTask(task)}
                       canMove={isManager || task.assigneeUid === userProfile?.uid}
                       onClick={() => setSelectedKanbanTask(task)}
                       projects={projects}
@@ -1641,7 +1644,7 @@ export default function KanbanTab({
                       task={task}
                       onMove={(newSt) => moveTaskStatus(task.id, newSt)}
                       onDelete={() => deleteTask(task.id)}
-                      canDelete={isManager || task.creatorUid === userProfile?.uid}
+                      canDelete={canDeleteTask(task)}
                       canMove={isManager || task.assigneeUid === userProfile?.uid}
                       onClick={() => setSelectedKanbanTask(task)}
                       projects={projects}
@@ -1668,7 +1671,7 @@ export default function KanbanTab({
                       task={task}
                       onMove={(newSt) => moveTaskStatus(task.id, newSt)}
                       onDelete={() => deleteTask(task.id)}
-                      canDelete={isManager || task.creatorUid === userProfile?.uid}
+                      canDelete={canDeleteTask(task)}
                       canMove={isManager || task.assigneeUid === userProfile?.uid}
                       onClick={() => setSelectedKanbanTask(task)}
                       projects={projects}
@@ -1695,7 +1698,7 @@ export default function KanbanTab({
                       task={task}
                       onMove={(newSt) => moveTaskStatus(task.id, newSt)}
                       onDelete={() => deleteTask(task.id)}
-                      canDelete={isManager || task.creatorUid === userProfile?.uid}
+                      canDelete={canDeleteTask(task)}
                       canMove={isManager || task.assigneeUid === userProfile?.uid}
                       onClick={() => setSelectedKanbanTask(task)}
                       projects={projects}
@@ -2092,7 +2095,7 @@ export default function KanbanTab({
             {/* Action buttons */}
             <div className="pt-6 border-t flex justify-between items-center text-xs font-bold shrink-0">
               <div>
-                {selectedKanbanTask.id !== "new" && (isManager || selectedKanbanTask.creatorUid === userProfile?.uid) && (
+                {selectedKanbanTask.id !== "new" && canDeleteTask(selectedKanbanTask) && (
                   <button
                     type="button"
                     onClick={() => {
@@ -2190,7 +2193,14 @@ export default function KanbanTab({
       <ConfirmDialog
         isOpen={taskToDelete !== null}
         title="Xóa công việc"
-        description="Bạn có chắc chắn muốn xóa công việc này? Hành động này không thể hoàn tác và tất cả dữ liệu liên quan đến công việc sẽ bị xóa vĩnh viễn."
+        description={
+          (() => {
+            const target = tasks.find((t) => t.id === taskToDelete);
+            return target
+              ? `Bạn có chắc chắn muốn xóa công việc "${target.title}"? Hành động này không thể hoàn tác và tất cả dữ liệu liên quan đến công việc sẽ bị xóa vĩnh viễn.`
+              : "Bạn có chắc chắn muốn xóa công việc này? Hành động này không thể hoàn tác và tất cả dữ liệu liên quan đến công việc sẽ bị xóa vĩnh viễn.";
+          })()
+        }
         onClose={() => setTaskToDelete(null)}
         onConfirm={async () => {
           if (taskToDelete) {
@@ -2302,17 +2312,18 @@ function KanbanCard({
         );
       })()}
 
-      {/* Interactive transition buttons - visible on hover */}
-      <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+      {/* Interactive action buttons */}
+      <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between">
         {canDelete ? (
           <button
             onClick={(e) => {
               e.stopPropagation();
               onDelete();
             }}
-            className="text-rose-650 hover:text-rose-800 text-[10px] font-extrabold font-mono transition-colors cursor-pointer"
+            className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+            title="Xóa công việc"
           >
-            Xóa bỏ
+            <Trash2 className="h-3.5 w-3.5" />
           </button>
         ) : (
           <div />

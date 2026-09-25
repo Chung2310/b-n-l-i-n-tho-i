@@ -288,10 +288,6 @@ export default function CelebrationEmailTab() {
               <h2 className="text-lg font-bold text-slate-800">
                 Email chúc mừng
               </h2>
-              <span className="inline-flex items-center gap-1 rounded-full bg-cyan-50 border border-cyan-200/80 px-2.5 py-0.5 text-[10px] font-bold text-cyan-700">
-                <Sparkles className="h-3 w-3" />
-                Tự động hóa HR
-              </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
               Tự động gửi thư chúc mừng nhân sự vào ngày sinh nhật hoặc các dịp nghỉ lễ theo cấu hình.
