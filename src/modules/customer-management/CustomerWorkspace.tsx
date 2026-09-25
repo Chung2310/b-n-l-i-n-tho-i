@@ -147,16 +147,9 @@ export default function CustomerWorkspace() {
       {/* Top Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide uppercase bg-gradient-to-r from-cyan-50 to-teal-50 text-cyan-800 border border-cyan-200/60 mb-1.5 shadow-2xs">
-            <Sparkles className="h-3 w-3 text-cyan-600" />
-            <span>Quản trị quan hệ khách hàng (CRM)</span>
-          </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
             Quản lý khách hàng
           </h1>
-          <p className="mt-1 text-xs sm:text-sm text-slate-500 font-medium">
-            Phân hạng VIP theo Lợi Nhuận Gộp thực tế & Sổ cái Điểm thưởng bất biến chuẩn kiểm toán.
-          </p>
         </div>
 
         {canManage && activeTab === "list" && (
@@ -178,20 +171,18 @@ export default function CustomerWorkspace() {
         <button
           type="button"
           onClick={() => setActiveTab("list")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
-            activeTab === "list"
-              ? "bg-white text-slate-900 shadow-xs"
-              : "text-slate-500 hover:text-slate-800"
-          }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${activeTab === "list"
+            ? "bg-white text-slate-900 shadow-xs"
+            : "text-slate-500 hover:text-slate-800"
+            }`}
         >
           <Users className={`h-4 w-4 ${activeTab === "list" ? "text-cyan-600" : "text-slate-400"}`} />
           <span>Danh sách khách hàng</span>
           <span
-            className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-              activeTab === "list"
-                ? "bg-cyan-50 text-cyan-700 border border-cyan-100"
-                : "bg-slate-200 text-slate-600"
-            }`}
+            className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${activeTab === "list"
+              ? "bg-cyan-50 text-cyan-700 border border-cyan-100"
+              : "bg-slate-200 text-slate-600"
+              }`}
           >
             {result.total}
           </span>
@@ -200,11 +191,10 @@ export default function CustomerWorkspace() {
         <button
           type="button"
           onClick={() => setActiveTab("settings")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
-            activeTab === "settings"
-              ? "bg-white text-slate-900 shadow-xs"
-              : "text-slate-500 hover:text-slate-800"
-          }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${activeTab === "settings"
+            ? "bg-white text-slate-900 shadow-xs"
+            : "text-slate-500 hover:text-slate-800"
+            }`}
         >
           <Award className={`h-4 w-4 ${activeTab === "settings" ? "text-amber-600" : "text-slate-400"}`} />
           <span>Phân hạng Lãi gộp & Điểm thưởng</span>
