@@ -31,7 +31,7 @@ export const repairExtras = {
   async assignTechnician(id: string, technicianId: string) { return (await apiFetch<Envelope<RepairTicket>>(`${root}/${id}/assign`, { method: "POST", body: JSON.stringify({ technicianId }) })).data; },
   async rate(id: string, input: { rating: number; comment?: string; criteria?: RepairRatingCriteria }) { return (await apiFetch<Envelope<unknown>>(`${root}/${id}/feedback`, { method: "POST", body: JSON.stringify(input) })).data; },
   async notifications(id: string) { return (await apiFetch<Envelope<RepairNotification[]>>(`${root}/${id}/notifications`)).data; },
-  async resendNotification(id: string, event: "received" | "done") { return (await apiFetch<Envelope<{ status: string; reason?: string }>>(`${root}/${id}/notifications/resend`, { method: "POST", body: JSON.stringify({ event }) })).data; },
+  async resendNotification(id: string, event: "received" | "technician_assigned" | "done" | "delivered") { return (await apiFetch<Envelope<{ status: string; reason?: string }>>(`${root}/${id}/notifications/resend`, { method: "POST", body: JSON.stringify({ event }) })).data; },
   async historyByImei(imei: string) { return (await apiFetch<Envelope<any>>("/repair/history", { params: { imei } })).data; },
   async historyByPhone(phone: string) { return (await apiFetch<Envelope<any>>("/repair/history", { params: { phone } })).data; },
   async revenueReport(params: { from: string; to: string; groupBy?: "branch" | "technician" | "day"; branchId?: string }) { return (await apiFetch<Envelope<{ groupBy: string; items: RepairRevenueRow[]; total: RepairRevenueRow }>>("/repair/reports/revenue", { params })).data; },

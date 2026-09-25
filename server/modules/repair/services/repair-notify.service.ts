@@ -8,7 +8,20 @@ import { RepairNotificationModel } from "../repair-notification.model";
 import { DEFAULT_REPAIR_TEMPLATES, RepairSettingsModel, type RepairTemplate } from "../repair-settings.model";
 import type { RepairNotificationEvent } from "../permissions";
 
-export const REPAIR_VARIABLE_KEYS = ["companyName", "branchName", "customerName", "ticketCode", "deviceName", "symptom", "receivedAt", "promisedAt", "totalAmount", "feedbackUrl"] as const;
+export const REPAIR_VARIABLE_KEYS = [
+  "companyName",
+  "branchName",
+  "customerName",
+  "ticketCode",
+  "deviceName",
+  "symptom",
+  "receivedAt",
+  "promisedAt",
+  "technicianName",
+  "deliveredAt",
+  "totalAmount",
+  "feedbackUrl",
+] as const;
 export type RepairVariables = Record<(typeof REPAIR_VARIABLE_KEYS)[number], string>;
 
 const money = (value: unknown) => `${Number(value || 0).toLocaleString("vi-VN")} đ`;
@@ -28,6 +41,8 @@ export function buildRepairVariables(ticket: any, context: { companyName: string
     symptom: String(ticket.symptom || ""),
     receivedAt: when(ticket.receivedAt),
     promisedAt: when(ticket.promisedAt),
+    technicianName: String(ticket.technicianName || "Chuyên viên kỹ thuật"),
+    deliveredAt: when(ticket.deliveredAt),
     totalAmount: money(ticket.totalAmount),
     feedbackUrl: context.feedbackUrl,
   };
@@ -139,10 +154,11 @@ export async function dispatchRepairNotification(ticket: any, event: RepairNotif
   const result = await sendRepairNotification(ticket, event, deps);
   if (result.status !== "sent") return result;
   const { RepairTicketModel } = await import("../repair-ticket.model");
+  const targetStatus = event === "received" ? "received" : event === "technician_assigned" ? "diagnosing" : event === "done" ? "done" : "delivered";
   await RepairTicketModel.updateOne(
     { _id: ticket._id, companyCode: String(ticket.companyCode).toUpperCase() },
     { $set: { "statusHistory.$[entry].customerNotified": true } },
-    { arrayFilters: [{ "entry.to": event === "received" ? "received" : "done" }] },
+    { arrayFilters: [{ "entry.to": targetStatus }] },
   ).catch(() => undefined);
   return result;
 }

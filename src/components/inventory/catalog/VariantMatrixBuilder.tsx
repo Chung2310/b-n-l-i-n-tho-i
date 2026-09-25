@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useEffect } from "react";
-import { Box, Check, DollarSign, Plus, Trash2, X, Sparkles, RefreshCw } from "lucide-react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
+import { Box, Check, ChevronDown, DollarSign, Plus, Trash2, X, Sparkles, RefreshCw } from "lucide-react";
 import { toast } from "../../../pages/Toast";
 import {
   type Option,
@@ -32,12 +32,28 @@ export function VariantMatrixBuilder({
   onTrackingModeChange,
   baseSku = "",
 }: VariantMatrixBuilderProps) {
-  // Bulk Price & Cost Price input states
-  const [bulkPriceAll, setBulkPriceAll] = useState<number>(0);
-  const [bulkCostPriceAll, setBulkCostPriceAll] = useState<number>(0);
-  const [bulkPriceValueFilter, setBulkPriceValueFilter] = useState<string>("");
-  const [bulkPriceByVal, setBulkPriceByVal] = useState<number>(0);
-  const [bulkCostPriceByVal, setBulkCostPriceByVal] = useState<number>(0);
+  // Bulk Price & Cost Price input states (multi-select with dimension filtering)
+  const [isAllSelected, setIsAllSelected] = useState(false);
+  const [selectedFilterKeys, setSelectedFilterKeys] = useState<string[]>([]);
+  const [bulkPrice, setBulkPrice] = useState<number>(0);
+  const [bulkCostPrice, setBulkCostPrice] = useState<number>(0);
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+  const filterDropdownRef = useRef<HTMLDivElement>(null);
+  const selectAllInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(e.target as Node)) {
+        setIsFilterDropdownOpen(false);
+      }
+    };
+    if (isFilterDropdownOpen) {
+      document.addEventListener("mousedown", handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [isFilterDropdownOpen]);
 
   // Preset button click
   const addPresetOption = (presetKey: string) => {
@@ -104,60 +120,163 @@ export function VariantMatrixBuilder({
     setVariantsMatrix((current) => current.filter((_, i) => i !== index));
   };
 
-  // Bulk Apply Price & Cost Price for ALL
-  const applyBulkPriceToAll = () => {
-    if (bulkPriceAll <= 0 && bulkCostPriceAll <= 0) {
-      toast.error("Vui lòng nhập giá bán hoặc giá vốn hợp lệ.");
-      return;
+  // All option keys in format: `${opt.code}:::${value}`
+  const allOptionKeys = useMemo(() => {
+    return options.flatMap((opt) => (opt.values || []).map((val) => `${opt.code}:::${val}`));
+  }, [options]);
+
+  // Keep indeterminate state synchronized for Select All checkbox
+  useEffect(() => {
+    if (selectAllInputRef.current) {
+      selectAllInputRef.current.indeterminate =
+        !isAllSelected && selectedFilterKeys.length > 0 && selectedFilterKeys.length < allOptionKeys.length;
     }
-    setVariantsMatrix((current) =>
-      current.map((v) => {
-        const updated = { ...v };
-        if (bulkPriceAll > 0) updated.price = bulkPriceAll;
-        if (bulkCostPriceAll > 0) updated.costPrice = bulkCostPriceAll;
-        return updated;
-      })
-    );
-    const parts: string[] = [];
-    if (bulkPriceAll > 0) parts.push(`giá bán ${bulkPriceAll.toLocaleString("vi-VN")} ₫`);
-    if (bulkCostPriceAll > 0) parts.push(`giá vốn ${bulkCostPriceAll.toLocaleString("vi-VN")} ₫`);
-    toast.success(`Đã áp dụng ${parts.join(" & ")} cho tất cả ${variantsMatrix.length} SKU.`);
+  }, [isAllSelected, selectedFilterKeys, allOptionKeys]);
+
+  const handleToggleAll = () => {
+    if (isAllSelected) {
+      setIsAllSelected(false);
+      setSelectedFilterKeys([]);
+    } else {
+      setIsAllSelected(true);
+      setSelectedFilterKeys([...allOptionKeys]);
+    }
   };
 
-  // Bulk Apply Price & Cost Price by Option Value
-  const applyBulkPriceByValue = () => {
-    if (!bulkPriceValueFilter) {
-      toast.error("Vui lòng chọn giá trị thuộc tính (VD: 128GB, Titan...).");
+  const handleToggleFilterValue = (optCode: string, val: string) => {
+    const key = `${optCode}:::${val}`;
+
+    if (isAllSelected) {
+      setIsAllSelected(false);
+      setSelectedFilterKeys(allOptionKeys.filter((k) => k !== key));
       return;
     }
-    if (bulkPriceByVal <= 0 && bulkCostPriceByVal <= 0) {
+
+    let next: string[];
+    if (selectedFilterKeys.includes(key)) {
+      next = selectedFilterKeys.filter((k) => k !== key);
+    } else {
+      next = [...selectedFilterKeys, key];
+      if (allOptionKeys.length > 0 && next.length === allOptionKeys.length) {
+        setIsAllSelected(true);
+      }
+    }
+    setSelectedFilterKeys(next);
+  };
+
+  const handleToggleGroup = (optCode: string) => {
+    const opt = options.find((o) => o.code === optCode);
+    if (!opt || !opt.values) return;
+    const groupKeys = opt.values.map((v) => `${optCode}:::${v}`);
+    const areAllInGroupSelected = groupKeys.every(
+      (k) => isAllSelected || selectedFilterKeys.includes(k)
+    );
+
+    if (isAllSelected) {
+      setIsAllSelected(false);
+      setSelectedFilterKeys(allOptionKeys.filter((k) => !groupKeys.includes(k)));
+    } else if (areAllInGroupSelected) {
+      setSelectedFilterKeys(selectedFilterKeys.filter((k) => !groupKeys.includes(k)));
+    } else {
+      const next = Array.from(new Set([...selectedFilterKeys, ...groupKeys]));
+      if (allOptionKeys.length > 0 && next.length === allOptionKeys.length) {
+        setIsAllSelected(true);
+      }
+      setSelectedFilterKeys(next);
+    }
+  };
+
+  const isItemChecked = (optCode: string, val: string) => {
+    if (isAllSelected) return true;
+    return selectedFilterKeys.includes(`${optCode}:::${val}`);
+  };
+
+  const isGroupAllSelected = (optCode: string) => {
+    if (isAllSelected) return true;
+    const opt = options.find((o) => o.code === optCode);
+    if (!opt || !opt.values || opt.values.length === 0) return false;
+    return opt.values.every((v) => selectedFilterKeys.includes(`${optCode}:::${v}`));
+  };
+
+  // Cross-dimension match logic:
+  // For every option group that has AT LEAST ONE selected value, the variant must match one of those selected values.
+  // Option groups with zero selected values do not restrict the variant (match all in that group).
+  const doesVariantMatch = (v: GeneratedVariant): boolean => {
+    if (isAllSelected) return true;
+    if (selectedFilterKeys.length === 0) return false;
+
+    for (const opt of options) {
+      if (!opt.values || opt.values.length === 0) continue;
+
+      const selectedInThisOpt = opt.values.filter((val) =>
+        selectedFilterKeys.includes(`${opt.code}:::${val}`)
+      );
+
+      if (selectedInThisOpt.length > 0) {
+        const vVal = v.optionValues?.find((ov) => ov.code === opt.code)?.value;
+        if (!vVal || !selectedInThisOpt.includes(vVal)) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  };
+
+  const matchedVariantsCount = useMemo(() => {
+    if (variantsMatrix.length === 0) return 0;
+    if (isAllSelected) return variantsMatrix.length;
+    if (selectedFilterKeys.length === 0) return 0;
+    return variantsMatrix.filter(doesVariantMatch).length;
+  }, [variantsMatrix, isAllSelected, selectedFilterKeys, options]);
+
+  const filterLabel = useMemo(() => {
+    if (isAllSelected) {
+      return `Tất cả (${variantsMatrix.length} SKU)`;
+    }
+    if (selectedFilterKeys.length === 0) {
+      return "-- Chọn bản --";
+    }
+    return `Khớp ${matchedVariantsCount} SKU`;
+  }, [isAllSelected, selectedFilterKeys.length, matchedVariantsCount, variantsMatrix.length]);
+
+  // Bulk Apply Price & Cost Price
+  const applyBulkPrice = () => {
+    if (!isAllSelected && selectedFilterKeys.length === 0) {
+      toast.error("Vui lòng chọn ít nhất một bản hoặc chọn 'Chọn tất cả'.");
+      return;
+    }
+    if (bulkPrice <= 0 && bulkCostPrice <= 0) {
       toast.error("Vui lòng nhập giá bán hoặc giá vốn hợp lệ.");
       return;
     }
-    let matchedCount = 0;
+    if (matchedVariantsCount === 0) {
+      toast.error("Không có SKU nào phù hợp với bộ lọc đã chọn.");
+      return;
+    }
+
     setVariantsMatrix((current) =>
       current.map((v) => {
-        const matches = v.optionValues.some((opt) => opt.value === bulkPriceValueFilter);
-        if (matches) {
-          matchedCount++;
+        if (doesVariantMatch(v)) {
           const updated = { ...v };
-          if (bulkPriceByVal > 0) updated.price = bulkPriceByVal;
-          if (bulkCostPriceByVal > 0) updated.costPrice = bulkCostPriceByVal;
+          if (bulkPrice > 0) updated.price = bulkPrice;
+          if (bulkCostPrice > 0) updated.costPrice = bulkCostPrice;
           return updated;
         }
         return v;
       })
     );
-    const parts: string[] = [];
-    if (bulkPriceByVal > 0) parts.push(`giá bán ${bulkPriceByVal.toLocaleString("vi-VN")} ₫`);
-    if (bulkCostPriceByVal > 0) parts.push(`giá vốn ${bulkCostPriceByVal.toLocaleString("vi-VN")} ₫`);
-    toast.success(`Đã áp dụng ${parts.join(" & ")} cho ${matchedCount} SKU thuộc "${bulkPriceValueFilter}".`);
-  };
 
-  // All distinct option values across active options for the bulk price filter dropdown
-  const allCurrentOptionValues = useMemo(() => {
-    return Array.from(new Set(options.flatMap((o) => o.values)));
-  }, [options]);
+    const parts: string[] = [];
+    if (bulkPrice > 0) parts.push(`giá bán ${bulkPrice.toLocaleString("vi-VN")} ₫`);
+    if (bulkCostPrice > 0) parts.push(`giá vốn ${bulkCostPrice.toLocaleString("vi-VN")} ₫`);
+
+    if (isAllSelected) {
+      toast.success(`Đã áp dụng ${parts.join(" & ")} cho tất cả ${variantsMatrix.length} SKU.`);
+    } else {
+      toast.success(`Đã áp dụng ${parts.join(" & ")} cho ${matchedVariantsCount} SKU phù hợp.`);
+    }
+  };
 
   // Filter active options with values
   const validOptions = useMemo(() => options.filter((o) => o.values && o.values.length > 0), [options]);
@@ -174,9 +293,6 @@ export function VariantMatrixBuilder({
   // Automatically generate / synchronize variantsMatrix when options change
   useEffect(() => {
     if (validOptions.length === 0) {
-      if (variantsMatrix.length > 0) {
-        setVariantsMatrix([]);
-      }
       return;
     }
 
@@ -446,91 +562,155 @@ export function VariantMatrixBuilder({
 
           {/* Bulk Price & Cost Price Action Toolbar */}
           {variantsMatrix.length > 0 && (
-            <div className="rounded-lg border border-cyan-200 bg-cyan-50/60 p-3 space-y-2.5">
+            <div className="rounded-lg border border-cyan-200 bg-cyan-50/60 p-3 space-y-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-cyan-900">
                   <DollarSign className="h-4 w-4 text-cyan-700" />
                   Công cụ áp giá bán &amp; giá vốn hàng loạt cho Ma trận:
                 </div>
-                <span className="text-[11px] text-cyan-700">Nhập giá bán, giá vốn (hoặc cả hai) rồi bấm Áp dụng</span>
+                <span className="text-[11px] text-cyan-700">Chọn bản áp dụng, nhập giá bán / giá vốn rồi bấm Áp dụng</span>
               </div>
-              <div className="grid gap-3 lg:grid-cols-2">
-                {/* Option 1: Apply to ALL */}
-                <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-md border border-cyan-100 shadow-sm">
-                  <span className="text-xs text-slate-700 shrink-0 font-semibold">Tất cả SKU:</span>
-                  <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
-                    <div className="relative flex-1">
-                      <NumberInput
-                        value={bulkPriceAll}
-                        onChange={(val) => setBulkPriceAll(val)}
-                        className={inputClassName("py-1.5 text-xs text-right font-bold text-cyan-800 bg-cyan-50/20")}
-                        placeholder="Giá bán..."
-                      />
-                    </div>
-                    <div className="relative flex-1">
-                      <NumberInput
-                        value={bulkCostPriceAll}
-                        onChange={(val) => setBulkCostPriceAll(val)}
-                        className={inputClassName("py-1.5 text-xs text-right font-semibold text-slate-600 bg-slate-50/40")}
-                        placeholder="Giá vốn..."
-                      />
-                    </div>
-                  </div>
+
+              <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-md border border-cyan-100 shadow-sm">
+                {/* Dropdown Multi-select */}
+                <div className="relative" ref={filterDropdownRef}>
                   <button
                     type="button"
-                    onClick={applyBulkPriceToAll}
-                    className="shrink-0 rounded bg-cyan-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-cyan-800 transition-colors shadow-sm"
+                    onClick={() => setIsFilterDropdownOpen((prev) => !prev)}
+                    className="inline-flex items-center justify-between gap-2 h-9 min-w-[160px] max-w-[240px] rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-cyan-500 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-1 focus:ring-cyan-500"
                   >
-                    Áp dụng
-                  </button>
-                </div>
-
-                {/* Option 2: Apply by attribute value */}
-                {allCurrentOptionValues.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-md border border-cyan-100 shadow-sm">
-                    <Dropdown<string>
-                      value={bulkPriceValueFilter}
-                      onChange={setBulkPriceValueFilter}
-                      options={[
-                        { value: "", label: "-- Chọn bản --" },
-                        ...allCurrentOptionValues.map((v) => ({
-                          value: v,
-                          label: `Bản: ${v}`,
-                        })),
-                      ]}
-                      placeholder="-- Chọn bản --"
-                      variant="default"
-                      size="xs"
-                      className="w-32 shrink-0"
-                      triggerClassName="w-full text-xs font-medium"
+                    <span className="truncate">{filterLabel}</span>
+                    <ChevronDown
+                      className={`h-3.5 w-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${
+                        isFilterDropdownOpen ? "rotate-180" : ""
+                      }`}
                     />
-                    <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
-                      <div className="relative flex-1">
-                        <NumberInput
-                          value={bulkPriceByVal}
-                          onChange={(val) => setBulkPriceByVal(val)}
-                          className={inputClassName("py-1.5 text-xs text-right font-bold text-cyan-800 bg-cyan-50/20")}
-                          placeholder="Giá bán..."
+                  </button>
+
+                  {isFilterDropdownOpen && (
+                    <div className="absolute left-0 top-full mt-1 w-72 rounded-lg border border-slate-200 bg-white shadow-xl z-30 p-2 animate-in fade-in zoom-in-95 duration-100">
+                      {/* Chọn tất cả */}
+                      <label className="flex items-center gap-2.5 px-2 py-1.5 text-xs font-semibold text-slate-800 hover:bg-cyan-50/70 rounded-md cursor-pointer select-none transition-colors">
+                        <input
+                          type="checkbox"
+                          ref={selectAllInputRef}
+                          checked={isAllSelected}
+                          onChange={handleToggleAll}
+                          className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 accent-cyan-700 cursor-pointer"
                         />
+                        <span>Chọn tất cả ({variantsMatrix.length} SKU)</span>
+                      </label>
+
+                      <div className="my-1.5 border-t border-slate-100" />
+
+                      {/* Danh sách bản theo từng nhóm thuộc tính */}
+                      <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                        {options
+                          .filter((opt) => opt.values && opt.values.length > 0)
+                          .map((opt) => {
+                            const groupAll = isGroupAllSelected(opt.code);
+                            return (
+                              <div
+                                key={opt.code}
+                                className="space-y-0.5 rounded-md bg-slate-50/60 p-1.5 border border-slate-100"
+                              >
+                                <div className="flex items-center justify-between px-1.5 py-0.5">
+                                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                                    {opt.name}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleGroup(opt.code)}
+                                    className="text-[10px] font-semibold text-cyan-700 hover:text-cyan-800 hover:underline cursor-pointer"
+                                  >
+                                    {groupAll ? "Bỏ nhóm" : "Chọn nhóm"}
+                                  </button>
+                                </div>
+                                <div className="grid grid-cols-1 gap-0.5">
+                                  {opt.values.map((val) => {
+                                    const checked = isItemChecked(opt.code, val);
+                                    return (
+                                      <label
+                                        key={val}
+                                        className={`flex items-center gap-2 px-2 py-1 text-xs rounded cursor-pointer select-none transition-colors ${
+                                          checked
+                                            ? "bg-cyan-50/80 text-cyan-900 font-medium"
+                                            : "text-slate-700 hover:bg-slate-100/70"
+                                        }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={checked}
+                                          onChange={() => handleToggleFilterValue(opt.code, val)}
+                                          className="h-3.5 w-3.5 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 accent-cyan-700 cursor-pointer"
+                                        />
+                                        <span className="truncate">{val}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        {allOptionKeys.length === 0 && (
+                          <div className="px-2.5 py-3 text-xs text-slate-400 text-center">Chưa có thuộc tính nào</div>
+                        )}
                       </div>
-                      <div className="relative flex-1">
-                        <NumberInput
-                          value={bulkCostPriceByVal}
-                          onChange={(val) => setBulkCostPriceByVal(val)}
-                          className={inputClassName("py-1.5 text-xs text-right font-semibold text-slate-600 bg-slate-50/40")}
-                          placeholder="Giá vốn..."
-                        />
+
+                      {/* Footer tóm tắt & bỏ chọn */}
+                      <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between px-2 text-[11px]">
+                        <span className="text-slate-600 font-medium">
+                          {isAllSelected
+                            ? `Tất cả (${variantsMatrix.length} SKU)`
+                            : selectedFilterKeys.length === 0
+                            ? "Chưa chọn bản nào"
+                            : `Khớp ${matchedVariantsCount} / ${variantsMatrix.length} SKU`}
+                        </span>
+                        {(isAllSelected || selectedFilterKeys.length > 0) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsAllSelected(false);
+                              setSelectedFilterKeys([]);
+                            }}
+                            className="text-cyan-700 hover:text-cyan-800 font-semibold hover:underline cursor-pointer"
+                          >
+                            Bỏ chọn
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={applyBulkPriceByValue}
-                      className="shrink-0 rounded bg-cyan-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-cyan-800 transition-colors shadow-sm"
-                    >
-                      Áp dụng
-                    </button>
+                  )}
+                </div>
+
+                {/* Input Giá bán & Giá vốn */}
+                <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
+                  <div className="relative flex-1">
+                    <NumberInput
+                      value={bulkPrice}
+                      onChange={(val) => setBulkPrice(val)}
+                      className={inputClassName("py-1.5 text-xs text-right font-bold text-cyan-800 bg-cyan-50/20")}
+                      placeholder="Giá bán..."
+                    />
                   </div>
-                )}
+                  <div className="relative flex-1">
+                    <NumberInput
+                      value={bulkCostPrice}
+                      onChange={(val) => setBulkCostPrice(val)}
+                      className={inputClassName("py-1.5 text-xs text-right font-semibold text-slate-600 bg-slate-50/40")}
+                      placeholder="Giá vốn..."
+                    />
+                  </div>
+                </div>
+
+                {/* Nút Áp dụng */}
+                <button
+                  type="button"
+                  onClick={applyBulkPrice}
+                  className="shrink-0 rounded bg-cyan-700 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-cyan-800 transition-colors shadow-sm"
+                >
+                  Áp dụng
+                </button>
               </div>
             </div>
           )}

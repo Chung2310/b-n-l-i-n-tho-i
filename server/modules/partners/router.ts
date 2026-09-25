@@ -81,6 +81,21 @@ partnerRouter.post("/policies", policies, route(async req => {
   if (!Number.isFinite(effectiveAt.getTime()) || effectiveAt.getTime() < Date.now() - 60000) throw invalid("Ngày hiệu lực không được hồi tố.");
   return CommissionPolicyModel.create({ companyCode, partnerId, effectiveAt, config: validatePolicy(req.body.config), createdBy: req.user.id });
 }));
+partnerRouter.patch("/policies/:id", policies, route(async req => {
+  const companyCode = partnerCompany(req), policyId = id(req.params.id);
+  const existing = await CommissionPolicyModel.findOne({ companyCode, _id: policyId });
+  if (!existing) throw invalid("Chính sách không tồn tại.", 404);
+  const partnerId = req.body.partnerId !== undefined ? (req.body.partnerId ? id(req.body.partnerId) : "") : existing.partnerId;
+  if (partnerId && !await PartnerModel.exists({ companyCode, _id: partnerId, roles: "collaborator" })) throw invalid("CTV không tồn tại.");
+  const effectiveAt = req.body.effectiveAt ? new Date(req.body.effectiveAt) : existing.effectiveAt;
+  if (!Number.isFinite(effectiveAt.getTime())) throw invalid("Ngày hiệu lực không hợp lệ.");
+  const config = req.body.config ? validatePolicy(req.body.config) : existing.config;
+  existing.partnerId = partnerId;
+  existing.effectiveAt = effectiveAt;
+  existing.config = config;
+  await existing.save();
+  return existing;
+}));
 partnerRouter.post("/import-suppliers", manage, route(async req => {
   const companyCode = partnerCompany(req); let count = 0;
   for await (const supplier of SupplierModel.find({ companyCode }).cursor()) {
@@ -109,6 +124,9 @@ async function partnerInput(req: any) {
   return { companyCode, code, name, roles: [...new Set(body.roles)] as Array<"collaborator" | "dealer" | "supplier">, phone: String(body.phone || "").trim().slice(0, 30), email: String(body.email || "").trim().slice(0, 200), address: String(body.address || "").trim().slice(0, 500), userId, supplierId, status: body.status || "active", updatedBy: req.user.id };
 }
 async function provisionPartnerAccount(req: any, partner: any, password: string, emailOverride?: string) {
+  if (partner.roles?.includes("supplier") && !partner.roles?.includes("collaborator") && !partner.roles?.includes("dealer")) {
+    throw invalid("Không cấp tài khoản cho nhà cung cấp.", 400);
+  }
   if (partner.status === "inactive") throw invalid("Chỉ có thể cấp tài khoản cho đối tác đang hoạt động.");
   const email = String(emailOverride || partner.email || "").trim().toLowerCase();
   const displayName = String(req.body?.displayName || partner.name || "").trim();
@@ -120,7 +138,7 @@ async function provisionPartnerAccount(req: any, partner: any, password: string,
   const companyCode = String(partner.companyCode);
   const partnerId = String(partner._id);
   const group = partner.roles?.[0] || "collaborator";
-  const groupLabels: Record<string, string> = { collaborator: "Cộng tác viên", dealer: "Đại lý", supplier: "Nhà cung cấp" };
+  const groupLabels: Record<string, string> = { collaborator: "Cộng tác viên", dealer: "Đại lý" };
   let user: any;
   try {
     user = await UserModel.create({
@@ -154,10 +172,11 @@ async function provisionPartnerAccount(req: any, partner: any, password: string,
 partnerRouter.post("/", manage, route(async req => {
   const input = await partnerInput(req);
   const partner = await PartnerModel.create({ ...input, createdBy: req.user.id });
+  const isPureSupplier = input.roles.includes("supplier") && !input.roles.includes("collaborator") && !input.roles.includes("dealer");
   const accountPassword = Object.prototype.hasOwnProperty.call(req.body || {}, "accountPassword")
     ? String(req.body.accountPassword || "")
     : "";
-  if (!Object.prototype.hasOwnProperty.call(req.body || {}, "accountPassword")) return partner;
+  if (isPureSupplier || !Object.prototype.hasOwnProperty.call(req.body || {}, "accountPassword") || !accountPassword) return partner;
   try {
     const account = await provisionPartnerAccount(req, partner, accountPassword);
     const result = typeof partner.toObject === "function" ? partner.toObject() : partner;
@@ -172,6 +191,9 @@ partnerRouter.post("/:id/account", manage, route(async req => {
   const partnerId = id(req.params.id);
   const partner = await PartnerModel.findOne({ companyCode, _id: partnerId }).lean();
   if (!partner) throw invalid("Không tìm thấy đối tác.", 404);
+  if (partner.roles?.includes("supplier") && !partner.roles?.includes("collaborator") && !partner.roles?.includes("dealer")) {
+    throw invalid("Không cấp tài khoản cho nhà cung cấp.", 400);
+  }
   if (partner.status === "inactive") throw invalid("Chỉ có thể cấp tài khoản cho đối tác đang hoạt động.");
   if (partner.userId) throw invalid("Đối tác đã được cấp tài khoản.", 409);
   return provisionPartnerAccount(req, partner, String(req.body?.password || ""), String(req.body?.email || ""));

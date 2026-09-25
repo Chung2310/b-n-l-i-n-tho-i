@@ -597,6 +597,7 @@ export function ProductCatalogV2Section() {
       {viewer && <ProductViewerModal product={viewer} resources={resources} onClose={() => setViewer(null)} />}
       {editor && (
         <ProductEditorModal
+          key={typeof editor === "object" && editor ? editor._id : "create"}
           product={editor === "create" ? null : editor}
           resources={resources}
           onClose={() => setEditor(null)}
@@ -629,12 +630,22 @@ export function ProductCatalogV2Section() {
       )}
       {variantTarget && (variantTarget.mode === "single" || variantTarget.mode === "edit") && (
         <VariantModal
+          key={variantTarget.variant?._id || `${variantTarget.product._id}-${variantTarget.mode}`}
           product={variantTarget.product}
           variant={variantTarget.variant}
           onClose={() => setVariantTarget(null)}
           onSaved={async () => {
+            const currentEditorId = typeof editor === "object" && editor ? editor._id : null;
             setVariantTarget(null);
             await load();
+            if (currentEditorId) {
+              try {
+                const updated = await productCatalogService.getProduct(currentEditorId);
+                setEditor(updated);
+              } catch {
+                // Ignore error if product details cannot be refreshed
+              }
+            }
           }}
         />
       )}
@@ -646,8 +657,17 @@ export function ProductCatalogV2Section() {
           resources={resources}
           onClose={() => setVariantTarget(null)}
           onSaved={async () => {
+            const currentEditorId = typeof editor === "object" && editor ? editor._id : null;
             setVariantTarget(null);
             await load();
+            if (currentEditorId) {
+              try {
+                const updated = await productCatalogService.getProduct(currentEditorId);
+                setEditor(updated);
+              } catch {
+                // Ignore error if product details cannot be refreshed
+              }
+            }
           }}
         />
       )}

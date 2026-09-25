@@ -132,7 +132,7 @@ export default function RetailReportsPage() {
   const rawBranchName = branchOptions.find(branch => branch._id === selectedBranch)?.name || activeBranch?.name || scopeBranchName;
   const branchDisplayName = selectedBranch === "all" ? "Tất cả chi nhánh" : rawBranchName
     ? (rawBranchName.toLowerCase().startsWith("chi nhánh") ? rawBranchName : `Chi nhánh: ${rawBranchName}`)
-    : (scope ? `Chi nhánh: ${scope.branchId}` : "");
+    : (scope ? (/^[0-9a-fA-F]{24}$/.test(scope.branchId) ? "Chi nhánh hiện tại" : `Chi nhánh: ${scope.branchId}`) : "");
   const [filters, setFilters] = React.useState<RetailReportFilterValue>(readFiltersFromUrl);
   const [report, setReport] = React.useState<RetailReport | null>(null);
   const [reportScopeKey, setReportScopeKey] = React.useState("");

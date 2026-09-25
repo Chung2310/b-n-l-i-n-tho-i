@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 import React from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { WorkflowReader } from "./WorkflowTab";
 
 describe("WorkflowReader", () => {
+  afterEach(() => {
+    cleanup();
+  });
   it("renders ordered steps and opens the selected step details", () => {
     render(
       <WorkflowReader
@@ -40,5 +43,63 @@ describe("WorkflowReader", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /xem preview/i }));
     expect(screen.getByRole("dialog", { name: /preview/i })).toBeTruthy();
     expect(screen.getByText("onboarding-guide.pdf")).toBeTruthy();
+  });
+
+  it("triggers onAddStep, onDelete, onEditStep, and onDeleteStep when canEdit is true", () => {
+    const handleAddStep = vi.fn();
+    const handleDelete = vi.fn();
+    const handleEditStep = vi.fn();
+    const handleDeleteStep = vi.fn();
+
+    render(
+      <WorkflowReader
+        workflow={{
+          name: "Sales workflow",
+          description: "Process for store sale",
+          steps: [
+            { id: "s1", title: "Step 1", description: "First step" },
+            { id: "s2", title: "Step 2", description: "Second step" },
+          ],
+        } as any}
+        canEdit={true}
+        onBack={vi.fn()}
+        onAddStep={handleAddStep}
+        onSave={vi.fn()}
+        onDelete={handleDelete}
+        onEditStep={handleEditStep}
+        onDeleteStep={handleDeleteStep}
+      />
+    );
+
+    // Test Thêm bước
+    const addBtn = screen.getByRole("button", { name: /thêm bước/i });
+    fireEvent.click(addBtn);
+    expect(handleAddStep).toHaveBeenCalledTimes(1);
+
+    // Test Xóa quy trình
+    const deleteWorkflowBtn = screen.getByTitle("Xóa quy trình");
+    fireEvent.click(deleteWorkflowBtn);
+    expect(handleDelete).toHaveBeenCalledTimes(1);
+
+    // Mở modal chi tiết bước 1
+    const firstStepCard = screen.getByText("Step 1").closest("li")!;
+    fireEvent.click(within(firstStepCard).getByRole("button", { name: /sửa/i }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toBeTruthy();
+
+    // Test nút Chỉnh sửa bước trong modal
+    const editStepBtn = within(dialog).getByRole("button", { name: /chỉnh sửa bước/i });
+    fireEvent.click(editStepBtn);
+    expect(handleEditStep).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "s1", title: "Step 1" })
+    );
+
+    // Mở lại modal để test Xóa bước
+    fireEvent.click(within(firstStepCard).getByRole("button", { name: /sửa/i }));
+    const deleteStepBtn = within(screen.getByRole("dialog")).getByRole("button", {
+      name: /xóa bước này/i,
+    });
+    fireEvent.click(deleteStepBtn);
+    expect(handleDeleteStep).toHaveBeenCalledWith("s1");
   });
 });

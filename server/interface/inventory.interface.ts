@@ -146,6 +146,7 @@ export interface IGoodsReceiptItem {
 }
 
 export interface IGoodsReceipt extends Document {
+  financeTerms?: { dueOn: string; paidAmount: number; paymentMethod?: string };
   companyCode: string;
   branchId: string;
   warehouseId: string;

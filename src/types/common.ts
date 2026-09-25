@@ -5,6 +5,7 @@ export type TabType =
   | "BÁN LẺ"
   | "TÀI CHÍNH"
   | "MARKETING"
+  | "CSKH"
   | "TỔNG QUAN"
   | "NHÂN SỰ"
   | "KHO & SẢN PHẨM"

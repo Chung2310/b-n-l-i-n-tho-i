@@ -21,7 +21,12 @@ const BILLING_LABEL: Record<string, string> = {
   warranty_shop: "Bảo hành cửa hàng",
   warranty_supplier: "Bảo hành NCC",
 };
-const NOTIFY_LABEL: Record<string, string> = { received: "Tiếp nhận", done: "Sửa xong" };
+const NOTIFY_LABEL: Record<string, string> = {
+  received: "1. Nhận máy",
+  technician_assigned: "2. Giao thợ",
+  done: "3. Sửa xong",
+  delivered: "4. Bàn giao & Cảm ơn",
+};
 const NOTIFY_STATUS: Record<string, string> = { sent: "Đã gửi", failed: "Lỗi", skipped: "Bỏ qua" };
 const CRITERIA: Array<{ key: keyof RepairRatingCriteria; label: string }> = [
   { key: "skill", label: "Tay nghề" },
@@ -745,7 +750,7 @@ function NotificationsSection({ ticket }: { ticket: RepairTicket }) {
     void load();
   }, [ticket._id]);
 
-  const resend = async (event: "received" | "done") => {
+  const resend = async (event: "received" | "technician_assigned" | "done" | "delivered") => {
     setBusy(event);
     try {
       const result = await repairExtras.resendNotification(ticket._id, event);
@@ -758,32 +763,76 @@ function NotificationsSection({ ticket }: { ticket: RepairTicket }) {
     }
   };
 
+  const openCskhChat = () => {
+    window.dispatchEvent(
+      new CustomEvent("cskh:open-chat", {
+        detail: {
+          ticketId: ticket._id,
+          ticketCode: ticket.ticketCode,
+          customerName: ticket.customerName,
+          customerPhone: ticket.customerPhone,
+          deviceName: ticket.device?.name,
+        },
+      })
+    );
+  };
+
   return (
     <div className="relative z-10 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs flex flex-col justify-between">
       <div>
         <div className="flex flex-col gap-2 border-b border-slate-100 pb-2.5">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-700 text-sm">
-              📢
-            </span>
-            <b className="font-bold text-slate-900 text-sm">Thông báo gửi khách</b>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-700 text-sm">
+                📢
+              </span>
+              <b className="font-bold text-slate-900 text-sm">Thông báo 4 bước</b>
+            </div>
+            <button
+              type="button"
+              onClick={openCskhChat}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-linear-to-r from-sky-600 to-cyan-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:from-sky-700 hover:to-cyan-700 transition cursor-pointer"
+              title="Mở màn hình Chat 1-1 CSKH với khách"
+            >
+              <span>💬</span> Nhắn tin CSKH
+            </button>
           </div>
-          <div className="flex w-full flex-col gap-1.5 sm:flex-row">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
             <button
               type="button"
               disabled={busy === "received"}
               onClick={() => void resend("received")}
-              className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs sm:w-auto sm:flex-1 cursor-pointer disabled:opacity-50"
+              className="min-h-9 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs cursor-pointer disabled:opacity-50 truncate"
+              title="Gửi lại thông báo: 1. Tiếp nhận máy"
             >
-              {busy === "received" ? "Đang gửi..." : "Gửi lại tin tiếp nhận"}
+              {busy === "received" ? "Đang gửi..." : "1. Nhận máy"}
+            </button>
+            <button
+              type="button"
+              disabled={busy === "technician_assigned" || !ticket.technicianId}
+              onClick={() => void resend("technician_assigned")}
+              className="min-h-9 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs cursor-pointer disabled:opacity-50 truncate"
+              title="Gửi lại thông báo: 2. Đã phân công KTV"
+            >
+              {busy === "technician_assigned" ? "Đang gửi..." : "2. Giao thợ"}
             </button>
             <button
               type="button"
               disabled={busy === "done" || !["done", "delivered"].includes(ticket.status)}
               onClick={() => void resend("done")}
-              className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition shadow-2xs sm:w-auto sm:flex-1 cursor-pointer"
+              className="min-h-9 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition shadow-2xs cursor-pointer truncate"
+              title="Gửi lại thông báo: 3. Sửa xong máy & QR đánh giá"
             >
-              {busy === "done" ? "Đang gửi..." : "Gửi lại tin sửa xong"}
+              {busy === "done" ? "Đang gửi..." : "3. Sửa xong"}
+            </button>
+            <button
+              type="button"
+              disabled={busy === "delivered" || ticket.status !== "delivered"}
+              onClick={() => void resend("delivered")}
+              className="min-h-9 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition shadow-2xs cursor-pointer truncate"
+              title="Gửi lại thông báo: 4. Bàn giao & Cảm ơn"
+            >
+              {busy === "delivered" ? "Đang gửi..." : "4. Bàn giao"}
             </button>
           </div>
         </div>

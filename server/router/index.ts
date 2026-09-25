@@ -41,6 +41,7 @@ import { financeRouter } from "../modules/finance/router";
 import { customerRouter } from "../modules/customer-management/router";
 import { marketingRouter } from "../modules/marketing/router";
 import { partnerRouter } from "../modules/partners/router";
+import { cskhRouter } from "../modules/cskh/router";
 
 export const apiRouter = Router();
 apiRouter.use("/partners", partnerRouter);
@@ -130,3 +131,4 @@ apiRouter.use("/customers", requireAuth as any, requireModule("customer"), custo
 apiRouter.use("/", retailRouter);
 apiRouter.use("/finance", requireAuth as any, requireModule("finance"), financeRouter);
 apiRouter.use("/marketing", requireAuth as any, requireModule("marketing"), marketingRouter);
+apiRouter.use("/cskh", requireAuth as any, cskhRouter);

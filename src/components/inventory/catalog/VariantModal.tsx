@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { toast } from "../../../pages/Toast";
 import { getApiErrorMessage } from "../../../utils/errorMessage";
 import {
@@ -28,11 +28,43 @@ export function VariantModal({ product, variant: initialVariant, onClose, onSave
           barcode: initialVariant.barcode || "",
           displayName: initialVariant.displayName || "",
           mediaIds: initialVariant.mediaIds || [],
+          sellingPrice: (initialVariant as any).sellingPrice !== undefined ? Number((initialVariant as any).sellingPrice) : 0,
+          costPrice: (initialVariant as any).costPrice !== undefined ? Number((initialVariant as any).costPrice) : 0,
         }
       : emptyVariant(product.baseUnitCode, product.productType)
   );
   const [submitting, setSubmitting] = useState(false);
   const isEditing = Boolean(initialVariant);
+
+  useEffect(() => {
+    if (initialVariant) {
+      setVariant({
+        ...initialVariant,
+        barcode: initialVariant.barcode || "",
+        displayName: initialVariant.displayName || "",
+        mediaIds: initialVariant.mediaIds || [],
+        sellingPrice: (initialVariant as any).sellingPrice !== undefined ? Number((initialVariant as any).sellingPrice) : 0,
+        costPrice: (initialVariant as any).costPrice !== undefined ? Number((initialVariant as any).costPrice) : 0,
+      });
+    }
+  }, [initialVariant?._id]);
+
+  useEffect(() => {
+    if (!initialVariant?._id) return;
+    void productCatalogService
+      .listPrices()
+      .then((prices) => {
+        const found = prices.find((p) => p.variantId === initialVariant._id);
+        if (found) {
+          setVariant((curr) => ({
+            ...curr,
+            sellingPrice: Number(found.sellingPrice ?? curr.sellingPrice ?? 0),
+            costPrice: Number(found.costPrice ?? curr.costPrice ?? 0),
+          }));
+        }
+      })
+      .catch(() => {});
+  }, [initialVariant?._id]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -85,8 +117,13 @@ export function VariantModal({ product, variant: initialVariant, onClose, onSave
   };
 
   return (
-    <Modal title={`${isEditing ? "Chỉnh sửa SKU" : "Thêm mã SKU"} cho ${product.name}`} onClose={onClose} stacked>
+    <Modal title={isEditing ? `Chỉnh sửa SKU: ${initialVariant?.sku || variant.sku || product.name}` : `Thêm một SKU cho ${product.name}`} onClose={onClose} stacked>
       <form onSubmit={submit} className="space-y-4">
+        {!isEditing && (
+          <div className="rounded-lg bg-cyan-50/80 border border-cyan-200/80 p-2.5 text-xs text-cyan-800">
+            💡 <strong>Mẹo:</strong> Để tạo tự động nhiều biến thể theo Màu sắc, Dung lượng, bạn có thể đóng cửa sổ này và dùng tab <strong>"Tạo thêm biến thể bằng Ma trận"</strong> trong form sản phẩm.
+          </div>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Giá bán (₫) *">
             <NumberInput

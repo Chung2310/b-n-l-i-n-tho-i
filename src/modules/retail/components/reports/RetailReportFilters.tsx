@@ -253,8 +253,7 @@ export default function RetailReportFilters({
       )}
 
       {/* Dimension Filters Panel */}
-      {showDimensions && (
-        <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/50 p-4 transition-all">
+      <div className={`mt-4 rounded-2xl border border-slate-100 bg-slate-50/50 p-4 transition-all ${showDimensions ? "" : "hidden"}`}>
           <div className="mb-3 flex items-center justify-between">
             <span className="text-xs font-bold text-slate-800">
               Lọc theo thứ nguyên (nhân viên, sản phẩm, ngành hàng)
@@ -313,7 +312,6 @@ export default function RetailReportFilters({
             </button>
           </div>
         </div>
-      )}
-    </div>
+      </div>
   );
 }

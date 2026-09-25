@@ -1,18 +1,39 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Building2, Edit3, LocateFixed, Plus, Power, Search, X } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { branchService, type BranchInput, type BranchRecord } from "../../services/branchService";
+import { authService } from "../../services/authService";
 import { toast } from "../../pages/Toast";
 import { toAttendanceNetwork } from "../../utils/attendanceNetwork";
 import { UserFormModal } from "../user-admin/UserFormModal";
 
-type FormState = Required<Pick<BranchInput, "code" | "name">> & Pick<BranchInput, "address" | "phone"> & { latitude: string; longitude: string; allowedRadius: string; allowedPublicIps: string };
-const emptyForm: FormState = { code: "", name: "", address: "", phone: "", latitude: "", longitude: "", allowedRadius: "100", allowedPublicIps: "" };
+type FormState = Required<Pick<BranchInput, "code" | "name">> &
+  Pick<BranchInput, "address" | "phone" | "managerId" | "isActive"> & {
+    latitude: string;
+    longitude: string;
+    allowedRadius: string;
+    allowedPublicIps: string;
+  };
+
+const emptyForm: FormState = {
+  code: "",
+  name: "",
+  address: "",
+  phone: "",
+  managerId: "",
+  isActive: true,
+  latitude: "",
+  longitude: "",
+  allowedRadius: "100",
+  allowedPublicIps: "",
+};
 
 function geolocationErrorMessage(reason: unknown) {
-  const code = typeof reason === "object" && reason !== null && "code" in reason
-    ? Number((reason as { code: unknown }).code)
-    : 0;
+  const code =
+    typeof reason === "object" && reason !== null && "code" in reason
+      ? Number((reason as { code: unknown }).code)
+      : 0;
   if (code === 1) return "Trình duyệt đang chặn quyền truy cập vị trí. Hãy cho phép Vị trí cho trang này rồi thử lại.";
   if (code === 2) return "Thiết bị chưa xác định được vị trí. Hãy bật GPS/Dịch vụ vị trí rồi thử lại.";
   if (code === 3) return "Lấy vị trí quá lâu. Hãy đứng ở nơi có tín hiệu GPS tốt hơn rồi thử lại.";
@@ -23,6 +44,7 @@ function geolocationErrorMessage(reason: unknown) {
 export default function BranchManagementTab() {
   const { userProfile } = useAuth();
   const [branches, setBranches] = useState<BranchRecord[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState("");
@@ -44,44 +66,152 @@ export default function BranchManagementTab() {
   const [ownerMonthlySalary, setOwnerMonthlySalary] = useState("");
   const [savingOwner, setSavingOwner] = useState(false);
 
+  const isAdminOrSuper = userProfile?.role === "admin" || userProfile?.role === "superadmin";
+
   const load = async () => {
     setLoading(true);
-    try { setBranches(await branchService.list()); }
-    catch (error: any) { toast.error(error.message || "Không thể tải danh sách chi nhánh."); }
-    finally { setLoading(false); }
+    try {
+      setBranches(await branchService.list());
+    } catch (error: any) {
+      toast.error(error.message || "Không thể tải danh sách chi nhánh.");
+    } finally {
+      setLoading(false);
+    }
   };
-  useEffect(() => { if (userProfile?.role === "admin") void load(); else setLoading(false); }, [userProfile?.role, userProfile?.companyCode]);
 
-  const filtered = useMemo(() => branches.filter((branch) => {
-    const needle = query.trim().toLowerCase();
-    const matchesQuery = !needle || branch.code.toLowerCase().includes(needle) || branch.name.toLowerCase().includes(needle);
-    const matchesStatus = status === "all" || (status === "active" ? branch.isActive : !branch.isActive);
-    return matchesQuery && matchesStatus;
-  }), [branches, query, status]);
+  useEffect(() => {
+    if (isAdminOrSuper) void load();
+    else setLoading(false);
+  }, [userProfile?.role, userProfile?.companyCode]);
 
-  const openCreate = () => { setEditing(null); setForm(emptyForm); setFormOpen(true); };
-  const openEdit = (branch: BranchRecord) => { const config = branch.locationConfig; setEditing(branch); setForm({ code: branch.code, name: branch.name, address: branch.address || "", phone: branch.phone || "", latitude: config?.latitude?.toString() || "", longitude: config?.longitude?.toString() || "", allowedRadius: config?.allowedRadius?.toString() || "100", allowedPublicIps: config?.allowedPublicIps?.join("\n") || "" }); setFormOpen(true); };
-  const closeForm = () => { setEditing(null); setForm(emptyForm); setFormOpen(false); };
+  useEffect(() => {
+    const compCode = userProfile?.companyCode;
+    if (!compCode) return;
+    authService
+      .getUsersByCompany(compCode)
+      .then((list) => setUsers(list || []))
+      .catch(() => setUsers([]));
+  }, [userProfile?.companyCode]);
+
+  useEffect(() => {
+    if (!formOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !saving) closeForm();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [formOpen, saving]);
+
+  const filtered = useMemo(
+    () =>
+      branches.filter((branch) => {
+        const needle = query.trim().toLowerCase();
+        const matchesQuery =
+          !needle ||
+          branch.code.toLowerCase().includes(needle) ||
+          branch.name.toLowerCase().includes(needle);
+        const matchesStatus =
+          status === "all" || (status === "active" ? branch.isActive : !branch.isActive);
+        return matchesQuery && matchesStatus;
+      }),
+    [branches, query, status]
+  );
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm(emptyForm);
+    setFormOpen(true);
+  };
+
+  const openEdit = (branch: BranchRecord) => {
+    const config = branch.locationConfig;
+    setEditing(branch);
+    setForm({
+      code: branch.code,
+      name: branch.name,
+      address: branch.address || "",
+      phone: branch.phone || "",
+      managerId: branch.managerId || "",
+      isActive: branch.isActive !== undefined ? branch.isActive : true,
+      latitude: config?.latitude?.toString() || "",
+      longitude: config?.longitude?.toString() || "",
+      allowedRadius: config?.allowedRadius?.toString() || "100",
+      allowedPublicIps: config?.allowedPublicIps?.join("\n") || "",
+    });
+    setFormOpen(true);
+  };
+
+  const closeForm = () => {
+    setEditing(null);
+    setForm(emptyForm);
+    setFormOpen(false);
+  };
+
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     setSaving(true);
     try {
-      const ips = form.allowedPublicIps.split(/[\n,]/).map((value) => value.trim()).filter(Boolean);
-      const locationConfig = form.latitude && form.longitude && form.allowedRadius && ips.length ? { latitude: Number(form.latitude), longitude: Number(form.longitude), allowedRadius: Number(form.allowedRadius), allowedPublicIps: [...new Set(ips)] } : undefined;
-      const payload = { code: form.code, name: form.name, address: form.address, phone: form.phone, locationConfig };
-      const data = editing ? await branchService.update(editing._id, payload) : await branchService.create(payload);
-      setBranches((current) => editing ? current.map((branch) => branch._id === data._id ? data : branch) : [data, ...current]);
+      const ips = form.allowedPublicIps
+        .split(/[\n,]/)
+        .map((value) => value.trim())
+        .filter(Boolean);
+      const locationConfig =
+        form.latitude && form.longitude && form.allowedRadius && ips.length
+          ? {
+              latitude: Number(form.latitude),
+              longitude: Number(form.longitude),
+              allowedRadius: Number(form.allowedRadius),
+              allowedPublicIps: [...new Set(ips)],
+            }
+          : undefined;
+
+      const payload: BranchInput = {
+        code: form.code.trim().toUpperCase(),
+        name: form.name.trim(),
+        address: form.address?.trim() || "",
+        phone: form.phone?.trim() || "",
+        managerId: form.managerId || "",
+        isActive: form.isActive,
+        locationConfig,
+      };
+
+      const data = editing
+        ? await branchService.update(editing._id, payload)
+        : await branchService.create(payload as any);
+
+      setBranches((current) =>
+        editing
+          ? current.map((branch) => (branch._id === data._id ? data : branch))
+          : [data, ...current]
+      );
       closeForm();
+
       if (!editing) {
-        setPendingBranch(data);
-        setOwnerName(""); setOwnerEmail(""); setOwnerPassword(""); setOwnerPhone(""); setOwnerBirthDate(""); setOwnerQualification("");
+        if (!form.managerId) {
+          setPendingBranch(data);
+          setOwnerName("");
+          setOwnerEmail("");
+          setOwnerPassword("");
+          setOwnerPhone("");
+          setOwnerBirthDate("");
+          setOwnerQualification("");
+        } else {
+          toast.success("Đã tạo chi nhánh.");
+        }
         return;
       }
-      window.dispatchEvent(new CustomEvent("branch-change", { detail: { branchId: data.isActive ? data._id : "" } }));
-      toast.success(editing ? "Đã cập nhật chi nhánh." : "Đã tạo chi nhánh.");
-    } catch (error: any) { toast.error(error.message || "Không thể lưu chi nhánh."); }
-    finally { setSaving(false); }
+
+      window.dispatchEvent(
+        new CustomEvent("branch-change", { detail: { branchId: data.isActive ? data._id : "" } })
+      );
+      toast.success(`Đã cập nhật chi nhánh ${data.name}.`);
+    } catch (error: any) {
+      toast.error(error.message || "Không thể lưu chi nhánh.");
+    } finally {
+      setSaving(false);
+    }
   };
+
   const cancelOwner = async () => {
     if (!pendingBranch) return;
     setSavingOwner(true);
@@ -90,22 +220,41 @@ export default function BranchManagementTab() {
       setBranches((current) => current.filter((branch) => branch._id !== pendingBranch._id));
       setPendingBranch(null);
       toast.success("Đã hủy tạo chi nhánh.");
-    } catch (error: any) { toast.error(error.message || "Không thể hủy chi nhánh mới."); }
-    finally { setSavingOwner(false); }
+    } catch (error: any) {
+      toast.error(error.message || "Không thể hủy chi nhánh mới.");
+    } finally {
+      setSavingOwner(false);
+    }
   };
+
   const saveOwner = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!pendingBranch) return;
     setSavingOwner(true);
     try {
-      const result = await branchService.createOwner(pendingBranch._id, { displayName: ownerName, email: ownerEmail, password: ownerPassword, phone: ownerPhone || undefined, birthDate: ownerBirthDate || undefined, qualification: ownerQualification || undefined });
-      setBranches((current) => current.map((branch) => branch._id === result.branch._id ? result.branch : branch));
+      const result = await branchService.createOwner(pendingBranch._id, {
+        displayName: ownerName,
+        email: ownerEmail,
+        password: ownerPassword,
+        phone: ownerPhone || undefined,
+        birthDate: ownerBirthDate || undefined,
+        qualification: ownerQualification || undefined,
+      });
+      setBranches((current) =>
+        current.map((branch) => (branch._id === result.branch._id ? result.branch : branch))
+      );
       setPendingBranch(null);
-      window.dispatchEvent(new CustomEvent("branch-change", { detail: { branchId: result.branch._id } }));
+      window.dispatchEvent(
+        new CustomEvent("branch-change", { detail: { branchId: result.branch._id } })
+      );
       toast.success("Đã tạo chi nhánh và Chủ chi nhánh.");
-    } catch (error: any) { toast.error(error.message || "Không thể tạo Chủ chi nhánh."); }
-    finally { setSavingOwner(false); }
+    } catch (error: any) {
+      toast.error(error.message || "Không thể tạo Chủ chi nhánh.");
+    } finally {
+      setSavingOwner(false);
+    }
   };
+
   const captureLocationAndIp = async () => {
     setLocating(true);
     const positionPromise = new Promise<GeolocationPosition>((resolve, reject) => {
@@ -119,63 +268,436 @@ export default function BranchManagementTab() {
         maximumAge: 0,
       });
     });
-    const [position, ipResult] = await Promise.allSettled([positionPromise, branchService.currentIp()]);
+    const [position, ipResult] = await Promise.allSettled([
+      positionPromise,
+      branchService.currentIp(),
+    ]);
     setForm((current) => ({
       ...current,
-      latitude: position.status === "fulfilled" ? String(position.value.coords.latitude) : current.latitude,
-      longitude: position.status === "fulfilled" ? String(position.value.coords.longitude) : current.longitude,
-      allowedPublicIps: ipResult.status === "fulfilled" ? [...new Set([...current.allowedPublicIps.split(/[\n,]/).map((item) => item.trim()).filter(Boolean), toAttendanceNetwork(ipResult.value.ip)])].join("\n") : current.allowedPublicIps,
+      latitude:
+        position.status === "fulfilled" ? String(position.value.coords.latitude) : current.latitude,
+      longitude:
+        position.status === "fulfilled"
+          ? String(position.value.coords.longitude)
+          : current.longitude,
+      allowedPublicIps:
+        ipResult.status === "fulfilled"
+          ? [
+              ...new Set([
+                ...current.allowedPublicIps.split(/[\n,]/).map((item) => item.trim()).filter(Boolean),
+                toAttendanceNetwork(ipResult.value.ip),
+              ]),
+            ].join("\n")
+          : current.allowedPublicIps,
     }));
     if (position.status === "rejected") toast.error(geolocationErrorMessage(position.reason));
     if (ipResult.status === "rejected") toast.error("Không thể lấy IP mạng hiện tại.");
     setLocating(false);
   };
+
   const toggle = async (branch: BranchRecord) => {
     try {
       const data = await branchService.update(branch._id, { isActive: !branch.isActive });
-      setBranches((current) => current.map((item) => item._id === data._id ? data : item));
-      window.dispatchEvent(new CustomEvent("branch-change", { detail: { branchId: data.isActive ? data._id : "" } }));
+      setBranches((current) => current.map((item) => (item._id === data._id ? data : item)));
+      window.dispatchEvent(
+        new CustomEvent("branch-change", { detail: { branchId: data.isActive ? data._id : "" } })
+      );
       toast.success(data.isActive ? "Đã bật lại chi nhánh." : "Đã vô hiệu hóa chi nhánh.");
-    } catch (error: any) { toast.error(error.message || "Không thể cập nhật trạng thái chi nhánh."); }
+    } catch (error: any) {
+      toast.error(error.message || "Không thể cập nhật trạng thái chi nhánh.");
+    }
   };
 
-  if (userProfile?.role !== "admin") return null;
-  return <section className="rounded-2xl border border-gray-200/80 bg-white/80 p-5 shadow-xs">
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-center gap-3"><div className="rounded-xl bg-cyan-100 p-2.5 text-cyan-700"><Building2 className="h-5 w-5" /></div><div><h2 className="text-lg font-black text-slate-800">Quản lý chi nhánh</h2><p className="text-xs text-slate-500">Quản lý các địa điểm thuộc công ty của bạn.</p></div></div>
-      <button type="button" onClick={openCreate} className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-cyan-700"><Plus className="h-4 w-4" />Thêm chi nhánh</button>
-    </div>
-    <div className="mt-5 flex flex-col gap-3 sm:flex-row"><label className="relative flex-1"><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><input aria-label="Tìm kiếm chi nhánh" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm theo mã hoặc tên" className="w-full rounded-xl border border-gray-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-cyan-500" /></label><select aria-label="Lọc trạng thái" value={status} onChange={(event) => setStatus(event.target.value as typeof status)} className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm"><option value="all">Tất cả trạng thái</option><option value="active">Đang hoạt động</option><option value="inactive">Đã vô hiệu hóa</option></select></div>
-    {loading ? <p className="py-10 text-center text-sm text-slate-500">Đang tải chi nhánh...</p> : filtered.length === 0 ? <p className="py-10 text-center text-sm text-slate-500">Chưa có chi nhánh phù hợp.</p> : <ul className="mt-5 space-y-3">{filtered.map((branch) => <li key={branch._id} className="flex flex-col gap-3 rounded-xl border border-gray-100 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-2"><span className="font-mono text-xs font-bold text-cyan-700">{branch.code}</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${branch.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{branch.isActive ? "Đang hoạt động" : "Đã vô hiệu hóa"}</span></div><h3 className="mt-1 text-sm font-bold text-slate-800">{branch.name}</h3><p className="mt-1 text-xs text-slate-500">{branch.address || "Chưa có địa chỉ"}{branch.phone ? ` · ${branch.phone}` : ""}</p></div><div className="flex items-center gap-2"><button type="button" onClick={() => openEdit(branch)} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-gray-50"><Edit3 className="h-3.5 w-3.5" />Sửa</button><button type="button" aria-label={branch.isActive ? "Vô hiệu hóa" : "Bật lại"} onClick={() => void toggle(branch)} className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold ${branch.isActive ? "border border-red-200 text-red-600 hover:bg-red-50" : "border border-emerald-200 text-emerald-700 hover:bg-emerald-50"}`}><Power className="h-3.5 w-3.5" />{branch.isActive ? "Vô hiệu hóa" : "Bật lại"}</button></div></li>)}</ul>}
-    {formOpen && <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4"><form onSubmit={save} className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
-      <div className="flex items-center justify-between"><h3 className="text-lg font-black text-slate-800">{editing ? "Sửa chi nhánh" : "Tạo chi nhánh"}</h3><button type="button" aria-label="Đóng" onClick={closeForm} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
-      <div className="mt-5 space-y-4">
-        <label className="block text-xs font-bold text-slate-600">Mã chi nhánh<input required value={form.code} disabled={!!editing} onChange={(event) => setForm({ ...form, code: event.target.value.toUpperCase() })} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm" /></label>
-        <label className="block text-xs font-bold text-slate-600">Tên chi nhánh<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm" /></label>
-        <div className="grid gap-4 sm:grid-cols-2"><label className="block text-xs font-bold text-slate-600">Địa chỉ<input value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm" /></label><label className="block text-xs font-bold text-slate-600">Số điện thoại<input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm" /></label></div>
-        <div className="rounded-xl border border-cyan-100 bg-cyan-50/50 p-4"><div className="flex items-center justify-between gap-3"><div><h4 className="text-xs font-black text-slate-700">Cấu hình chấm công</h4><p className="text-[10px] text-slate-500">Bắt buộc để nhân viên chấm công.</p></div><button type="button" onClick={() => void captureLocationAndIp()} disabled={locating} className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"><LocateFixed className="h-3.5 w-3.5" />{locating ? "Đang lấy..." : "Lấy vị trí & IP hiện tại"}</button></div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-3"><label className="text-[11px] font-bold text-slate-600">Vĩ độ<input aria-label="Vĩ độ" type="number" step="any" value={form.latitude} onChange={(e) => setForm({ ...form, latitude: e.target.value })} className="mt-1 w-full rounded-lg border p-2 text-xs" /></label><label className="text-[11px] font-bold text-slate-600">Kinh độ<input aria-label="Kinh độ" type="number" step="any" value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })} className="mt-1 w-full rounded-lg border p-2 text-xs" /></label><label className="text-[11px] font-bold text-slate-600">Bán kính (m)<input aria-label="Bán kính" type="number" min="1" value={form.allowedRadius} onChange={(e) => setForm({ ...form, allowedRadius: e.target.value })} className="mt-1 w-full rounded-lg border p-2 text-xs" /></label></div>
-          <label className="mt-3 block text-[11px] font-bold text-slate-600">IP công cộng được phép<textarea aria-label="IP công cộng được phép" rows={3} value={form.allowedPublicIps} onChange={(e) => setForm({ ...form, allowedPublicIps: e.target.value })} placeholder="Mỗi IP một dòng" className="mt-1 w-full rounded-lg border p-2 font-mono text-xs" /><span className="mt-1 block font-normal text-slate-500">IPv4 được kiểm tra chính xác; IPv6 dùng chung mạng /64 cho các thiết bị cùng Wi-Fi.</span></label>
+  if (!isAdminOrSuper) return null;
+
+  return (
+    <section className="rounded-2xl border border-gray-200/80 bg-white/80 p-5 shadow-xs">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-cyan-100 p-2.5 text-cyan-700">
+            <Building2 className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-black text-slate-800">Quản lý chi nhánh</h2>
+            <p className="text-xs text-slate-500">Quản lý các địa điểm thuộc công ty của bạn.</p>
+          </div>
         </div>
+        <button
+          type="button"
+          onClick={openCreate}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-cyan-700 transition cursor-pointer shadow-sm"
+        >
+          <Plus className="h-4 w-4" />
+          Thêm chi nhánh
+        </button>
       </div>
-      <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={closeForm} className="rounded-xl border border-gray-200 px-4 py-2.5 text-xs font-bold text-slate-600">Hủy</button><button type="submit" disabled={saving} className="rounded-xl bg-cyan-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50">{saving ? "Đang lưu..." : editing ? "Lưu cập nhật" : "Tạo chi nhánh"}</button></div>
-    </form></div>}
-    <UserFormModal
-      open={!!pendingBranch} onClose={() => void cancelOwner()} editingUser={null}
-      userDisplayName={ownerName} setUserDisplayName={setOwnerName} userEmail={ownerEmail} setUserEmail={setOwnerEmail}
-      userPhone={ownerPhone} setUserPhone={setOwnerPhone} userBirthDate={ownerBirthDate} setUserBirthDate={setOwnerBirthDate}
-      userPassword={ownerPassword} setUserPassword={setOwnerPassword} userRole="branch_owner" setUserRole={() => undefined}
-      userCompanyCode={userProfile?.companyCode || ""} setUserCompanyCode={() => undefined}
-      userBranchId={pendingBranch?._id || ""} setUserBranchId={() => undefined}
-      userParentId={userProfile?.uid || ""} setUserParentId={() => undefined}
-      userDepartment={ownerDepartment} setUserDepartment={setOwnerDepartment}
-      userQualification={ownerQualification} setUserQualification={setOwnerQualification}
-      userJobDescriptionLink={ownerJobDescriptionLink} setUserJobDescriptionLink={setOwnerJobDescriptionLink}
-      setUserJobDescriptionUploadToken={setOwnerJobDescriptionUploadToken}
-      userMonthlySalary={ownerMonthlySalary} setUserMonthlySalary={setOwnerMonthlySalary}
-      getAvailableRoles={() => [{ role: "branch_owner", displayName: "Chủ chi nhánh", level: 2 }]}
-      userProfile={userProfile} companies={[]} branches={pendingBranch ? [pendingBranch] : []} usersList={userProfile ? [userProfile] : []}
-      onSubmit={saveOwner} submittingUser={savingOwner} lockRole lockCompany lockBranch lockParent
-    />
-  </section>;
+
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+        <label className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+          <input
+            aria-label="Tìm kiếm chi nhánh"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Tìm theo mã hoặc tên"
+            className="w-full rounded-xl border border-gray-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-cyan-500"
+          />
+        </label>
+        <select
+          aria-label="Lọc trạng thái"
+          value={status}
+          onChange={(event) => setStatus(event.target.value as typeof status)}
+          className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-cyan-500 bg-white cursor-pointer"
+        >
+          <option value="all">Tất cả trạng thái</option>
+          <option value="active">Đang hoạt động</option>
+          <option value="inactive">Đã vô hiệu hóa</option>
+        </select>
+      </div>
+
+      {loading ? (
+        <p className="py-10 text-center text-sm text-slate-500">Đang tải chi nhánh...</p>
+      ) : filtered.length === 0 ? (
+        <p className="py-10 text-center text-sm text-slate-500">Chưa có chi nhánh phù hợp.</p>
+      ) : (
+        <ul className="mt-5 space-y-3">
+          {filtered.map((branch) => {
+            const manager = users.find(
+              (u: any) =>
+                (u.uid && u.uid === branch.managerId) || (u._id && u._id === branch.managerId)
+            );
+            return (
+              <li
+                key={branch._id}
+                className="flex flex-col gap-3 rounded-xl border border-gray-100 bg-white p-4 sm:flex-row sm:items-center sm:justify-between transition hover:border-slate-200"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-cyan-700">{branch.code}</span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        branch.isActive
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {branch.isActive ? "Đang hoạt động" : "Đã vô hiệu hóa"}
+                    </span>
+                  </div>
+                  <h3 className="mt-1 text-sm font-bold text-slate-800">{branch.name}</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {branch.address || "Chưa có địa chỉ"}
+                    {branch.phone ? ` · ${branch.phone}` : ""}
+                    {manager && (
+                      <span className="ml-2 font-medium text-cyan-700">
+                        · Quản lý: {manager.displayName || manager.email}
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openEdit(branch)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-gray-50 transition cursor-pointer"
+                  >
+                    <Edit3 className="h-3.5 w-3.5" />
+                    Sửa
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={branch.isActive ? "Vô hiệu hóa" : "Bật lại"}
+                    onClick={() => void toggle(branch)}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition cursor-pointer ${
+                      branch.isActive
+                        ? "border border-red-200 text-red-600 hover:bg-red-50"
+                        : "border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                    }`}
+                  >
+                    <Power className="h-3.5 w-3.5" />
+                    {branch.isActive ? "Vô hiệu hóa" : "Bật lại"}
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {formOpen &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={editing ? "Sửa chi nhánh" : "Tạo chi nhánh"}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs animate-in fade-in duration-200"
+            onClick={(e) => {
+              if (e.target === e.currentTarget && !saving) closeForm();
+            }}
+          >
+            <form
+              onSubmit={save}
+              className="relative max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl outline-none"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-100 text-cyan-700">
+                    <Building2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-slate-800">
+                      {editing ? "Sửa chi nhánh" : "Tạo chi nhánh"}
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      {editing
+                        ? `Cập nhật thông tin chi nhánh ${editing.name}`
+                        : "Khai báo địa điểm kinh doanh và chấm công mới."}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Đóng"
+                  disabled={saving}
+                  onClick={closeForm}
+                  className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 disabled:opacity-50 cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-5 space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block text-xs font-bold text-slate-600">
+                    Mã chi nhánh <span className="text-rose-500">*</span>
+                    <input
+                      required
+                      aria-label="Mã chi nhánh"
+                      value={form.code}
+                      onChange={(event) =>
+                        setForm({ ...form, code: event.target.value.toUpperCase() })
+                      }
+                      placeholder="VD: CN-HN, CN-HCM..."
+                      className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-mono font-semibold uppercase outline-none focus:border-cyan-500"
+                    />
+                  </label>
+
+                  <label className="block text-xs font-bold text-slate-600">
+                    Tên chi nhánh <span className="text-rose-500">*</span>
+                    <input
+                      required
+                      aria-label="Tên chi nhánh"
+                      value={form.name}
+                      onChange={(event) => setForm({ ...form, name: event.target.value })}
+                      placeholder="VD: Chi nhánh Cầu Giấy"
+                      className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-cyan-500"
+                    />
+                  </label>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block text-xs font-bold text-slate-600">
+                    Địa chỉ
+                    <input
+                      aria-label="Địa chỉ"
+                      value={form.address}
+                      onChange={(event) => setForm({ ...form, address: event.target.value })}
+                      placeholder="Số nhà, tên đường..."
+                      className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-cyan-500"
+                    />
+                  </label>
+
+                  <label className="block text-xs font-bold text-slate-600">
+                    Số điện thoại
+                    <input
+                      aria-label="Số điện thoại"
+                      value={form.phone}
+                      onChange={(event) => setForm({ ...form, phone: event.target.value })}
+                      placeholder="09xx..."
+                      className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-cyan-500"
+                    />
+                  </label>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block text-xs font-bold text-slate-600">
+                    Chủ chi nhánh / Quản lý
+                    <select
+                      aria-label="Chủ chi nhánh"
+                      value={form.managerId || ""}
+                      onChange={(e) => setForm({ ...form, managerId: e.target.value })}
+                      className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-500 cursor-pointer"
+                    >
+                      <option value="">-- Chưa gán chủ chi nhánh --</option>
+                      {users.map((u: any) => (
+                        <option key={u.uid || u._id} value={u.uid || u._id}>
+                          {u.displayName || u.email} (
+                          {u.role === "branch_owner"
+                            ? "Chủ CN"
+                            : u.role === "admin"
+                            ? "Admin"
+                            : u.role}
+                          )
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {editing && (
+                    <label className="block text-xs font-bold text-slate-600">
+                      Trạng thái
+                      <select
+                        aria-label="Trạng thái chi nhánh"
+                        value={form.isActive ? "active" : "inactive"}
+                        onChange={(e) =>
+                          setForm({ ...form, isActive: e.target.value === "active" })
+                        }
+                        className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-500 cursor-pointer"
+                      >
+                        <option value="active">Đang hoạt động</option>
+                        <option value="inactive">Đã vô hiệu hóa</option>
+                      </select>
+                    </label>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-cyan-100 bg-cyan-50/50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-xs font-black text-slate-700">Cấu hình chấm công</h4>
+                      <p className="text-[10px] text-slate-500">Bắt buộc để nhân viên chấm công.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void captureLocationAndIp()}
+                      disabled={locating}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50 cursor-pointer hover:bg-cyan-700 transition"
+                    >
+                      <LocateFixed className="h-3.5 w-3.5" />
+                      {locating ? "Đang lấy..." : "Lấy vị trí & IP hiện tại"}
+                    </button>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    <label className="text-[11px] font-bold text-slate-600">
+                      Vĩ độ
+                      <input
+                        aria-label="Vĩ độ"
+                        type="number"
+                        step="any"
+                        value={form.latitude}
+                        onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+                        className="mt-1 w-full rounded-lg border border-gray-200 bg-white p-2 text-xs outline-none focus:border-cyan-500"
+                      />
+                    </label>
+                    <label className="text-[11px] font-bold text-slate-600">
+                      Kinh độ
+                      <input
+                        aria-label="Kinh độ"
+                        type="number"
+                        step="any"
+                        value={form.longitude}
+                        onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+                        className="mt-1 w-full rounded-lg border border-gray-200 bg-white p-2 text-xs outline-none focus:border-cyan-500"
+                      />
+                    </label>
+                    <label className="text-[11px] font-bold text-slate-600">
+                      Bán kính (m)
+                      <input
+                        aria-label="Bán kính"
+                        type="number"
+                        min="1"
+                        value={form.allowedRadius}
+                        onChange={(e) => setForm({ ...form, allowedRadius: e.target.value })}
+                        className="mt-1 w-full rounded-lg border border-gray-200 bg-white p-2 text-xs outline-none focus:border-cyan-500"
+                      />
+                    </label>
+                  </div>
+
+                  <label className="mt-3 block text-[11px] font-bold text-slate-600">
+                    IP công cộng được phép
+                    <textarea
+                      aria-label="IP công cộng được phép"
+                      rows={3}
+                      value={form.allowedPublicIps}
+                      onChange={(e) => setForm({ ...form, allowedPublicIps: e.target.value })}
+                      placeholder="Mỗi IP một dòng"
+                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white p-2 font-mono text-xs outline-none focus:border-cyan-500"
+                    />
+                    <span className="mt-1 block font-normal text-slate-500">
+                      IPv4 được kiểm tra chính xác; IPv6 dùng chung mạng /64 cho các thiết bị cùng
+                      Wi-Fi.
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
+                <button
+                  type="button"
+                  onClick={closeForm}
+                  disabled={saving}
+                  className="rounded-xl border border-gray-200 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-gray-50 transition cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="rounded-xl bg-cyan-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-cyan-700 disabled:opacity-50 transition cursor-pointer"
+                >
+                  {saving ? "Đang lưu..." : editing ? "Lưu cập nhật" : "Tạo chi nhánh"}
+                </button>
+              </div>
+            </form>
+          </div>,
+          document.body
+        )}
+
+      <UserFormModal
+        open={!!pendingBranch}
+        onClose={() => void cancelOwner()}
+        editingUser={null}
+        userDisplayName={ownerName}
+        setUserDisplayName={setOwnerName}
+        userEmail={ownerEmail}
+        setUserEmail={setOwnerEmail}
+        userPhone={ownerPhone}
+        setUserPhone={setOwnerPhone}
+        userBirthDate={ownerBirthDate}
+        setUserBirthDate={setOwnerBirthDate}
+        userPassword={ownerPassword}
+        setUserPassword={setOwnerPassword}
+        userRole="branch_owner"
+        setUserRole={() => undefined}
+        userCompanyCode={userProfile?.companyCode || ""}
+        setUserCompanyCode={() => undefined}
+        userBranchId={pendingBranch?._id || ""}
+        setUserBranchId={() => undefined}
+        userParentId={userProfile?.uid || ""}
+        setUserParentId={() => undefined}
+        userDepartment={ownerDepartment}
+        setUserDepartment={setOwnerDepartment}
+        userQualification={ownerQualification}
+        setUserQualification={setOwnerQualification}
+        userJobDescriptionLink={ownerJobDescriptionLink}
+        setUserJobDescriptionLink={setOwnerJobDescriptionLink}
+        setUserJobDescriptionUploadToken={setOwnerJobDescriptionUploadToken}
+        userMonthlySalary={ownerMonthlySalary}
+        setUserMonthlySalary={setOwnerMonthlySalary}
+        getAvailableRoles={() => [{ role: "branch_owner", displayName: "Chủ chi nhánh", level: 2 }]}
+        userProfile={userProfile}
+        companies={[]}
+        branches={pendingBranch ? [pendingBranch] : []}
+        usersList={userProfile ? [userProfile] : []}
+        onSubmit={saveOwner}
+        submittingUser={savingOwner}
+        lockRole
+        lockCompany
+        lockBranch
+        lockParent
+      />
+    </section>
+  );
 }

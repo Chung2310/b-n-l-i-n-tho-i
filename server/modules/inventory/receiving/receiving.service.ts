@@ -1,3 +1,5 @@
+import { FinanceDebtModel } from "../../finance/models/financial-reporting.model";
+import { financeToday, validDay, moneyInput } from "../../finance/services/financial-calculations";
 ﻿import mongoose, { Types } from "mongoose";
 import { runInTransaction } from "../../../config/database";
 import { BranchModel } from "../../../model/branch.model";
@@ -149,6 +151,18 @@ export async function listReceipts(rawScope: Scope, query: any = {}) {
   return { items, total, page, limit };
 }
 
+function receiptFinanceTerms(input: any, subtotal: number) {
+  if (!input) return undefined;
+  const dueOn = validDay(input.dueOn), paidAmount = moneyInput(input.paidAmount);
+  if (paidAmount > subtotal) throw new ReceivingValidationError("Đã trả không được vượt giá trị phiếu nhập.");
+  if (!["cash", "bank", ""].includes(String(input.paymentMethod || ""))) throw new ReceivingValidationError("Phương thức thanh toán không hợp lệ.");
+  return { dueOn, paidAmount, paymentMethod: String(input.paymentMethod || "") };
+}
+async function recordReceiptDebt(receipt: any, session: any) {
+  if (!receipt.financeTerms) return;
+  const amount = receipt.subtotal - receipt.financeTerms.paidAmount;
+  await FinanceDebtModel.updateOne({ companyCode: receipt.companyCode, sourceReceiptId: String(receipt._id) }, { $setOnInsert: { companyCode: receipt.companyCode, branchId: receipt.branchId, sourceReceiptId: String(receipt._id), direction: "payable", partyKind: "supplier", partyId: receipt.supplierId, partyName: receipt.supplierName, reference: receipt.receiptCode, amount, balance: amount, occurredOn: financeToday(receipt.confirmedAt), dueOn: receipt.financeTerms.dueOn, createdBy: receipt.confirmedBy, version: 0 } }, { upsert: true, session });
+}
 export async function createReceipt(rawScope: Scope, input: any, actor: Actor) {
   const scope = normalizeScope(rawScope);
   const supplierId = text(input?.supplierId, "Nhà cung cấp", true);
@@ -161,7 +175,7 @@ export async function createReceipt(rawScope: Scope, input: any, actor: Actor) {
   const items = (await resolveReceiptItems(scope.companyCode, rawItems)).map((item: any, index) => ({ ...item, serialNumbers: Array.isArray(input?.items?.[index]?.serialNumbers) ? input.items[index].serialNumbers : undefined, unitDetails: Array.isArray(input?.items?.[index]?.unitDetails) ? input.items[index].unitDetails : undefined }));
   validateReceivingSerialLines(items as any);
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
-  const receipt = await GoodsReceiptModel.create({ companyCode: scope.companyCode, branchId: scope.branchId, warehouseId: String(warehouse._id), receiptCode: await receiptCode(scope), supplierId, supplierName: supplier.name, status: "draft", receivedAt: input?.receivedAt ? new Date(input.receivedAt) : undefined, items, subtotal, notes: text(input?.notes, "Ghi chú") || undefined, createdBy: actorId(actor), createdByName: actor.email || actor.id, version: 0 });
+  const receipt = await GoodsReceiptModel.create({ companyCode: scope.companyCode, branchId: scope.branchId, warehouseId: String(warehouse._id), receiptCode: await receiptCode(scope), supplierId, supplierName: supplier.name, status: "draft", receivedAt: input?.receivedAt ? new Date(input.receivedAt) : undefined, items, subtotal, financeTerms: receiptFinanceTerms(input.financeTerms, subtotal), notes: text(input?.notes, "Ghi chú") || undefined, createdBy: actorId(actor), createdByName: actor.email || actor.id, version: 0 });
   return receipt.toObject();
 }
 
@@ -179,7 +193,7 @@ export async function updateReceipt(rawScope: Scope, id: string, input: any, act
   const items = (await resolveReceiptItems(scope.companyCode, rawItems)).map((item: any, index) => ({ ...item, serialNumbers: Array.isArray(input?.items?.[index]?.serialNumbers) ? input.items[index].serialNumbers : undefined, unitDetails: Array.isArray(input?.items?.[index]?.unitDetails) ? input.items[index].unitDetails : undefined }));
   validateReceivingSerialLines(items as any);
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
-  const updated = await GoodsReceiptModel.findOneAndUpdate({ _id: id, ...scope, status: "draft", version: current.version }, { $set: { supplierId, supplierName: supplier.name, items, subtotal, notes: text(input?.notes, "Ghi chú") || undefined, updatedBy: actorId(actor) }, $inc: { version: 1 } }, { returnDocument: 'after', runValidators: true }).lean();
+  const updated = await GoodsReceiptModel.findOneAndUpdate({ _id: id, ...scope, status: "draft", version: current.version }, { $set: { supplierId, supplierName: supplier.name, items, subtotal, financeTerms: receiptFinanceTerms(input.financeTerms === undefined ? current.financeTerms : input.financeTerms, subtotal) || null, notes: text(input?.notes, "Ghi chú") || undefined, updatedBy: actorId(actor) }, $inc: { version: 1 } }, { returnDocument: 'after', runValidators: true }).lean();
   if (!updated) throw new ReceivingValidationError("Phiếu nhập đã thay đổi, vui lòng tải lại rồi sửa lại.");
   return updated;
 }
@@ -191,7 +205,7 @@ export async function confirmReceipt(rawScope: Scope, id: string, actor: Actor) 
     const receipt: any = await GoodsReceiptModel.findOne({ _id: id, ...scope, status: "receiving" }).session(session || null);
     if (!receipt) {
       const confirmed = await GoodsReceiptModel.findOne({ _id: id, ...scope, status: "confirmed" }).session(session || null).lean();
-      if (confirmed) return confirmed;
+      if (confirmed) { await recordReceiptDebt(confirmed, session); return confirmed; }
       throw new ReceivingValidationError("Phiếu nhập phải ở trạng thái Đang nhập kho mới có thể hoàn thành.");
     }
     const movement = await writeStockMovement({ companyCode: scope.companyCode, branchId: scope.branchId, warehouseId: receipt.warehouseId, direction: "in", purpose: "purchase", sourceType: "goods-receipt", sourceId: String(receipt._id), sourceCode: receipt.receiptCode, idempotencyKey: `goods-receipt:${receipt._id}:confirm`, operatorName: actor.email || actor.id || "", items: receipt.items.map((item: any) => ({ productId: item.productId, variantId: item.variantId, sku: item.sku, productName: item.productName, quantity: item.quantity, unitCost: item.unitCost, lineTotal: item.lineTotal })), reason: `Nhập hàng ${receipt.receiptCode}`, session, writeLegacyStockLog: true });
@@ -204,6 +218,7 @@ export async function confirmReceipt(rawScope: Scope, id: string, actor: Actor) 
       const startAt = receipt.receivedAt || receipt.confirmedAt || new Date();
       await registerSerialBatch({ companyCode: scope.companyCode, branchId: scope.branchId, warehouseId: String(receipt.warehouseId) }, { productId: item.productId, variantId: item.variantId, sku: item.sku, productName: item.productName, serialNumbers, internalBarcodes, documentType: "goods-receipt", documentId: String(receipt._id), supplierWarranty: supplierMonths > 0 ? { supplierId: receipt.supplierId, supplierName: receipt.supplierName, receiptId: String(receipt._id), receiptCode: receipt.receiptCode, months: supplierMonths, startAt, startSource: "receipt", endAt: computeWarrantyEnd(startAt, supplierMonths) } : undefined }, { id: actorId(actor), name: actor.email || actor.id || "" }, session);
     }
+    await recordReceiptDebt(receipt, session);
     void movement;
     return receipt.toObject();
   });

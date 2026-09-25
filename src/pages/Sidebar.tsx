@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, FolderOpen, LayoutDashboard, MessageSquare, Package, Settings, Shield, Users, BookOpen, ShoppingCart, Landmark, Megaphone, Wrench, ContactRound } from "lucide-react";
+import { ChevronLeft, ChevronRight, FolderOpen, LayoutDashboard, MessageSquare, Package, Settings, Shield, Users, BookOpen, ShoppingCart, Landmark, Megaphone, Wrench, ContactRound, Headphones } from "lucide-react";
 import { BRAND_LOGO_PATH, PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL, USER_DATA_DELETION_URL } from "../config/brand";
 import type { TabType } from "../types";
 import { useAuth } from "../context/AuthContext";
@@ -16,6 +16,7 @@ const baseMenuItems: MenuItem[] = [
   { label: "KHO & SẢN PHẨM", title: "Kho & Sản phẩm", icon: Package, group: "operations" },
   { label: "SỬA CHỮA & BẢO HÀNH", title: "Sửa chữa & bảo hành", icon: Wrench, group: "operations" },
   { label: "QUẢN LÝ KHÁCH HÀNG", title: "Khách hàng", icon: ContactRound, group: "operations" },
+  { label: "CSKH", title: "Hộp thư CSKH 1-1", icon: Headphones, group: "operations" },
   { label: "BÁN LẺ", title: "Bán lẻ", icon: ShoppingCart, group: "operations" },
   { label: "TÀI CHÍNH", title: "Tài chính", icon: Landmark, group: "operations" },
   { label: "MARKETING", title: "Marketing tự động", icon: Megaphone, group: "operations" },

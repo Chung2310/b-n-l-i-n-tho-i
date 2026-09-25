@@ -6,7 +6,7 @@ import { productCatalogService } from "../../services/productCatalogService";
 
 vi.mock("../../services/productCatalogService", () => {
   const productCatalogService = {
-    listProducts: vi.fn(), listResources: vi.fn(), getProduct: vi.fn(), listPrices: vi.fn(), createVariants: vi.fn(), updateVariant: vi.fn(), upsertPrice: vi.fn(),
+    listProducts: vi.fn(), listResources: vi.fn(), getProduct: vi.fn(), listPrices: vi.fn(), createVariants: vi.fn(), createVariant: vi.fn(), updateVariant: vi.fn(), upsertPrice: vi.fn(),
   };
   return { productCatalogService };
 });
@@ -27,29 +27,24 @@ describe("ProductCatalogV2Section bulk SKU form", () => {
     vi.mocked(productCatalogService.getProduct).mockResolvedValue(product);
     vi.mocked(productCatalogService.listPrices).mockResolvedValue([]);
     vi.mocked(productCatalogService.createVariants).mockResolvedValue([]);
+    vi.mocked(productCatalogService.createVariant).mockResolvedValue(product.variants[0]);
     vi.mocked(productCatalogService.updateVariant).mockResolvedValue(product.variants[0]);
     vi.mocked(productCatalogService.upsertPrice).mockResolvedValue({});
   });
 
-  it("opens with one standard SKU form and submits each added SKU in one bulk request", async () => {
+  it("opens with one standard SKU form and submits newly added SKU", async () => {
     const { container } = render(<ProductCatalogV2Section />);
     await screen.findByText("Áo thun");
     fireEvent.click(container.querySelector('button[title="Sửa sản phẩm"]')!);
-    await screen.findByText("Tạo nhanh nhiều SKU");
-    fireEvent.click(screen.getByText("Tạo nhanh nhiều SKU"));
+    await screen.findByText("Thêm một SKU");
+    fireEvent.click(screen.getByText("Thêm một SKU"));
 
     await waitFor(() => expect(screen.getAllByLabelText("Mã SKU")).toHaveLength(1));
-    fireEvent.click(screen.getByText("Thêm SKU"));
-    await waitFor(() => expect(screen.getAllByLabelText("Mã SKU")).toHaveLength(2));
     const skuInputs = screen.getAllByLabelText("Mã SKU");
-    fireEvent.change(skuInputs[0], { target: { value: "AO-DEN" } });
-    fireEvent.change(skuInputs[1], { target: { value: "AO-TRANG" } });
-    fireEvent.click(screen.getByText("Tạo các SKU"));
+    fireEvent.change(skuInputs[0], { target: { value: "AO-MOI" } });
+    fireEvent.click(screen.getByText("Thêm mã SKU"));
 
-    await waitFor(() => expect(productCatalogService.createVariants).toHaveBeenCalledWith("product-1", expect.arrayContaining([
-      expect.objectContaining({ sku: "AO-DEN" }),
-      expect.objectContaining({ sku: "AO-TRANG" }),
-    ])));
+    await waitFor(() => expect(productCatalogService.createVariant).toHaveBeenCalledWith("product-1", expect.objectContaining({ sku: "AO-MOI" })));
   });
 
   it("keeps the product editor open beneath the SKU editor", async () => {

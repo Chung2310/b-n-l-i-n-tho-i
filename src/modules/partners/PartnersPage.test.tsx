@@ -88,3 +88,99 @@ it('submits a password to provision the partner account when adding a partner', 
     expect.objectContaining({ email: 'binh@example.com', accountPassword: 'secret123' }),
   ]));
 });
+
+it('opens edit policy popup with existing data populated and submits update via PATCH', async () => {
+  auth.permissions = ['partner:manage', 'commission-policy:manage'];
+  const initialPolicies = {
+    defaults: { phoneAmount: 200000, accessoryBps: 1000, repairBps: 1000, rules: [] },
+    items: [
+      {
+        _id: 'pol-123',
+        partnerId: 'ctv-1',
+        effectiveAt: '2026-05-20T14:30:00.000Z',
+        config: {
+          phoneAmount: 250000,
+          accessoryBps: 1200,
+          repairBps: 1100,
+          rules: [{ kind: 'phone', category: 'Flagship', amount: 280000 }],
+        },
+      },
+    ],
+  };
+
+  vi.mocked(partnerRequest).mockImplementation(async (path, method) => {
+    if (path === '/') return [{ _id: 'ctv-1', code: 'CTV1', name: 'CTV An', roles: ['collaborator'], status: 'active', balance: 0 }] as any;
+    if (path === '/policies' && (!method || method === 'GET')) return initialPolicies as any;
+    if (path === '/policies/pol-123' && method === 'PATCH') return { ok: true } as any;
+    return {} as any;
+  });
+
+  render(<PartnersPage />);
+  await screen.findByText('CTV An');
+
+  const policyTabBtn = screen.getByRole('button', { name: /Chính sách/i });
+  await userEvent.click(policyTabBtn);
+
+  expect(await screen.findByRole('button', { name: /Sửa/i })).toBeTruthy();
+  const editBtn = screen.getByRole('button', { name: /Sửa/i });
+  await userEvent.click(editBtn);
+
+  expect(screen.getByText('Sửa chính sách hoa hồng')).toBeTruthy();
+
+  const phoneInput = screen.getByLabelText(/Điện thoại \/ máy \(VND\)/i) as HTMLInputElement;
+  expect(phoneInput.value).toBe('250000');
+
+  const accessoryInput = screen.getByLabelText(/Phụ kiện \(%\)/i) as HTMLInputElement;
+  expect(accessoryInput.value).toBe('12');
+
+  const repairInput = screen.getByLabelText(/Tiền công sửa chữa \(%\)/i) as HTMLInputElement;
+  expect(repairInput.value).toBe('11');
+
+  const effectiveAtInput = screen.getByLabelText(/Hiệu lực/i) as HTMLInputElement;
+  expect(effectiveAtInput.value).not.toBe('');
+
+  const ruleValueInput = screen.getByLabelText(/SKU hoặc nhóm hàng/i) as HTMLInputElement;
+  expect(ruleValueInput.value).toBe('Flagship');
+
+  const submitBtn = screen.getByRole('button', { name: /Cập nhật chính sách/i });
+  await userEvent.click(submitBtn);
+
+  await waitFor(() => {
+    expect(vi.mocked(partnerRequest)).toHaveBeenCalledWith(
+      '/policies/pol-123',
+      'PATCH',
+      expect.objectContaining({
+        partnerId: 'ctv-1',
+        config: expect.objectContaining({
+          phoneAmount: 250000,
+          accessoryBps: 1200,
+          repairBps: 1100,
+        }),
+      })
+    );
+  });
+});
+
+it('does not require or submit password when adding a supplier partner', async () => {
+  auth.permissions = ['partner:manage'];
+  vi.mocked(partnerRequest).mockResolvedValueOnce([]).mockResolvedValueOnce({});
+  render(<PartnersPage />);
+  await userEvent.click(await screen.findByRole('button', { name: /Thêm đối tác/i }));
+  await userEvent.type(screen.getByLabelText(/Mã đối tác/i), 'NCC-001');
+  await userEvent.type(screen.getByLabelText(/Tên đối tác/i), 'Nhà cung cấp Apple');
+  
+  // Select Supplier role
+  const supplierRadio = screen.getByRole('radio', { name: 'Nhà cung cấp' });
+  await userEvent.click(supplierRadio);
+
+  // Password input should not be in the document
+  expect(screen.queryByLabelText(/Mật khẩu tài khoản/i)).toBeNull();
+  expect(screen.getByText(/Hồ sơ Nhà cung cấp dùng để theo dõi nguồn hàng/i)).toBeTruthy();
+
+  await userEvent.click(screen.getByRole('button', { name: /Lưu hồ sơ/i }));
+  await waitFor(() => expect(vi.mocked(partnerRequest).mock.calls[1]).toEqual([
+    '/',
+    'POST',
+    expect.not.objectContaining({ accountPassword: expect.anything() }),
+  ]));
+});
