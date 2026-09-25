@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Folder, FolderTree, Pencil, Plus, Tag } from "lucide-react";
+import { CheckCircle2, Folder, FolderTree, Pencil, Plus, Search, Sparkles, Tag } from "lucide-react";
 import { toast } from "../../../pages/Toast";
 import { getApiErrorMessage } from "../../../utils/errorMessage";
 import {
@@ -21,6 +21,7 @@ import {
   type ProductForm,
   type Resources,
   type VariantModalMode,
+  DEFAULT_PHONE_ATTRIBUTE_PRESETS,
   buildCategoryTree3,
   emptyProductForm,
   emptyVariant,
@@ -49,7 +50,37 @@ export function ProductEditorModal({
   onDataChanged,
   onVariantAction,
 }: ProductEditorModalProps) {
-  const isEditing = Boolean(product);
+  const [currentProduct, setCurrentProduct] = useState<CatalogProductDetail | null>(product);
+  const isEditing = Boolean(currentProduct);
+  const [variantTab, setVariantTab] = useState<"list" | "matrix">("list");
+
+  useEffect(() => {
+    setCurrentProduct(product);
+    if (product) {
+      setForm({
+        productCode: product.productCode,
+        name: product.name,
+        productType: product.productType,
+        categoryCode: product.categoryCode,
+        brandCode: product.brandCode || "",
+        baseUnitCode: product.baseUnitCode,
+        shortDescription: product.shortDescription || "",
+        description: product.description || "",
+        manufacturer: product.manufacturer || "",
+        countryOfOrigin: product.countryOfOrigin || "",
+        taxCategory: product.taxCategory || "",
+        warrantyMonths: product.warrantyMonths || 0,
+        status: product.status,
+        mediaIds: product.mediaIds || [],
+      });
+      setVariant((curr) => ({
+        ...curr,
+        trackingMode: product.variants?.[0]?.trackingMode || curr.trackingMode || (product.productType === "service" ? "none" : "serial"),
+      }));
+      setVariantImages(Object.fromEntries((product.variants || []).map((item) => [item._id, item.mediaIds?.[0]])));
+    }
+  }, [product]);
+
   const [form, setForm] = useState<ProductForm>(() =>
     product
       ? {
@@ -71,9 +102,15 @@ export function ProductEditorModal({
       : emptyProductForm()
   );
 
-  const [variant, setVariant] = useState<VariantInput>(() =>
-    product ? emptyVariant(product.baseUnitCode, product.productType) : emptyVariant()
-  );
+  const [variant, setVariant] = useState<VariantInput>(() => {
+    const base = product ? emptyVariant(product.baseUnitCode, product.productType) : emptyVariant();
+    if (product?.variants?.[0]?.trackingMode) {
+      base.trackingMode = product.variants[0].trackingMode;
+    } else if (product?.productType !== "service") {
+      base.trackingMode = "serial";
+    }
+    return base;
+  });
   const [submitting, setSubmitting] = useState(false);
   const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([]);
   const [deleteVariantIds, setDeleteVariantIds] = useState<string[] | null>(null);
@@ -82,15 +119,24 @@ export function ProductEditorModal({
     Object.fromEntries((product?.variants || []).map((item) => [item._id, item.mediaIds?.[0]]))
   );
   const [variantQuery, setVariantQuery] = useState("");
-  const [pricesByVariant, setPricesByVariant] = useState<Record<string, number>>({});
+  const [pricesByVariant, setPricesByVariant] = useState<Record<string, { sellingPrice: number; costPrice: number }>>({});
 
   useEffect(() => {
-    if (!product) return;
+    if (!currentProduct) return;
     void productCatalogService
       .listPrices()
-      .then((prices) => setPricesByVariant(Object.fromEntries(prices.map((price) => [price.variantId, price.sellingPrice]))))
+      .then((prices) => {
+        const map: Record<string, { sellingPrice: number; costPrice: number }> = {};
+        for (const p of prices) {
+          map[p.variantId] = {
+            sellingPrice: Number(p.sellingPrice || 0),
+            costPrice: Number(p.costPrice || 0),
+          };
+        }
+        setPricesByVariant(map);
+      })
       .catch(() => {});
-  }, [product?._id]);
+  }, [currentProduct?._id, currentProduct?.variants]);
 
   // Handle category change: auto-set tracking mode based on category defaults
   const handleCategoryChange = (categoryCode: string) => {
@@ -105,13 +151,123 @@ export function ProductEditorModal({
   const [options, setOptions] = useState<Option[]>([]);
   const [variantsMatrix, setVariantsMatrix] = useState<GeneratedVariant[]>([]);
 
+  // Tự động nhận diện các nhóm thuộc tính đã có từ các biến thể cũ của sản phẩm
+  useEffect(() => {
+    if (!currentProduct?.variants?.length) return;
+    const optMap = new Map<string, { code: string; name: string; values: Set<string> }>();
+
+    // 1. Nhận diện từ formal optionValues
+    for (const v of currentProduct.variants) {
+      if (Array.isArray(v.optionValues) && v.optionValues.length > 0) {
+        for (const ov of v.optionValues) {
+          if (!ov.code || !ov.value) continue;
+          if (!optMap.has(ov.code)) {
+            const attr = resources.attributes.find((a) => a.code === ov.code);
+            optMap.set(ov.code, {
+              code: ov.code,
+              name: attr?.name || ov.code,
+              values: new Set<string>(),
+            });
+          }
+          optMap.get(ov.code)!.values.add(ov.value);
+        }
+      }
+    }
+
+    // 2. Nếu biến thể cũ chưa có optionValues chính thức (dữ liệu nhập tay/cũ), đối soát qua tên & SKU với các bộ thuộc tính mẫu
+    if (optMap.size === 0) {
+      const presetKeys = Object.keys(DEFAULT_PHONE_ATTRIBUTE_PRESETS) as Array<keyof typeof DEFAULT_PHONE_ATTRIBUTE_PRESETS>;
+      for (const pKey of presetKeys) {
+        const preset = DEFAULT_PHONE_ATTRIBUTE_PRESETS[pKey];
+        for (const v of currentProduct.variants) {
+          const text = `${v.displayName || ""} ${v.sku || ""}`.toLowerCase();
+          for (const optVal of preset.options) {
+            const cleanVal = optVal.toLowerCase().replace(/[^a-z0-9]/g, "");
+            const cleanText = text.replace(/[^a-z0-9]/g, "");
+            if ((cleanVal.length >= 3 && cleanText.includes(cleanVal)) || text.includes(optVal.toLowerCase())) {
+              if (!optMap.has(preset.code)) {
+                optMap.set(preset.code, {
+                  code: preset.code,
+                  name: preset.name,
+                  values: new Set<string>(),
+                });
+              }
+              optMap.get(preset.code)!.values.add(optVal);
+            }
+          }
+        }
+      }
+    }
+
+    if (optMap.size > 0) {
+      setOptions(
+        Array.from(optMap.values()).map((o) => ({
+          code: o.code,
+          name: o.name,
+          values: Array.from(o.values),
+        }))
+      );
+    }
+  }, [currentProduct?._id, resources.attributes]);
+
+  // Tự động nạp các biến thể cũ và đồng bộ giá vào variantsMatrix khi ở chế độ chỉnh sửa
+  useEffect(() => {
+    if (!currentProduct?.variants?.length) return;
+    setVariantsMatrix((prev) => {
+      const currentList = currentProduct.variants.map((v) => {
+        const pInfo = pricesByVariant[v._id] || { sellingPrice: 0, costPrice: 0 };
+        return {
+          sku: v.sku,
+          barcode: v.barcode && v.barcode.trim() ? v.barcode.trim() : generateEAN13(v.sku),
+          price: pInfo.sellingPrice,
+          costPrice: pInfo.costPrice,
+          weightGrams: v.weightGrams,
+          mediaIds: v.mediaIds,
+          optionValues: v.optionValues || [],
+        };
+      });
+
+      if (prev.length === 0) return currentList;
+
+      // Nếu đã có ma trận đang được sinh/chỉnh sửa, cập nhật giá cho các dòng đã khớp SKU hoặc barcode
+      return prev.map((row) => {
+        const matched = currentList.find(
+          (c) =>
+            (c.sku && row.sku && c.sku.trim().toLowerCase() === row.sku.trim().toLowerCase()) ||
+            (c.barcode && row.barcode && c.barcode.trim() === row.barcode.trim())
+        );
+        if (matched) {
+          return {
+            ...row,
+            price: matched.price > 0 ? matched.price : row.price,
+            costPrice: matched.costPrice > 0 ? matched.costPrice : row.costPrice,
+            barcode: (row.barcode && row.barcode.trim()) || matched.barcode,
+            sku: row.sku || matched.sku,
+          };
+        }
+        return row;
+      });
+    });
+  }, [currentProduct?._id, currentProduct?.variants, pricesByVariant]);
+
+  // Bộ lọc SKU đã có để tránh sinh trùng
+  const existingSkuSet = useMemo(() => {
+    return new Set((currentProduct?.variants || []).map((v) => (v.sku || "").trim().toLowerCase()));
+  }, [currentProduct?.variants]);
+
+  const newMatrixVariants = useMemo(() => {
+    return variantsMatrix.filter((v) => !existingSkuSet.has((v.sku || "").trim().toLowerCase()));
+  }, [variantsMatrix, existingSkuSet]);
+
+  const duplicateMatrixVariantsCount = variantsMatrix.length - newMatrixVariants.length;
+
   const visibleVariants = useMemo(() => {
     const keyword = variantQuery.trim().toLowerCase();
-    if (!product || !keyword) return product?.variants || [];
-    return product.variants.filter((item) =>
+    if (!currentProduct || !keyword) return currentProduct?.variants || [];
+    return currentProduct.variants.filter((item) =>
       [item.sku, item.displayName, item.barcode].filter(Boolean).some((value) => String(value).toLowerCase().includes(keyword))
     );
-  }, [product, variantQuery]);
+  }, [currentProduct, variantQuery]);
 
   const setField = <K extends keyof ProductForm>(key: K, value: ProductForm[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -128,6 +284,76 @@ export function ProductEditorModal({
       toast.error(getApiErrorMessage(error, "Không thể xóa SKU đã chọn."));
     } finally {
       setDeletingVariants(false);
+    }
+  };
+
+  // Lưu riêng các biến thể mới được sinh ra từ Ma trận ngay trong chế độ Chỉnh sửa
+  const handleSaveNewMatrixVariants = async () => {
+    if (!currentProduct) return;
+    if (newMatrixVariants.length === 0) {
+      toast.warning("Không có biến thể mới nào để thêm (tất cả các mã đều đã tồn tại).");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payloads = newMatrixVariants.map((v) => {
+        let sku = (v.sku || "").trim();
+        if (!sku) {
+          const skuSuffix = v.optionValues.map((opt) => cleanOptionSlug(opt.value)).join("-");
+          sku = form.productCode ? `${form.productCode}-${skuSuffix}` : `SKU-${skuSuffix}-${generateEAN13().slice(9)}`;
+        }
+        return buildMatrixVariantInput({
+          row: { ...v, sku },
+          shared: variant,
+          productCode: form.productCode || currentProduct.productCode || "",
+          baseUnitCode: form.baseUnitCode,
+          productType: form.productType,
+          fallbackSku: sku,
+        });
+      });
+
+      const created = await productCatalogService.createVariants(currentProduct._id, payloads);
+
+      if (created && created.length > 0) {
+        await Promise.all(
+          created.map((item, idx) => {
+            const matrixRow = newMatrixVariants[idx];
+            const sellingPrice = matrixRow ? Number(matrixRow.price || 0) : 0;
+            const costPrice = matrixRow ? Number(matrixRow.costPrice || 0) : 0;
+            return productCatalogService.upsertPrice(item._id, sellingPrice, costPrice);
+          })
+        );
+      }
+
+      toast.success(`Đã thêm thành công ${created?.length || payloads.length} biến thể mới kèm giá bán!`);
+
+      // Tải lại chi tiết sản phẩm mới nhất
+      const updated = await productCatalogService.getProduct(currentProduct._id);
+      setCurrentProduct(updated);
+
+      // Cập nhật lại giá
+      const prices = await productCatalogService.listPrices();
+      const priceMap: Record<string, { sellingPrice: number; costPrice: number }> = {};
+      for (const p of prices) {
+        priceMap[p.variantId] = {
+          sellingPrice: Number(p.sellingPrice || 0),
+          costPrice: Number(p.costPrice || 0),
+        };
+      }
+      setPricesByVariant(priceMap);
+
+      if (onDataChanged) {
+        await onDataChanged();
+      }
+
+      // Chuyển lại tab danh sách SKU
+      setVariantTab("list");
+      setVariantsMatrix([]);
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Không thể thêm biến thể từ ma trận."));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -161,10 +387,43 @@ export function ProductEditorModal({
     };
 
     try {
-      if (product) {
+      if (currentProduct) {
         const { productCode: _productCode, productType: _productType, ...update } = payload;
-        await productCatalogService.updateProduct(product._id, { ...update, brandCode: form.brandCode || null });
-        toast.success("Đã cập nhật thông tin sản phẩm.");
+        await productCatalogService.updateProduct(currentProduct._id, { ...update, brandCode: form.brandCode || null });
+
+        // Nếu người dùng có chọn sinh biến thể mới từ ma trận trong khi chỉnh sửa
+        if (newMatrixVariants.length > 0) {
+          const payloads = newMatrixVariants.map((v) => {
+            let sku = (v.sku || "").trim();
+            if (!sku) {
+              const skuSuffix = v.optionValues.map((opt) => cleanOptionSlug(opt.value)).join("-");
+              sku = payload.productCode ? `${payload.productCode}-${skuSuffix}` : `SKU-${skuSuffix}-${generateEAN13().slice(9)}`;
+            }
+            return buildMatrixVariantInput({
+              row: { ...v, sku },
+              shared: variant,
+              productCode: payload.productCode || currentProduct.productCode || "",
+              baseUnitCode: form.baseUnitCode,
+              productType: form.productType,
+              fallbackSku: sku,
+            });
+          });
+
+          const created = await productCatalogService.createVariants(currentProduct._id, payloads);
+          if (created && created.length > 0) {
+            await Promise.all(
+              created.map((item, idx) => {
+                const matrixRow = newMatrixVariants[idx];
+                const sellingPrice = matrixRow ? Number(matrixRow.price || 0) : 0;
+                const costPrice = matrixRow ? Number(matrixRow.costPrice || 0) : 0;
+                return productCatalogService.upsertPrice(item._id, sellingPrice, costPrice);
+              })
+            );
+          }
+          toast.success(`Đã cập nhật sản phẩm và tạo thêm ${payloads.length} SKU mới từ ma trận!`);
+        } else {
+          toast.success("Đã cập nhật thông tin sản phẩm.");
+        }
       } else {
         if (options.some((o) => o.values.length > 0)) {
           // Bulk create via Matrix
@@ -413,91 +672,224 @@ export function ProductEditorModal({
             </div>
           )}
 
-          {/* Khối 2: Danh sách SKU hiện hữu khi đang Edit sản phẩm */}
+          {/* Khối 2: Quản lý Biến thể & Ma trận SKU khi đang Edit sản phẩm */}
           {isEditing && (
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
-                <h4 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-3">
+                <div className="flex items-center gap-2.5">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-100 text-xs font-bold text-cyan-700">2</span>
-                  Danh sách biến thể SKU ({product!.variants.length})
-                </h4>
+                  <span className="text-sm font-semibold text-slate-900">
+                    {variantTab === "matrix" ? "Tạo biến thể bằng Ma trận" : `Danh sách biến thể SKU (${currentProduct!.variants.length})`}
+                  </span>
+                </div>
+
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onVariantAction(product!, "bulk-create")}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100 transition-colors"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Tạo nhanh nhiều SKU
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onVariantAction(product!, "single")}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Thêm một SKU
-                  </button>
+                  {variantTab === "list" ? (
+                    <>
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                        <input
+                          type="text"
+                          value={variantQuery}
+                          onChange={(e) => setVariantQuery(e.target.value)}
+                          placeholder="Tìm SKU, tên biến thể..."
+                          className="w-36 sm:w-48 rounded-md border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 text-xs placeholder:text-slate-400 focus:border-cyan-600 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setVariantTab("matrix")}
+                        className="inline-flex items-center gap-1.5 rounded-md bg-cyan-700 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-cyan-800 transition-colors whitespace-nowrap"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Tạo bằng Ma trận
+                        {newMatrixVariants.length > 0 && (
+                          <span className="rounded-full bg-cyan-500 px-1.5 py-0.2 text-[10px] font-bold text-white">
+                            +{newMatrixVariants.length}
+                          </span>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onVariantAction(currentProduct!, "single")}
+                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Thêm một SKU
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setVariantTab("list")}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap"
+                    >
+                      &larr; Quay lại danh sách SKU ({currentProduct!.variants.length})
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <div className="overflow-hidden rounded-lg border border-slate-200">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs font-semibold text-slate-600 uppercase">
-                    <tr>
-                      <th className="px-3 py-2.5 w-[50px]">Ảnh</th>
-                      <th className="px-3 py-2.5">Mã SKU</th>
-                      <th className="px-3 py-2.5">Tên biến thể</th>
-                      <th className="px-3 py-2.5">Giá bán</th>
-                      <th className="px-3 py-2.5">Theo dõi kho</th>
-                      <th className="px-3 py-2.5">Trạng thái</th>
-                      <th className="px-3 py-2.5 text-right">Thao tác</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {visibleVariants.map((item) => (
-                      <tr key={item._id} className="hover:bg-slate-50/80">
-                        <td className="px-3 py-2.5">
-                          <ImageUploadBox
-                            value={variantImages[item._id] ?? item.mediaIds?.[0]}
-                            onChange={(url) => {
-                              setVariantImages((curr) => ({ ...curr, [item._id]: url }));
-                              void productCatalogService.updateVariant(item._id, { mediaIds: [url] });
-                            }}
-                            className="h-10 w-10 !rounded-md"
-                          />
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <div className="font-mono text-xs font-semibold text-slate-700">{item.sku}</div>
-                          <div className="mt-0.5 font-sans text-[11px] text-slate-400">{item.barcode || "Chưa có mã vạch"}</div>
-                        </td>
-                        <td className="px-3 py-2.5 font-medium text-slate-700">{item.displayName || <span className="text-slate-400 italic">Mặc định</span>}</td>
-                        <td className="px-3 py-2.5 font-semibold text-cyan-700">
-                          {pricesByVariant[item._id] ? `${pricesByVariant[item._id].toLocaleString("vi-VN")} ₫` : <span className="text-rose-500 font-normal">Chưa có giá</span>}
-                        </td>
-                        <td className="px-3 py-2.5 text-xs text-slate-500">
-                          <span className="bg-slate-100 px-2 py-0.5 rounded">{trackingLabels[item.trackingMode]}</span>
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${item.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
-                            {item.status === "active" ? "Đang dùng" : "Ngừng dùng"}
+              {variantTab === "list" ? (
+                <>
+                  <div className="overflow-hidden rounded-lg border border-slate-200">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-slate-50 text-xs font-semibold text-slate-600 uppercase">
+                        <tr>
+                          <th className="px-3 py-2.5 w-[50px]">Ảnh</th>
+                          <th className="px-3 py-2.5">Mã SKU</th>
+                          <th className="px-3 py-2.5">Tên biến thể</th>
+                          <th className="px-3 py-2.5">Giá bán</th>
+                          <th className="px-3 py-2.5">Theo dõi kho</th>
+                          <th className="px-3 py-2.5">Trạng thái</th>
+                          <th className="px-3 py-2.5 text-right">Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {visibleVariants.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="py-8 text-center text-xs text-slate-400">
+                              {variantQuery ? "Không tìm thấy SKU nào khớp với tìm kiếm." : "Sản phẩm chưa có biến thể nào."}
+                            </td>
+                          </tr>
+                        ) : (
+                          visibleVariants.map((item) => (
+                            <tr key={item._id} className="hover:bg-slate-50/80">
+                              <td className="px-3 py-2.5">
+                                <ImageUploadBox
+                                  value={variantImages[item._id] ?? item.mediaIds?.[0]}
+                                  onChange={(url) => {
+                                    setVariantImages((curr) => ({ ...curr, [item._id]: url }));
+                                    void productCatalogService.updateVariant(item._id, { mediaIds: [url] });
+                                  }}
+                                  className="h-10 w-10 !rounded-md"
+                                />
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <div className="font-mono text-xs font-semibold text-slate-700">{item.sku}</div>
+                                <div className="mt-0.5 font-sans text-[11px] text-slate-400">{item.barcode || "Chưa có mã vạch"}</div>
+                              </td>
+                              <td className="px-3 py-2.5 font-medium text-slate-700">
+                                {item.displayName || <span className="text-slate-400 italic">Mặc định</span>}
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <div className="font-semibold text-cyan-700">
+                                  {pricesByVariant[item._id]?.sellingPrice !== undefined ? (
+                                    `${pricesByVariant[item._id].sellingPrice.toLocaleString("vi-VN")} ₫`
+                                  ) : (
+                                    <span className="text-rose-500 font-normal">Chưa có giá</span>
+                                  )}
+                                </div>
+                                <div className="mt-0.5 text-[11px] text-slate-400">
+                                  Vốn: {pricesByVariant[item._id]?.costPrice ? `${pricesByVariant[item._id].costPrice.toLocaleString("vi-VN")} ₫` : "0 ₫"}
+                                </div>
+                              </td>
+                              <td className="px-3 py-2.5 text-xs text-slate-500">
+                                <span className="bg-slate-100 px-2 py-0.5 rounded">{trackingLabels[item.trackingMode]}</span>
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${item.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                                  {item.status === "active" ? "Đang dùng" : "Ngừng dùng"}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const pInfo = pricesByVariant[item._id] || { sellingPrice: 0, costPrice: 0 };
+                                    onVariantAction(currentProduct!, "edit", undefined, {
+                                      ...item,
+                                      sellingPrice: pInfo.sellingPrice,
+                                      costPrice: pInfo.costPrice,
+                                    } as any);
+                                  }}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-cyan-700"
+                                  title="Sửa SKU"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-600 border border-slate-200/80">
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="h-4 w-4 text-cyan-600" />
+                      Cần bổ sung thêm Màu sắc, Dung lượng hoặc Phiên bản mới?
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setVariantTab("matrix")}
+                      className="font-semibold text-cyan-700 hover:text-cyan-800 hover:underline"
+                    >
+                      Mở Ma trận Biến thể tự động &rarr;
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-4">
+                  <div className="rounded-lg bg-cyan-50/80 border border-cyan-200/80 p-3 text-xs text-cyan-800">
+                    Chọn các nhóm thuộc tính bên dưới (Màu sắc, Dung lượng, Tình trạng...). Hệ thống sẽ tự động ghép với mã gốc <strong>{form.productCode || currentProduct!.productCode}</strong> để sinh các biến thể mới.
+                  </div>
+
+                  <VariantMatrixBuilder
+                    options={options}
+                    setOptions={setOptions}
+                    variantsMatrix={variantsMatrix}
+                    setVariantsMatrix={setVariantsMatrix}
+                    productType={form.productType}
+                    trackingMode={variant.trackingMode}
+                    onTrackingModeChange={(mode) => setVariant((c) => ({ ...c, trackingMode: mode }))}
+                    baseSku={form.productCode || currentProduct!.productCode}
+                  />
+
+                  {/* Thanh điều khiển xác nhận lưu biến thể mới từ ma trận */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-cyan-200 bg-cyan-50/70 p-4">
+                    <div>
+                      <div className="text-xs sm:text-sm font-semibold text-cyan-900 flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-cyan-600 shrink-0" />
+                        {newMatrixVariants.length > 0 ? (
+                          <span>
+                            Sẵn sàng thêm <strong className="text-cyan-700">{newMatrixVariants.length}</strong> biến thể mới vào sản phẩm
                           </span>
-                        </td>
-                        <td className="px-3 py-2.5 text-right">
-                          <button
-                            type="button"
-                            onClick={() => onVariantAction(product!, "edit", undefined, { ...item, sellingPrice: pricesByVariant[item._id] || 0 } as any)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-cyan-700"
-                            title="Sửa SKU"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        ) : variantsMatrix.length > 0 ? (
+                          <span className="text-amber-800">Tất cả {variantsMatrix.length} biến thể trong ma trận đã tồn tại trong sản phẩm.</span>
+                        ) : (
+                          <span className="text-slate-600">Hãy tích chọn ít nhất 1 giá trị thuộc tính để sinh ma trận.</span>
+                        )}
+                      </div>
+                      {duplicateMatrixVariantsCount > 0 && (
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          ({duplicateMatrixVariantsCount} biến thể đã có sẵn trong danh sách sẽ được bỏ qua, tránh tạo trùng)
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setVariantTab("list")}
+                        className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Quay lại danh sách
+                      </button>
+                      <button
+                        type="button"
+                        disabled={submitting || newMatrixVariants.length === 0}
+                        onClick={handleSaveNewMatrixVariants}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-700 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-cyan-800 disabled:opacity-50 transition-colors"
+                      >
+                        <Plus className="h-4 w-4" />
+                        {submitting ? "Đang lưu..." : `Lưu & Thêm ${newMatrixVariants.length} SKU mới`}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
