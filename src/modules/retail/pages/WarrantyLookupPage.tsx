@@ -19,6 +19,7 @@ import {
   Store,
   Building2,
   Sparkles,
+  Lightbulb,
 } from "lucide-react";
 import {
   retailWarrantyService,
@@ -244,7 +245,10 @@ export default function WarrantyLookupPage() {
         {/* Tip & Recent Lookups */}
         <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
           <p className="text-slate-500 flex items-center gap-1.5">
-            <span className="text-amber-500 font-bold">💡 Mẹo:</span>
+            <span className="flex items-center gap-1 text-amber-600 font-bold">
+              <Lightbulb className="h-3.5 w-3.5" />
+              <span>Mẹo:</span>
+            </span>
             <span>Quét mã vạch trên tem máy hoặc hóa đơn để tra cứu nhanh.</span>
           </p>
 
