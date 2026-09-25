@@ -161,3 +161,26 @@ it('opens edit policy popup with existing data populated and submits update via 
   });
 });
 
+it('does not require or submit password when adding a supplier partner', async () => {
+  auth.permissions = ['partner:manage'];
+  vi.mocked(partnerRequest).mockResolvedValueOnce([]).mockResolvedValueOnce({});
+  render(<PartnersPage />);
+  await userEvent.click(await screen.findByRole('button', { name: /Thêm đối tác/i }));
+  await userEvent.type(screen.getByLabelText(/Mã đối tác/i), 'NCC-001');
+  await userEvent.type(screen.getByLabelText(/Tên đối tác/i), 'Nhà cung cấp Apple');
+  
+  // Select Supplier role
+  const supplierRadio = screen.getByRole('radio', { name: 'Nhà cung cấp' });
+  await userEvent.click(supplierRadio);
+
+  // Password input should not be in the document
+  expect(screen.queryByLabelText(/Mật khẩu tài khoản/i)).toBeNull();
+  expect(screen.getByText(/Hồ sơ Nhà cung cấp dùng để theo dõi nguồn hàng/i)).toBeTruthy();
+
+  await userEvent.click(screen.getByRole('button', { name: /Lưu hồ sơ/i }));
+  await waitFor(() => expect(vi.mocked(partnerRequest).mock.calls[1]).toEqual([
+    '/',
+    'POST',
+    expect.not.objectContaining({ accountPassword: expect.anything() }),
+  ]));
+});
