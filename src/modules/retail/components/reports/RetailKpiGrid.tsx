@@ -120,34 +120,34 @@ export default function RetailKpiGrid({ report }: RetailKpiGridProps) {
   }
 
   return (
-    <section aria-label="Chỉ số tổng quan" className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+    <section aria-label="Chỉ số tổng quan" className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
       {kpis.map(({ label, value, sublabel, icon: Icon, iconBg, iconColor, isPrimary }) => (
         <article
           key={label}
-          className={`relative overflow-hidden rounded-3xl border p-4.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+          className={`relative overflow-hidden rounded-xl border p-3 transition-all duration-150 shadow-2xs hover:shadow-xs ${
             isPrimary
-              ? "border-cyan-300 bg-gradient-to-br from-cyan-50/80 via-white to-sky-50/50 shadow-xs"
-              : "border-slate-200/80 bg-white shadow-xs hover:border-slate-300"
+              ? "border-cyan-300 bg-gradient-to-br from-cyan-50/70 via-white to-sky-50/40"
+              : "border-slate-200/80 bg-white hover:border-slate-300"
           }`}
         >
           {isPrimary && (
-            <div className="absolute -right-3 -top-3 h-16 w-16 rounded-full bg-cyan-400/15 blur-lg pointer-events-none" />
+            <div className="absolute -right-2 -top-2 h-12 w-12 rounded-full bg-cyan-400/15 blur-md pointer-events-none" />
           )}
-          <div className="flex items-center justify-between mb-3">
-            <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${iconBg}`}>
-              <Icon aria-hidden="true" className={`h-5 w-5 ${iconColor}`} />
+          <div className="flex items-center justify-between mb-2">
+            <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${iconBg}`}>
+              <Icon aria-hidden="true" className={`h-3.5 w-3.5 ${iconColor}`} />
             </div>
             {isPrimary ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-cyan-100/80 px-2 py-0.5 text-[10px] font-bold text-cyan-800">
-                <Sparkles className="h-3 w-3" />
+              <span className="inline-flex items-center gap-1 rounded-full bg-cyan-100/80 px-1.5 py-0.5 text-[9px] font-bold text-cyan-800">
+                <Sparkles className="h-2.5 w-2.5" />
                 Chủ đạo
               </span>
             ) : (
-              <span className="text-[11px] font-medium text-slate-400">{sublabel}</span>
+              <span className="text-[10px] font-medium text-slate-400 truncate max-w-[120px]">{sublabel}</span>
             )}
           </div>
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p>
-          <p className="mt-1 break-words text-xl font-black text-slate-900 tracking-tight">{value}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 truncate" title={label}>{label}</p>
+          <p className="mt-0.5 break-words text-base sm:text-lg font-bold text-slate-900 tracking-tight">{value}</p>
         </article>
       ))}
     </section>
