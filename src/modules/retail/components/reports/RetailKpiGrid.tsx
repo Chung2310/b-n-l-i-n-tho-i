@@ -124,7 +124,7 @@ export default function RetailKpiGrid({ report }: RetailKpiGridProps) {
       {kpis.map(({ label, value, sublabel, icon: Icon, iconBg, iconColor, isPrimary }) => (
         <article
           key={label}
-          className={`relative overflow-hidden rounded-xl border p-3 transition-all duration-150 shadow-2xs hover:shadow-xs ${
+          className={`relative overflow-hidden rounded-xl border p-2.5 sm:p-3 transition-all duration-150 shadow-2xs hover:shadow-xs ${
             isPrimary
               ? "border-cyan-300 bg-gradient-to-br from-cyan-50/70 via-white to-sky-50/40"
               : "border-slate-200/80 bg-white hover:border-slate-300"
@@ -133,21 +133,35 @@ export default function RetailKpiGrid({ report }: RetailKpiGridProps) {
           {isPrimary && (
             <div className="absolute -right-2 -top-2 h-12 w-12 rounded-full bg-cyan-400/15 blur-md pointer-events-none" />
           )}
-          <div className="flex items-center justify-between mb-2">
-            <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${iconBg}`}>
-              <Icon aria-hidden="true" className={`h-3.5 w-3.5 ${iconColor}`} />
+          {/* Row 1: Icon + Value on same row */}
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
+                <Icon aria-hidden="true" className={`h-3.5 w-3.5 ${iconColor}`} />
+              </div>
+              <p className="truncate text-base sm:text-lg font-bold text-slate-900 tracking-tight" title={value}>
+                {value}
+              </p>
             </div>
             {isPrimary ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-cyan-100/80 px-1.5 py-0.5 text-[9px] font-bold text-cyan-800">
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-cyan-100/80 px-1.5 py-0.5 text-[9px] font-bold text-cyan-800">
                 <Sparkles className="h-2.5 w-2.5" />
                 Chủ đạo
               </span>
-            ) : (
-              <span className="text-[10px] font-medium text-slate-400 truncate max-w-[120px]">{sublabel}</span>
+            ) : null}
+          </div>
+
+          {/* Row 2: Metric label & Sublabel */}
+          <div className="mt-1.5 flex items-center justify-between gap-1 text-[11px]">
+            <p className="font-semibold uppercase tracking-wider text-slate-500 truncate" title={label}>
+              {label}
+            </p>
+            {!isPrimary && (
+              <span className="shrink-0 text-[10px] font-medium text-slate-400 truncate max-w-[100px]" title={sublabel}>
+                {sublabel}
+              </span>
             )}
           </div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 truncate" title={label}>{label}</p>
-          <p className="mt-0.5 break-words text-base sm:text-lg font-bold text-slate-900 tracking-tight">{value}</p>
         </article>
       ))}
     </section>
