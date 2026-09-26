@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
-import { TrendingUp, PieChart, AlertCircle, ArrowUpRight, ArrowRight, DollarSign, Wallet, ShieldAlert } from "lucide-react";
+import { TrendingUp, PieChart, AlertCircle, ArrowUpRight, ArrowRight, DollarSign, Wallet, ShieldAlert, CheckCircle2, ArrowDownLeft, Target, BarChart3, Clock } from "lucide-react";
 import { money } from "./ManagementUI";
+import "../finance-charts.css";
 
 type TrendRow = {
   date: string;
@@ -40,7 +41,7 @@ const formatDateShort = (dateStr: string) => {
   return parts.length === 3 ? `${parts[2]}/${parts[1]}` : dateStr;
 };
 
-// 1. Biểu đồ cột kép Doanh thu & Chi phí (Earning Reports style)
+// 1. Biểu đồ cột kép Doanh thu & Chi phí (Earning Reports style) với Animation
 export function FinanceEarningsBarChart({ trends }: { trends: TrendRow[] }) {
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
   const [viewScope, setViewScope] = useState<"7" | "14" | "all">("14");
@@ -62,7 +63,6 @@ export function FinanceEarningsBarChart({ trends }: { trends: TrendRow[] }) {
     return Math.max(max, 100000);
   }, [displayRows]);
 
-  // Tìm index có doanh thu cao nhất để hiển thị pill highlight như trong ảnh mẫu
   const highestRevenueIdx = useMemo(() => {
     let best = -1;
     let max = 0;
@@ -77,32 +77,31 @@ export function FinanceEarningsBarChart({ trends }: { trends: TrendRow[] }) {
 
   if (!displayRows.length) {
     return (
-      <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-slate-200/90 bg-white p-6 text-center shadow-xs">
+      <div className="chart-fade-in flex h-60 flex-col items-center justify-center rounded-2xl border border-slate-200/90 bg-white p-5 text-center shadow-xs">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Doanh thu & Chi phí</p>
-        <p className="mt-2 text-sm text-slate-500">Chưa có dữ liệu trong khoảng thời gian này</p>
+        <p className="mt-2 text-xs text-slate-500">Chưa có dữ liệu trong khoảng thời gian này</p>
       </div>
     );
   }
 
-  // Tọa độ biểu đồ SVG
-  const chartHeight = 160;
+  const chartHeight = 150;
   const barWidth = Math.max(8, Math.min(18, Math.floor(400 / (displayRows.length * 2.8))));
   const gap = Math.max(4, Math.floor(barWidth * 0.4));
   const groupWidth = barWidth * 2 + gap + 16;
   const svgWidth = Math.max(520, displayRows.length * groupWidth + 60);
 
   return (
-    <div className="relative flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition-shadow hover:shadow-md">
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+    <div className="chart-fade-in relative flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4.5 shadow-xs transition-shadow hover:shadow-md">
+      <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100">
         <div>
-          <h3 className="text-base font-bold text-slate-900">Báo cáo doanh thu & chi phí</h3>
-          <div className="mt-1.5 flex items-center gap-4 text-xs font-semibold">
+          <h3 className="text-sm sm:text-base font-bold text-slate-900">Báo cáo doanh thu & chi phí</h3>
+          <div className="mt-1 flex items-center gap-3.5 text-xs font-semibold">
             <div className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-cyan-400 shadow-xs" />
+              <span className="h-2 w-2 rounded-full bg-cyan-400 shadow-xs" />
               <span className="text-slate-600">Chi phí</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-indigo-500 shadow-xs" />
+              <span className="h-2 w-2 rounded-full bg-indigo-500 shadow-xs" />
               <span className="text-slate-600">Doanh thu</span>
             </div>
           </div>
@@ -112,7 +111,7 @@ export function FinanceEarningsBarChart({ trends }: { trends: TrendRow[] }) {
           <button
             type="button"
             onClick={() => setViewScope("7")}
-            className={`px-2.5 py-1 rounded-lg font-medium transition cursor-pointer ${
+            className={`px-2 py-0.5 rounded-lg text-xs font-medium transition cursor-pointer ${
               viewScope === "7" ? "bg-indigo-50 text-indigo-700 font-bold" : "text-slate-500 hover:bg-slate-100"
             }`}
           >
@@ -121,7 +120,7 @@ export function FinanceEarningsBarChart({ trends }: { trends: TrendRow[] }) {
           <button
             type="button"
             onClick={() => setViewScope("14")}
-            className={`px-2.5 py-1 rounded-lg font-medium transition cursor-pointer ${
+            className={`px-2 py-0.5 rounded-lg text-xs font-medium transition cursor-pointer ${
               viewScope === "14" ? "bg-indigo-50 text-indigo-700 font-bold" : "text-slate-500 hover:bg-slate-100"
             }`}
           >
@@ -130,7 +129,7 @@ export function FinanceEarningsBarChart({ trends }: { trends: TrendRow[] }) {
           <button
             type="button"
             onClick={() => setViewScope("all")}
-            className={`px-2.5 py-1 rounded-lg font-medium transition cursor-pointer ${
+            className={`px-2 py-0.5 rounded-lg text-xs font-medium transition cursor-pointer ${
               viewScope === "all" ? "bg-indigo-50 text-indigo-700 font-bold" : "text-slate-500 hover:bg-slate-100"
             }`}
           >
@@ -139,10 +138,9 @@ export function FinanceEarningsBarChart({ trends }: { trends: TrendRow[] }) {
         </div>
       </div>
 
-      {/* SVG Bar Chart */}
-      <div className="relative mt-4 overflow-x-auto" onMouseLeave={() => setActiveIdx(null)}>
+      <div className="relative mt-3 overflow-x-auto" onMouseLeave={() => setActiveIdx(null)}>
         {activeIdx !== null && displayRows[activeIdx] && (
-          <div className="absolute top-2 right-2 z-10 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-lg backdrop-blur-xs pointer-events-none">
+          <div className="chart-fade-in absolute top-2 right-2 z-10 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-lg backdrop-blur-xs pointer-events-none">
             <p className="font-bold text-slate-800">{formatDateShort(displayRows[activeIdx].date)}</p>
             <p className="mt-1 flex items-center justify-between gap-3 text-indigo-600 font-semibold">
               <span>Doanh thu:</span> <span>{money(displayRows[activeIdx].revenue)}</span>
@@ -153,10 +151,9 @@ export function FinanceEarningsBarChart({ trends }: { trends: TrendRow[] }) {
           </div>
         )}
 
-        <svg viewBox={`0 0 ${svgWidth} ${chartHeight + 50}`} className="w-full min-w-[500px] select-none">
-          {/* Grid lines */}
+        <svg viewBox={`0 0 ${svgWidth} ${chartHeight + 45}`} className="w-full min-w-[480px] select-none">
           {[0, 0.33, 0.66, 1].map((ratio, i) => {
-            const y = chartHeight - ratio * chartHeight + 20;
+            const y = chartHeight - ratio * chartHeight + 15;
             const val = ratio * maxVal;
             return (
               <g key={i}>
@@ -168,53 +165,51 @@ export function FinanceEarningsBarChart({ trends }: { trends: TrendRow[] }) {
             );
           })}
 
-          {/* Bars */}
           {displayRows.map((r, i) => {
             const groupX = 55 + i * groupWidth;
             const expenseH = Math.max(3, (r.expense / maxVal) * chartHeight);
             const revenueH = Math.max(3, (r.revenue / maxVal) * chartHeight);
 
-            const expY = chartHeight - expenseH + 20;
-            const revY = chartHeight - revenueH + 20;
+            const expY = chartHeight - expenseH + 15;
+            const revY = chartHeight - revenueH + 15;
 
             const isHovered = activeIdx === i;
             const isHighest = highestRevenueIdx === i;
+            const delayMs = Math.min(i * 25, 400);
 
             return (
               <g
                 key={r.date}
-                className="cursor-pointer"
+                className="cursor-pointer group/bar"
                 onMouseEnter={() => setActiveIdx(i)}
                 onClick={() => setActiveIdx(i)}
               >
-                {/* Highlight background on hover */}
                 {isHovered && (
                   <rect
                     x={groupX - 6}
-                    y="10"
+                    y="8"
                     width={groupWidth}
-                    height={chartHeight + 15}
-                    rx="8"
+                    height={chartHeight + 12}
+                    rx="6"
                     fill="#f8fafc"
                   />
                 )}
 
-                {/* Highlight pill for the highest bar */}
                 {isHighest && !isHovered && r.revenue > 0 && (
-                  <g>
+                  <g className="chart-pulse-badge">
                     <rect
-                      x={groupX + barWidth + gap - 24}
-                      y={revY - 22}
-                      width="58"
-                      height="17"
-                      rx="8"
+                      x={groupX + barWidth + gap - 22}
+                      y={revY - 20}
+                      width="54"
+                      height="16"
+                      rx="7"
                       fill="#eef2ff"
                       stroke="#c7d2fe"
                       strokeWidth="1"
                     />
                     <text
                       x={groupX + barWidth + gap + 5}
-                      y={revY - 10}
+                      y={revY - 9}
                       textAnchor="middle"
                       fontSize="9"
                       fontWeight="bold"
@@ -225,32 +220,33 @@ export function FinanceEarningsBarChart({ trends }: { trends: TrendRow[] }) {
                   </g>
                 )}
 
-                {/* Expense bar (Cyan) */}
+                {/* Expense bar with animation */}
                 <rect
                   x={groupX}
                   y={expY}
                   width={barWidth}
                   height={expenseH}
-                  rx="4"
+                  rx="3.5"
                   fill={isHovered ? "#06b6d4" : "#38bdf8"}
-                  className="transition-colors"
+                  className="chart-bar-grow transition-colors"
+                  style={{ animationDelay: `${delayMs}ms` }}
                 />
 
-                {/* Revenue bar (Indigo/Purple) */}
+                {/* Revenue bar with animation */}
                 <rect
                   x={groupX + barWidth + gap}
                   y={revY}
                   width={barWidth}
                   height={revenueH}
-                  rx="4"
+                  rx="3.5"
                   fill={isHovered ? "#4f46e5" : "#6366f1"}
-                  className="transition-colors"
+                  className="chart-bar-grow transition-colors"
+                  style={{ animationDelay: `${delayMs + 15}ms` }}
                 />
 
-                {/* Date label */}
                 <text
                   x={groupX + barWidth + gap / 2}
-                  y={chartHeight + 36}
+                  y={chartHeight + 30}
                   textAnchor="middle"
                   fontSize="10"
                   fill={isHovered ? "#1e293b" : "#64748b"}
@@ -267,24 +263,20 @@ export function FinanceEarningsBarChart({ trends }: { trends: TrendRow[] }) {
   );
 }
 
-// 2. Biểu đồ hiệu quả tài chính & tỷ trọng cơ cấu (Performance Donut style)
+// 2. Biểu đồ hiệu quả tài chính & tỷ trọng cơ cấu (Performance Donut style) với Animation
 export function FinancePerformanceDonut({ summary }: { summary: SummaryData }) {
   const rev = summary.revenue || 0;
   const cost = summary.cost ?? 0;
   const exp = summary.expense || 0;
   const gross = summary.grossProfit ?? (rev - cost);
-  const net = summary.netProfit ?? (gross - exp);
 
-  // Tỷ suất sinh lời cốt lõi
   const grossMarginPct = rev > 0 ? Math.round((gross / rev) * 100) : 0;
   const costPct = rev > 0 ? Math.round((cost / rev) * 100) : 0;
   const expPct = rev > 0 ? Math.round((exp / rev) * 100) : 0;
 
-  // Donut geometry (radius 44, circumference ≈ 276.46)
-  const radius = 44;
+  const radius = 42;
   const circumference = 2 * Math.PI * radius;
 
-  // Giới hạn phần trăm hiển thị donut
   const boundedGross = Math.max(0, Math.min(100, grossMarginPct));
   const boundedCost = Math.max(0, Math.min(100 - boundedGross, costPct));
   const boundedExp = Math.max(0, Math.min(100 - boundedGross - boundedCost, expPct));
@@ -294,69 +286,59 @@ export function FinancePerformanceDonut({ summary }: { summary: SummaryData }) {
   const expStroke = (boundedExp / 100) * circumference;
 
   return (
-    <div className="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition-shadow hover:shadow-md">
-      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-        <h3 className="text-base font-bold text-slate-900">Hiệu quả tài chính</h3>
-        <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
+    <div className="chart-fade-in flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4.5 shadow-xs transition-shadow hover:shadow-md">
+      <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+        <h3 className="text-sm sm:text-base font-bold text-slate-900">Hiệu quả tài chính</h3>
+        <span className="rounded-lg bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">
           Biên lãi {grossMarginPct}%
         </span>
       </div>
 
-      <div className="my-auto py-4 flex flex-col sm:flex-row items-center justify-around gap-6">
-        {/* Donut chart */}
+      <div className="my-auto py-3 flex flex-col sm:flex-row items-center justify-around gap-5">
         <div className="relative flex items-center justify-center">
-          <svg width="130" height="130" viewBox="0 0 120 120" className="-rotate-90">
-            {/* Background ring */}
+          <svg width="120" height="120" viewBox="0 0 110 110" className="-rotate-90">
+            <circle cx="55" cy="55" r={radius} fill="transparent" stroke="#f1f5f9" strokeWidth="10" />
             <circle
-              cx="60"
-              cy="60"
-              r={radius}
-              fill="transparent"
-              stroke="#f1f5f9"
-              strokeWidth="12"
-            />
-            {/* Gross Profit Segment (Purple) */}
-            <circle
-              cx="60"
-              cy="60"
+              cx="55"
+              cy="55"
               r={radius}
               fill="transparent"
               stroke="#8b5cf6"
-              strokeWidth="12"
+              strokeWidth="10"
               strokeDasharray={`${grossStroke} ${circumference}`}
               strokeDashoffset="0"
               strokeLinecap="round"
-              className="transition-all duration-700 ease-out"
+              className="chart-donut-draw transition-all duration-700"
             />
-            {/* Cost Segment (Emerald) */}
             <circle
-              cx="60"
-              cy="60"
+              cx="55"
+              cy="55"
               r={radius}
               fill="transparent"
               stroke="#10b981"
-              strokeWidth="12"
+              strokeWidth="10"
               strokeDasharray={`${costStroke} ${circumference}`}
               strokeDashoffset={`-${grossStroke}`}
               strokeLinecap="round"
-              className="transition-all duration-700 ease-out"
+              className="chart-donut-draw transition-all duration-700"
+              style={{ animationDelay: "150ms" }}
             />
-            {/* Expense Segment (Cyan) */}
             <circle
-              cx="60"
-              cy="60"
+              cx="55"
+              cy="55"
               r={radius}
               fill="transparent"
               stroke="#06b6d4"
-              strokeWidth="12"
+              strokeWidth="10"
               strokeDasharray={`${expStroke} ${circumference}`}
               strokeDashoffset={`-${grossStroke + costStroke}`}
               strokeLinecap="round"
-              className="transition-all duration-700 ease-out"
+              className="chart-donut-draw transition-all duration-700"
+              style={{ animationDelay: "300ms" }}
             />
           </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-            <span className="text-2xl font-black text-slate-900 tracking-tight">
+          <div className="chart-fade-in absolute inset-0 flex flex-col items-center justify-center text-center">
+            <span className="text-xl font-black text-slate-900 tracking-tight">
               {grossMarginPct}%
             </span>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
@@ -365,46 +347,42 @@ export function FinancePerformanceDonut({ summary }: { summary: SummaryData }) {
           </div>
         </div>
 
-        {/* Progress Breakdown Bars */}
-        <div className="w-full sm:w-56 space-y-3.5">
-          {/* Lãi gộp */}
+        <div className="w-full sm:w-52 space-y-3">
           <div>
             <div className="flex items-center justify-between text-xs mb-1">
               <span className="font-semibold text-slate-700">Lãi gộp</span>
               <span className="font-bold text-purple-600">{money(gross)}</span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
               <div
-                className="h-full rounded-full bg-purple-500 transition-all duration-500"
+                className="chart-progress-fill h-full rounded-full bg-purple-500 transition-all duration-500"
                 style={{ width: `${Math.min(100, Math.max(0, grossMarginPct))}%` }}
               />
             </div>
           </div>
 
-          {/* Giá vốn hàng bán */}
           <div>
             <div className="flex items-center justify-between text-xs mb-1">
               <span className="font-semibold text-slate-700">Giá vốn</span>
               <span className="font-bold text-emerald-600">{money(cost)}</span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
               <div
-                className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-                style={{ width: `${Math.min(100, Math.max(0, costPct))}%` }}
+                className="chart-progress-fill h-full rounded-full bg-emerald-500 transition-all duration-500"
+                style={{ width: `${Math.min(100, Math.max(0, costPct))}%`, animationDelay: "150ms" }}
               />
             </div>
           </div>
 
-          {/* Chi phí hoạt động */}
           <div>
             <div className="flex items-center justify-between text-xs mb-1">
               <span className="font-semibold text-slate-700">Chi phí</span>
               <span className="font-bold text-cyan-600">{money(exp)}</span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
               <div
-                className="h-full rounded-full bg-cyan-500 transition-all duration-500"
-                style={{ width: `${Math.min(100, Math.max(0, expPct))}%` }}
+                className="chart-progress-fill h-full rounded-full bg-cyan-500 transition-all duration-500"
+                style={{ width: `${Math.min(100, Math.max(0, expPct))}%`, animationDelay: "300ms" }}
               />
             </div>
           </div>
@@ -432,25 +410,25 @@ export function DebtOverviewCard({ debts }: { debts: { receivables: DebtItem[]; 
   }, [debts]);
 
   return (
-    <div className="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition-shadow hover:shadow-md">
-      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+    <div className="chart-fade-in flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4.5 shadow-xs transition-shadow hover:shadow-md">
+      <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
-            <AlertCircle className="h-4 w-4" />
+          <div className="flex h-6.5 w-6.5 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+            <AlertCircle className="h-3.5 w-3.5" />
           </div>
-          <h3 className="text-base font-bold text-slate-900">Khoản nợ ưu tiên</h3>
+          <h3 className="text-sm sm:text-base font-bold text-slate-900">Khoản nợ ưu tiên</h3>
         </div>
         <a
           href="?sub=cong-no"
           className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 transition"
         >
-          Xem tất cả <ArrowRight className="h-3.5 w-3.5" />
+          Xem tất cả <ArrowRight className="h-3 w-3" />
         </a>
       </div>
 
-      <div className="mt-3 divide-y divide-slate-100">
+      <div className="mt-2 divide-y divide-slate-100">
         {urgentDebts.length === 0 ? (
-          <div className="py-8 text-center text-xs text-slate-500 font-medium">
+          <div className="py-6 text-center text-xs text-slate-500 font-medium">
             Không có khoản nợ nào sắp đến hạn hoặc quá hạn cần xử lý.
           </div>
         ) : (
@@ -459,11 +437,11 @@ export function DebtOverviewCard({ debts }: { debts: { receivables: DebtItem[]; 
             const isReceivable = item.type === "Phải thu";
 
             return (
-              <div key={idx} className="flex items-center justify-between py-2.5 transition hover:bg-slate-50/70 px-2 rounded-xl">
-                <div className="min-w-0 flex-1 pr-3">
-                  <div className="flex items-center gap-2">
+              <div key={idx} className="flex items-center justify-between py-2 transition hover:bg-slate-50/70 px-1.5 rounded-lg">
+                <div className="min-w-0 flex-1 pr-2">
+                  <div className="flex items-center gap-1.5">
                     <span
-                      className={`inline-block rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
+                      className={`inline-block rounded px-1.5 py-0.2 text-[10px] font-bold ${
                         isReceivable
                           ? "bg-indigo-50 text-indigo-700 border border-indigo-200/60"
                           : "bg-amber-50 text-amber-800 border border-amber-200/60"
@@ -475,13 +453,13 @@ export function DebtOverviewCard({ debts }: { debts: { receivables: DebtItem[]; 
                   </div>
                   <p className="mt-0.5 text-[11px] text-slate-500">
                     Hạn: <span className={isOverdue ? "font-bold text-rose-600" : "font-medium text-slate-600"}>{item.dueDate}</span>
-                    {isOverdue && ` (Quá hạn ${Math.abs(item.daysUntil)} ngày)`}
+                    {isOverdue && ` (Quá ${Math.abs(item.daysUntil)} ngày)`}
                   </p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-xs font-extrabold text-slate-900">{money(item.balance)}</p>
+                  <p className="text-xs font-black text-slate-900">{money(item.balance)}</p>
                   <span
-                    className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                    className={`inline-block rounded px-1.5 py-0.2 text-[10px] font-bold ${
                       isOverdue
                         ? "bg-rose-50 text-rose-700 border border-rose-200"
                         : "bg-amber-50 text-amber-700 border border-amber-200"
@@ -494,6 +472,334 @@ export function DebtOverviewCard({ debts }: { debts: { receivables: DebtItem[]; 
             );
           })
         )}
+      </div>
+    </div>
+  );
+}
+
+// 4. Biểu đồ cơ cấu Thu - Chi theo danh mục (Dùng cho tab Thu - Chi)
+export function CashFlowOverviewChart({
+  cashIn,
+  cashOut,
+  cashRows,
+}: {
+  cashIn: number;
+  cashOut: number;
+  cashRows: any[];
+}) {
+  const net = cashIn - cashOut;
+  const totalMovement = cashIn + cashOut || 1;
+  const inPct = Math.round((cashIn / totalMovement) * 100);
+  const outPct = Math.round((cashOut / totalMovement) * 100);
+
+  // Group top payment categories
+  const categoryStats = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of cashRows) {
+      if (r.kind === "payment") {
+        const cat = r.category || "other";
+        map.set(cat, (map.get(cat) || 0) + (r.amount || 0));
+      }
+    }
+    return [...map.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([cat, amt]) => ({
+        label: cat === "rent" ? "Thuê mặt bằng" : cat === "salary" ? "Lương" : cat === "supplier" ? "Trả NCC" : cat === "marketing" ? "Marketing" : cat === "utilities" ? "Điện nước" : cat === "inventory" ? "Nhập máy" : "Chi khác",
+        amount: amt,
+        pct: cashOut > 0 ? Math.round((amt / cashOut) * 100) : 0,
+      }));
+  }, [cashRows, cashOut]);
+
+  return (
+    <div className="chart-fade-in grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* Cân đối dòng tiền In vs Out */}
+      <div className="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4.5 shadow-xs transition-shadow hover:shadow-md">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <div className="flex h-6.5 w-6.5 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+              <Wallet className="h-3.5 w-3.5" />
+            </div>
+            <h3 className="text-sm font-bold text-slate-900">Cân đối dòng tiền</h3>
+          </div>
+          <span className={`text-xs font-bold ${net >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+            Ròng: {money(net)}
+          </span>
+        </div>
+
+        <div className="py-3 space-y-3">
+          {/* Thanh so sánh Thu vs Chi */}
+          <div>
+            <div className="flex justify-between text-xs mb-1 font-semibold">
+              <span className="text-emerald-700">Thu thực tế ({inPct}%)</span>
+              <span className="text-rose-600">Chi thực tế ({outPct}%)</span>
+            </div>
+            <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="chart-progress-fill h-full bg-emerald-500 transition-all duration-700"
+                style={{ width: `${inPct}%` }}
+              />
+              <div
+                className="chart-progress-fill h-full bg-rose-500 transition-all duration-700"
+                style={{ width: `${outPct}%`, animationDelay: "150ms" }}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 pt-1 text-center">
+            <div className="rounded-xl bg-emerald-50/70 p-2.5 border border-emerald-100/60">
+              <p className="text-[11px] font-semibold text-emerald-700">Tổng thu vào</p>
+              <p className="text-sm sm:text-base font-black text-emerald-800 mt-0.5">{money(cashIn)}</p>
+            </div>
+            <div className="rounded-xl bg-rose-50/70 p-2.5 border border-rose-100/60">
+              <p className="text-[11px] font-semibold text-rose-700">Tổng chi ra</p>
+              <p className="text-sm sm:text-base font-black text-rose-800 mt-0.5">{money(cashOut)}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Cơ cấu chi phí nổi bật */}
+      <div className="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4.5 shadow-xs transition-shadow hover:shadow-md">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <div className="flex h-6.5 w-6.5 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+              <PieChart className="h-3.5 w-3.5" />
+            </div>
+            <h3 className="text-sm font-bold text-slate-900">Mục chi tiêu lớn</h3>
+          </div>
+          <span className="text-[11px] text-slate-500 font-medium">Theo chi phí thực tế</span>
+        </div>
+
+        <div className="py-2 space-y-2.5">
+          {categoryStats.length === 0 ? (
+            <p className="text-center text-xs text-slate-400 py-4">Chưa có khoản chi nào trong kỳ.</p>
+          ) : (
+            categoryStats.map((c, i) => (
+              <div key={c.label}>
+                <div className="flex justify-between text-xs mb-1 font-medium">
+                  <span className="text-slate-700">{c.label}</span>
+                  <span className="font-bold text-slate-900">{money(c.amount)} ({c.pct}%)</span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="chart-progress-fill h-full rounded-full bg-indigo-500 transition-all duration-500"
+                    style={{ width: `${c.pct}%`, animationDelay: `${i * 100}ms` }}
+                  />
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 5. Biểu đồ Top sản phẩm / nhóm đóng góp doanh thu & lãi (Dùng cho tab Lãi lỗ)
+export function ProfitTopGroupsChart({ rows }: { rows: any[] }) {
+  const topRows = useMemo(() => {
+    return [...rows]
+      .filter(r => r.revenue > 0)
+      .sort((a, b) => (b.revenue || 0) - (a.revenue || 0))
+      .slice(0, 5);
+  }, [rows]);
+
+  const maxRev = topRows[0]?.revenue || 1;
+
+  if (topRows.length === 0) return null;
+
+  return (
+    <div className="chart-fade-in rounded-2xl border border-slate-200/90 bg-white p-4.5 shadow-xs transition-shadow hover:shadow-md">
+      <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 mb-3">
+        <div className="flex items-center gap-2">
+          <div className="flex h-6.5 w-6.5 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+            <BarChart3 className="h-3.5 w-3.5" />
+          </div>
+          <h3 className="text-sm sm:text-base font-bold text-slate-900">Top 5 nhóm đóng góp doanh thu</h3>
+        </div>
+        <span className="text-[11px] font-semibold text-slate-500">Xếp hạng theo doanh số</span>
+      </div>
+
+      <div className="space-y-3">
+        {topRows.map((r, i) => {
+          const revPct = Math.round((r.revenue / maxRev) * 100);
+          const marginPct = r.revenue > 0 && r.grossProfit != null ? Math.round((r.grossProfit / r.revenue) * 100) : 0;
+
+          return (
+            <div key={r.key || i} className="group/item">
+              <div className="flex items-center justify-between text-xs mb-1">
+                <span className="font-bold text-slate-800 truncate max-w-[60%]">
+                  #{i + 1} {r.key}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-slate-900">{money(r.revenue)}</span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${marginPct >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
+                    Lãi {marginPct}%
+                  </span>
+                </div>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="chart-progress-fill h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 transition-all duration-500 group-hover/item:brightness-110"
+                  style={{ width: `${revPct}%`, animationDelay: `${i * 80}ms` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// 6. Biểu đồ cơ cấu VAT (Dùng cho tab VAT)
+export function VatStructureChart({ vat }: { vat: any }) {
+  if (!vat) return null;
+
+  const totalTax = (vat.input || 0) + (vat.output || 0) || 1;
+  const inPct = Math.round(((vat.input || 0) / totalTax) * 100);
+  const outPct = Math.round(((vat.output || 0) / totalTax) * 100);
+
+  return (
+    <div className="chart-fade-in grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3.5 shadow-xs">
+        <div className="flex items-center justify-between text-xs font-bold text-emerald-800">
+          <span>VAT Đầu vào khấu trừ</span>
+          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px]">{inPct}%</span>
+        </div>
+        <p className="mt-1.5 text-lg font-black text-emerald-700">{money(vat.input)}</p>
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-emerald-200/50">
+          <div className="chart-progress-fill h-full bg-emerald-600" style={{ width: `${inPct}%` }} />
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3.5 shadow-xs">
+        <div className="flex items-center justify-between text-xs font-bold text-indigo-800">
+          <span>VAT Đầu ra bán hàng</span>
+          <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px]">{outPct}%</span>
+        </div>
+        <p className="mt-1.5 text-lg font-black text-indigo-700">{money(vat.output)}</p>
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-indigo-200/50">
+          <div className="chart-progress-fill h-full bg-indigo-600" style={{ width: `${outPct}%`, animationDelay: "150ms" }} />
+        </div>
+      </div>
+
+      <div className={`rounded-xl border p-3.5 shadow-xs ${vat.payable > 0 ? "border-rose-100 bg-rose-50/60" : "border-cyan-100 bg-cyan-50/60"}`}>
+        <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+          <span>{vat.payable > 0 ? "VAT Phải nộp kỳ này" : "Còn chuyển kỳ sau"}</span>
+          <span className={`rounded px-1.5 py-0.5 text-[10px] ${vat.payable > 0 ? "bg-rose-100 text-rose-700" : "bg-cyan-100 text-cyan-700"}`}>
+            {vat.payable > 0 ? "Nộp thuế" : "Khấu trừ"}
+          </span>
+        </div>
+        <p className={`mt-1.5 text-lg font-black ${vat.payable > 0 ? "text-rose-700" : "text-cyan-700"}`}>
+          {money(vat.payable > 0 ? vat.payable : vat.nextCarryforward)}
+        </p>
+        <p className="mt-1 text-[11px] text-slate-500">
+          {vat.payable > 0 ? "Sau khi trừ VAT đầu vào & chuyển kỳ" : "Chuyển sang bù trừ kỳ kế tiếp"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// 7. Biểu đồ đồng hồ tiến độ hòa vốn (Dùng cho tab Hòa vốn)
+export function BreakevenGaugeChart({ breakeven }: { breakeven: any }) {
+  if (!breakeven) return null;
+
+  const pct = Math.min(100, Math.max(0, Math.round(breakeven.progress ?? 0)));
+  const isComplete = pct >= 100;
+
+  return (
+    <div className="chart-fade-in flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition-shadow hover:shadow-md">
+      <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+        <div className="flex items-center gap-2">
+          <div className="flex h-6.5 w-6.5 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600">
+            <Target className="h-3.5 w-3.5" />
+          </div>
+          <h3 className="text-sm sm:text-base font-bold text-slate-900">Tiến độ điểm hòa vốn</h3>
+        </div>
+        <span className={`rounded-lg px-2.5 py-0.5 text-xs font-bold ${isComplete ? "bg-emerald-50 text-emerald-700" : "bg-cyan-50 text-cyan-700"}`}>
+          {isComplete ? "Đã hòa vốn" : `${pct}% hoàn thành`}
+        </span>
+      </div>
+
+      <div className="py-4 space-y-4">
+        {/* Animated Progress Bar */}
+        <div>
+          <div className="flex items-center justify-between text-xs mb-1.5">
+            <span className="font-semibold text-slate-600">Tiến độ doanh thu</span>
+            <span className="font-black text-slate-900">{breakeven.progress == null ? "Chưa xác định" : `${pct}%`}</span>
+          </div>
+          <div className="h-3.5 w-full overflow-hidden rounded-full bg-slate-100 p-0.5">
+            <div
+              className={`chart-progress-fill h-full rounded-full transition-all duration-700 ${
+                isComplete ? "bg-gradient-to-r from-emerald-500 to-teal-500" : "bg-gradient-to-r from-cyan-500 to-indigo-600"
+              }`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 text-center pt-1">
+          <div className="rounded-xl bg-slate-50 p-2.5 border border-slate-100">
+            <p className="text-[11px] font-semibold text-slate-500">Cần thêm mỗi ngày</p>
+            <p className="text-sm sm:text-base font-black text-slate-800 mt-0.5">{money(breakeven.dailyNeeded)}</p>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-2.5 border border-slate-100">
+            <p className="text-[11px] font-semibold text-slate-500">Ước tính theo tốc độ</p>
+            <p className="text-sm sm:text-base font-black text-cyan-700 mt-0.5">
+              {breakeven.projectedDays == null ? "Chưa đủ dữ liệu" : `${breakeven.projectedDays} ngày nữa`}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 8. Biểu đồ phân bổ tỷ trọng tuổi nợ (Dùng cho tab Tuổi nợ)
+export function AgingDistributionBar({ items }: { items: { label: string; balance: number; percentage: number; color?: string }[] }) {
+  if (!items || !items.length) return null;
+
+  return (
+    <div className="chart-fade-in rounded-2xl border border-slate-200/90 bg-white p-4.5 shadow-xs transition-shadow hover:shadow-md">
+      <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 mb-3">
+        <div className="flex items-center gap-2">
+          <div className="flex h-6.5 w-6.5 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+            <Clock className="h-3.5 w-3.5" />
+          </div>
+          <h3 className="text-sm sm:text-base font-bold text-slate-900">Phân bổ tuổi nợ trực quan</h3>
+        </div>
+        <span className="text-[11px] font-semibold text-slate-500">Tỷ trọng theo các mốc hạn</span>
+      </div>
+
+      {/* Stacked Progress Bar with animation */}
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100 mb-3">
+        {items.map((item, idx) => {
+          const colors = ["bg-emerald-500", "bg-cyan-500", "bg-amber-500", "bg-rose-500"];
+          return (
+            <div
+              key={item.label}
+              className={`chart-progress-fill h-full ${colors[idx % colors.length]} transition-all duration-500`}
+              style={{ width: `${item.percentage}%`, animationDelay: `${idx * 100}ms` }}
+              title={`${item.label}: ${item.percentage}%`}
+            />
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+        {items.map((item, idx) => {
+          const bulletColors = ["bg-emerald-500", "bg-cyan-500", "bg-amber-500", "bg-rose-500"];
+          return (
+            <div key={item.label} className="flex items-center gap-1.5">
+              <span className={`h-2 w-2 rounded-full ${bulletColors[idx % bulletColors.length]}`} />
+              <span className="text-slate-600 truncate">{item.label}:</span>
+              <span className="font-bold text-slate-900">{item.percentage}%</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -1,5 +1,13 @@
 import TrendChart from "../components/FinanceTrendChart";
-import { FinanceEarningsBarChart, FinancePerformanceDonut, DebtOverviewCard } from "../components/FinanceOverviewCharts";
+import {
+  FinanceEarningsBarChart,
+  FinancePerformanceDonut,
+  DebtOverviewCard,
+  CashFlowOverviewChart,
+  ProfitTopGroupsChart,
+  VatStructureChart,
+  BreakevenGaugeChart,
+} from "../components/FinanceOverviewCharts";
 import { useEffect, useState } from "react";
 import {
   LockKeyhole,
@@ -153,6 +161,7 @@ export default function FinancialManagementPage({ view }: {
         </>}
         {view === "cash" && <>
           <Stats values={[["Tổng thu thực tế", money(s.cashIn)], ["Tổng chi thực tế", money(s.cashOut)], ["Dòng tiền ròng", money(s.cashIn - s.cashOut)], ["Chi phí đã ghi nhận", money(s.expense)]]}/>
+          <CashFlowOverviewChart cashIn={s.cashIn} cashOut={s.cashOut} cashRows={cashRows} />
           <div className="flex flex-wrap items-center gap-3">
             <button className={`${buttonClass} inline-flex items-center gap-1.5 cursor-pointer`} onClick={() => { setIdempotencyKey(crypto.randomUUID()); setForm("voucher"); }}>
               <Plus className="h-4 w-4" />
@@ -176,6 +185,7 @@ export default function FinancialManagementPage({ view }: {
           <DataTable headers={["Ngày / mã", "Thu / chi", "Danh mục", "Đối tượng", "Số tiền", "Phương thức", "Người tạo", "Điều chỉnh"]} rows={cashRows.map((r: any) => [<>{r.date}<div className="max-w-52 break-all text-xs text-slate-500">{r.code}</div></>, r.kind === "receipt" ? "Thu" : "Chi", labelCategory(r.category), r.counterparty || "—", money(r.amount), r.method, r.createdByName || "—", r.source === "finance" ? r.reversalOf ? <span title={r.reversalReason}>Phiếu đảo: {r.reversalReason}</span> : r.reversedBy ? "Đã đảo" : <button className="font-semibold text-rose-600 hover:text-rose-800 cursor-pointer" onClick={() => { setReversing(r); setIdempotencyKey(crypto.randomUUID()); }}>Đảo phiếu</button> : "—"])}/>
         </>}
         {view === "profit" && <>
+          <ProfitTopGroupsChart rows={profitRows} />
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-1.5">
               <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400" />
@@ -214,6 +224,7 @@ export default function FinancialManagementPage({ view }: {
         {view === "vat" && <>
           <Stats values={[["VAT đầu vào đủ điều kiện", money(data.vat.input)], ["VAT đầu ra", money(data.vat.output)], ["VAT phải nộp dự tính", money(data.vat.payable)], ["Còn chuyển kỳ sau", money(data.vat.nextCarryforward)]]}/>
           <p className="text-xs text-slate-500">Đối chiếu thuế trên đơn bán lẻ: {money(data.vat.retailTaxReference)}. Sổ này phục vụ quản trị nội bộ; chỉ nhập chứng từ đã kiểm tra, không ghi trùng.</p>
+          <VatStructureChart vat={data.vat} />
           <div className="flex flex-wrap items-center gap-3">
             <button className={`${buttonClass} inline-flex items-center gap-1.5 cursor-pointer`} onClick={() => setForm("tax")}>
               <Plus className="h-4 w-4" />
@@ -232,6 +243,7 @@ export default function FinancialManagementPage({ view }: {
         </>}
         {view === "breakeven" && <>
           <Stats values={[["Chi phí cố định", money(data.breakeven.fixedCosts)], ["Tỷ lệ đóng góp", data.breakeven.contribution == null ? "Chưa đủ dữ liệu" : `${(data.breakeven.contribution * 100).toFixed(1)}%`], ["Doanh thu hòa vốn", money(data.breakeven.requiredRevenue)], ["Doanh thu còn thiếu", money(data.breakeven.remaining)]]}/>
+          <BreakevenGaugeChart breakeven={data.breakeven} />
           <div className="space-y-3 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
             <div className="flex items-center gap-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600">

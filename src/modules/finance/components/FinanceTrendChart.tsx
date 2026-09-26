@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { money } from "./ManagementUI";
+import "../finance-charts.css";
 
 type TrendRow = { date: string; revenue: number; cost: number | null; expense: number };
 const series = [
@@ -27,7 +28,7 @@ export default function FinanceTrendChart({ data }: { data: TrendRow[] }) {
   const active = rows.findIndex(r => r.date === activeDate);
   const ticks = [...new Set(Array.from({ length: Math.min(6, rows.length) }, (_, i) =>
     Math.round(i * (rows.length - 1) / Math.max(1, Math.min(6, rows.length) - 1))))];
-  return <div className="relative flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition-shadow hover:shadow-md">
+  return <div className="chart-fade-in relative flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition-shadow hover:shadow-md">
     <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 mb-2">
       <div className="flex items-center gap-2">
         <h3 className="text-base font-bold text-slate-900">Diễn biến theo ngày</h3>

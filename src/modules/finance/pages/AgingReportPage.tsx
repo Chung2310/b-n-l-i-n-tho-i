@@ -4,6 +4,7 @@ import {
   financeReceivablesApi,
   type AgingBucket,
 } from "../api/financeReceivables.api";
+import { AgingDistributionBar } from "../components/FinanceOverviewCharts";
 
 const money = new Intl.NumberFormat("vi-VN", {
   style: "currency",
@@ -136,6 +137,15 @@ export default function AgingReportPage({
           {error}
         </div>
       )}
+
+      {/* Visual Debt Distribution Bar */}
+      <AgingDistributionBar
+        items={buckets.map(({ key, label }) => {
+          const item = data[key] || { count: 0, balance: 0 };
+          const percentage = totalReceivables > 0 ? Number(((item.balance / totalReceivables) * 100).toFixed(1)) : 0;
+          return { label, balance: item.balance, percentage };
+        })}
+      />
 
       {/* 4 Interactive Aging Cards */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
