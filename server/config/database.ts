@@ -165,8 +165,17 @@ export async function connectDB() {
  * ngược lại chạy bình thường (dành cho môi trường Local DB Standalone).
  */
 export async function runInTransaction<T>(callback: (session?: mongoose.ClientSession) => Promise<T>): Promise<T> {
-  const topologyInfo = await mongoose.connection.db?.admin().command({ hello: 1 });
-  const isReplicaSet = Boolean(topologyInfo?.setName) || topologyInfo?.msg === "isdbgrid";
+  if (process.env.DISABLE_TRANSACTIONS === "true" || process.env.MONGODB_REPLICA_SET === "false") {
+    return callback(undefined);
+  }
+
+  let isReplicaSet = false;
+  try {
+    const topologyInfo = await mongoose.connection.db?.admin().command({ hello: 1 });
+    isReplicaSet = Boolean(topologyInfo?.setName) || topologyInfo?.msg === "isdbgrid";
+  } catch {
+    isReplicaSet = false;
+  }
   
   if (!isReplicaSet) {
     // Standalone fallback: chạy không có transaction

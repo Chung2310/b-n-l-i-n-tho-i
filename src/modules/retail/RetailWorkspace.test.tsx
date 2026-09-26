@@ -18,6 +18,7 @@ vi.mock("./pages/RetailOrdersPageV2", () => ({ default: () => <div>Orders page</
 vi.mock("./pages/RetailShiftsPage", () => ({ default: () => <div>Shifts page</div> }));
 vi.mock("./pages/RetailInvoicesPageContent", () => ({ default: () => <div>Invoices page</div> }));
 vi.mock("./pages/RetailReportsPage", () => ({ default: () => <div>Reports page</div> }));
+vi.mock("./pages/RetailReturnsPage", () => ({ default: () => <div>Returns page</div> }));
 vi.mock("./pages/WarrantyLookupPage", () => ({ default: () => <div>Warranty page</div> }));
 
 describe("RetailWorkspace", () => {
