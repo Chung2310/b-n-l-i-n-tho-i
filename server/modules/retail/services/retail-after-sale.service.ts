@@ -20,7 +20,17 @@ function selectedItems(order: any, input: any, used: Map<number, number>) {
   return input.items.map((raw: any) => {
     const orderLineIndex = Number(raw.orderLineIndex), source = order.items?.[orderLineIndex], quantity = Number(raw.quantity);
     if (!source) throw fail("Dòng sản phẩm không thuộc đơn bán gốc.");
-    if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity + (used.get(orderLineIndex) || 0) > Number(source.quantity)) throw fail(`Số lượng ${source.sku} vượt quá số còn có thể xử lý.`);
+    const alreadyProcessed = used.get(orderLineIndex) || 0;
+    const remaining = Math.max(0, Number(source.quantity) - alreadyProcessed);
+    if (!Number.isSafeInteger(quantity) || quantity < 1) throw fail(`Số lượng của ${source.sku} không hợp lệ.`);
+    const actionLabel = input.type === "buyback" ? "thu mua" : "hoàn/trả";
+    if (quantity > remaining) {
+      throw fail(
+        remaining === 0
+          ? `Sản phẩm ${source.sku} đã được ${actionLabel} hết số lượng của đơn hàng này (đã xử lý ${alreadyProcessed}/${source.quantity}).`
+          : `Số lượng yêu cầu ${actionLabel} (${quantity}) của ${source.sku} vượt quá số lượng còn lại có thể xử lý (còn lại: ${remaining}/${source.quantity}).`
+      );
+    }
     const serialNumbers = [...new Set<string>((raw.serialNumbers || []).map(String).map((v: string) => v.trim()).filter(Boolean))];
     const internalBarcodes = [...new Set<string>((raw.internalBarcodes || []).map(String).map((v: string) => v.trim()).filter(Boolean))];
     if (source.trackingMode === "serial" && serialNumbers.length !== quantity) throw fail(`Phải chọn đúng ${quantity} IMEI/serial của ${source.sku}.`);
