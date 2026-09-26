@@ -563,7 +563,7 @@ function ReturnDetailModal({
           <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
           <span>
             Hàng đã được tự động nhập kho trở lại chi nhánh, số lượng tồn và trạng thái IMEI đã được
-            khôi phục <strong>Trong kho (in_stock)</strong>.
+            khôi phục <strong>Trong kho</strong>.
           </span>
         </div>
 
