@@ -4,6 +4,7 @@ import { AlertCircle, Calculator, Download, Plus, RefreshCw, X } from "lucide-re
 import { useAuth } from "../../../context/AuthContext";
 import { useBranchOptional } from "../../../context/BranchContext";
 import { financialReportRequest as request } from "../api/financialReporting.api";
+import { getStatConfig } from "../components/ManagementUI";
 
 const money = (n: number) => (n || 0).toLocaleString("vi-VN") + " ₫";
 const today = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
@@ -167,14 +168,43 @@ export function EntryDialog({ title, fields, initial, onClose, onSave, note, sub
 export function Cards({ rows }: { rows: Array<[string, number | null, (boolean | string)?]> }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {rows.map(([label, value, count]) => (
-        <div key={label} className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p>
-          <p className={`mt-2 text-2xl font-black ${value != null && value < 0 ? "text-rose-600" : "text-slate-900"}`}>
-            {value == null ? "Chưa xác định" : count ? value.toLocaleString("vi-VN") + " " + (count === true ? "máy" : count) : money(value)}
-          </p>
-        </div>
-      ))}
+      {rows.map(([label, value, count]) => {
+        const theme = getStatConfig(label);
+        const Icon = theme.icon;
+        return (
+          <div
+            key={label}
+            className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${theme.borderColor}`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <span className="text-xs font-semibold text-slate-500 line-clamp-1 group-hover:text-slate-700 transition-colors">
+                {label}
+              </span>
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105 ${theme.iconBg} ${theme.iconColor}`}
+              >
+                <Icon className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-3">
+              <p
+                className={`text-2xl font-black tracking-tight ${
+                  value != null && value < 0 ? "text-rose-600" : theme.valueColor
+                }`}
+              >
+                {value == null
+                  ? "Chưa xác định"
+                  : count
+                    ? value.toLocaleString("vi-VN") + " " + (count === true ? "máy" : count)
+                    : money(value)}
+              </p>
+            </div>
+            <div
+              className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${theme.accentBar} opacity-0 group-hover:opacity-100 transition-opacity`}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
