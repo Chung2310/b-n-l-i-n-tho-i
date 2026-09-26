@@ -1,25 +1,27 @@
 import mongoose, { type ClientSession } from "mongoose";
+import { runInTransaction } from "../../config/database";
 import { RetailOrderModel } from "../retail/models/retail-order.model";
 import { RetailAfterSaleModel } from "../retail/models/retail-after-sale.model";
 import { RepairTicketModel } from "../repair/repair-ticket.model";
 import { CommissionLedgerModel, PartnerModel } from "./partner.models";
 import { integer, invalid, kpiBonus, monthKey, remainingLine, repairLines, type CommissionLine } from "./commission-calculation";
 
-async function lockedPartner(companyCode: string, partnerId: string, session: ClientSession) {
-  const partner = await PartnerModel.findOneAndUpdate({ companyCode, _id: partnerId }, { $inc: { revision: 1 } }, { session, returnDocument: "after" });
+async function lockedPartner(companyCode: string, partnerId: string, session?: ClientSession) {
+  const partner = await PartnerModel.findOneAndUpdate({ companyCode, _id: partnerId }, { $inc: { revision: 1 } }, { returnDocument: "after", ...(session ? { session } : {}) });
   if (!partner) throw invalid("Không tìm thấy đối tác.", 404);
   return partner;
 }
-async function append(partner: any, row: any, session: ClientSession) {
-  await CommissionLedgerModel.create([{ ...row, companyCode: partner.companyCode, partnerId: String(partner._id) }], { session });
+async function append(partner: any, row: any, session?: ClientSession) {
+  await CommissionLedgerModel.create([{ ...row, companyCode: partner.companyCode, partnerId: String(partner._id) }], session ? { session } : {});
   partner.balance += row.amount;
 }
-async function adjustKpi(partner: any, period: string, session: ClientSession) {
+async function adjustKpi(partner: any, period: string, session?: ClientSession) {
   if (period >= monthKey(new Date())) return; // Current month remains provisional.
-  const rows = await CommissionLedgerModel.aggregate([
+  const agg = CommissionLedgerModel.aggregate([
     { $match: { companyCode: partner.companyCode, partnerId: String(partner._id), period, kind: { $ne: "payout" } } },
     { $group: { _id: "$kind", amount: { $sum: "$amount" }, machines: { $sum: "$machines" } } },
-  ]).session(session);
+  ]);
+  const rows = await (session ? agg.session(session) : agg);
   const machines = Math.max(0, rows.reduce((s, r) => s + r.machines, 0));
   const prior = rows.find(r => r._id === "kpi")?.amount || 0;
   const amount = kpiBonus(machines) - prior;
@@ -27,9 +29,10 @@ async function adjustKpi(partner: any, period: string, session: ClientSession) {
 }
 /** Read the source again under a transaction; never trust event delivery order. */
 export async function reconcileCommission(sourceType: "retail" | "repair", sourceId: string, companyCode: string, existingSession?: ClientSession) {
-  const run = async (session: ClientSession) => {
+  const run = async (session?: ClientSession) => {
     const model: any = sourceType === "retail" ? RetailOrderModel : RepairTicketModel;
-    const source: any = await model.findOne({ _id: sourceId, companyCode }).session(session).lean();
+    const sourceQuery = model.findOne({ _id: sourceId, companyCode }).lean();
+    const source: any = await (session ? sourceQuery.session(session) : sourceQuery);
     if (!source?.commissionSnapshot?.partnerId) return;
     const partner = await lockedPartner(companyCode, source.commissionSnapshot.partnerId, session);
     const at = sourceType === "retail" ? source.completedAt : source.deliveredAt;
@@ -37,11 +40,13 @@ export async function reconcileCommission(sourceType: "retail" | "repair", sourc
     const period = monthKey(at);
     const eligible = sourceType === "retail" ? source.status === "completed" && source.dueAmount === 0 : source.status === "delivered" && source.paidAmount >= source.totalAmount;
     const lines: CommissionLine[] = source.commissionSnapshot.lines || repairLines(source, source.commissionSnapshot.policy);
-    const returns: any[] = sourceType === "retail" ? await RetailAfterSaleModel.find({ companyCode, orderId: sourceId, type: "return" }).session(session).lean() : [];
-    const prior = await CommissionLedgerModel.aggregate([
+    const returnsQuery = RetailAfterSaleModel.find({ companyCode, orderId: sourceId, type: "return" }).lean();
+    const returns: any[] = sourceType === "retail" ? await (session ? returnsQuery.session(session) : returnsQuery) : [];
+    const priorQuery = CommissionLedgerModel.aggregate([
       { $match: { companyCode, partnerId: String(partner._id), sourceType, sourceId } },
       { $group: { _id: "$line", amount: { $sum: "$amount" }, machines: { $sum: "$machines" } } },
-    ]).session(session);
+    ]);
+    const prior = await (session ? priorQuery.session(session) : priorQuery);
     for (const line of lines) {
       const returned = returns.flatMap(r => r.items).filter(i => i.orderLineIndex === line.line).reduce((s, i) => s + Number(i.quantity), 0);
       const refundedBase = sourceType === "repair" ? (source.commissionRefunds || []).reduce((s: number, r: any) => s + Number(r.laborAmount), 0) : 0;
@@ -56,11 +61,10 @@ export async function reconcileCommission(sourceType: "retail" | "repair", sourc
       }, session);
     }
     await adjustKpi(partner, period, session);
-    await partner.save({ session });
+    await partner.save(session ? { session } : {});
   };
-  if (existingSession) return run(existingSession);
-  const session = await mongoose.startSession();
-  try { await session.withTransaction(() => run(session)); } finally { await session.endSession(); }
+  if (existingSession !== undefined) return run(existingSession);
+  return runInTransaction((session) => run(session));
 }
 
 export async function closePartnerMonths(companyCode: string, partnerId: string) {
