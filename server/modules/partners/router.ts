@@ -207,6 +207,31 @@ partnerRouter.patch("/:id", manage, route(async req => {
   const { userId, supplierId, ...fields } = input;
   return PartnerModel.findOneAndUpdate({ companyCode: input.companyCode, _id: partnerId }, { $set: { ...fields, ...(userId ? { userId } : {}), ...(supplierId ? { supplierId } : {}) }, ...(!userId ? { $unset: { userId: 1 } } : {}) }, { returnDocument: "after", runValidators: true });
 }));
+partnerRouter.delete("/:id", manage, route(async req => {
+  const companyCode = partnerCompany(req), partnerId = id(req.params.id);
+  const partner = await PartnerModel.findOne({ companyCode, _id: partnerId });
+  if (!partner) throw invalid("Không tìm thấy đối tác.", 404);
+  if (partner.balance && partner.balance !== 0) {
+    throw invalid(`Không thể xóa đối tác vẫn còn số dư hoa hồng (${partner.balance.toLocaleString("vi-VN")} đ).`);
+  }
+  const hasLedger = await CommissionLedgerModel.exists({ companyCode, partnerId });
+  if (hasLedger) {
+    throw invalid("Không thể xóa đối tác đã phát sinh lịch sử hoa hồng. Vui lòng chuyển trạng thái sang Ngừng hoạt động.");
+  }
+  const [hasOrders, hasRepairs] = await Promise.all([
+    RetailOrderModel.exists({ companyCode, "commissionSnapshot.partnerId": partnerId }),
+    RepairTicketModel.exists({ companyCode, "commissionSnapshot.partnerId": partnerId }),
+  ]);
+  if (hasOrders || hasRepairs) {
+    throw invalid("Không thể xóa đối tác đã gắn với đơn hàng hoặc phiếu sửa chữa. Vui lòng chuyển trạng thái sang Ngừng hoạt động.");
+  }
+  if (partner.userId) {
+    await UserModel.deleteOne({ _id: partner.userId, companyCode }).catch(() => undefined);
+  }
+  await CommissionPolicyModel.deleteMany({ companyCode, partnerId });
+  await PartnerModel.deleteOne({ companyCode, _id: partnerId });
+  return { id: partnerId, deleted: true };
+}));
 partnerRouter.get("/:id/statement", read, route(async req => partnerStatement(partnerCompany(req), id(req.params.id), periodOf(req.query.period), Math.max(1, Math.floor(Number(req.query.page) || 1)))));
 partnerRouter.post("/:id/close-months", finance, route(async req => { await closePartnerMonths(partnerCompany(req), id(req.params.id)); return { ok: true }; }));
 partnerRouter.post("/:id/payouts", finance, route(async req => recordPartnerPayout(partnerCompany(req), id(req.params.id), req.body, req.user.id)));

@@ -37,6 +37,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { partnerRequest, type Partner } from "./partnerApi";
 
 const money = (n: number) =>
@@ -81,10 +82,12 @@ function PartnerForm({
   initial,
   onSaved,
   onClose,
+  onDelete,
 }: {
   initial: Partial<Partner>;
   onSaved: () => void;
   onClose: () => void;
+  onDelete?: (partner: Partner) => void;
 }) {
   const [form, setForm] = React.useState({
     code: "",
@@ -314,21 +317,35 @@ function PartnerForm({
           </div>
 
           {/* Footer Controls */}
-          <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-            >
-              Đóng
-            </button>
-            <button
-              type="submit"
-              disabled={busy}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-sky-600 px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-cyan-500/20 hover:from-cyan-500 hover:to-sky-500 disabled:opacity-50 transition cursor-pointer"
-            >
-              {busy ? "Đang lưu..." : "Lưu hồ sơ"}
-            </button>
+          <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+            {initial._id && onDelete ? (
+              <button
+                type="button"
+                onClick={() => onDelete(initial as Partner)}
+                className="flex items-center gap-1.5 rounded-xl border border-rose-200 px-4 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+              >
+                <Trash2 className="h-4 w-4 text-rose-500" />
+                Xóa đối tác
+              </button>
+            ) : (
+              <div />
+            )}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Đóng
+              </button>
+              <button
+                type="submit"
+                disabled={busy}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-sky-600 px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-cyan-500/20 hover:from-cyan-500 hover:to-sky-500 disabled:opacity-50 transition cursor-pointer"
+              >
+                {busy ? "Đang lưu..." : "Lưu hồ sơ"}
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -1274,6 +1291,8 @@ export default function PartnersPage() {
   const [tab, setTab] = React.useState("list");
   const [error, setError] = React.useState("");
   const [refreshing, setRefreshing] = React.useState(false);
+  const [deletingPartner, setDeletingPartner] = React.useState<Partner | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
 
   const load = React.useCallback(() => {
     setRefreshing(true);
@@ -1441,6 +1460,7 @@ export default function PartnersPage() {
               key={editing._id || "new"}
               initial={editing}
               onClose={() => setEditing(null)}
+              onDelete={hasPermission("partner:manage") ? (p) => setDeletingPartner(p) : undefined}
               onSaved={() => {
                 setEditing(null);
                 void load();
@@ -1454,6 +1474,36 @@ export default function PartnersPage() {
               onCreated={() => {
                 setAccountPartner(null);
                 void load();
+              }}
+            />
+          )}
+          {deletingPartner && (
+            <ConfirmDialog
+              isOpen={Boolean(deletingPartner)}
+              title="Xóa đối tác"
+              description={`Bạn có chắc chắn muốn xóa đối tác "${deletingPartner.name}" (${deletingPartner.code})? Hành động này sẽ xóa vĩnh viễn hồ sơ đối tác và không thể hoàn tác.`}
+              confirmLabel="Xóa đối tác"
+              cancelLabel="Hủy"
+              tone="danger"
+              isSubmitting={deleting}
+              onClose={() => setDeletingPartner(null)}
+              onConfirm={async () => {
+                setDeleting(true);
+                setError("");
+                try {
+                  await partnerRequest(`/${deletingPartner._id}`, "DELETE");
+                  const wasEditing = editing?._id === deletingPartner._id;
+                  setDeletingPartner(null);
+                  if (wasEditing) {
+                    setEditing(null);
+                  }
+                  await load();
+                } catch (err) {
+                  setError((err as Error).message);
+                  setDeletingPartner(null);
+                } finally {
+                  setDeleting(false);
+                }
               }}
             />
           )}
@@ -1644,6 +1694,15 @@ export default function PartnersPage() {
                               >
                                 <Edit3 className="h-3.5 w-3.5 text-slate-400" />
                                 Sửa
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={`Xóa ${p.name}`}
+                                className="flex items-center gap-1 rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                                onClick={() => setDeletingPartner(p)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                                Xóa
                               </button>
                             </>
                           )}
