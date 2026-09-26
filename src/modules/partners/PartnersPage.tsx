@@ -214,8 +214,9 @@ function PartnerForm({
               </label>
 
               <label className="text-xs font-semibold text-slate-700">
-                Email
+                Email <span className="text-rose-500">*</span>
                 <input
+                  aria-label="Email"
                   required={!initial._id && !isSupplier}
                   type="email"
                   placeholder="partner@example.com"
