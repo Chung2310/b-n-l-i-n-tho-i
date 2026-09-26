@@ -180,19 +180,19 @@ export default function ReceivableDetailDrawer({
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-2xs">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Phát sinh</p>
-              <p className="mt-1 text-sm font-black text-slate-800">{money.format(receivable.originalAmount)}</p>
+              <p className="mt-1 text-sm font-bold text-slate-800">{money.format(receivable.originalAmount)}</p>
             </div>
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-3.5 shadow-2xs">
               <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Đã thu</p>
-              <p className="mt-1 text-sm font-black text-emerald-700">{money.format(receivable.paidAmount)}</p>
+              <p className="mt-1 text-sm font-bold text-emerald-700">{money.format(receivable.paidAmount)}</p>
             </div>
             <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-2xs">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Điều chỉnh</p>
-              <p className="mt-1 text-sm font-black text-slate-800">{money.format(receivable.adjustedAmount)}</p>
+              <p className="mt-1 text-sm font-bold text-slate-800">{money.format(receivable.adjustedAmount)}</p>
             </div>
             <div className="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-3.5 shadow-2xs">
               <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-800">Còn nợ</p>
-              <p className="mt-1 text-sm font-black text-cyan-800">{money.format(receivable.balance)}</p>
+              <p className="mt-1 text-sm font-bold text-cyan-800">{money.format(receivable.balance)}</p>
             </div>
           </div>
         </div>

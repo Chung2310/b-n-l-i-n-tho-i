@@ -196,7 +196,7 @@ export default function AssetDepreciationPage({
 
                 <div>
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block sm:hidden">Số tiền khấu hao</span>
-                  <span className="font-black text-cyan-700">{vnd(line.amount)}</span>
+                  <span className="font-bold text-cyan-700">{vnd(line.amount)}</span>
                   {line.originalCost && <small className="block text-slate-400">Nguyên giá: {vnd(line.originalCost)}</small>}
                 </div>
 

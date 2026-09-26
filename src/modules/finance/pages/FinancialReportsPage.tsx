@@ -188,9 +188,13 @@ export function Cards({ rows }: { rows: Array<[string, number | null, (boolean |
             </div>
             <div className="mt-1.5 min-w-0">
               <p
-                className={`text-lg sm:text-xl font-black tracking-tight ${
-                  value != null && value < 0 ? "text-rose-600" : theme.valueColor
-                } break-words`}
+                className={`tracking-tight break-words ${
+                  value == null
+                    ? "text-xs sm:text-sm font-medium text-slate-400"
+                    : `text-base sm:text-lg font-bold ${
+                        value < 0 ? "text-rose-600" : theme.valueColor
+                      }`
+                }`}
               >
                 {value == null
                   ? "Chưa xác định"

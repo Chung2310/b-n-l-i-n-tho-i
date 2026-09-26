@@ -308,7 +308,7 @@ export default function FixedAssetsPage({
             </div>
           </div>
           <div className="mt-1.5 min-w-0">
-            <p className="text-lg sm:text-xl font-black text-slate-900">{items.length}</p>
+            <p className="text-base sm:text-lg font-bold text-slate-900">{items.length}</p>
             <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
               <span className="text-emerald-700 font-semibold">{kpis.inUse} đang dùng</span>
               <span>·</span>
@@ -326,7 +326,7 @@ export default function FixedAssetsPage({
             </div>
           </div>
           <div className="mt-1.5 min-w-0">
-            <p className="text-lg sm:text-xl font-black text-cyan-700">{vnd(kpis.totalOriginal)}</p>
+            <p className="text-base sm:text-lg font-bold text-cyan-700">{vnd(kpis.totalOriginal)}</p>
             <p className="mt-0.5 text-[11px] text-slate-500">Giá trị đầu tư ban đầu</p>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-cyan-500 to-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -340,7 +340,7 @@ export default function FixedAssetsPage({
             </div>
           </div>
           <div className="mt-1.5 min-w-0">
-            <p className="text-lg sm:text-xl font-black text-slate-900">{vnd(kpis.totalNet)}</p>
+            <p className="text-base sm:text-lg font-bold text-slate-900">{vnd(kpis.totalNet)}</p>
             <p className="mt-0.5 text-[11px] text-slate-500">Chưa trích khấu hao</p>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 to-teal-500 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -354,7 +354,7 @@ export default function FixedAssetsPage({
             </div>
           </div>
           <div className="mt-1.5 min-w-0">
-            <p className="text-lg sm:text-xl font-black text-rose-600">{kpis.disposed}</p>
+            <p className="text-base sm:text-lg font-bold text-rose-600">{kpis.disposed}</p>
             <p className="mt-0.5 text-[11px] text-slate-500">Đã hết vòng đời sử dụng</p>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-rose-500 to-red-500 opacity-0 group-hover:opacity-100 transition-opacity" />

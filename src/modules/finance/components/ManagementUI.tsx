@@ -258,7 +258,13 @@ export function Stats({
 
             {/* Value */}
             <div className="mt-1.5 min-w-0">
-              <div className={`text-lg sm:text-xl font-black tracking-tight ${theme.valueColor} break-words`}>
+              <div
+                className={`tracking-tight break-words ${
+                  typeof value === "string" && (value.includes("Chưa") || value.includes("không"))
+                    ? "text-xs sm:text-sm font-medium text-slate-400"
+                    : `text-base sm:text-lg font-bold ${theme.valueColor}`
+                }`}
+              >
                 {value}
               </div>
             </div>

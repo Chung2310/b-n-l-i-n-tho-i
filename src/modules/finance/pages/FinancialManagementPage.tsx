@@ -243,22 +243,11 @@ export default function FinancialManagementPage({ view }: {
         </>}
         {view === "breakeven" && <>
           <Stats values={[["Chi phí cố định", money(data.breakeven.fixedCosts)], ["Tỷ lệ đóng góp", data.breakeven.contribution == null ? "Chưa đủ dữ liệu" : `${(data.breakeven.contribution * 100).toFixed(1)}%`], ["Doanh thu hòa vốn", money(data.breakeven.requiredRevenue)], ["Doanh thu còn thiếu", money(data.breakeven.remaining)]]}/>
-          <BreakevenGaugeChart breakeven={data.breakeven} />
-          <div className="space-y-3 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600">
-                <Target className="h-4 w-4" />
-              </div>
-              <h2 className="text-base font-bold text-slate-800">Tiến độ hòa vốn</h2>
-            </div>
-            <progress className="h-3 w-full accent-cyan-600 rounded-full overflow-hidden" value={data.breakeven.progress ?? 0} max={100}/>
-            <p className="text-sm font-semibold text-slate-700">{data.breakeven.progress == null ? "Chưa xác định: cần doanh thu và tỷ lệ đóng góp dương." : `${data.breakeven.progress.toFixed(1)}% · Cần thêm mỗi ngày: ${money(data.breakeven.dailyNeeded)}`}</p>
-            <p className="text-xs text-slate-500">Ước tính theo tốc độ hiện tại: {data.breakeven.projectedDays == null ? "Chưa đủ dữ liệu" : `${data.breakeven.projectedDays} ngày nữa`}. Ngân sách đang áp dụng kỳ {from.slice(0, 7)}.</p>
-            <button className={`${buttonClass} inline-flex items-center gap-1.5 cursor-pointer mt-1`} onClick={() => setForm("settings")}>
-              <SlidersHorizontal className="h-4 w-4" />
-              Cấu hình chi phí cố định
-            </button>
-          </div>
+          <BreakevenGaugeChart
+            breakeven={data.breakeven}
+            period={from.slice(0, 7)}
+            onConfigure={() => setForm("settings")}
+          />
         </>}
         <details className="text-xs text-slate-500"><summary className="cursor-pointer font-medium hover:text-slate-700">Nguồn dữ liệu và giới hạn báo cáo</summary><ul className="mt-2 list-disc space-y-1 pl-5">{data.warnings.map((w: string) => <li key={w}>{w}</li>)}</ul></details>
       </>}

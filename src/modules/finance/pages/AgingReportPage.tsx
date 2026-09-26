@@ -177,7 +177,7 @@ export default function AgingReportPage({
                   </div>
                 </div>
 
-                <p className="mt-2 text-lg sm:text-xl font-black text-slate-900">
+                <p className="mt-2 text-base sm:text-lg font-bold text-slate-900">
                   {money.format(item.balance)}
                 </p>
 

@@ -118,7 +118,7 @@ export default function ReceivablesPage({
               <Landmark className="h-4 w-4" />
             </div>
           </div>
-          <p className="mt-1.5 text-lg sm:text-xl font-black text-slate-900">{kpis.totalCount}</p>
+          <p className="mt-1.5 text-base sm:text-lg font-bold text-slate-900">{kpis.totalCount}</p>
           <p className="mt-0.5 text-[11px] text-slate-500">Khoản công nợ trong hệ thống</p>
         </div>
 
@@ -129,7 +129,7 @@ export default function ReceivablesPage({
               <Clock className="h-4 w-4" />
             </div>
           </div>
-          <p className="mt-1.5 text-lg sm:text-xl font-black text-cyan-700">{money.format(kpis.totalBalance)}</p>
+          <p className="mt-1.5 text-base sm:text-lg font-bold text-cyan-700">{money.format(kpis.totalBalance)}</p>
           <p className="mt-0.5 text-[11px] text-slate-500">Tổng số dư còn phải thu</p>
         </div>
 
@@ -140,7 +140,7 @@ export default function ReceivablesPage({
               <AlertTriangle className="h-4 w-4" />
             </div>
           </div>
-          <p className="mt-1.5 text-lg sm:text-xl font-black text-red-600">{kpis.overdueCount}</p>
+          <p className="mt-1.5 text-base sm:text-lg font-bold text-red-600">{kpis.overdueCount}</p>
           <p className="mt-0.5 text-[11px] text-slate-500">Cần ưu tiên nhắc nợ</p>
         </div>
 
@@ -151,7 +151,7 @@ export default function ReceivablesPage({
               <CheckCircle2 className="h-4 w-4" />
             </div>
           </div>
-          <p className="mt-1.5 text-lg sm:text-xl font-black text-emerald-600">{kpis.settledCount}</p>
+          <p className="mt-1.5 text-base sm:text-lg font-bold text-emerald-600">{kpis.settledCount}</p>
           <p className="mt-0.5 text-[11px] text-slate-500">Hoàn thành thu nợ</p>
         </div>
       </div>
@@ -263,7 +263,7 @@ export default function ReceivablesPage({
                           </span>
                         )}
                       </td>
-                      <td className="px-5 py-4 text-right font-black text-slate-900">
+                      <td className="px-5 py-4 text-right font-bold text-slate-800">
                         {money.format(item.balance)}
                       </td>
                     </tr>

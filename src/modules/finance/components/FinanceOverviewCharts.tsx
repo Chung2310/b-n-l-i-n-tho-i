@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { TrendingUp, PieChart, AlertCircle, ArrowUpRight, ArrowRight, DollarSign, Wallet, ShieldAlert, CheckCircle2, ArrowDownLeft, Target, BarChart3, Clock } from "lucide-react";
+import { TrendingUp, PieChart, AlertCircle, ArrowUpRight, ArrowRight, DollarSign, Wallet, ShieldAlert, CheckCircle2, ArrowDownLeft, Target, BarChart3, Clock, SlidersHorizontal } from "lucide-react";
 import { money } from "./ManagementUI";
 import "../finance-charts.css";
 
@@ -338,10 +338,10 @@ export function FinancePerformanceDonut({ summary }: { summary: SummaryData }) {
             />
           </svg>
           <div className="chart-fade-in absolute inset-0 flex flex-col items-center justify-center text-center">
-            <span className="text-xl font-black text-slate-900 tracking-tight">
+            <span className="text-lg font-bold text-slate-900 tracking-tight">
               {grossMarginPct}%
             </span>
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
               Lãi gộp
             </span>
           </div>
@@ -457,9 +457,9 @@ export function DebtOverviewCard({ debts }: { debts: { receivables: DebtItem[]; 
                   </p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-xs font-black text-slate-900">{money(item.balance)}</p>
+                  <p className="text-xs font-bold text-slate-800">{money(item.balance)}</p>
                   <span
-                    className={`inline-block rounded px-1.5 py-0.2 text-[10px] font-bold ${
+                    className={`inline-block rounded px-1.5 py-0.2 text-[10px] font-semibold ${
                       isOverdue
                         ? "bg-rose-50 text-rose-700 border border-rose-200"
                         : "bg-amber-50 text-amber-700 border border-amber-200"
@@ -549,11 +549,11 @@ export function CashFlowOverviewChart({
           <div className="grid grid-cols-2 gap-3 pt-1 text-center">
             <div className="rounded-xl bg-emerald-50/70 p-2.5 border border-emerald-100/60">
               <p className="text-[11px] font-semibold text-emerald-700">Tổng thu vào</p>
-              <p className="text-sm sm:text-base font-black text-emerald-800 mt-0.5">{money(cashIn)}</p>
+              <p className="text-sm sm:text-base font-bold text-emerald-800 mt-0.5">{money(cashIn)}</p>
             </div>
             <div className="rounded-xl bg-rose-50/70 p-2.5 border border-rose-100/60">
               <p className="text-[11px] font-semibold text-rose-700">Tổng chi ra</p>
-              <p className="text-sm sm:text-base font-black text-rose-800 mt-0.5">{money(cashOut)}</p>
+              <p className="text-sm sm:text-base font-bold text-rose-800 mt-0.5">{money(cashOut)}</p>
             </div>
           </div>
         </div>
@@ -633,7 +633,7 @@ export function ProfitTopGroupsChart({ rows }: { rows: any[] }) {
                   #{i + 1} {r.key}
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-slate-900">{money(r.revenue)}</span>
+                  <span className="font-semibold text-slate-800">{money(r.revenue)}</span>
                   <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${marginPct >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
                     Lãi {marginPct}%
                   </span>
@@ -668,7 +668,7 @@ export function VatStructureChart({ vat }: { vat: any }) {
           <span>VAT Đầu vào khấu trừ</span>
           <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px]">{inPct}%</span>
         </div>
-        <p className="mt-1.5 text-lg font-black text-emerald-700">{money(vat.input)}</p>
+        <p className="mt-1.5 text-base sm:text-lg font-bold text-emerald-700">{money(vat.input)}</p>
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-emerald-200/50">
           <div className="chart-progress-fill h-full bg-emerald-600" style={{ width: `${inPct}%` }} />
         </div>
@@ -679,7 +679,7 @@ export function VatStructureChart({ vat }: { vat: any }) {
           <span>VAT Đầu ra bán hàng</span>
           <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px]">{outPct}%</span>
         </div>
-        <p className="mt-1.5 text-lg font-black text-indigo-700">{money(vat.output)}</p>
+        <p className="mt-1.5 text-base sm:text-lg font-bold text-indigo-700">{money(vat.output)}</p>
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-indigo-200/50">
           <div className="chart-progress-fill h-full bg-indigo-600" style={{ width: `${outPct}%`, animationDelay: "150ms" }} />
         </div>
@@ -692,7 +692,7 @@ export function VatStructureChart({ vat }: { vat: any }) {
             {vat.payable > 0 ? "Nộp thuế" : "Khấu trừ"}
           </span>
         </div>
-        <p className={`mt-1.5 text-lg font-black ${vat.payable > 0 ? "text-rose-700" : "text-cyan-700"}`}>
+        <p className={`mt-1.5 text-base sm:text-lg font-bold ${vat.payable > 0 ? "text-rose-700" : "text-cyan-700"}`}>
           {money(vat.payable > 0 ? vat.payable : vat.nextCarryforward)}
         </p>
         <p className="mt-1 text-[11px] text-slate-500">
@@ -704,22 +704,31 @@ export function VatStructureChart({ vat }: { vat: any }) {
 }
 
 // 7. Biểu đồ đồng hồ tiến độ hòa vốn (Dùng cho tab Hòa vốn)
-export function BreakevenGaugeChart({ breakeven }: { breakeven: any }) {
+export function BreakevenGaugeChart({
+  breakeven,
+  period,
+  onConfigure,
+}: {
+  breakeven: any;
+  period?: string;
+  onConfigure?: () => void;
+}) {
   if (!breakeven) return null;
 
   const pct = Math.min(100, Math.max(0, Math.round(breakeven.progress ?? 0)));
   const isComplete = pct >= 100;
+  const hasProgress = breakeven.progress != null;
 
   return (
     <div className="chart-fade-in flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition-shadow hover:shadow-md">
-      <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
         <div className="flex items-center gap-2">
-          <div className="flex h-6.5 w-6.5 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600">
-            <Target className="h-3.5 w-3.5" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600">
+            <Target className="h-4 w-4" />
           </div>
-          <h3 className="text-sm sm:text-base font-bold text-slate-900">Tiến độ điểm hòa vốn</h3>
+          <h3 className="text-sm sm:text-base font-bold text-slate-800">Tiến độ điểm hòa vốn</h3>
         </div>
-        <span className={`rounded-lg px-2.5 py-0.5 text-xs font-bold ${isComplete ? "bg-emerald-50 text-emerald-700" : "bg-cyan-50 text-cyan-700"}`}>
+        <span className={`rounded-lg px-2.5 py-0.5 text-xs font-semibold ${isComplete ? "bg-emerald-50 text-emerald-700" : "bg-cyan-50 text-cyan-700"}`}>
           {isComplete ? "Đã hòa vốn" : `${pct}% hoàn thành`}
         </span>
       </div>
@@ -728,10 +737,12 @@ export function BreakevenGaugeChart({ breakeven }: { breakeven: any }) {
         {/* Animated Progress Bar */}
         <div>
           <div className="flex items-center justify-between text-xs mb-1.5">
-            <span className="font-semibold text-slate-600">Tiến độ doanh thu</span>
-            <span className="font-black text-slate-900">{breakeven.progress == null ? "Chưa xác định" : `${pct}%`}</span>
+            <span className="font-medium text-slate-600">Tiến độ doanh thu</span>
+            <span className={hasProgress ? "font-bold text-slate-800" : "font-medium text-slate-400"}>
+              {hasProgress ? `${breakeven.progress.toFixed(1)}%` : "Chưa xác định"}
+            </span>
           </div>
-          <div className="h-3.5 w-full overflow-hidden rounded-full bg-slate-100 p-0.5">
+          <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100 p-0.5">
             <div
               className={`chart-progress-fill h-full rounded-full transition-all duration-700 ${
                 isComplete ? "bg-gradient-to-r from-emerald-500 to-teal-500" : "bg-gradient-to-r from-cyan-500 to-indigo-600"
@@ -742,16 +753,36 @@ export function BreakevenGaugeChart({ breakeven }: { breakeven: any }) {
         </div>
 
         <div className="grid grid-cols-2 gap-3 text-center pt-1">
-          <div className="rounded-xl bg-slate-50 p-2.5 border border-slate-100">
-            <p className="text-[11px] font-semibold text-slate-500">Cần thêm mỗi ngày</p>
-            <p className="text-sm sm:text-base font-black text-slate-800 mt-0.5">{money(breakeven.dailyNeeded)}</p>
+          <div className="rounded-xl bg-slate-50/80 p-2.5 border border-slate-100">
+            <p className="text-[11px] font-medium text-slate-500">Cần thêm mỗi ngày</p>
+            <p className={`mt-0.5 text-sm sm:text-base ${breakeven.dailyNeeded ? "font-bold text-slate-800" : "font-medium text-slate-400"}`}>
+              {money(breakeven.dailyNeeded)}
+            </p>
           </div>
-          <div className="rounded-xl bg-slate-50 p-2.5 border border-slate-100">
-            <p className="text-[11px] font-semibold text-slate-500">Ước tính theo tốc độ</p>
-            <p className="text-sm sm:text-base font-black text-cyan-700 mt-0.5">
+          <div className="rounded-xl bg-slate-50/80 p-2.5 border border-slate-100">
+            <p className="text-[11px] font-medium text-slate-500">Ước tính theo tốc độ</p>
+            <p className={`mt-0.5 text-sm sm:text-base ${breakeven.projectedDays == null ? "font-medium text-slate-400" : "font-bold text-cyan-700"}`}>
               {breakeven.projectedDays == null ? "Chưa đủ dữ liệu" : `${breakeven.projectedDays} ngày nữa`}
             </p>
           </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 text-xs text-slate-500 border-t border-slate-100">
+          <p>
+            {hasProgress
+              ? `Tốc độ hiện tại ước tính đạt điểm hòa vốn trong kỳ${period ? ` ${period}` : ""}.`
+              : `Cần doanh thu và tỷ lệ đóng góp dương để tính toán${period ? ` kỳ ${period}` : ""}.`}
+          </p>
+          {onConfigure && (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-700 hover:text-cyan-800 hover:underline transition cursor-pointer shrink-0"
+              onClick={onConfigure}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Cấu hình chi phí cố định
+            </button>
+          )}
         </div>
       </div>
     </div>
