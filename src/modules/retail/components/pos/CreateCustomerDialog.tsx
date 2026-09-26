@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { X } from "lucide-react";
 import { customerApi } from "../../../customer-management/customerApi";
 import type { RetailCustomer, RetailScope } from "../../types";
@@ -23,7 +23,8 @@ type VatForm = {
 
 type Props = {
   scope: RetailScope;
-  initialPhone: string;
+  initialPhone?: string;
+  initialName?: string;
   onClose: () => void;
   onCreated: (customer: RetailCustomer) => void;
 };
@@ -44,9 +45,9 @@ const vatLabels: Record<keyof VatForm, string> = {
   contactName: "Người liên hệ",
 };
 
-export default function CreateCustomerDialog({ scope, initialPhone, onClose, onCreated }: Props) {
+export default function CreateCustomerDialog({ scope, initialPhone = "", initialName = "", onClose, onCreated }: Props) {
   const [form, setForm] = React.useState<CustomerForm>({
-    name: "",
+    name: initialName.trim(),
     phone: initialPhone.trim(),
     email: "",
     address: "",

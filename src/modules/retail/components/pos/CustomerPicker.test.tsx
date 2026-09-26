@@ -1,4 +1,4 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 import React from "react";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -94,5 +94,18 @@ describe("CustomerPicker", () => {
       phone: "0909",
     })));
     expect(screen.queryByRole("dialog", { name: "Tạo khách hàng mới" })).toBeNull();
+  });
+
+  it("prefills customer name instead of phone when search query contains letters", async () => {
+    const onChange = vi.fn();
+    const newCustomer = { ...customer, _id: "c3", name: "Lâm", phone: "0901234567" };
+    vi.mocked(customerApi.list).mockResolvedValueOnce({ items: [], total: 0, page: 1, limit: 10 });
+    vi.mocked(customerApi.create).mockResolvedValueOnce(newCustomer as any);
+    render(<CustomerPicker scope={scope} value={null} onChange={onChange} />);
+
+    await userEvent.type(screen.getByRole("combobox", { name: "Tìm khách hàng" }), "Lâm");
+    await userEvent.click(await screen.findByRole("button", { name: "Tạo khách hàng mới" }));
+    expect((screen.getByRole("textbox", { name: "Tên khách hàng" }) as HTMLInputElement).value).toBe("Lâm");
+    expect((screen.getByRole("textbox", { name: "Số điện thoại" }) as HTMLInputElement).value).toBe("");
   });
 });

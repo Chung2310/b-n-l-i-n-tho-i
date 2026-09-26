@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Boxes, CheckCircle2, Clock, Edit3, Eye, MoveRight, Plus, Search, Trash2, X } from "lucide-react";
+import { AlertCircle, Archive, Boxes, CheckCircle2, Clock, Coins, Edit3, Eye, Landmark, MoveRight, Plus, Search, Trash2, X } from "lucide-react";
 import { Stats, money } from "../components/ManagementUI";
 import {
   financeAssetsApi,
@@ -299,33 +299,65 @@ export default function FixedAssetsPage({
       </div>
 
       {/* KPI Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Tổng tài sản</span>
-          <p className="mt-2 text-2xl font-black text-slate-900">{items.length}</p>
-          <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-            <span className="text-emerald-700 font-semibold">{kpis.inUse} đang dùng</span>
-            <span>·</span>
-            <span className="text-amber-700 font-semibold">{kpis.idle} chờ dùng</span>
+      <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md">
+          <div className="flex items-start justify-between gap-2.5">
+            <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500">Tổng tài sản</span>
+            <div className="flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded-lg bg-blue-50 border border-blue-100 text-blue-600 transition-transform duration-200 group-hover:scale-105">
+              <Boxes className="h-4 w-4" />
+            </div>
           </div>
+          <div className="mt-1.5 min-w-0">
+            <p className="text-base sm:text-lg font-bold text-slate-900">{items.length}</p>
+            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
+              <span className="text-emerald-700 font-semibold">{kpis.inUse} đang dùng</span>
+              <span>·</span>
+              <span className="text-amber-700 font-semibold">{kpis.idle} chờ dùng</span>
+            </div>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-          <span className="text-xs font-bold uppercase tracking-wider text-cyan-700">Tổng nguyên giá</span>
-          <p className="mt-2 text-xl font-black text-cyan-700">{vnd(kpis.totalOriginal)}</p>
-          <p className="mt-2 text-xs text-slate-500">Giá trị đầu tư ban đầu</p>
+        <div className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-md">
+          <div className="flex items-start justify-between gap-2.5">
+            <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-cyan-700">Tổng nguyên giá</span>
+            <div className="flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded-lg bg-cyan-50 border border-cyan-100 text-cyan-600 transition-transform duration-200 group-hover:scale-105">
+              <Landmark className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-1.5 min-w-0">
+            <p className="text-base sm:text-lg font-bold text-cyan-700">{vnd(kpis.totalOriginal)}</p>
+            <p className="mt-0.5 text-[11px] text-slate-500">Giá trị đầu tư ban đầu</p>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-cyan-500 to-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Giá trị còn lại</span>
-          <p className="mt-2 text-xl font-black text-slate-900">{vnd(kpis.totalNet)}</p>
-          <p className="mt-2 text-xs text-slate-500">Chưa trích khấu hao</p>
+        <div className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md">
+          <div className="flex items-start justify-between gap-2.5">
+            <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-emerald-700">Giá trị còn lại</span>
+            <div className="flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-600 transition-transform duration-200 group-hover:scale-105">
+              <Coins className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-1.5 min-w-0">
+            <p className="text-base sm:text-lg font-bold text-slate-900">{vnd(kpis.totalNet)}</p>
+            <p className="mt-0.5 text-[11px] text-slate-500">Chưa trích khấu hao</p>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 to-teal-500 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-          <span className="text-xs font-bold uppercase tracking-wider text-rose-600">Đã thanh lý</span>
-          <p className="mt-2 text-2xl font-black text-rose-600">{kpis.disposed}</p>
-          <p className="mt-2 text-xs text-slate-500">Đã hết vòng đời sử dụng</p>
+        <div className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-rose-200 hover:shadow-md">
+          <div className="flex items-start justify-between gap-2.5">
+            <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-rose-600">Đã thanh lý</span>
+            <div className="flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded-lg bg-rose-50 border border-rose-100 text-rose-600 transition-transform duration-200 group-hover:scale-105">
+              <Archive className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-1.5 min-w-0">
+            <p className="text-base sm:text-lg font-bold text-rose-600">{kpis.disposed}</p>
+            <p className="mt-0.5 text-[11px] text-slate-500">Đã hết vòng đời sử dụng</p>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-rose-500 to-red-500 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
       </div>
 

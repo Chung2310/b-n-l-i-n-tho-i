@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import PartnersPage from './PartnersPage';
@@ -184,3 +184,60 @@ it('does not require or submit password when adding a supplier partner', async (
     expect.not.objectContaining({ accountPassword: expect.anything() }),
   ]));
 });
+
+it('prompts confirmation and deletes a partner from the table action', async () => {
+  auth.permissions = ['partner:manage'];
+  vi.mocked(partnerRequest)
+    .mockResolvedValueOnce([{ _id: 'partner-99', code: 'CTV-99', name: 'CTV Thử Nghiệm', roles: ['collaborator'], status: 'active', balance: 0 }])
+    .mockResolvedValueOnce({ id: 'partner-99', deleted: true })
+    .mockResolvedValueOnce([]);
+
+  render(<PartnersPage />);
+  await screen.findByText('CTV Thử Nghiệm');
+
+  const deleteBtn = screen.getByRole('button', { name: /Xóa CTV Thử Nghiệm/i });
+  await userEvent.click(deleteBtn);
+
+  // Confirmation dialog should appear
+  expect(screen.getByText(/Bạn có chắc chắn muốn xóa đối tác "CTV Thử Nghiệm"/i)).toBeTruthy();
+
+  const confirmBtn = screen.getByRole('button', { name: /^Xóa đối tác$/i });
+  await userEvent.click(confirmBtn);
+
+  await waitFor(() => {
+    expect(vi.mocked(partnerRequest)).toHaveBeenCalledWith('/partner-99', 'DELETE');
+  });
+});
+
+it('allows deleting partner directly from the edit modal', async () => {
+  auth.permissions = ['partner:manage'];
+  vi.mocked(partnerRequest)
+    .mockResolvedValueOnce([{ _id: 'partner-88', code: 'CTV-88', name: 'Đại lý Cần Xóa', roles: ['dealer'], status: 'active', balance: 0 }])
+    .mockResolvedValueOnce({ id: 'partner-88', deleted: true })
+    .mockResolvedValueOnce([]);
+
+  render(<PartnersPage />);
+  await screen.findByText('Đại lý Cần Xóa');
+
+  // Open edit modal
+  const editBtn = screen.getByRole('button', { name: /^Sửa$/i });
+  await userEvent.click(editBtn);
+
+  expect(screen.getByText('Sửa thông tin đối tác')).toBeTruthy();
+
+  // Click delete in edit modal
+  const deleteModalBtn = screen.getByRole('button', { name: /Xóa đối tác/i });
+  await userEvent.click(deleteModalBtn);
+
+  // Confirmation dialog should appear
+  expect(screen.getByText(/Bạn có chắc chắn muốn xóa đối tác "Đại lý Cần Xóa"/i)).toBeTruthy();
+
+  const dialog = screen.getByRole('dialog');
+  const confirmBtn = within(dialog).getByRole('button', { name: /^Xóa đối tác$/i });
+  await userEvent.click(confirmBtn);
+
+  await waitFor(() => {
+    expect(vi.mocked(partnerRequest)).toHaveBeenCalledWith('/partner-88', 'DELETE');
+  });
+});
+

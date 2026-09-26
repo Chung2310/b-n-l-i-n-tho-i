@@ -4,6 +4,7 @@ import {
   financeReceivablesApi,
   type AgingBucket,
 } from "../api/financeReceivables.api";
+import { AgingDistributionBar } from "../components/FinanceOverviewCharts";
 
 const money = new Intl.NumberFormat("vi-VN", {
   style: "currency",
@@ -137,6 +138,15 @@ export default function AgingReportPage({
         </div>
       )}
 
+      {/* Visual Debt Distribution Bar */}
+      <AgingDistributionBar
+        items={buckets.map(({ key, label }) => {
+          const item = data[key] || { count: 0, balance: 0 };
+          const percentage = totalReceivables > 0 ? Number(((item.balance / totalReceivables) * 100).toFixed(1)) : 0;
+          return { label, balance: item.balance, percentage };
+        })}
+      />
+
       {/* 4 Interactive Aging Cards */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {buckets.map(({ key, label, sub, theme }) => {
@@ -149,14 +159,14 @@ export default function AgingReportPage({
               type="button"
               aria-label={`Xem nhóm ${label}`}
               onClick={() => onDrillDown(key)}
-              className={`group flex flex-col justify-between rounded-3xl border p-6 text-left shadow-xs transition-all duration-200 hover:-translate-y-1 hover:shadow-lg ${theme.border} ${theme.bg}`}
+              className={`group flex flex-col justify-between rounded-2xl border p-4 text-left shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${theme.border} ${theme.bg}`}
             >
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900">
+                  <span className="text-xs font-bold text-slate-700 group-hover:text-slate-900">
                     {label}
                   </span>
-                  <div className={`rounded-xl p-2 ${theme.iconBg}`}>
+                  <div className={`rounded-lg p-1.5 ${theme.iconBg}`}>
                     {key === "over90" ? (
                       <ShieldAlert className="h-4 w-4" />
                     ) : key === "61-90" ? (
@@ -167,20 +177,20 @@ export default function AgingReportPage({
                   </div>
                 </div>
 
-                <p className="mt-4 text-2xl font-black text-slate-900">
+                <p className="mt-2 text-base sm:text-lg font-bold text-slate-900">
                   {money.format(item.balance)}
                 </p>
 
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-0.5 text-[11px] text-slate-500">
                   {sub}
                 </p>
               </div>
 
-              <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4">
-                <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-bold ${theme.badge}`}>
+              <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5">
+                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-bold ${theme.badge}`}>
                   {item.count} khoản ({percentage}%)
                 </span>
-                <span className="flex items-center gap-1 text-xs font-semibold text-slate-400 group-hover:text-cyan-600">
+                <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 group-hover:text-cyan-600">
                   Chi tiết <ArrowRight className="h-3 w-3" />
                 </span>
               </div>
