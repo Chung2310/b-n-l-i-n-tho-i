@@ -235,37 +235,37 @@ export function Stats({
   values: [string, ReactNode][];
 }) {
   return (
-    <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
       {values.map(([title, value]) => {
         const theme = getStatConfig(title);
         const Icon = theme.icon;
         return (
           <div
             key={title}
-            className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4.5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${theme.borderColor}`}
+            className={`group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${theme.borderColor}`}
           >
             {/* Top row: Label & Icon */}
-            <div className="flex items-start justify-between gap-3">
-              <span className="text-xs font-semibold text-slate-500 line-clamp-1 group-hover:text-slate-700 transition-colors">
+            <div className="flex items-start justify-between gap-2.5">
+              <span className="text-[11px] sm:text-xs font-semibold text-slate-500 line-clamp-1 group-hover:text-slate-700 transition-colors">
                 {title}
               </span>
               <div
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105 ${theme.iconBg} ${theme.iconColor}`}
+                className={`flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded-lg transition-transform duration-200 group-hover:scale-105 ${theme.iconBg} ${theme.iconColor}`}
               >
-                <Icon className="h-5 w-5" />
+                <Icon className="h-4 w-4" />
               </div>
             </div>
 
             {/* Value */}
-            <div className="mt-2.5 min-w-0">
-              <div className={`text-2xl font-black tracking-tight ${theme.valueColor} break-words`}>
+            <div className="mt-1.5 min-w-0">
+              <div className={`text-lg sm:text-xl font-black tracking-tight ${theme.valueColor} break-words`}>
                 {value}
               </div>
             </div>
 
             {/* Subtle bottom gradient accent bar on hover */}
             <div
-              className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${theme.accentBar} opacity-0 group-hover:opacity-100 transition-opacity`}
+              className={`absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r ${theme.accentBar} opacity-0 group-hover:opacity-100 transition-opacity`}
             />
           </div>
         );

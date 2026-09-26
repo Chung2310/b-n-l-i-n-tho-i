@@ -167,30 +167,30 @@ export function EntryDialog({ title, fields, initial, onClose, onSave, note, sub
 
 export function Cards({ rows }: { rows: Array<[string, number | null, (boolean | string)?]> }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
       {rows.map(([label, value, count]) => {
         const theme = getStatConfig(label);
         const Icon = theme.icon;
         return (
           <div
             key={label}
-            className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${theme.borderColor}`}
+            className={`group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${theme.borderColor}`}
           >
-            <div className="flex items-start justify-between gap-3">
-              <span className="text-xs font-semibold text-slate-500 line-clamp-1 group-hover:text-slate-700 transition-colors">
+            <div className="flex items-start justify-between gap-2.5">
+              <span className="text-[11px] sm:text-xs font-semibold text-slate-500 line-clamp-1 group-hover:text-slate-700 transition-colors">
                 {label}
               </span>
               <div
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105 ${theme.iconBg} ${theme.iconColor}`}
+                className={`flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded-lg transition-transform duration-200 group-hover:scale-105 ${theme.iconBg} ${theme.iconColor}`}
               >
-                <Icon className="h-5 w-5" />
+                <Icon className="h-4 w-4" />
               </div>
             </div>
-            <div className="mt-3">
+            <div className="mt-1.5 min-w-0">
               <p
-                className={`text-2xl font-black tracking-tight ${
+                className={`text-lg sm:text-xl font-black tracking-tight ${
                   value != null && value < 0 ? "text-rose-600" : theme.valueColor
-                }`}
+                } break-words`}
               >
                 {value == null
                   ? "Chưa xác định"
@@ -200,7 +200,7 @@ export function Cards({ rows }: { rows: Array<[string, number | null, (boolean |
               </p>
             </div>
             <div
-              className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${theme.accentBar} opacity-0 group-hover:opacity-100 transition-opacity`}
+              className={`absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r ${theme.accentBar} opacity-0 group-hover:opacity-100 transition-opacity`}
             />
           </div>
         );

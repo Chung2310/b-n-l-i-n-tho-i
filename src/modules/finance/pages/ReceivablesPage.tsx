@@ -110,49 +110,49 @@ export default function ReceivablesPage({
       </div>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="group rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-all hover:border-slate-300 hover:shadow-md">
+      <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="group rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 shadow-xs transition-all hover:border-slate-300 hover:shadow-md">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Tổng số khoản</span>
-            <div className="rounded-xl bg-slate-100 p-2 text-slate-600">
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500">Tổng số khoản</span>
+            <div className="flex h-7.5 w-7.5 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
               <Landmark className="h-4 w-4" />
             </div>
           </div>
-          <p className="mt-3 text-2xl font-black text-slate-900">{kpis.totalCount}</p>
-          <p className="mt-1 text-xs text-slate-500">Khoản công nợ trong hệ thống</p>
+          <p className="mt-1.5 text-lg sm:text-xl font-black text-slate-900">{kpis.totalCount}</p>
+          <p className="mt-0.5 text-[11px] text-slate-500">Khoản công nợ trong hệ thống</p>
         </div>
 
-        <div className="group rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-all hover:border-cyan-200 hover:shadow-md">
+        <div className="group rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 shadow-xs transition-all hover:border-cyan-200 hover:shadow-md">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-cyan-700">Dư nợ trên trang</span>
-            <div className="rounded-xl bg-cyan-50 p-2 text-cyan-600">
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-cyan-700">Dư nợ trên trang</span>
+            <div className="flex h-7.5 w-7.5 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600">
               <Clock className="h-4 w-4" />
             </div>
           </div>
-          <p className="mt-3 text-2xl font-black text-cyan-700">{money.format(kpis.totalBalance)}</p>
-          <p className="mt-1 text-xs text-slate-500">Tổng số dư còn phải thu</p>
+          <p className="mt-1.5 text-lg sm:text-xl font-black text-cyan-700">{money.format(kpis.totalBalance)}</p>
+          <p className="mt-0.5 text-[11px] text-slate-500">Tổng số dư còn phải thu</p>
         </div>
 
-        <div className="group rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-all hover:border-red-200 hover:shadow-md">
+        <div className="group rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 shadow-xs transition-all hover:border-red-200 hover:shadow-md">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-red-600">Khoản quá hạn</span>
-            <div className="rounded-xl bg-red-50 p-2 text-red-600">
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-red-600">Khoản quá hạn</span>
+            <div className="flex h-7.5 w-7.5 items-center justify-center rounded-lg bg-red-50 text-red-600">
               <AlertTriangle className="h-4 w-4" />
             </div>
           </div>
-          <p className="mt-3 text-2xl font-black text-red-600">{kpis.overdueCount}</p>
-          <p className="mt-1 text-xs text-slate-500">Cần ưu tiên nhắc nợ</p>
+          <p className="mt-1.5 text-lg sm:text-xl font-black text-red-600">{kpis.overdueCount}</p>
+          <p className="mt-0.5 text-[11px] text-slate-500">Cần ưu tiên nhắc nợ</p>
         </div>
 
-        <div className="group rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-all hover:border-emerald-200 hover:shadow-md">
+        <div className="group rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 shadow-xs transition-all hover:border-emerald-200 hover:shadow-md">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Đã tất toán</span>
-            <div className="rounded-xl bg-emerald-50 p-2 text-emerald-600">
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-emerald-600">Đã tất toán</span>
+            <div className="flex h-7.5 w-7.5 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
               <CheckCircle2 className="h-4 w-4" />
             </div>
           </div>
-          <p className="mt-3 text-2xl font-black text-emerald-600">{kpis.settledCount}</p>
-          <p className="mt-1 text-xs text-slate-500">Hoàn thành thu nợ</p>
+          <p className="mt-1.5 text-lg sm:text-xl font-black text-emerald-600">{kpis.settledCount}</p>
+          <p className="mt-0.5 text-[11px] text-slate-500">Hoàn thành thu nợ</p>
         </div>
       </div>
 
