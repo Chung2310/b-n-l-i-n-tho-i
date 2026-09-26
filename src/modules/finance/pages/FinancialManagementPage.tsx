@@ -1,4 +1,5 @@
 import TrendChart from "../components/FinanceTrendChart";
+import { FinanceEarningsBarChart, FinancePerformanceDonut, DebtOverviewCard } from "../components/FinanceOverviewCharts";
 import { useEffect, useState } from "react";
 import {
   LockKeyhole,
@@ -112,13 +113,24 @@ export default function FinancialManagementPage({ view }: {
         {view === "overview" && <>
           <Stats values={[["Giá trị tồn kho hiện tại", money(s.inventoryValue)], ["Phải thu hiện tại / quá hạn", <>{money(s.receivable)}<div className="text-xs font-bold text-rose-600 mt-0.5">Quá hạn: {money(s.overdue)}</div></>], ["Phải trả NCC hiện tại", money(s.payable)], ["NCC đến hạn trong 5 ngày", money(s.payableSoon)]]}/>
           <p className="text-xs text-slate-500">Công nợ và tồn kho là số dư hiện tại, không phải số dư cuối kỳ đang chọn. Bộ lọc ngày áp dụng cho doanh thu, chi phí và dòng tiền.</p>
+
+          {/* Khối biểu đồ trực quan tổng quan tài chính */}
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 pt-1">
+            <FinanceEarningsBarChart trends={data.trends || []} />
+            <FinancePerformanceDonut summary={s} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <TrendChart data={data.trends || []} />
+            <DebtOverviewCard debts={data.debts} />
+          </div>
+
           <div className="flex items-center gap-2 pt-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
               <TrendingUp className="h-4 w-4" />
             </div>
             <h2 className="text-base font-bold text-slate-800">Diễn biến doanh thu và lợi nhuận</h2>
           </div>
-          <TrendChart data={data.trends}/>
           <DataTable headers={["Ngày", "Doanh thu", "Giá vốn", "Lãi gộp", "Lãi ròng"]} rows={data.trends.map((r: any) => [r.date, money(r.revenue), money(r.cost), money(r.cost == null ? null : r.revenue - r.cost), money(r.cost == null ? null : r.revenue - r.cost - r.expense)])}/>
           <div className="flex items-center justify-between gap-3 pt-2">
             <div className="flex items-center gap-2">
