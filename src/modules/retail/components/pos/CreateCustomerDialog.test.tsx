@@ -1,4 +1,4 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 import React from "react";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -137,5 +137,11 @@ describe("CreateCustomerDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Đóng" }));
     expect(onClose).toHaveBeenCalledOnce();
     expect(customerApi.create).not.toHaveBeenCalled();
+  });
+
+  it("prefills customer name when initialName is provided", async () => {
+    render(<CreateCustomerDialog scope={scope} initialName=" Lâm " onClose={vi.fn()} onCreated={vi.fn()} />);
+    expect((screen.getByRole("textbox", { name: "Tên khách hàng" }) as HTMLInputElement).value).toBe("Lâm");
+    expect((screen.getByRole("textbox", { name: "Số điện thoại" }) as HTMLInputElement).value).toBe("");
   });
 });

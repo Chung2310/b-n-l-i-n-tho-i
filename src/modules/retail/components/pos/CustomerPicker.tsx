@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { Search, UserPlus, X } from "lucide-react";
 import { customerApi } from "../../../customer-management/customerApi";
 import type { RetailCustomer, RetailScope } from "../../types";
@@ -49,6 +49,24 @@ export default function CustomerPicker({ scope, value, onChange }: Props) {
     {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     {!loading && query.trim() && !error && searchCompleted && items.length === 0 && <div className="mt-2 rounded-xl border border-dashed border-cyan-300 bg-cyan-50 p-3"><p className="text-xs text-slate-600">Không có kết quả.</p><button type="button" className="mt-2 flex items-center gap-2 text-sm font-bold text-cyan-700" onClick={() => setCreating(true)}><UserPlus className="h-4 w-4" />Tạo khách hàng mới</button></div>}
     {items.length > 0 && <div role="listbox" className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border bg-white p-1 shadow-lg">{items.map((customer) => <button type="button" role="option" aria-selected="false" aria-label={`${customer.name} ${customer.customerCode} ${customer.phone || ""}`} key={customer._id} className="block w-full rounded-lg px-3 py-2 text-left hover:bg-cyan-50" onClick={() => { onChange(customer); setItems([]); setQuery(""); }}><div className="flex items-center gap-2"><p className="font-medium">{customer.name}</p>{customer.tier && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">{customer.tier.name}</span>}</div><p className="text-xs text-slate-500">{customer.customerCode}{customer.phone ? ` · ${customer.phone}` : ""}</p></button>)}</div>}
-    {creating && <CreateCustomerDialog scope={scope} initialPhone={query.trim()} onClose={() => setCreating(false)} onCreated={(customer) => { setQuery(""); setItems([]); setSearchCompleted(false); setCreating(false); onChange(customer); }} />}
+    {creating && (() => {
+      const trimmedQuery = query.trim();
+      const isName = /\p{L}/u.test(trimmedQuery);
+      return (
+        <CreateCustomerDialog
+          scope={scope}
+          initialPhone={isName ? "" : trimmedQuery}
+          initialName={isName ? trimmedQuery : ""}
+          onClose={() => setCreating(false)}
+          onCreated={(customer) => {
+            setQuery("");
+            setItems([]);
+            setSearchCompleted(false);
+            setCreating(false);
+            onChange(customer);
+          }}
+        />
+      );
+    })()}
   </div>;
 }
