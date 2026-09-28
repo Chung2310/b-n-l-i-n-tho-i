@@ -10,7 +10,7 @@ const CoverageSchema = new Schema({ customer: { covered: Boolean, endAt: Date, d
 const HistorySchema = new Schema({ from: String, to: String, at: { type: Date, required: true }, by: { type: String, required: true }, byName: { type: String, required: true }, note: String, customerNotified: { type: Boolean, default: false }, technicianId: String, technicianName: String }, { _id: false });
 const DeviceSchema = new Schema({ productId: String, serialNumber: String, imei: String, normalizedSerialNumber: String, normalizedImei: String, name: { type: String, required: true }, condition: { type: String, required: true }, accessories: { type: [String], default: [] }, imeiVerified: { type: Boolean, default: false } }, { _id: false });
 const ClaimSchema = new Schema({ sentAt: Date, supplierRef: String, expectedReturnAt: Date, returnedAt: Date, outcome: { type: String, enum: ["repaired", "replaced", "rejected"] }, replacementSerialUnitId: String, note: String }, { _id: false });
-const RepairTicketSchema = new Schema<RepairTicketDocument>({ companyCode: { type: String, required: true, index: true }, branchId: { type: String, required: true, index: true }, ticketCode: { type: String, required: true, trim: true }, customerId: { type: String, required: true }, customerName: { type: String, required: true }, customerPhone: { type: String, required: true }, device: { type: DeviceSchema, required: true }, coverage: { type: CoverageSchema, required: true }, supplierClaim: ClaimSchema, symptom: { type: String, required: true }, diagnosis: String, status: { type: String, required: true, default: "received", index: true }, statusHistory: { type: [HistorySchema], default: [] }, laborFee: { type: Number, min: 0, default: 0 }, partCost: { type: Number, min: 0, default: 0 }, discountAmount: { type: Number, min: 0, default: 0 }, totalAmount: { type: Number, min: 0, default: 0 }, paidAmount: { type: Number, min: 0, default: 0 }, dueAmount: { type: Number, min: 0, default: 0 }, paymentStatus: { type: String, enum: ["unpaid", "partial", "paid"], default: "unpaid" }, receivedAt: { type: Date, required: true }, promisedAt: Date, completedAt: Date, deliveredAt: Date, createdBy: { type: String, required: true }, createdByName: { type: String, required: true } }, { timestamps: true });
+const RepairTicketSchema = new Schema<RepairTicketDocument>({ companyCode: { type: String, required: true, index: true }, branchId: { type: String, required: true, index: true }, ticketCode: { type: String, required: true, trim: true }, customerId: { type: String, required: true }, customerCode: { type: String, default: "" }, customerName: { type: String, required: true }, customerPhone: { type: String, required: true }, device: { type: DeviceSchema, required: true }, coverage: { type: CoverageSchema, required: true }, supplierClaim: ClaimSchema, symptom: { type: String, required: true }, diagnosis: String, status: { type: String, required: true, default: "received", index: true }, statusHistory: { type: [HistorySchema], default: [] }, laborFee: { type: Number, min: 0, default: 0 }, partCost: { type: Number, min: 0, default: 0 }, discountAmount: { type: Number, min: 0, default: 0 }, totalAmount: { type: Number, min: 0, default: 0 }, paidAmount: { type: Number, min: 0, default: 0 }, dueAmount: { type: Number, min: 0, default: 0 }, paymentStatus: { type: String, enum: ["unpaid", "partial", "paid"], default: "unpaid" }, receivedAt: { type: Date, required: true }, promisedAt: Date, completedAt: Date, deliveredAt: Date, createdBy: { type: String, required: true }, createdByName: { type: String, required: true } }, { timestamps: true });
 RepairTicketSchema.add({ quotedAmount: { type: Number, min: 0 }, quotedAt: Date, customerApprovedAt: Date, feedbackToken: { type: String, unique: true, sparse: true }, ticketType: { type: String, enum: ["warranty", "service"], default: "warranty", index: true }, loyaltyDiscount: { rate: { type: Number, min: 0, max: 100 }, reason: String, amount: { type: Number, min: 0 } } });
 RepairTicketSchema.index({ companyCode: 1, ticketCode: 1 }, { unique: true });
 RepairTicketSchema.index({ companyCode: 1, branchId: 1, status: 1, receivedAt: -1 });
@@ -29,6 +29,20 @@ RepairTicketSchema.pre("validate", function normalizeLookupKeys(this: any) {
     this.device.normalizedImei = normalizeCode(this.device.imei) || normalizeCode(this.device.serialNumber);
   }
   this.normalizedCustomerPhone = normalizePhone(this.customerPhone);
+  if (this.customerId && /^[0-9a-fA-F]{24}$/.test(String(this.customerId).trim())) {
+    if (this.customerCode) {
+      this.customerId = this.customerCode;
+    } else if (this.customerPhone) {
+      this.customerId = "KH-" + String(this.customerPhone).trim();
+    }
+  }
+  if (!this.customerCode) {
+    if (this.customerId && !/^[0-9a-fA-F]{24}$/.test(String(this.customerId).trim())) {
+      this.customerCode = this.customerId;
+    } else if (this.customerPhone) {
+      this.customerCode = "KH-" + String(this.customerPhone).trim();
+    }
+  }
 });
 RepairTicketSchema.add({ collaboratorId: String, commissionSnapshot: Schema.Types.Mixed, commissionRefunds: { type: Schema.Types.Mixed, default: [] } });
 export const RepairTicketModel = model<RepairTicketDocument>("RepairTicket", RepairTicketSchema);

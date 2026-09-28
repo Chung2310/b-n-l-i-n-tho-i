@@ -13,12 +13,30 @@ import { assertSerialForRepairType, assertSoldSerialForRepair } from "./repair-s
 import { recordRepairSerialLifecycle } from "./services/repair-serial-lifecycle";
 import { lookupDeviceOptional, requireSoldSerialForRepair } from "./repair-sold-serial.service";
 import { RepairSettingsModel } from "./repair-settings.model";
+import { getCustomerContact } from "../customer-management/contracts";
 
 export type RepairScope = { companyCode: string; branchId: string };
 export type RepairActor = { id: string; name: string };
 
 export async function createRepairTicket(scope: RepairScope, input: Omit<RepairTicketDocument, "companyCode" | "branchId" | "status" | "statusHistory" | "createdAt" | "updatedAt"> & { ticketCode: string; coverage?: RepairCoverage }, actor: RepairActor, session?: ClientSession) {
   if (!input.customerId || !input.device?.name || !input.symptom) throw Object.assign(new Error("Khách hàng, thiết bị và mô tả lỗi là bắt buộc."), { statusCode: 400 });
+
+  const rawCustId = String(input.customerId || "").trim();
+  let customerCode = (input as any).customerCode;
+  if (/^[0-9a-fA-F]{24}$/.test(rawCustId)) {
+    const contact = await getCustomerContact({ companyCode: scope.companyCode }, rawCustId, { includeInactive: true }).catch(() => null);
+    if (contact?.customerCode) {
+      customerCode = contact.customerCode;
+    }
+  }
+  if (!customerCode && rawCustId && !/^[0-9a-fA-F]{24}$/.test(rawCustId)) {
+    customerCode = rawCustId;
+  }
+  if (!customerCode && input.customerPhone) {
+    customerCode = `KH-${input.customerPhone.trim()}`;
+  }
+  input.customerId = customerCode || rawCustId;
+  (input as any).customerCode = customerCode;
   const ticketType = input.ticketType || "warranty";
   assertSerialForRepairType(ticketType, input.device);
 

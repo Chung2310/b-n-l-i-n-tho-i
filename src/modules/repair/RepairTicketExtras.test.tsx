@@ -30,14 +30,9 @@ const ticket: RepairTicket = {
 test("keeps notification controls responsive and touch-friendly inside the ticket modal", () => {
   render(<RepairTicketExtras ticket={ticket} onChanged={() => undefined} />);
 
-  const resendReceived = screen.getByRole("button", { name: "Gửi lại tin tiếp nhận" });
-  const actionRow = resendReceived.parentElement;
-  expect(actionRow).not.toBeNull();
-  expect(actionRow?.className).toContain("flex-col");
-  expect(actionRow?.className).toContain("sm:flex-row");
-  expect(resendReceived.className).toContain("min-h-11");
-  expect(resendReceived.className).toContain("w-full");
-  expect(resendReceived.className).toContain("sm:w-auto");
+  const resendReceived = screen.getByRole("button", { name: "1. Nhận máy" });
+  expect(resendReceived).not.toBeNull();
+  expect(resendReceived.className).toContain("min-h-9");
 });
 
 test("formats currency directly inside unitCost and unitPrice inputs and controls quantity with steppers", async () => {

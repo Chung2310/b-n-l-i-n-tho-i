@@ -1,6 +1,7 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Sparkles, Calculator, CheckCircle2, RotateCw, FileText } from "lucide-react";
 import RepairRefundForm from "../partners/RepairRefundForm";
+import { customerApi } from "../customer-management/customerApi";
 import { repairService, type RepairTicket } from "../../services/repairService";
 import RepairTicketExtras from "./RepairTicketExtras";
 import {
@@ -64,11 +65,58 @@ const handleCurrencyChange = (
   }
 };
 
+function isHexObjectId(str?: string): boolean {
+  if (!str) return false;
+  return /^[0-9a-fA-F]{24}$/.test(str.trim());
+}
+
+function getFriendlyCustomerCode(ticket: RepairTicket): string {
+  if (ticket.customerCode && !isHexObjectId(ticket.customerCode)) {
+    return ticket.customerCode;
+  }
+  if (ticket.customerId && !isHexObjectId(ticket.customerId)) {
+    return ticket.customerId;
+  }
+  if (ticket.customerPhone) {
+    return `KH-${ticket.customerPhone.trim()}`;
+  }
+  return "";
+}
+
 export default function TicketModal({
   ticket,
   onClose,
   onChanged,
 }: TicketModalProps) {
+  const [customerCode, setCustomerCode] = useState<string>(() =>
+    getFriendlyCustomerCode(ticket)
+  );
+
+  useEffect(() => {
+    let active = true;
+    const initial = getFriendlyCustomerCode(ticket);
+    setCustomerCode(initial);
+
+    const phone = ticket.customerPhone?.replace(/\D/g, "");
+    if ((isHexObjectId(ticket.customerId) || !initial) && phone) {
+      void customerApi
+        .list({ q: phone, limit: 1, status: "active" })
+        .then((res) => {
+          if (!active) return;
+          const matched = res.items.find(
+            (c) => c.phone?.replace(/\D/g, "") === phone
+          );
+          if (matched?.customerCode) {
+            setCustomerCode(matched.customerCode);
+          }
+        })
+        .catch(() => {});
+    }
+    return () => {
+      active = false;
+    };
+  }, [ticket.customerId, ticket.customerCode, ticket.customerPhone]);
+
   const initialQuote = ticket.quotedAmount ?? ticket.totalAmount ?? 0;
   const [quote, setQuote] = useState(
     initialQuote > 0 ? initialQuote.toLocaleString("vi-VN") : "0"
@@ -226,7 +274,9 @@ export default function TicketModal({
             <p className="mt-1 font-medium text-slate-800">
               {ticket.customerName} · {ticket.customerPhone}
             </p>
-            <p className="text-xs text-slate-500">Mã: {ticket.customerId}</p>
+            {customerCode ? (
+              <p className="text-xs text-slate-500">Mã: {customerCode}</p>
+            ) : null}
             <p className="text-xs text-slate-500">Tiếp nhận: {date(ticket.receivedAt)}</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 text-sm">
