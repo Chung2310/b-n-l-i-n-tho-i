@@ -204,7 +204,7 @@ export default function RetailReportsPage() {
         if (requestSequence.current !== requestId) return;
         setLoadError({
           scopeKey: requestedScopeKey,
-          message: errorMessage(cause, "Không tải được báo cáo bán lẻ."),
+          message: errorMessage(cause, "Không tải được báo cáo bán hàng."),
         });
       })
       .finally(() => {
@@ -269,7 +269,7 @@ export default function RetailReportsPage() {
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-base sm:text-lg font-bold text-slate-900">Báo cáo bán lẻ</h1>
+              <h1 className="text-base sm:text-lg font-bold text-slate-900">Báo cáo bán hàng</h1>
               {branchDisplayName && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50/80 px-2 py-0.5 text-xs font-semibold text-cyan-800">
                   <Store className="h-3 w-3" />

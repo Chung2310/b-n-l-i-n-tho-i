@@ -17,6 +17,9 @@ import { partnerRouter } from './router';
 import { PartnerModel, CommissionLedgerModel, CommissionPolicyModel } from './partner.models';
 import { RetailOrderModel } from '../retail/models/retail-order.model';
 import { RepairTicketModel } from '../repair/repair-ticket.model';
+import { SupplierModel } from '../../model/supplier.model';
+import { GoodsReceiptModel } from '../../model/goods-receipt.model';
+import { FinanceDebtModel } from '../finance/models/financial-reporting.model';
 let server: Server | undefined;
 afterEach(async () => { vi.restoreAllMocks(); if (server) await new Promise<void>(resolve => server!.close(() => resolve())); });
 async function request(path: string, headers: Record<string,string> = {}, init: RequestInit = {}) {
@@ -25,6 +28,44 @@ async function request(path: string, headers: Record<string,string> = {}, init: 
   return fetch(`http://127.0.0.1:${(server.address() as any).port}/partners${path}`,{headers, ...init});
 }
 describe('partner route isolation', () => {
+  it('allows inventory staff to pick only active, linked supplier partners', async () => {
+    const partners = vi.spyOn(PartnerModel, 'find').mockReturnValue({ select: () => ({ sort: () => ({ lean: async () => [
+      { _id: 'partner-1', code: 'DT-1', supplierId: 'supplier-1' },
+      { _id: 'partner-2', code: 'DT-2', supplierId: 'inactive-supplier' },
+    ] }) }) } as any);
+    const suppliers = vi.spyOn(SupplierModel, 'find').mockReturnValue({ select: () => ({ lean: async () => [{ _id: 'supplier-1', name: 'NCC đối tác' }] }) } as any);
+    const res = await request('/suppliers', { 'x-test-user': 'warehouse', 'x-test-permission': 'inventory:read' });
+    expect(res.status).toBe(200);
+    expect((await res.json()).data).toEqual([{ _id: 'partner-1', code: 'DT-1', supplierId: 'supplier-1', name: 'NCC đối tác' }]);
+    expect(partners).toHaveBeenCalledWith({ companyCode: 'ACME', roles: 'supplier', status: 'active', supplierId: { $type: 'string' } });
+    expect(suppliers).toHaveBeenCalledWith({ companyCode: 'ACME', status: 'active', _id: { $in: ['supplier-1', 'inactive-supplier'] } });
+  });
+  it('denies the supplier picker to partner self-service accounts', async () => {
+    const res = await request('/suppliers', { 'x-test-user': 'ctv', 'x-test-permission': 'partner-self:read' });
+    expect(res.status).toBe(403);
+  });
+  it('returns complete inventory supplier fields in partner profiles', async () => {
+    const supplierId = '507f1f77bcf86cd799439012';
+    vi.spyOn(PartnerModel, 'find').mockReturnValue({ sort: () => ({ limit: () => ({ lean: async () => [{ supplierId, roles: ['supplier'], name: 'Old name' }] }) }) } as any);
+    const find = vi.spyOn(SupplierModel, 'find').mockReturnValue({ lean: async () => [{ _id: supplierId, code: 'NCC-1', name: 'Updated supplier', taxCode: '0312345678', paymentTerms: '30 days', notes: 'Morning delivery', status: 'inactive' }] } as any);
+    const res = await request('/', { 'x-test-user': 'admin', 'x-test-permission': 'partner:read' });
+    expect(res.status).toBe(200);
+    expect((await res.json()).data[0]).toMatchObject({ supplierCode: 'NCC-1', name: 'Updated supplier', taxCode: '0312345678', paymentTerms: '30 days', notes: 'Morning delivery', status: 'inactive' });
+    expect(find).toHaveBeenCalledWith({ companyCode: 'ACME', _id: { $in: [supplierId] } });
+  });
+  it('preserves suppliers with receipt history when deleting a partner', async () => {
+    vi.spyOn(PartnerModel, 'findOne').mockResolvedValue({ _id: '507f1f77bcf86cd799439011', supplierId: '507f1f77bcf86cd799439012', balance: 0 } as any);
+    vi.spyOn(CommissionLedgerModel, 'exists').mockResolvedValue(null);
+    vi.spyOn(RetailOrderModel, 'exists').mockResolvedValue(null);
+    vi.spyOn(RepairTicketModel, 'exists').mockResolvedValue(null);
+    vi.spyOn(GoodsReceiptModel, 'exists').mockResolvedValue({ _id: 'receipt' } as any);
+    vi.spyOn(FinanceDebtModel, 'exists').mockResolvedValue(null);
+    const remove = vi.spyOn(SupplierModel, 'deleteOne');
+    const res = await request('/507f1f77bcf86cd799439011', { 'x-test-user': 'admin', 'x-test-permission': 'partner:manage' }, { method: 'DELETE' });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/phiếu nhập hoặc công nợ/);
+    expect(remove).not.toHaveBeenCalled();
+  });
   it('registers authentication and canonical permission guards on every new mutation', () => {
     const diagnostics = permissionRouteDiagnostics(process.cwd()).filter(d => d.sourceFile === 'server/modules/partners/router.ts' || (d.sourceFile === 'server/modules/repair/router.ts' && d.path === '/tickets/:id/refunds'));
     expect(diagnostics).toEqual([]);

@@ -6,17 +6,17 @@ export const DEFAULT_MODULE_KEYS = MODULE_KEYS.filter((key) => key !== "retail" 
 
 export const MODULE_LABELS: Record<ModuleKey, string> = {
   hr: "Nhân sự", inventory: "Kho & Sản phẩm", resource: "Quản lý tài nguyên", chat: "Trò chuyện",
-  customer: "Khách hàng", retail: "Bán lẻ & POS", repair: "Sửa chữa & bảo hành", finance: "Tài chính", marketing: "Marketing tự động",
+  customer: "Khách hàng", retail: "Bán hàng & POS", repair: "Sửa chữa & bảo hành", finance: "Tài chính", marketing: "Marketing tự động",
 };
 
 export const MODULE_TAB_MAP: Record<ModuleKey, TabType> = {
   hr: "NHÂN SỰ", inventory: "KHO & SẢN PHẨM", resource: "QUẢN LÝ TÀI NGUYÊN", chat: "TRÒ CHUYỆN",
-  customer: "QUẢN LÝ KHÁCH HÀNG", retail: "BÁN LẺ", repair: "SỬA CHỮA & BẢO HÀNH", finance: "TÀI CHÍNH", marketing: "MARKETING",
+  customer: "QUẢN LÝ KHÁCH HÀNG", retail: "BÁN HÀNG", repair: "SỬA CHỮA & BẢO HÀNH", finance: "TÀI CHÍNH", marketing: "MARKETING",
 };
 
 export const TAB_MODULE_MAP: Partial<Record<TabType, ModuleKey>> = {
   "NHÂN SỰ": "hr", "KHO & SẢN PHẨM": "inventory", "SỬA CHỮA & BẢO HÀNH": "repair", "QUẢN LÝ TÀI NGUYÊN": "resource",
-  "TRÒ CHUYỆN": "chat", "QUẢN LÝ KHÁCH HÀNG": "customer", "BÁN LẺ": "retail", "TÀI CHÍNH": "finance", "MARKETING": "marketing",
+  "TRÒ CHUYỆN": "chat", "QUẢN LÝ KHÁCH HÀNG": "customer", "BÁN HÀNG": "retail", "BÁN LẺ": "retail", "TÀI CHÍNH": "finance", "MARKETING": "marketing",
 };
 
 export const MODULE_OPTIONS = (Object.keys(MODULE_LABELS) as ModuleKey[]).map((key) => ({ key, label: MODULE_LABELS[key], moduleKeys: [key] as readonly ModuleKey[] })) as ReadonlyArray<{ key: string; label: string; moduleKeys: readonly ModuleKey[] }>;
@@ -25,7 +25,7 @@ export const MODULE_READ_PERMISSIONS: Partial<Record<TabType, string[]>> = {
   "ĐỐI TÁC": ["partner:read", "partner:manage", "partner-self:read", "partner-self:manage"],
   "TỔNG QUAN": ["dashboard:read"], "NHÂN SỰ": ["hr:read", "access:read", "work:read", "timekeeping:read", "timekeeping:manage"], "KHO & SẢN PHẨM": ["inventory:read"],
   "QUẢN LÝ KHÁCH HÀNG": ["customer:read", "customer:manage"], "SỬA CHỮA & BẢO HÀNH": ["repair:read", "repair:manage"], "QUẢN LÝ TÀI NGUYÊN": ["resource:read"],
-  "BÁN LẺ": ["retail:read", "retail:manage"], "TÀI CHÍNH": ["finance-wallet:read", "finance-wallet:manage", "finance-receivable:read", "finance-receivable:manage", "asset:read", "asset:manage"],
+  "BÁN HÀNG": ["retail:read", "retail:manage"], "BÁN LẺ": ["retail:read", "retail:manage"], "TÀI CHÍNH": ["finance-wallet:read", "finance-wallet:manage", "finance-receivable:read", "finance-receivable:manage", "asset:read", "asset:manage"],
   "TRÒ CHUYỆN": ["chat:read"], "MARKETING": ["marketing:read", "marketing:manage"],
   "CSKH": ["repair:read", "repair:manage", "customer:read", "customer:manage", "marketing:read", "marketing:manage"],
 };

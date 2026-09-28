@@ -58,7 +58,7 @@ export default function RetailSettingsPage() {
         <Store className="mb-3 h-12 w-12 text-amber-500" />
         <h3 className="text-base font-bold text-amber-900">Chưa chọn chi nhánh</h3>
         <p className="mt-1 text-xs text-amber-700 max-w-sm">
-          Vui lòng chọn chi nhánh làm việc từ thanh điều hướng phía trên để thiết lập cấu hình bán lẻ.
+          Vui lòng chọn chi nhánh làm việc từ thanh điều hướng phía trên để thiết lập cấu hình bán hàng.
         </p>
       </div>
     );
@@ -70,7 +70,7 @@ export default function RetailSettingsPage() {
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-600 animate-pulse">
           <Settings className="h-6 w-6 animate-spin" />
         </div>
-        <p className="mt-3 text-sm font-semibold text-slate-700">Đang tải cấu hình bán lẻ…</p>
+        <p className="mt-3 text-sm font-semibold text-slate-700">Đang tải cấu hình bán hàng…</p>
         <p className="mt-1 text-xs text-slate-400">Vui lòng chờ trong giây lát</p>
       </div>
     );
@@ -95,7 +95,7 @@ export default function RetailSettingsPage() {
       const updated = await retailSettingsApi.update(input, { companyCode, branchId: activeBranchId });
       setSettings(updated);
       setInitialSettings(updated);
-      toast.success("Đã lưu cấu hình bán lẻ chi nhánh thành công!");
+      toast.success("Đã lưu cấu hình bán hàng chi nhánh thành công!");
     } catch (cause) {
       const msg = getApiErrorMessage(cause, "Không lưu được cài đặt.");
       setError(msg);
@@ -120,7 +120,7 @@ export default function RetailSettingsPage() {
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-xl font-bold text-slate-900">Cài đặt bán lẻ</h1>
+                <h1 className="text-xl font-bold text-slate-900">Cài đặt bán hàng</h1>
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-cyan-50/80 px-3 py-0.5 text-xs font-semibold text-cyan-800">
                   <Store className="h-3.5 w-3.5" />
                   {activeBranch?.name || `Chi nhánh: ${activeBranchId}`}
@@ -363,7 +363,7 @@ export default function RetailSettingsPage() {
               </div>
               <div>
                 <h2 className="text-sm font-bold text-slate-900">Định dạng mã chứng từ</h2>
-                <p className="text-[11px] text-slate-500">Tiền tố nhận diện đơn hàng và hóa đơn bán lẻ</p>
+                <p className="text-[11px] text-slate-500">Tiền tố nhận diện đơn hàng và hóa đơn bán hàng</p>
               </div>
             </div>
 

@@ -97,6 +97,9 @@ function PartnerForm({
     phone: "",
     email: "",
     address: "",
+    taxCode: "",
+    paymentTerms: "",
+    notes: "",
     userId: "",
     accountPassword: "",
     ...initial,
@@ -214,7 +217,7 @@ function PartnerForm({
               </label>
 
               <label className="text-xs font-semibold text-slate-700">
-                Email <span className="text-rose-500">*</span>
+                Email {!initial._id && !isSupplier && <span className="text-rose-500">*</span>}
                 <input
                   aria-label="Email"
                   required={!initial._id && !isSupplier}
@@ -262,6 +265,25 @@ function PartnerForm({
               </label>
             </div>
           </div>
+
+          {form.roles.includes("supplier") && (
+            <fieldset className="space-y-3 rounded-xl border border-slate-200 p-4">
+              <legend className="px-1 text-sm font-semibold text-slate-800">Thông tin nhà cung cấp</legend>
+              {form.supplierCode && <p className="text-xs text-slate-500">Mã nhà cung cấp: <strong>{form.supplierCode}</strong></p>}
+              <label className="block text-xs font-semibold text-slate-700">
+                Mã số thuế
+                <input value={form.taxCode || ""} maxLength={100} onChange={(e) => setForm({ ...form, taxCode: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+              </label>
+              <label className="block text-xs font-semibold text-slate-700">
+                Điều khoản thanh toán
+                <input value={form.paymentTerms || ""} maxLength={2000} placeholder="VD: Thanh toán trong 30 ngày" onChange={(e) => setForm({ ...form, paymentTerms: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+              </label>
+              <label className="block text-xs font-semibold text-slate-700">
+                Ghi chú nhà cung cấp
+                <textarea rows={3} value={form.notes || ""} maxLength={5000} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+              </label>
+            </fieldset>
+          )}
 
           {/* Roles & Status */}
           <div className="grid gap-4 sm:grid-cols-2">
@@ -587,7 +609,11 @@ function Statement({
                 <span className="text-slate-500">Trạng thái</span><b className={data.partner.status !== "inactive" ? "text-emerald-600" : "text-slate-500"}>{data.partner.status !== "inactive" ? "Hoạt động" : "Ngừng hoạt động"}</b>
                 {data.partner.email && <><span className="text-slate-500">Email</span><b className="max-w-[220px] truncate text-slate-800 dark:text-slate-200">{data.partner.email}</b></>}
                 {data.partner.phone && <><span className="text-slate-500">Điện thoại</span><b className="text-slate-800 dark:text-slate-200">{data.partner.phone}</b></>}
-                {data.partner.supplierId && <><span className="text-slate-500">Mã liên kết NCC</span><b className="max-w-[220px] truncate font-mono text-slate-800 dark:text-slate-200">{data.partner.supplierId}</b></>}
+                {data.partner.supplierCode && <><span className="text-slate-500">Mã nhà cung cấp</span><b>{data.partner.supplierCode}</b></>}
+                {data.partner.address && <><span className="text-slate-500">Địa chỉ</span><b className="max-w-[260px] whitespace-pre-wrap break-words">{data.partner.address}</b></>}
+                {data.partner.taxCode && <><span className="text-slate-500">Mã số thuế</span><b>{data.partner.taxCode}</b></>}
+                {data.partner.paymentTerms && <><span className="text-slate-500">Điều khoản thanh toán</span><b className="max-w-[260px] whitespace-pre-wrap break-words">{data.partner.paymentTerms}</b></>}
+                {data.partner.notes && <><span className="text-slate-500">Ghi chú nhà cung cấp</span><b className="max-w-[260px] whitespace-pre-wrap break-words">{data.partner.notes}</b></>}
               </div>
             </div>
           </div>
@@ -1294,6 +1320,7 @@ export default function PartnersPage() {
   const [refreshing, setRefreshing] = React.useState(false);
   const [deletingPartner, setDeletingPartner] = React.useState<Partner | null>(null);
   const [deleting, setDeleting] = React.useState(false);
+  const [importingSuppliers, setImportingSuppliers] = React.useState(false);
 
   const load = React.useCallback(() => {
     setRefreshing(true);
@@ -1543,6 +1570,24 @@ export default function PartnersPage() {
             {/* Admin Actions */}
             {hasPermission("partner:manage") && (
               <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={importingSuppliers}
+                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  onClick={async () => {
+                    setImportingSuppliers(true);
+                    try {
+                      await partnerRequest("/import-suppliers", "POST");
+                      await load();
+                    } catch (cause) {
+                      setError((cause as Error).message);
+                    } finally {
+                      setImportingSuppliers(false);
+                    }
+                  }}
+                >
+                  {importingSuppliers ? "Đang đồng bộ..." : "Đồng bộ NCC từ kho"}
+                </button>
                 <button
                   className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-sky-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-cyan-500/20 hover:from-cyan-500 hover:to-sky-500 transition cursor-pointer"
                   onClick={() => setEditing({})}

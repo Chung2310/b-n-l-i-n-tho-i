@@ -10,6 +10,9 @@ import { defaultPolicy, invalid, kpiBonus, monthKey, repairLines, validatePolicy
 import { RetailOrderModel } from "../retail/models/retail-order.model";
 import { RepairTicketModel } from "../repair/repair-ticket.model";
 import { closePartnerMonths, recordPartnerPayout, startCommissionRecovery } from "./commission.service";
+import { saveSupplierPartner, supplierPartnerProfile } from "./partner-supplier.service";
+import { GoodsReceiptModel } from "../../model/goods-receipt.model";
+import { FinanceDebtModel } from "../finance/models/financial-reporting.model";
 
 export const partnerRouter = Router();
 partnerRouter.use(requireAuth as any);
@@ -30,6 +33,9 @@ const periodOf = (value: unknown) => { const period = String(value || monthKey(n
 export async function partnerStatement(companyCode: string, partnerId: string, period: string, page = 1) {
   const partner = await PartnerModel.findOne({ companyCode, _id: partnerId }).lean();
   if (!partner) throw invalid("Không tìm thấy đối tác.", 404);
+  const supplier = partner.supplierId
+    ? await SupplierModel.findOne({ companyCode, _id: partner.supplierId }).lean()
+    : null;
   const filter = { companyCode, partnerId, period };
   const [entries, total, sums, pendingOrders, pendingRepairs] = await Promise.all([
     CommissionLedgerModel.find(filter).sort({ createdAt: -1, _id: -1 }).skip((page - 1) * 100).limit(100).lean(),
@@ -41,7 +47,7 @@ export async function partnerStatement(companyCode: string, partnerId: string, p
   const machines = Math.max(0, sums.reduce((s, r) => s + r.machines, 0));
   const pending = [...pendingOrders.map((o: any) => ({ code: o.orderCode, amount: o.commissionSnapshot.lines.reduce((s: number, l: any) => s + l.amount, 0), reason: "Chưa thu đủ tiền" })), ...pendingRepairs.map((r: any) => ({ code: r.ticketCode, amount: repairLines(r, r.commissionSnapshot.policy).reduce((s,l) => s+l.amount,0), reason: "Chưa giao máy và thu đủ tiền" }))];
   return {
-    partner: {
+    partner: supplierPartnerProfile({
       _id: partner._id,
       code: partner.code,
       name: partner.name,
@@ -52,7 +58,7 @@ export async function partnerStatement(companyCode: string, partnerId: string, p
       address: partner.address,
       supplierId: partner.supplierId,
       balance: partner.balance,
-    },
+    }, supplier),
     period,
     entries,
     total,
@@ -64,6 +70,18 @@ export async function partnerStatement(companyCode: string, partnerId: string, p
 }
 
 partnerRouter.get("/collaborators", picker, route(async req => PartnerModel.find({ companyCode: partnerCompany(req), roles: "collaborator", status: "active" }).select("code name").sort({ name: 1 }).limit(1000).lean()));
+partnerRouter.get("/suppliers", requirePermission(["inventory:read", "inventory:manage", "partner:read", "partner:manage"]) as any, route(async req => {
+  const companyCode = partnerCompany(req);
+  const partners = await PartnerModel.find({ companyCode, roles: "supplier", status: "active", supplierId: { $type: "string" } })
+    .select("code name supplierId").sort({ name: 1 }).lean();
+  const suppliers = await SupplierModel.find({ companyCode, status: "active", _id: { $in: partners.map(partner => partner.supplierId) } })
+    .select("name").lean();
+  const byId = new Map(suppliers.map(supplier => [String(supplier._id), supplier]));
+  return partners.flatMap(partner => {
+    const supplier = byId.get(partner.supplierId!);
+    return supplier ? [{ _id: String(partner._id), code: partner.code, name: supplier.name, supplierId: partner.supplierId }] : [];
+  });
+}));
 partnerRouter.get("/me/statement", own, route(async req => {
   const companyCode = partnerCompany(req);
   const partner = await PartnerModel.findOne({ companyCode, userId: String(req.user.id), roles: "collaborator" }).select("_id").lean()
@@ -109,7 +127,7 @@ partnerRouter.get("/", read, route(async req => {
   const items = await PartnerModel.find(filter).sort({ name: 1 }).limit(1000).lean();
   // Supplier remains the source of truth for its contact information.
   const suppliers = await SupplierModel.find({ companyCode: filter.companyCode, _id: { $in: items.filter(p => p.supplierId).map(p => p.supplierId) } }).lean();
-  return items.map(p => { const s = suppliers.find(s => String(s._id) === p.supplierId); return s ? { ...p, name: s.name, phone: s.phone, email: s.email, address: s.address } : p; });
+  return items.map(p => supplierPartnerProfile(p, suppliers.find(s => String(s._id) === p.supplierId)));
 }));
 async function partnerInput(req: any) {
   const companyCode = partnerCompany(req), body = req.body;
@@ -171,7 +189,9 @@ async function provisionPartnerAccount(req: any, partner: any, password: string,
 
 partnerRouter.post("/", manage, route(async req => {
   const input = await partnerInput(req);
-  const partner = await PartnerModel.create({ ...input, createdBy: req.user.id });
+  const partner = input.roles.includes("supplier")
+    ? await saveSupplierPartner(input, req.body)
+    : await PartnerModel.create({ ...input, createdBy: req.user.id });
   const isPureSupplier = input.roles.includes("supplier") && !input.roles.includes("collaborator") && !input.roles.includes("dealer");
   const accountPassword = Object.prototype.hasOwnProperty.call(req.body || {}, "accountPassword")
     ? String(req.body.accountPassword || "")
@@ -183,6 +203,7 @@ partnerRouter.post("/", manage, route(async req => {
     return { ...result, userId: account.userId };
   } catch (error) {
     await PartnerModel.deleteOne({ _id: partner._id, companyCode: input.companyCode }).catch(() => undefined);
+    if (partner.supplierId && !input.supplierId) await SupplierModel.deleteOne({ _id: partner.supplierId, companyCode: input.companyCode });
     throw error;
   }
 }));
@@ -202,8 +223,11 @@ partnerRouter.patch("/:id", manage, route(async req => {
   const input = await partnerInput(req), partnerId = id(req.params.id);
   const existing = await PartnerModel.findOne({ companyCode: input.companyCode, _id: partnerId }).lean();
   if (!existing) throw invalid("Không tìm thấy đối tác.", 404);
-  if (existing.supplierId && existing.supplierId !== input.supplierId) throw invalid("Không được thay liên kết nhà cung cấp hiện hữu.");
+  if (existing.supplierId && input.supplierId && existing.supplierId !== input.supplierId) throw invalid("Không được thay liên kết nhà cung cấp hiện hữu.");
+  if (existing.supplierId) input.supplierId = existing.supplierId;
+  if (existing.roles.includes("supplier") && !input.roles.includes("supplier")) throw invalid("Giữ vai trò nhà cung cấp để bảo toàn lịch sử; dùng trạng thái ngừng hoạt động.");
   if (existing.roles.includes("collaborator") && !input.roles.includes("collaborator")) throw invalid("Giữ vai trò CTV để bảo toàn lịch sử; dùng trạng thái ngừng hoạt động.");
+  if (input.roles.includes("supplier")) return saveSupplierPartner(input, req.body, partnerId);
   const { userId, supplierId, ...fields } = input;
   return PartnerModel.findOneAndUpdate({ companyCode: input.companyCode, _id: partnerId }, { $set: { ...fields, ...(userId ? { userId } : {}), ...(supplierId ? { supplierId } : {}) }, ...(!userId ? { $unset: { userId: 1 } } : {}) }, { returnDocument: "after", runValidators: true });
 }));
@@ -224,6 +248,14 @@ partnerRouter.delete("/:id", manage, route(async req => {
   ]);
   if (hasOrders || hasRepairs) {
     throw invalid("Không thể xóa đối tác đã gắn với đơn hàng hoặc phiếu sửa chữa. Vui lòng chuyển trạng thái sang Ngừng hoạt động.");
+  }
+  if (partner.supplierId) {
+    const [receipt, debt] = await Promise.all([
+      GoodsReceiptModel.exists({ companyCode, supplierId: partner.supplierId }),
+      FinanceDebtModel.exists({ companyCode, partyKind: "supplier", partyId: partner.supplierId }),
+    ]);
+    if (receipt || debt) throw invalid("Nhà cung cấp đã có phiếu nhập hoặc công nợ. Vui lòng chuyển trạng thái sang Ngừng hoạt động.");
+    await SupplierModel.deleteOne({ companyCode, _id: partner.supplierId });
   }
   if (partner.userId) {
     await UserModel.deleteOne({ _id: partner.userId, companyCode }).catch(() => undefined);

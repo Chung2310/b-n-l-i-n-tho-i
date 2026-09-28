@@ -1,4 +1,4 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 import React from "react";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -51,9 +51,48 @@ beforeEach(() => {
 });
 
 describe("RetailPosPage", () => {
+  it("nests products in inventory folders and supports expanding level by level and adding a nested SKU", async () => {
+    vi.mocked(retailProductsApi.list).mockResolvedValue({
+      items: [
+        { ...product, categoryPath: [{ code: "ROOT", name: "Hàng hóa" }, { code: "CLOTHES", name: "Quần áo" }, { code: "A", name: "Áo thun" }] },
+        { ...product, _id: "p2", sku: "SKU-2", name: "Túi", category: "", categoryPath: [] },
+      ], total: 2, page: 1, limit: 500,
+    });
+    render(<RetailPosPage />);
+    const root = await screen.findByRole("button", { name: /Hàng hóa/ });
+    expect(root.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("button", { name: /Quần áo/ })).toBeNull();
+
+    // Click Level 1 to reveal Level 2
+    await userEvent.click(root);
+    expect(root.getAttribute("aria-expanded")).toBe("true");
+    const child = await screen.findByRole("button", { name: /Quần áo/ });
+    expect(root.closest("section")?.contains(child)).toBe(true);
+    expect(child.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("button", { name: /Áo thun/ })).toBeNull();
+
+    // Click Level 2 to reveal Level 3
+    await userEvent.click(child);
+    const leaf = await screen.findByRole("button", { name: /Áo thun/ });
+    expect(child.closest("section")?.contains(leaf)).toBe(true);
+    expect(screen.getByRole("button", { name: /Chưa phân loại/ })).toBeTruthy();
+
+    // Collapsing root hides children
+    await userEvent.click(root);
+    expect(root.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("button", { name: /SKU-1/ })).toBeNull();
+
+    // Expand root & leaf to click SKU
+    await userEvent.click(root);
+    await userEvent.click(leaf);
+    await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
+    expect((await screen.findByLabelText("Số lượng Áo") as HTMLInputElement).value).toBe("1");
+  });
+
   it("opens POS without requesting or opening a sales shift", async () => {
     vi.mocked(retailShiftsApi.current).mockResolvedValue(null);
     render(<RetailPosPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Mở tất cả" }));
     expect(await screen.findByRole("button", { name: /SKU-1/ })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Mở ca bán hàng" })).toBeNull();
     expect(retailShiftsApi.current).not.toHaveBeenCalled();
@@ -61,6 +100,7 @@ describe("RetailPosPage", () => {
 
   it("keeps payment dialog closed and guides cashier to select a customer", async () => {
     render(<RetailPosPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Mở tất cả" }));
     await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
     await waitFor(() => expect((screen.getByRole("button", { name: "Thanh toán" }) as HTMLButtonElement).disabled).toBe(false));
 
@@ -88,6 +128,7 @@ describe("RetailPosPage", () => {
 
   it("carries customer, VAT profile and adjustments through quote and checkout to receipt", async () => {
     render(<RetailPosPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Mở tất cả" }));
     await userEvent.click(await screen.findByRole("button", { name: /Áo/ }));
     await userEvent.click(screen.getByRole("button", { name: "Chọn khách An" }));
     await userEvent.click(screen.getByRole("button", { name: "Giảm giá Áo" }));
@@ -105,6 +146,7 @@ describe("RetailPosPage", () => {
 
   it("creates a customer debt draft with VAT profile and confirms with no collected payments", async () => {
     render(<RetailPosPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Mở tất cả" }));
     await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
     await userEvent.click(screen.getByRole("button", { name: "Chọn khách An" }));
     await waitFor(() => expect((screen.getByRole("button", { name: "Thanh toán" }) as HTMLButtonElement).disabled).toBe(false));
@@ -113,5 +155,17 @@ describe("RetailPosPage", () => {
 
     await waitFor(() => expect(retailOrdersApi.createDraft).toHaveBeenCalledWith({ companyCode: "ACME", branchId: "B1" }, expect.objectContaining({ customerId: "c1", billingProfileId: "bp1", dueDate: "2026-09-30" })));
     expect(retailOrdersApi.confirm).toHaveBeenCalledWith({ companyCode: "ACME", branchId: "B1" }, "o1", expect.objectContaining({ payments: [] }));
+  });
+
+  it("displays zero-stock products and warns when attempting to add to cart", async () => {
+    vi.mocked(retailProductsApi.list).mockResolvedValue({
+      items: [{ ...product, stock: 0 }],
+      total: 1, page: 1, limit: 500,
+    });
+    render(<RetailPosPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Mở tất cả" }));
+    expect(screen.getByText("Hết hàng")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: /SKU-1/ }));
+    expect(toast.error).toHaveBeenCalledWith("Áo không còn đủ tồn khả dụng.");
   });
 });

@@ -176,6 +176,9 @@ it('does not require or submit password when adding a supplier partner', async (
   // Password input should not be in the document
   expect(screen.queryByLabelText(/Mật khẩu tài khoản/i)).toBeNull();
   expect(screen.getByText(/Hồ sơ Nhà cung cấp dùng để theo dõi nguồn hàng/i)).toBeTruthy();
+  await userEvent.type(screen.getByLabelText('Mã số thuế'), '0312345678');
+  await userEvent.type(screen.getByLabelText('Điều khoản thanh toán'), '30 ngày');
+  await userEvent.type(screen.getByLabelText('Ghi chú nhà cung cấp'), 'Giao hàng buổi sáng');
 
   await userEvent.click(screen.getByRole('button', { name: /Lưu hồ sơ/i }));
   await waitFor(() => expect(vi.mocked(partnerRequest).mock.calls[1]).toEqual([
@@ -183,6 +186,18 @@ it('does not require or submit password when adding a supplier partner', async (
     'POST',
     expect.not.objectContaining({ accountPassword: expect.anything() }),
   ]));
+  expect(vi.mocked(partnerRequest).mock.calls[1][2]).toEqual(expect.objectContaining({ taxCode: '0312345678', paymentTerms: '30 ngày', notes: 'Giao hàng buổi sáng' }));
+});
+
+it('imports existing inventory suppliers and reloads the partner list', async () => {
+  auth.permissions = ['partner:manage'];
+  vi.mocked(partnerRequest).mockResolvedValueOnce([]).mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce([
+    { _id: 'supplier-partner', code: 'NCC-1', name: 'NCC từ kho', roles: ['supplier'], status: 'active', balance: 0 },
+  ]);
+  render(<PartnersPage />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Đồng bộ NCC từ kho' }));
+  expect(await screen.findByText('NCC từ kho')).toBeTruthy();
+  expect(partnerRequest).toHaveBeenCalledWith('/import-suppliers', 'POST');
 });
 
 it('prompts confirmation and deletes a partner from the table action', async () => {
