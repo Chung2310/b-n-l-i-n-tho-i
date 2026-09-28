@@ -144,8 +144,8 @@ export default function RetailReportTables({ report }: RetailReportTablesProps) 
                 </h2>
                 <p className="text-[11px] text-slate-500">
                   {report.analyticsReconciliation.matched
-                    ? "Dữ liệu doanh thu bán lẻ và báo cáo tổng hợp hoàn toàn khớp."
-                    : "Phát hiện chênh lệch giữa ghi nhận bán lẻ và báo cáo phân tích."}
+                    ? "Dữ liệu doanh thu bán hàng và báo cáo tổng hợp hoàn toàn khớp."
+                    : "Phát hiện chênh lệch giữa ghi nhận bán hàng và báo cáo phân tích."}
                 </p>
               </div>
             </div>

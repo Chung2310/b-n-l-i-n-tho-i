@@ -56,6 +56,14 @@ export const APP_ROUTES: AppRoute[] = [
       Boolean(userProfile.permissions?.includes("*") || userProfile.permissions?.some((permission) => permission === "customer:read" || permission === "customer:manage")),
   },
   {
+    tab: "BÁN HÀNG",
+    component: lazy(() => import("../modules/retail/RetailTab")),
+    canAccess: (userProfile) =>
+      userProfile.role === "superadmin" ||
+      userProfile.role === "admin" ||
+      Boolean(userProfile.permissions?.includes("*") || userProfile.permissions?.some((permission) => permission === "retail:read" || permission === "retail:manage")),
+  },
+  {
     tab: "BÁN LẺ",
     component: lazy(() => import("../modules/retail/RetailTab")),
     canAccess: (userProfile) =>

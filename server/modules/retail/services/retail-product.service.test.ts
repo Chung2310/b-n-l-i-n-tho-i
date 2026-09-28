@@ -1,6 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildRetailProductFilter, matchesScannedUnit, normalizeRetailProductSearch } from "./retail-product.service";
+import { buildRetailCategoryPath, buildRetailProductFilter, matchesScannedUnit, normalizeRetailProductSearch } from "./retail-product.service";
+
+test("retail category paths preserve inventory ancestors and handle missing or cyclic folders", () => {
+  const categories = new Map([
+    ["PHONE", { code: "PHONE", name: "Điện thoại" }],
+    ["APPLE", { code: "APPLE", name: "Apple", parentCode: "PHONE" }],
+    ["IPHONE", { code: "IPHONE", name: "iPhone", parentCode: "APPLE" }],
+  ]);
+  assert.deepEqual(buildRetailCategoryPath("IPHONE", categories), [
+    { code: "PHONE", name: "Điện thoại" },
+    { code: "APPLE", name: "Apple" },
+    { code: "IPHONE", name: "iPhone" },
+  ]);
+  assert.deepEqual(buildRetailCategoryPath("MISSING", categories), [{ code: "MISSING", name: "MISSING" }]);
+  assert.deepEqual(buildRetailCategoryPath("", categories), []);
+  categories.set("PHONE", { code: "PHONE", name: "Điện thoại", parentCode: "IPHONE" });
+  assert.equal(buildRetailCategoryPath("IPHONE", categories).length, 3);
+});
 
 test("product lookup always keeps exact company and branch scope", () => {
   const filter = buildRetailProductFilter(

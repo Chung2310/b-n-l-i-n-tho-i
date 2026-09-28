@@ -157,7 +157,7 @@ export default function ReceivableDetailDrawer({
               <h2 className="mt-2 text-xl font-bold text-slate-900">{receivable.customerName}</h2>
               {receivable.sourceCode && (
                 <a
-                  href={`/ban-le?sub=don-hang&orderId=${encodeURIComponent(receivable.sourceId || "")}`}
+                  href={`/ban-hang?sub=don-hang&orderId=${encodeURIComponent(receivable.sourceId || "")}`}
                   className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-700 hover:text-cyan-800 hover:underline"
                 >
                   {receivable.sourceCode}

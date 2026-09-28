@@ -64,7 +64,7 @@ export default function RetailWorkspace() {
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-        <Suspense fallback={<div className="text-sm text-slate-500">Đang tải phân hệ bán lẻ...</div>}>
+        <Suspense fallback={<div className="text-sm text-slate-500">Đang tải phân hệ bán hàng...</div>}>
           {activeTab === "BÁN HÀNG" && <PosPage />}
           {activeTab === "ĐƠN HÀNG" && <OrdersPage />}
           {activeTab === "ĐỔI TRẢ" && <ReturnsPage />}

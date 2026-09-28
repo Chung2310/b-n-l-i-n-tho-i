@@ -396,7 +396,7 @@ export function ModernAnalyticsDashboard({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         {/* Card 1: Doanh số hôm nay */}
         <div
-          onClick={() => onNavigate("BÁN LẺ")}
+          onClick={() => onNavigate("BÁN HÀNG")}
           className="relative rounded-2xl border border-slate-200/80 bg-white p-3 lg:p-3.5 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center gap-3"
           style={{ animation: "kpiCardEntrance 0.45s cubic-bezier(0.16, 1, 0.3, 1) 40ms both" }}
         >
@@ -468,7 +468,7 @@ export function ModernAnalyticsDashboard({
 
         {/* Card 2: Doanh số hôm qua */}
         <div
-          onClick={() => onNavigate("BÁN LẺ")}
+          onClick={() => onNavigate("BÁN HÀNG")}
           className="rounded-2xl border border-slate-200/80 bg-white p-3 lg:p-3.5 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center gap-3"
           style={{ animation: "kpiCardEntrance 0.45s cubic-bezier(0.16, 1, 0.3, 1) 90ms both" }}
         >
@@ -531,7 +531,7 @@ export function ModernAnalyticsDashboard({
 
         {/* Card 5: Doanh thu tháng */}
         <div
-          onClick={() => onNavigate("BÁN LẺ")}
+          onClick={() => onNavigate("BÁN HÀNG")}
           className="relative rounded-2xl border border-slate-200/80 bg-white p-3 lg:p-3.5 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center gap-3"
           style={{ animation: "kpiCardEntrance 0.45s cubic-bezier(0.16, 1, 0.3, 1) 240ms both" }}
         >

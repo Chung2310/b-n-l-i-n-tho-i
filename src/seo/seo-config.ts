@@ -167,13 +167,24 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
     priority: "0.8",
     changeFrequency: "weekly",
   },
-  "BÁN LẺ": {
-    title: "Bán lẻ & POS - Quản lý bán hàng tại quầy",
+  "BÁN HÀNG": {
+    title: "Bán hàng & POS - Quản lý bán hàng tại quầy",
     description:
-      "Phân hệ bán lẻ trên Anh Khoa Mobile hỗ trợ quản lý khách hàng, cấu hình bán hàng tại quầy và vận hành POS theo chi nhánh.",
+      "Phân hệ bán hàng trên Anh Khoa Mobile hỗ trợ quản lý khách hàng, cấu hình bán hàng tại quầy và vận hành POS theo chi nhánh.",
     keywords:
-      "bán lẻ, POS, quản lý bán hàng, khách hàng bán lẻ, ERP bán lẻ, Anh Khoa Mobile",
-    path: "/ban-le",
+      "bán hàng, POS, quản lý bán hàng, khách hàng bán hàng, ERP bán hàng, Anh Khoa Mobile",
+    path: "/ban-hang",
+    robots: "noindex, nofollow",
+    priority: "0.2",
+    changeFrequency: "weekly",
+  },
+  "BÁN LẺ": {
+    title: "Bán hàng & POS - Quản lý bán hàng tại quầy",
+    description:
+      "Phân hệ bán hàng trên Anh Khoa Mobile hỗ trợ quản lý khách hàng, cấu hình bán hàng tại quầy và vận hành POS theo chi nhánh.",
+    keywords:
+      "bán hàng, POS, quản lý bán hàng, khách hàng bán hàng, ERP bán hàng, Anh Khoa Mobile",
+    path: "/ban-hang",
     robots: "noindex, nofollow",
     priority: "0.2",
     changeFrequency: "weekly",
@@ -304,6 +315,9 @@ export function tabToPath(tab: TabType): string {
 
 export function pathToTab(pathname: string): TabType | null {
   const normalized = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  if (normalized.toLowerCase() === "/ban-le") {
+    return "BÁN HÀNG";
+  }
   const matched = (Object.entries(TAB_SEO_MAP) as Array<[TabType, SeoMeta]>).find(
     ([, meta]) => meta.path.toLowerCase() === normalized.toLowerCase()
   );

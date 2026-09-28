@@ -2,6 +2,7 @@
 export type TabType =
   | "ĐỐI TÁC"
   | "QUẢN LÝ KHÁCH HÀNG"
+  | "BÁN HÀNG"
   | "BÁN LẺ"
   | "TÀI CHÍNH"
   | "MARKETING"

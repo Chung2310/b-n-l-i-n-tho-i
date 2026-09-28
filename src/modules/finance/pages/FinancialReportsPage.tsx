@@ -777,7 +777,7 @@ export default function FinancialReportsPage({ permissions }: { permissions: rea
                   </button>
                 ) : (
                   <span className="text-xs text-slate-400">
-                    Xử lý tại {r.source === "receivable" ? "Công nợ" : r.source === "repair" ? "Sửa chữa" : "Bán lẻ"}
+                    Xử lý tại {r.source === "receivable" ? "Công nợ" : r.source === "repair" ? "Sửa chữa" : "Bán hàng"}
                   </span>
                 ),
               ])}

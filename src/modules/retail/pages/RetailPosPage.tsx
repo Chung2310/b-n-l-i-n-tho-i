@@ -4,6 +4,12 @@ import {
   Camera,
   Check,
   ChevronDown,
+  Folder,
+  FolderOpen,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Plus,
+  Tag,
   HelpCircle,
   Keyboard,
   Pause,
@@ -639,7 +645,7 @@ export default function RetailPosPage() {
         {scanFeedback && <ScanFeedback {...scanFeedback} />}
 
         {/* Product Catalog Grid */}
-        <ProductGrid products={products} onAdd={addProductToCart} />
+        <ProductGrid key={`${scope.companyCode}:${scope.branchId}:${q}`} products={products} onAdd={addProductToCart} searchQuery={q} />
       </main>
 
       {/* Cart & Checkout Panel */}
@@ -742,57 +748,71 @@ function ProductCard({
   const isSoldOut = selected.stock <= 0;
 
   return (
-    <div className="group flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm transition hover:border-cyan-400 hover:shadow-md">
+    <div className="group relative flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-2xs transition-all duration-200 hover:border-cyan-400 hover:shadow-md">
       <button
         type="button"
-        disabled={isSoldOut}
-        className="w-full text-left transition active:scale-[0.99] disabled:opacity-50"
+        className={`w-full text-left transition active:scale-[0.99] cursor-pointer ${
+          isSoldOut ? "opacity-80" : ""
+        }`}
         onClick={() => onAdd(selected)}
       >
         <div className="flex items-start justify-between gap-2">
-          <span className="block font-bold text-slate-900 group-hover:text-cyan-700 transition">
+          <span className="block font-bold text-sm text-slate-900 group-hover:text-cyan-700 transition line-clamp-2 leading-snug">
             {group.name}
           </span>
           <span
-            className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
               isSoldOut
-                ? "bg-rose-50 text-rose-700 border border-rose-200"
-                : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                ? "bg-rose-50 text-rose-700 border border-rose-200/80"
+                : selected.stock <= 2
+                ? "bg-amber-50 text-amber-700 border border-amber-200/80"
+                : "bg-emerald-50 text-emerald-700 border border-emerald-200/80"
             }`}
           >
-            {isSoldOut ? "Hết tồn" : `Tồn: ${selected.stock}`}
+            {isSoldOut ? "Hết hàng" : `Tồn: ${selected.stock}`}
           </span>
         </div>
 
-        <span className="mt-1 block font-mono text-xs text-slate-500">
-          {selected.sku} · Tồn {selected.stock > 0 ? selected.stock : "Hết tồn khả dụng"}
+        <span className="mt-1 block font-mono text-xs text-slate-400 truncate">
+          SKU: {selected.sku}
         </span>
 
-        <span className="mt-2.5 block font-mono text-base font-bold text-cyan-700">
-          {money(selected.price)}
-        </span>
+        <div className="mt-3 flex items-center justify-between pt-2 border-t border-slate-100">
+          <span className="font-mono text-base font-bold text-cyan-700">
+            {money(selected.price)}
+          </span>
+          <span
+            className={`flex h-7 w-7 items-center justify-center rounded-xl transition shadow-2xs ${
+              isSoldOut
+                ? "bg-slate-100 text-slate-400"
+                : "bg-cyan-50 text-cyan-700 group-hover:bg-cyan-600 group-hover:text-white"
+            }`}
+          >
+            <Plus className="h-4 w-4" />
+          </span>
+        </div>
       </button>
 
       {group.variants.length > 1 && (
-        <div className="relative mt-3 pt-3 border-t border-slate-100">
+        <div className="relative mt-2.5 pt-2 border-t border-slate-100">
           <button
             type="button"
             aria-haspopup="listbox"
             aria-expanded={open}
             aria-label={`Chọn SKU cho ${group.name}`}
             onClick={() => setOpen((value) => !value)}
-            className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs transition hover:border-cyan-400 hover:bg-white"
+            className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-slate-50 px-2.5 py-1.5 text-left text-xs transition hover:border-cyan-400 hover:bg-white cursor-pointer"
           >
             <span className="min-w-0">
-              <span className="block truncate font-medium text-slate-700">
+              <span className="block truncate font-medium text-slate-700 text-xs">
                 {selected.variantName || selected.sku}
               </span>
               <span className="block text-[10px] text-slate-400">
-                {group.variants.length} SKU · Tồn tổng {totalStock}
+                {group.variants.length} SKU · Tổng tồn: {totalStock}
               </span>
             </span>
             <ChevronDown
-              className={`h-4 w-4 shrink-0 text-slate-400 transition ${
+              className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 ${
                 open ? "rotate-180" : ""
               }`}
             />
@@ -870,11 +890,40 @@ function ProductCard({
 function ProductGrid({
   products,
   onAdd,
+  searchQuery,
 }: {
   products: RetailProduct[];
   onAdd: (product: RetailProduct) => void;
+  searchQuery?: string;
 }) {
+  const [expandAll, setExpandAll] = React.useState<boolean | null>(null);
+
   const groups = React.useMemo(() => groupProductsBySku(products), [products]);
+  const tree = React.useMemo(() => {
+    const root: ProductFolder = { code: "", name: "", children: [], groups: [], count: 0 };
+    for (const group of groups) {
+      const product = group.variants[0];
+      const path = product.categoryPath?.length
+        ? product.categoryPath
+        : [{ code: product.category || "", name: product.category || "Chưa phân loại" }];
+      let parent = root;
+      for (const category of path) {
+        let child = parent.children.find((item) => item.code === category.code);
+        if (!child) {
+          child = { ...category, children: [], groups: [], count: 0 };
+          parent.children.push(child);
+        }
+        child.count += 1;
+        parent = child;
+      }
+      parent.groups.push(group);
+    }
+    return root.children;
+  }, [groups]);
+
+  // When searching, auto-expand all levels so matching items are visible
+  const isSearching = Boolean(searchQuery && searchQuery.trim().length > 0);
+  const effectiveExpandAll = isSearching ? true : expandAll;
 
   if (groups.length === 0) {
     return (
@@ -887,11 +936,248 @@ function ProductGrid({
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {groups.map((group) => (
-        <ProductCard key={group.key} group={group} onAdd={onAdd} />
-      ))}
+    <div aria-label="Thư mục sản phẩm" className="space-y-3">
+      {/* Category Tree Controls */}
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-white px-4 py-2.5 shadow-2xs">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700">
+            <Folder className="h-4 w-4" />
+          </div>
+          <span className="text-xs font-bold text-slate-800">Cây danh mục hàng</span>
+          <span className="text-[11px] font-medium text-slate-400 truncate">({groups.length} sản phẩm · {tree.length} nhóm cấp 1)</span>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setExpandAll(false)}
+            className={`inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
+              expandAll === false
+                ? "bg-slate-900 text-white shadow-xs"
+                : "bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+            title="Thu gọn về cây cấp 1"
+          >
+            <ChevronsDownUp className="h-3.5 w-3.5" />
+            <span>Cây cấp 1</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setExpandAll(true)}
+            className={`inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
+              expandAll === true
+                ? "bg-cyan-600 text-white shadow-xs shadow-cyan-600/25"
+                : "bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+            title="Mở rộng tất cả danh mục"
+          >
+            <ChevronsUpDown className="h-3.5 w-3.5" />
+            <span>Mở tất cả</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Categories Tree */}
+      <div className="space-y-3">
+        {tree.map((folder) => (
+          <ProductFolderBranch
+            key={folder.code}
+            folder={folder}
+            onAdd={onAdd}
+            depth={1}
+            expandAll={effectiveExpandAll}
+          />
+        ))}
+      </div>
     </div>
+  );
+}
+
+type ProductFolder = {
+  code: string;
+  name: string;
+  children: ProductFolder[];
+  groups: ProductGroup[];
+  count: number;
+};
+
+function ProductFolderBranch({
+  folder,
+  onAdd,
+  depth = 1,
+  expandAll,
+}: {
+  folder: ProductFolder;
+  onAdd: (product: RetailProduct) => void;
+  depth?: number;
+  expandAll?: boolean | null;
+}) {
+  const [localExpanded, setLocalExpanded] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    if (expandAll !== null && expandAll !== undefined) {
+      setLocalExpanded(expandAll);
+    }
+  }, [expandAll]);
+
+  const expanded = localExpanded;
+  const contentId = React.useId();
+
+  const handleToggle = () => {
+    setLocalExpanded(!expanded);
+  };
+
+  if (depth === 1) {
+    return (
+      <section className="min-w-0 rounded-2xl border border-slate-200/90 bg-white shadow-xs transition-all duration-200 hover:border-slate-300 overflow-hidden">
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls={contentId}
+          onClick={handleToggle}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition hover:bg-slate-50/80 cursor-pointer select-none"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                expanded ? "bg-cyan-600 text-white shadow-sm shadow-cyan-600/25" : "bg-cyan-50 text-cyan-700"
+              }`}
+            >
+              <Folder aria-hidden="true" className="h-4.5 w-4.5" />
+            </div>
+            <div className="min-w-0">
+              <span className="block text-sm font-bold text-slate-800 truncate">{folder.name}</span>
+              <span className="block text-[11px] text-slate-400 font-medium">Danh mục chính · {folder.count} sản phẩm</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 shrink-0">
+            <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
+              {folder.count} sản phẩm
+            </span>
+            <div
+              className={`flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-transform duration-200 ${
+                expanded ? "rotate-180 text-cyan-600 bg-cyan-50" : "bg-slate-100/70"
+              }`}
+            >
+              <ChevronDown aria-hidden="true" className="h-4 w-4" />
+            </div>
+          </div>
+        </button>
+
+        <div id={contentId} hidden={!expanded} className="border-t border-slate-100 bg-slate-50/30 p-3 sm:p-4 space-y-3">
+          {folder.groups.length > 0 && (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {folder.groups.map((group) => (
+                <ProductCard key={group.key} group={group} onAdd={onAdd} />
+              ))}
+            </div>
+          )}
+          {folder.children.map((child) => (
+            <ProductFolderBranch
+              key={child.code}
+              folder={child}
+              onAdd={onAdd}
+              depth={depth + 1}
+              expandAll={expandAll}
+            />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (depth === 2) {
+    return (
+      <section className="min-w-0 rounded-xl border border-slate-200/80 bg-white p-2.5 sm:p-3 shadow-2xs transition-all hover:border-cyan-300">
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls={contentId}
+          onClick={handleToggle}
+          className="flex w-full items-center justify-between gap-2.5 text-left cursor-pointer select-none"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+              <FolderOpen aria-hidden="true" className="h-3.5 w-3.5" />
+            </div>
+            <span className="text-xs sm:text-sm font-semibold text-slate-700 truncate">{folder.name}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[11px] text-slate-400 font-medium">{folder.count} sản phẩm</span>
+            <ChevronDown
+              aria-hidden="true"
+              className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${
+                expanded ? "rotate-180 text-amber-600" : ""
+              }`}
+            />
+          </div>
+        </button>
+
+        <div id={contentId} hidden={!expanded} className="mt-2.5 pt-2.5 border-t border-slate-100 space-y-2.5">
+          {folder.groups.length > 0 && (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {folder.groups.map((group) => (
+                <ProductCard key={group.key} group={group} onAdd={onAdd} />
+              ))}
+            </div>
+          )}
+          {folder.children.map((child) => (
+            <ProductFolderBranch
+              key={child.code}
+              folder={child}
+              onAdd={onAdd}
+              depth={depth + 1}
+              expandAll={expandAll}
+            />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="min-w-0 border-l-2 border-amber-300 pl-3 py-1 space-y-2">
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={contentId}
+        onClick={handleToggle}
+        className="flex w-full items-center justify-between gap-2 text-left cursor-pointer select-none py-1 hover:text-cyan-700"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <Tag aria-hidden="true" className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+          <span className="text-xs font-semibold text-slate-700 truncate">{folder.name}</span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[10px] text-slate-400 font-medium">{folder.count} sản phẩm</span>
+          <ChevronDown
+            aria-hidden="true"
+            className={`h-3 w-3 text-slate-400 transition-transform duration-200 ${
+              expanded ? "rotate-180 text-cyan-600" : ""
+            }`}
+          />
+        </div>
+      </button>
+
+      <div id={contentId} hidden={!expanded} className="pt-2 space-y-2">
+        {folder.groups.length > 0 && (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {folder.groups.map((group) => (
+              <ProductCard key={group.key} group={group} onAdd={onAdd} />
+            ))}
+          </div>
+        )}
+        {folder.children.map((child) => (
+          <ProductFolderBranch
+            key={child.code}
+            folder={child}
+            onAdd={onAdd}
+            depth={depth + 1}
+            expandAll={expandAll}
+          />
+        ))}
+      </div>
+    </section>
   );
 }
 
