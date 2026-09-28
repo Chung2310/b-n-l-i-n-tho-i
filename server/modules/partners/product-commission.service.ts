@@ -2,8 +2,15 @@ import { ProductCatalogModel } from "../../model/product-catalog.model";
 import { ProductVariantModel } from "../../model/product-variant.model";
 import { ProductCatalogCategoryModel } from "../../model/product-catalog-resource.model";
 import { CommissionPolicyModel, ProductCommissionModel } from "./partner.models";
-import { defaultPolicy, invalid, validatePolicy } from "./commission-calculation";
+import { invalid, type CommissionRule } from "./commission-calculation";
 import { runInTransaction } from "../../config/database";
+
+export function validateProductCommissionRule(input: any): CommissionRule {
+  if (!input || !["phone", "accessory"].includes(input.kind)) throw invalid("Loại hoa hồng không hợp lệ.");
+  const value = input.kind === "phone" ? input.amount : input.rateBps;
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) throw invalid("Mức hoa hồng riêng phải lớn hơn 0.");
+  return input.kind === "phone" ? { kind: "phone", amount: value } : { kind: "accessory", rateBps: value };
+}
 
 export async function listProductCommissions(companyCode: string) {
   const [products, variants, categories, configurations, policies] = await Promise.all([
@@ -21,10 +28,10 @@ export async function saveProductCommissions(companyCode: string, input: any, ac
   const skus = [...new Set<string>(input.skus)];
   const count = await ProductVariantModel.countDocuments({ companyCode, sku: { $in: skus } });
   if (count !== skus.length) throw invalid("Sản phẩm không thuộc danh mục công ty.");
-  const rules = input.rule === null ? null : validatePolicy({ ...defaultPolicy, rules: skus.map(sku => ({ ...input.rule, sku, category: undefined })) }).rules;
+  const rule = input.rule === null ? null : validateProductCommissionRule(input.rule);
   await runInTransaction(async session => {
-    await ProductCommissionModel.bulkWrite(skus.map((sku, index) => ({ updateOne: {
-      filter: { companyCode, sku }, update: { $set: { rule: rules?.[index] ?? null, updatedBy: actorId } }, upsert: true,
+    await ProductCommissionModel.bulkWrite(skus.map(sku => ({ updateOne: {
+      filter: { companyCode, sku }, update: { $set: { rule: rule ? { ...rule, sku } : null, updatedBy: actorId } }, upsert: true,
     } })), session ? { session } : {});
   });
   return { updated: skus.length };

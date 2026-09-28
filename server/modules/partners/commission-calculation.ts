@@ -9,15 +9,15 @@ export function integer(value: unknown, min: number, max = Number.MAX_SAFE_INTEG
 }
 export function validatePolicy(input: any): CommissionPolicy {
   if (!input || typeof input !== "object") throw invalid("Thiếu cấu hình chính sách.");
-  if (!Array.isArray(input.rules) || input.rules.length > 500) throw invalid("Danh sách quy tắc không hợp lệ.");
+  if (input.rules !== undefined && (!Array.isArray(input.rules) || input.rules.length > 500)) throw invalid("Danh sách quy tắc không hợp lệ.");
   const seen = new Set<string>();
-  const rules = input.rules.map((r: any) => {
+  // Category rules are retired. Keep legacy SKU rates until replaced in the product tab.
+  const rules = (input.rules || []).filter((r: any) => !r?.category).map((r: any) => {
     if (!["phone", "accessory"].includes(r.kind)) throw invalid("Loại hoa hồng không hợp lệ.");
-    const sku = String(r.sku || "").trim(), category = String(r.category || "").trim();
-    if ((!sku && !category) || (sku && category)) throw invalid("Mỗi quy tắc chọn SKU hoặc nhóm hàng.");
-    const key = sku ? `sku:${sku}` : `category:${category}`;
-    if (seen.has(key)) throw invalid("Quy tắc SKU/nhóm bị trùng."); seen.add(key);
-    return { kind: r.kind, ...(sku ? { sku } : { category }), ...(r.kind === "phone" ? { amount: integer(r.amount ?? input.phoneAmount, 150000, 300000) } : { rateBps: integer(r.rateBps ?? input.accessoryBps, 1000, 1500) }) };
+    const sku = String(r.sku || "").trim();
+    if (!sku) throw invalid("Thiếu SKU sản phẩm.");
+    if (seen.has(sku)) throw invalid("Quy tắc SKU bị trùng."); seen.add(sku);
+    return { kind: r.kind, sku, ...(r.kind === "phone" ? { amount: integer(r.amount ?? input.phoneAmount, 150000, 300000) } : { rateBps: integer(r.rateBps ?? input.accessoryBps, 1000, 1500) }) };
   });
   return { phoneAmount: integer(input.phoneAmount, 150000, 300000), accessoryBps: integer(input.accessoryBps, 1000, 1500), repairBps: integer(input.repairBps, 1000, 1500), rules };
 }
@@ -36,8 +36,8 @@ export function retailLines(order: any, policy: CommissionPolicy, productRules: 
   const bases = allocateBases(order.items, Number(order.orderDiscount || 0));
   return order.items.map((item: any, line: number) => {
     const configured = productRules.find(r => r.sku === item.sku);
-    const rule = configured?.rule || (!configured ? policy.rules.find(r => r.sku === item.sku) : undefined) || policy.rules.find(r => r.category && r.category === item.category);
-    if (!rule) throw invalid(`Chưa cấu hình hoa hồng cho SKU ${item.sku}.`);
+    const rule = configured?.rule || (!configured ? policy.rules?.find(r => r.sku === item.sku) : undefined)
+      || (item.trackingMode === "serial" ? { kind: "phone" as const, amount: policy.phoneAmount } : { kind: "accessory" as const, rateBps: policy.accessoryBps });
     const quantity = integer(item.quantity, 1);
     const rate = rule.kind === "phone" ? rule.amount! : rule.rateBps!;
     return { line, label: String(item.productName), kind: rule.kind, quantity, base: bases[line], rate, amount: rule.kind === "phone" ? quantity * rate : Math.round(bases[line] * rate / 10000) };

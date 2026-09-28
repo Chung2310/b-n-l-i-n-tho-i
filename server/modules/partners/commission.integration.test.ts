@@ -46,7 +46,7 @@ describe('commission ledger transactions', () => {
     expect((await snapshotRetail(input))!.lines[0].amount).toBe(300000);
     await CommissionPolicyModel.create({ companyCode, partnerId: '', effectiveAt: new Date(0), config: { ...policy, rules: [{ kind: 'phone', category: 'PHONE', amount: 200000 }, { kind: 'phone', sku: 'P', amount: 250000 }] } });
     await saveProductCommissions(companyCode, { skus: ['P'], rule: null }, 'admin');
-    expect((await snapshotRetail({ ...input, items: [{ ...input.items[0], category: 'PHONE' }] }))!.lines[0].amount).toBe(400000);
+    expect((await snapshotRetail({ ...input, items: [{ ...input.items[0], category: 'PHONE', trackingMode: 'serial' }] }))!.lines[0].amount).toBe(400000);
   });
   it('is idempotent under concurrent delivery and adjusts a closed KPI month after return', async () => {
     const id = await order(20);

@@ -141,8 +141,8 @@ it('opens edit policy popup with existing data populated and submits update via 
   const effectiveAtInput = screen.getByLabelText(/Hiệu lực/i) as HTMLInputElement;
   expect(effectiveAtInput.value).not.toBe('');
 
-  const ruleValueInput = screen.getByLabelText(/SKU hoặc nhóm hàng/i) as HTMLInputElement;
-  expect(ruleValueInput.value).toBe('Flagship');
+  expect(screen.queryByLabelText(/SKU hoặc nhóm hàng/i)).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Thêm quy tắc' })).toBeNull();
 
   const submitBtn = screen.getByRole('button', { name: /Cập nhật chính sách/i });
   await userEvent.click(submitBtn);

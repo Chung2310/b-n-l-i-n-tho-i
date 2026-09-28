@@ -114,6 +114,12 @@ export function ProductCommissions() {
 
   const save = async (reset = false) => {
     if (busy) return;
+    const numericValue = Number(value);
+    const storedValue = kind === "phone" ? numericValue : numericValue * 100;
+    if (!reset && (!Number.isFinite(storedValue) || storedValue <= 0)) {
+      toast.error("Mức hoa hồng riêng phải lớn hơn 0.");
+      return;
+    }
     setBusy(true);
     try {
       await partnerRequest("/product-commissions", "PUT", {
@@ -123,8 +129,8 @@ export function ProductCommissions() {
           : {
               kind,
               ...(kind === "phone"
-                ? { amount: Number(value) }
-                : { rateBps: Math.round(Number(value) * 100) }),
+                ? { amount: storedValue }
+                : { rateBps: storedValue }),
             },
       });
       setEditing([]);
@@ -755,7 +761,7 @@ export function ProductCommissions() {
                       Mức riêng
                     </label>
                     <span className="text-[11px] text-slate-400">
-                      {kind === "phone" ? "Tối thiểu 150.000đ — Tối đa 300.000đ" : "Tối thiểu 10% — Tối đa 15%"}
+                      Mức riêng phải lớn hơn 0
                     </span>
                   </div>
 
@@ -766,9 +772,7 @@ export function ProductCommissions() {
                       type="number"
                       aria-label="Mức riêng"
                       className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-3.5 pr-14 text-sm font-bold text-slate-900 shadow-2xs focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
-                      min={kind === "phone" ? 150000 : 10}
-                      max={kind === "phone" ? 300000 : 15}
-                      step={kind === "phone" ? 1000 : 0.1}
+                      step="any"
                       value={value}
                       onChange={(e) => setValue(e.target.value)}
                     />

@@ -110,7 +110,7 @@ partnerRouter.patch("/policies/:id", policies, route(async req => {
   if (partnerId && !await PartnerModel.exists({ companyCode, _id: partnerId, roles: "collaborator" })) throw invalid("CTV không tồn tại.");
   const effectiveAt = req.body.effectiveAt ? new Date(req.body.effectiveAt) : existing.effectiveAt;
   if (!Number.isFinite(effectiveAt.getTime())) throw invalid("Ngày hiệu lực không hợp lệ.");
-  const config = req.body.config ? validatePolicy(req.body.config) : existing.config;
+  const config = validatePolicy(req.body.config ? { ...req.body.config, rules: req.body.config.rules ?? existing.config.rules } : existing.config);
   existing.partnerId = partnerId;
   existing.effectiveAt = effectiveAt;
   existing.config = config;

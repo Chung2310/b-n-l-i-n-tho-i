@@ -116,3 +116,27 @@ it('filters by status: Có mức riêng vs Chính sách chung', async () => {
   expect(screen.queryByText('iPhone 13 128GB')).toBeNull();
   expect(screen.getByText('Củ sạc nhanh 20W')).not.toBeNull();
 });
+
+it.each(['1', '500000'])('saves a positive product amount outside the former bounds: %s', async value => {
+  vi.mocked(partnerRequest).mockResolvedValue(mockData);
+  render(<ProductCommissions />);
+  fireEvent.click(await screen.findByLabelText('Chọn Điện thoại'));
+  fireEvent.click(screen.getByRole('button', { name: 'Cấu hình đã chọn (2)' }));
+  const input = screen.getByLabelText('Mức riêng');
+  expect(input.getAttribute('min')).toBeNull();
+  expect(input.getAttribute('max')).toBeNull();
+  fireEvent.change(input, { target: { value } });
+  fireEvent.click(screen.getByRole('button', { name: 'Lưu cấu hình' }));
+  await waitFor(() => expect(partnerRequest).toHaveBeenCalledWith('/product-commissions', 'PUT', { skus: ['IP13-128', 'IP13-256'], rule: { kind: 'phone', amount: Number(value) } }));
+});
+
+it.each(['0', '-1'])('rejects nonpositive product rates: %s', async value => {
+  vi.mocked(partnerRequest).mockResolvedValue(mockData);
+  render(<ProductCommissions />);
+  fireEvent.click(await screen.findByLabelText('Chọn Điện thoại'));
+  fireEvent.click(screen.getByRole('button', { name: 'Cấu hình đã chọn (2)' }));
+  fireEvent.change(screen.getByLabelText('Mức riêng'), { target: { value } });
+  fireEvent.click(screen.getByRole('button', { name: 'Lưu cấu hình' }));
+  expect(toast.error).toHaveBeenCalledWith('Mức hoa hồng riêng phải lớn hơn 0.');
+  expect(vi.mocked(partnerRequest).mock.calls.some(call => call[1] === 'PUT')).toBe(false);
+});

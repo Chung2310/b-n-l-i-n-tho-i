@@ -7,6 +7,7 @@ export interface RetailOrderRefund { method: RetailPaymentMethod; amount: number
 export interface RetailOrderCustomerSnapshot { customerId: string; customerCode?: string; name: string; phone?: string }
 export interface RetailOrderBillingSnapshot { legalName: string; taxId: string; address: string; invoiceEmail: string; contactName?: string }
 export interface IRetailOrder {
+  afterSaleStatus?: string; restockReceiptId?: string; restockReceiptCode?: string;
   couponCode?: string; couponSnapshot?: { id: string; code: string; name: string; amount: number; version: number } | null;
   collaboratorId?: string; commissionSnapshot?: any;
   orderCode?: string; paymentCode?: string; companyCode: string; branchId: string; shiftId?: string; customerId?: string; customerName?: string; customerPhone?: string; billingProfileId?: string; customerSnapshot?: RetailOrderCustomerSnapshot; billingSnapshot?: RetailOrderBillingSnapshot;
