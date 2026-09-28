@@ -23,31 +23,27 @@ export function SerialManagerModal({
 
   const [activeTab, setActiveTab] = useState<"scan" | "paste" | "list">("scan");
 
-  // Local state for quantity, serials, and unitDetails
-  const [currentQty, setCurrentQty] = useState<number>(Math.max(1, Math.round(line.quantity)));
+  // Số lượng cố định từ phiếu nhập, không cho phép sửa đổi tại modal nhập IMEI
+  const currentQty = useMemo(() => Math.max(1, Math.round(line.quantity)), [line.quantity]);
   const [serials, setSerials] = useState<string[]>(() => {
     const list = line.serialNumbers || [];
-    const count = Math.max(1, Math.round(line.quantity));
-    return Array.from({ length: count }, (_, i) => list[i] || "");
+    return Array.from({ length: currentQty }, (_, i) => list[i] || "");
   });
   const [unitDetails, setUnitDetails] = useState<Array<{ internalBarcode: string }>>(() => {
     const list = line.unitDetails || [];
-    const count = Math.max(1, Math.round(line.quantity));
-    return Array.from({ length: count }, (_, i) => ({
+    return Array.from({ length: currentQty }, (_, i) => ({
       internalBarcode: list[i]?.internalBarcode || "",
     }));
   });
 
   // Scanner state
   const [scanInput, setScanInput] = useState("");
-  const [autoExpandQty, setAutoExpandQty] = useState(true);
   const [scanLastSuccess, setScanLastSuccess] = useState<string | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const scannerInputRef = useRef<HTMLInputElement>(null);
 
   // Paste state
   const [pasteRawText, setPasteRawText] = useState("");
-  const [pasteAutoSyncQty, setPasteAutoSyncQty] = useState(true);
 
   // Focus scanner input on tab change to scan
   useEffect(() => {
@@ -74,20 +70,6 @@ export function SerialManagerModal({
     const otherSet = new Set(otherLinesSerials.map((s) => s.trim().toUpperCase()));
     return filledSerials.filter((s) => otherSet.has(s.toUpperCase()));
   }, [filledSerials, otherLinesSerials]);
-
-  // Adjust serials array size when currentQty changes
-  const setQuantityAndResize = (newQty: number) => {
-    const clamped = Math.max(1, Math.min(500, Math.round(newQty)));
-    setCurrentQty(clamped);
-    setSerials((curr) => {
-      return Array.from({ length: clamped }, (_, i) => curr[i] || "");
-    });
-    setUnitDetails((curr) => {
-      return Array.from({ length: clamped }, (_, i) => ({
-        internalBarcode: curr[i]?.internalBarcode || "",
-      }));
-    });
-  };
 
   // Continuous Scanner submit
   const handleScannerSubmit = (e: React.FormEvent) => {
@@ -118,17 +100,9 @@ export function SerialManagerModal({
       const nextSerials = [...serials];
       nextSerials[firstEmptyIndex] = val;
       setSerials(nextSerials);
-      setScanLastSuccess(`Đã thêm: ${val} (Vị trí #${firstEmptyIndex + 1})`);
+      setScanLastSuccess(`Đã thêm: ${val} (Vị trí #${firstEmptyIndex + 1} / ${currentQty})`);
     } else {
-      // All slots full
-      if (autoExpandQty) {
-        setSerials([...serials, val]);
-        setUnitDetails([...unitDetails, { internalBarcode: "" }]);
-        setCurrentQty(currentQty + 1);
-        setScanLastSuccess(`Đã tăng SL lên ${currentQty + 1} và thêm: ${val}`);
-      } else {
-        setScanError(`Đã đủ số lượng ${currentQty} máy. Hãy tích chọn tự động tăng số lượng để tiếp tục quét.`);
-      }
+      setScanError(`Đã đủ số lượng ${currentQty} máy theo phiếu nhập. Không thể quét thêm.`);
     }
 
     setScanInput("");
@@ -165,25 +139,23 @@ export function SerialManagerModal({
       return;
     }
 
-    if (pasteAutoSyncQty) {
-      const newQty = uniqueParsedPasteList.length;
-      setCurrentQty(newQty);
-      setSerials(uniqueParsedPasteList);
-      setUnitDetails(
-        Array.from({ length: newQty }, (_, i) => ({
-          internalBarcode: unitDetails[i]?.internalBarcode || "",
-        }))
-      );
-      toast.success(`Đã nạp ${newQty} IMEI và tự động đặt số lượng = ${newQty}.`);
-    } else {
-      const nextSerials = [...serials];
-      let filled = 0;
-      for (let i = 0; i < currentQty && filled < uniqueParsedPasteList.length; i++) {
-        nextSerials[i] = uniqueParsedPasteList[filled];
+    const nextSerials = [...serials];
+    let filled = 0;
+    for (const imei of uniqueParsedPasteList) {
+      const emptyIdx = nextSerials.findIndex((s) => !s.trim());
+      if (emptyIdx !== -1) {
+        nextSerials[emptyIdx] = imei;
         filled++;
+      } else {
+        break;
       }
-      setSerials(nextSerials);
-      toast.success(`Đã điền ${filled} IMEI vào ${currentQty} đơn vị.`);
+    }
+
+    setSerials(nextSerials);
+    if (filled > 0) {
+      toast.success(`Đã nạp ${filled} IMEI vào danh sách (${filled}/${currentQty} máy).`);
+    } else {
+      toast.info(`Danh sách đã đủ ${currentQty} IMEI. Không còn vị trí trống.`);
     }
 
     setPasteRawText("");
@@ -287,19 +259,12 @@ export function SerialManagerModal({
           {/* KPI & Progress */}
           <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
             <div className="flex items-center gap-6 text-xs">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <span className="text-slate-600 font-medium">SL nhập:</span>
-                <div className="inline-flex items-center gap-1.5">
-                  <input
-                    type="number"
-                    min={1}
-                    max={500}
-                    value={currentQty}
-                    onChange={(e) => setQuantityAndResize(Number(e.target.value))}
-                    className="w-16 rounded border border-slate-300 bg-white px-2 py-1 text-center font-bold text-slate-900 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600 shadow-sm"
-                  />
-                  <span className="text-slate-500">máy</span>
-                </div>
+                <strong className="font-bold text-slate-900 text-sm tabular-nums">
+                  {currentQty}
+                </strong>
+                <span className="text-slate-500">máy</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="text-slate-600 font-medium">Đã nhập:</span>
@@ -416,17 +381,7 @@ export function SerialManagerModal({
                   </button>
                 </form>
 
-                <div className="mt-3 flex items-center justify-center gap-2 text-xs text-slate-600">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={autoExpandQty}
-                      onChange={(e) => setAutoExpandQty(e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-300 text-cyan-700 focus:ring-cyan-600 cursor-pointer"
-                    />
-                    <span>Tự động tăng số lượng khi quét vượt số máy hiện tại</span>
-                  </label>
-                </div>
+
               </div>
 
               {/* Feedback messages */}
@@ -503,27 +458,8 @@ export function SerialManagerModal({
                     )}
                   </div>
 
-                  <div className="flex items-center gap-4 pt-1.5 border-t border-cyan-200">
-                    <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700 select-none">
-                      <input
-                        type="radio"
-                        name="pasteSync"
-                        checked={pasteAutoSyncQty}
-                        onChange={() => setPasteAutoSyncQty(true)}
-                        className="text-cyan-700"
-                      />
-                      <span>Tự động cập nhật số lượng nhập = {uniqueParsedPasteList.length} máy</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700 select-none">
-                      <input
-                        type="radio"
-                        name="pasteSync"
-                        checked={!pasteAutoSyncQty}
-                        onChange={() => setPasteAutoSyncQty(false)}
-                        className="text-cyan-700"
-                      />
-                      <span>Chỉ điền vào số lượng hiện tại ({currentQty} máy)</span>
-                    </label>
+                  <div className="text-[11px] text-slate-500 pt-1.5 border-t border-cyan-200">
+                    Chỉ điền tối đa đúng số lượng theo phiếu nhập ({currentQty} máy).
                   </div>
                 </div>
               )}
@@ -657,14 +593,7 @@ export function SerialManagerModal({
                 </table>
               </div>
 
-              {/* Add unit button */}
-              <button
-                type="button"
-                onClick={() => setQuantityAndResize(currentQty + 1)}
-                className="text-xs font-semibold text-cyan-700 hover:text-cyan-800 mt-1"
-              >
-                + Thêm một đơn vị
-              </button>
+
             </div>
           )}
         </div>
