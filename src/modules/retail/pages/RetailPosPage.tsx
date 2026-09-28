@@ -40,6 +40,7 @@ import ScanFeedback, {
 } from "../components/pos/ScanFeedback";
 import RetailOfflineQueuePanel from "../components/pos/RetailOfflineQueuePanel";
 import { SerialPicker, UnitBarcodePicker } from "../components/pos/RetailUnitPickerDialog";
+import AddSerialToCartDialog from "../components/pos/AddSerialToCartDialog";
 import { retailOrdersApi } from "../api/retailOrders.api";
 import { retailProductsApi } from "../api/retailProducts.api";
 import {
@@ -93,6 +94,7 @@ export default function RetailPosPage() {
   const [paying, setPaying] = React.useState(false);
   const [billingProfiles, setBillingProfiles] = React.useState<any[]>([]);
   const [scanning, setScanning] = React.useState(false);
+  const [pendingProduct, setPendingProduct] = React.useState<RetailProduct | null>(null);
   const [completed, setCompleted] = React.useState<RetailOrderResult | null>(
     null,
   );
@@ -333,6 +335,10 @@ export default function RetailPosPage() {
         return;
       }
       const duplicate = Boolean(line);
+      if (product.trackingMode === "serial") {
+        addProductToCart(product, true);
+        return;
+      }
       dispatch({ type: "add", product });
       setQ("");
       const kind = duplicate ? "duplicate" : "success";
@@ -355,7 +361,11 @@ export default function RetailPosPage() {
       toast.error(`${product.name} không còn đủ tồn khả dụng.`);
       return;
     }
-    dispatch({ type: "add", product });
+    if (product.trackingMode === "serial") {
+      setPendingProduct(product);
+    } else {
+      dispatch({ type: "add", product });
+    }
     if (clearSearch) setQ("");
   };
 
@@ -693,6 +703,24 @@ export default function RetailPosPage() {
           customerId={cart.customer?._id}
           onClose={() => setPaying(false)}
           onSubmit={checkout}
+        />
+      )}
+
+      {pendingProduct && (
+        <AddSerialToCartDialog
+          product={pendingProduct}
+          excluded={cart.lines.flatMap((line) => line.serialNumbers || [])}
+          onClose={() => setPendingProduct(null)}
+          onConfirm={(serialNumber) => {
+            const line = cart.lines.find((item) => item.product._id === pendingProduct._id);
+            if ((line?.quantity || 0) >= pendingProduct.stock) {
+              toast.error(`${pendingProduct.name} không còn đủ tồn khả dụng.`);
+              return;
+            }
+            dispatch({ type: "add", product: pendingProduct });
+            dispatch({ type: "serials", productId: pendingProduct._id, serialNumbers: [...(line?.serialNumbers || []), serialNumber] });
+            setPendingProduct(null);
+          }}
         />
       )}
 

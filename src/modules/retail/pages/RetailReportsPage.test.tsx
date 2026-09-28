@@ -291,7 +291,7 @@ describe("RetailReportsPage", () => {
     expect((await screen.findAllByText("Nguyễn An")).length).toBe(1);
     const kpis = screen.getByLabelText("Chỉ số tổng quan");
     expect(within(kpis).getByText("Doanh thu thuần")).toBeTruthy();
-    expect(within(kpis).getByText(/1\.200\.000/)).toBeTruthy();
+    expect(within(kpis).getByRole("button", { name: /1\.200\.000/ })).toBeTruthy();
     expect(within(kpis).queryByText("Giá vốn")).toBeNull();
     expect(within(kpis).queryByText("Lợi nhuận gộp")).toBeNull();
     expect(within(kpis).queryByText("Tỷ suất lợi nhuận")).toBeNull();

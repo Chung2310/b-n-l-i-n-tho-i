@@ -125,8 +125,11 @@ export default function WarrantyLookupPage() {
   const isSupplierCovered = Boolean(result?.supplierWarranty?.covered);
   const isWarrantyCovered = isCustomerCovered || isSupplierCovered;
 
+  const isHexObjectId = (str?: string) => Boolean(str && /^[0-9a-fA-F]{24}$/.test(str.trim()));
+
   const openWarrantyTicket = () => {
     if (!result) return;
+    const cleanCustomerCode = result.sold?.customerCode || (result.sold?.customerId && !isHexObjectId(result.sold.customerId) ? result.sold.customerId : undefined);
     window.dispatchEvent(
       new CustomEvent("inventory:open-repair", {
         detail: {
@@ -134,7 +137,8 @@ export default function WarrantyLookupPage() {
           productId: result.product?.productId,
           serialNumber: result.serialNumber,
           productName: result.product?.name || "Sản phẩm",
-          customerId: result.sold?.customerId,
+          customerId: cleanCustomerCode,
+          customerCode: cleanCustomerCode,
           customerName: result.sold?.customerName,
           customerPhone: result.sold?.customerPhone,
           coverage: {
@@ -149,6 +153,9 @@ export default function WarrantyLookupPage() {
   };
 
   const openServiceTicket = (isOutsideShop = false) => {
+    const cleanCustomerCode = isOutsideShop
+      ? undefined
+      : result?.sold?.customerCode || (result?.sold?.customerId && !isHexObjectId(result?.sold?.customerId) ? result?.sold?.customerId : undefined);
     window.dispatchEvent(
       new CustomEvent("inventory:open-repair", {
         detail: {
@@ -158,7 +165,8 @@ export default function WarrantyLookupPage() {
           productName: isOutsideShop
             ? "Thiết bị khách mang ngoài vào"
             : result?.product?.name || "Sản phẩm",
-          customerId: isOutsideShop ? undefined : result?.sold?.customerId,
+          customerId: cleanCustomerCode,
+          customerCode: cleanCustomerCode,
           customerName: isOutsideShop ? undefined : result?.sold?.customerName,
           customerPhone: isOutsideShop ? undefined : result?.sold?.customerPhone,
           coverage: {
