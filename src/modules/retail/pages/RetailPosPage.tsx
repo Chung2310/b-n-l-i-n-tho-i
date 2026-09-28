@@ -776,6 +776,8 @@ function ProductRow({
   const [selectedId, setSelectedId] = React.useState(defaultId);
   const [failedImageUrl, setFailedImageUrl] = React.useState<string | null>(null);
   const [open, setOpen] = React.useState(false);
+  const [openUpwards, setOpenUpwards] = React.useState(false);
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
 
   React.useEffect(() => {
     if (!group.variants.some((variant) => variant._id === selectedId))
@@ -790,6 +792,21 @@ function ProductRow({
     0,
   );
   const isSoldOut = selected.stock <= 0;
+
+  const toggleOpen = () => {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const section = buttonRef.current.closest("section");
+      const sectionRect = section ? section.getBoundingClientRect() : null;
+      const spaceBelowSection = sectionRect ? sectionRect.bottom - rect.bottom : 999;
+      const spaceBelowWindow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      // If less than 260px below in either the card section or window, open upwards ("nổi lên trên")
+      const shouldOpenUp = (spaceBelowWindow < 260 || spaceBelowSection < 260) && spaceAbove > 180;
+      setOpenUpwards(shouldOpenUp);
+    }
+    setOpen((value) => !value);
+  };
 
   return (
     <div
@@ -855,11 +872,12 @@ function ProductRow({
       {group.variants.length > 1 && (
         <div className={`relative mx-3 mb-2 max-w-sm ${open ? "z-40" : ""}`}>
           <button
+            ref={buttonRef}
             type="button"
             aria-haspopup="listbox"
             aria-expanded={open}
             aria-label={`Chọn SKU cho ${group.name}`}
-            onClick={() => setOpen((value) => !value)}
+            onClick={toggleOpen}
             className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200/80 bg-slate-50 px-2 py-1 text-left text-xs transition hover:border-cyan-400 hover:bg-white cursor-pointer"
           >
             <span className="flex min-w-0 flex-1 items-center gap-2">
@@ -885,7 +903,9 @@ function ProductRow({
               />
               <ul
                 role="listbox"
-                className="absolute left-0 right-0 z-50 mt-1 max-h-60 overflow-auto rounded-2xl border border-slate-200 bg-white py-1.5 shadow-2xl ring-1 ring-slate-900/5"
+                className={`absolute left-0 right-0 z-50 max-h-60 overflow-auto rounded-2xl border border-slate-200 bg-white py-1.5 shadow-2xl ring-1 ring-slate-900/5 ${
+                  openUpwards ? "bottom-full mb-1.5" : "top-full mt-1.5"
+                }`}
               >
                 {group.variants.map((variant) => {
                   const active = variant._id === selected._id;
@@ -1087,7 +1107,7 @@ function ProductFolderBranch({
 
         <div id={contentId} hidden={!expanded} className="rounded-b-2xl border-t border-slate-100 bg-slate-50/30 p-3 sm:p-4 space-y-3">
           {folder.groups.length > 0 && (
-            <div className="min-w-0 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+            <div className="min-w-0 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white overflow-visible">
               {folder.groups.map((group) => (
                 <ProductRow key={group.key} group={group} onAdd={onAdd} />
               ))}
@@ -1137,7 +1157,7 @@ function ProductFolderBranch({
 
         <div id={contentId} hidden={!expanded} className="mt-2.5 pt-2.5 border-t border-slate-100 space-y-2.5">
           {folder.groups.length > 0 && (
-            <div className="min-w-0 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+            <div className="min-w-0 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white overflow-visible">
               {folder.groups.map((group) => (
                 <ProductRow key={group.key} group={group} onAdd={onAdd} />
               ))}
@@ -1184,7 +1204,7 @@ function ProductFolderBranch({
 
       <div id={contentId} hidden={!expanded} className="pt-2 space-y-2">
         {folder.groups.length > 0 && (
-          <div className="min-w-0 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+          <div className="min-w-0 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white overflow-visible">
             {folder.groups.map((group) => (
               <ProductRow key={group.key} group={group} onAdd={onAdd} />
             ))}
