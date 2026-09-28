@@ -8,7 +8,7 @@ vi.mock("../../services/productCatalogService", () => {
   const productCatalogService = {
     listProducts: vi.fn(), listResources: vi.fn(), getProduct: vi.fn(), listPrices: vi.fn(), createVariants: vi.fn(), createVariant: vi.fn(), updateVariant: vi.fn(), upsertPrice: vi.fn(),
   };
-  return { productCatalogService };
+  return { productCatalogService, subscribeResourceChanges: vi.fn(() => () => {}) };
 });
 
 const product = {

@@ -26,6 +26,7 @@ import {
   type ProductResource,
   type ProductResourceKind,
   productCatalogService,
+  subscribeResourceChanges,
 } from "../../services/productCatalogService";
 import {
   type Resources,
@@ -57,38 +58,74 @@ export function ProductCatalogV2Section() {
   const [setupKind, setSetupKind] = useState<ProductResourceKind | "templates" | null>(null);
   const [variantTarget, setVariantTarget] = useState<VariantTarget | null>(null);
 
-  const load = async () => {
+  // 1. Chỉ tải danh sách sản phẩm khi đổi trang hoặc lọc
+  const loadProducts = async (pageToLoad = page) => {
     setLoading(true);
     try {
-      const [productResult, categories, brands, attributes] = await Promise.all([
-        productCatalogService.listProducts({
-          q: query,
-          status,
-          categoryCode: selectedCategory || undefined,
-          brandCode: selectedBrand || undefined,
-          page,
-          limit: 10,
-        }),
-        productCatalogService.listResources("categories"),
-        productCatalogService.listResources("brands"),
-        productCatalogService.listResources("attributes"),
-      ]);
+      const productResult = await productCatalogService.listProducts({
+        q: query,
+        status,
+        categoryCode: selectedCategory || undefined,
+        brandCode: selectedBrand || undefined,
+        page: pageToLoad,
+        limit: 10,
+      });
       setProducts(productResult.items);
       setTotal(productResult.total);
-      setResources({ categories, brands, attributes });
     } catch (error) {
-      toast.error(getApiErrorMessage(error, "Không thể tải danh mục sản phẩm."));
+      toast.error(getApiErrorMessage(error, "Không thể tải danh sách sản phẩm."));
     } finally {
       setLoading(false);
     }
   };
 
+  // 2. Tải Master Data (danh mục, thương hiệu, thuộc tính) có cơ chế Cache
+  const loadMasterResources = async (force = false) => {
+    try {
+      const [categories, brands, attributes] = await Promise.all([
+        productCatalogService.listResources("categories", { forceRefresh: force }),
+        productCatalogService.listResources("brands", { forceRefresh: force }),
+        productCatalogService.listResources("attributes", { forceRefresh: force }),
+      ]);
+      setResources({ categories, brands, attributes });
+    } catch (error) {
+      console.error("Không thể tải dữ liệu master data dùng chung:", error);
+    }
+  };
+
+  // Tải Master Data đúng 1 lần khi trang mount
   useEffect(() => {
-    void load();
+    void loadMasterResources();
+  }, []);
+
+  // Lắng nghe sự kiện thêm/sửa/xóa resource để tự động cập nhật đúng loại mà không reload sản phẩm
+  useEffect(() => {
+    const unsubscribe = subscribeResourceChanges(async (event) => {
+      try {
+        const freshItems = await productCatalogService.listResources(event.kind, { forceRefresh: true });
+        setResources((prev) => ({
+          ...prev,
+          [event.kind]: freshItems,
+        }));
+      } catch (err) {
+        console.error("Lỗi cập nhật master data tự động:", err);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  // Tải sản phẩm khi chuyển trang
+  useEffect(() => {
+    void loadProducts(page);
   }, [page]);
 
+  // Hàm load tổng hợp khi cần làm mới toàn bộ
+  const load = async () => {
+    await Promise.all([loadProducts(page), loadMasterResources(false)]);
+  };
+
   const applyFilter = async () => {
-    if (page === 1) await load();
+    if (page === 1) await loadProducts(1);
     else setPage(1);
   };
 
@@ -97,8 +134,20 @@ export function ProductCatalogV2Section() {
     setSelectedCategory("");
     setSelectedBrand("");
     setStatus("");
-    if (page === 1) await load();
-    else setPage(1);
+    if (page === 1) {
+      setLoading(true);
+      try {
+        const productResult = await productCatalogService.listProducts({ page: 1, limit: 10 });
+        setProducts(productResult.items);
+        setTotal(productResult.total);
+      } catch (error) {
+        toast.error(getApiErrorMessage(error, "Không thể tải danh mục sản phẩm."));
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      setPage(1);
+    }
   };
 
   const openEdit = async (product: CatalogProduct) => {
@@ -251,7 +300,10 @@ export function ProductCatalogV2Section() {
 
           <button
             type="button"
-            onClick={() => setEditor("create")}
+            onClick={() => {
+              void load();
+              setEditor("create");
+            }}
             className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-700 px-3.5 py-2 text-sm font-semibold text-white shadow-xs hover:bg-cyan-800 active:scale-[0.98] transition-all"
           >
             <PackagePlus className="h-4 w-4" />
@@ -603,9 +655,9 @@ export function ProductCatalogV2Section() {
           onClose={() => setEditor(null)}
           onSaved={async () => {
             setEditor(null);
-            await load();
+            await loadProducts(page);
           }}
-          onDataChanged={load}
+          onDataChanged={() => void loadProducts(page)}
           onVariantAction={(product, mode, ids, variant) => setVariantTarget({ product, mode, ids, variant })}
         />
       )}
@@ -622,9 +674,11 @@ export function ProductCatalogV2Section() {
               : []
           }
           categories={resources.categories}
-          onClose={() => setSetupKind(null)}
+          onClose={() => {
+            setSetupKind(null);
+          }}
           onSaved={async () => {
-            await load();
+            await loadMasterResources(true);
           }}
         />
       )}
@@ -637,7 +691,7 @@ export function ProductCatalogV2Section() {
           onSaved={async () => {
             const currentEditorId = typeof editor === "object" && editor ? editor._id : null;
             setVariantTarget(null);
-            await load();
+            await loadProducts(page);
             if (currentEditorId) {
               try {
                 const updated = await productCatalogService.getProduct(currentEditorId);
@@ -659,7 +713,7 @@ export function ProductCatalogV2Section() {
           onSaved={async () => {
             const currentEditorId = typeof editor === "object" && editor ? editor._id : null;
             setVariantTarget(null);
-            await load();
+            await loadProducts(page);
             if (currentEditorId) {
               try {
                 const updated = await productCatalogService.getProduct(currentEditorId);

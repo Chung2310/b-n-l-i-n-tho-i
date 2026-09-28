@@ -128,7 +128,19 @@ export function ProductEditorModal({
     setLocalBrands(resources.brands || []);
   }, [resources.brands]);
 
-  // Quick create brand/supplier state
+  // Luôn làm mới danh sách thương hiệu trực tiếp từ máy chủ khi mở modal
+  useEffect(() => {
+    void productCatalogService
+      .listResources("brands")
+      .then((freshBrands) => {
+        if (Array.isArray(freshBrands)) {
+          setLocalBrands(freshBrands);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Quick create brand state
   const [isQuickCreatingBrand, setIsQuickCreatingBrand] = useState(false);
   const [quickBrandName, setQuickBrandName] = useState("");
   const [quickBrandCode, setQuickBrandCode] = useState("");
@@ -137,7 +149,7 @@ export function ProductEditorModal({
   const handleQuickCreateBrand = async () => {
     const trimmedName = quickBrandName.trim();
     if (!trimmedName) {
-      toast.error("Vui lòng nhập tên nhà cung cấp / hãng.");
+      toast.error("Vui lòng nhập tên thương hiệu / hãng.");
       return;
     }
     setQuickCreating(true);
@@ -149,16 +161,13 @@ export function ProductEditorModal({
         status: "active",
       });
 
-      // Sync to supplier management if available
-      void inventoryReceivingService.createSupplier({ name: trimmedName, code: created.code }).catch(() => {});
-
       setLocalBrands((prev) => {
         if (prev.some((b) => b.code === created.code)) return prev;
         return [...prev, created];
       });
 
       setField("brandCode", created.code);
-      toast.success(`Đã tạo nhà cung cấp "${created.name}" thành công!`);
+      toast.success(`Đã tạo thương hiệu "${created.name}" thành công!`);
       setIsQuickCreatingBrand(false);
       setQuickBrandName("");
       setQuickBrandCode("");
@@ -682,7 +691,7 @@ export function ProductEditorModal({
                     className="w-full"
                     triggerClassName="w-full text-xs font-medium"
                     actionButton={{
-                      label: "Tạo mới nhà cung cấp",
+                      label: "Tạo nhanh thương hiệu",
                       icon: <Plus className="h-3.5 w-3.5 text-cyan-600" />,
                       onClick: () => setIsQuickCreatingBrand(true),
                     }}
