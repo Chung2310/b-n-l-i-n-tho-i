@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import PartnersPage from './PartnersPage';
 import { partnerRequest } from './partnerApi';
+import { toast } from '../../pages/Toast';
+vi.mock('../../pages/Toast', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } }));
 const auth = vi.hoisted(() => ({ permissions: ['partner-self:read'] }));
 vi.mock('../../context/AuthContext', () => ({ useAuth: () => ({ hasPermission: (p: string) => auth.permissions.includes(p) }) }));
 vi.mock('./partnerApi', () => ({ partnerRequest: vi.fn() }));
@@ -256,3 +258,31 @@ it('allows deleting partner directly from the edit modal', async () => {
   });
 });
 
+it('warns with toast.error when creating policy with effective date in the past', async () => {
+  auth.permissions = ['partner:manage', 'commission-policy:manage'];
+  vi.mocked(partnerRequest).mockImplementation(async (path, method) => {
+    if (path === '/') return [{ _id: 'ctv-1', code: 'CTV1', name: 'CTV An', roles: ['collaborator'], status: 'active', balance: 0 }] as any;
+    if (path === '/policies' && (!method || method === 'GET')) return { defaults: {}, items: [] } as any;
+    return {} as any;
+  });
+
+  render(<PartnersPage />);
+  await screen.findByText('CTV An');
+
+  const policyTabBtn = screen.getByRole('button', { name: /Chính sách/i });
+  await userEvent.click(policyTabBtn);
+
+  const createBtn = await screen.findByRole('button', { name: /Tạo mới/i });
+  await userEvent.click(createBtn);
+
+  expect(screen.getByText('Tạo chính sách hoa hồng')).toBeTruthy();
+
+  const effectiveAtInput = screen.getByLabelText(/Hiệu lực/i);
+  await userEvent.type(effectiveAtInput, '2020-01-01T00:00');
+
+  const submitBtn = screen.getByRole('button', { name: /Lưu phiên bản/i });
+  await userEvent.click(submitBtn);
+
+  expect(toast.error).toHaveBeenCalledWith('Ngày hiệu lực không được nhỏ hơn ngày hiện tại.');
+  expect(vi.mocked(partnerRequest)).not.toHaveBeenCalledWith('/policies', 'POST', expect.anything());
+});

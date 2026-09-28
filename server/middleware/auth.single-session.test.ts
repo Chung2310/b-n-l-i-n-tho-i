@@ -3,7 +3,8 @@ import jwt from "jsonwebtoken";
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import type { Response } from "express";
 import { UserModel } from "../model/user.model";
-import { requireAuth } from "./auth";
+import { getEffectivePermissions, requireAuth } from "./auth";
+import { RolePermissionModel } from "../model/role-permission.model";
 import { getJwtAccessSecret } from "../config/env";
 
 function makeResponse() {
@@ -28,6 +29,26 @@ function invoke(token: string, activeSessionId: string) {
 }
 
 describe("requireAuth regular active session", () => {
+  it("keeps partner accounts out of internal APIs while allowing their own portal", async () => {
+    process.env.JWT_ACCESS_SECRET ||= "test-access-secret-at-least-32-characters";
+    const token = jwt.sign({ id: "partner", role: "user", sid: "session" }, getJwtAccessSecret());
+    vi.spyOn(UserModel, "findById").mockReturnValue({ select: () => ({ lean: async () => ({ role: "user", accountType: "partner", activeSessionId: "session" }) }) } as any);
+    for (const [path, expected] of [["/api/v1/auth/users", 403], ["/api/v1/partners/", 403], ["/api/v1/auth/me", 200], ["/api/v1/partners/me/statement?period=2026-09", 200]] as const) {
+      const res = makeResponse();
+      let passed = false;
+      await requireAuth({ headers: { authorization: `Bearer ${token}` }, method: "GET", originalUrl: path } as any, res as unknown as Response, () => { passed = true; });
+      assert.equal(res.statusCode, expected);
+      assert.equal(passed, expected === 200);
+    }
+  });
+  it("does not inherit the internal user role permissions for new or legacy partner accounts", async () => {
+    const rolePermissions = vi.spyOn(RolePermissionModel, "findOne");
+    for (const profile of [{ role: "user", permissions: ["partner-self:read"] }, { role: "user", accountType: "partner", permissions: ["*"] }]) {
+      vi.spyOn(UserModel, "findById").mockReturnValue({ select: () => ({ lean: async () => profile }) } as any);
+      assert.deepEqual(await getEffectivePermissions("partner", "user", "ACME"), new Set(["partner-self:read"]));
+    }
+    assert.equal(rolePermissions.mock.calls.length, 0);
+  });
   beforeEach(() => {
     process.env.JWT_ACCESS_SECRET ||= "test-access-secret-at-least-32-characters";
   });

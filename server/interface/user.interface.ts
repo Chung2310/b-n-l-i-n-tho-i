@@ -99,6 +99,7 @@ export interface IUser extends Document {
   displayName: string;
   photoURL?: string;
   role: string;
+  accountType?: "internal" | "partner";
   createdAt: Date;
   birthDate?: Date;
   facebookIntegration?: IFacebookIntegration | null;

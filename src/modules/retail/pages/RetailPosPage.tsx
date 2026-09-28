@@ -6,12 +6,12 @@ import {
   ChevronDown,
   Folder,
   FolderOpen,
-  ChevronsDownUp,
-  ChevronsUpDown,
   Plus,
   Tag,
   HelpCircle,
   Keyboard,
+  Maximize,
+  Minimize,
   Pause,
   RefreshCw,
   Search,
@@ -26,6 +26,7 @@ import { customerApi } from "../../customer-management/customerApi";
 import BarcodeScannerDialog from "../components/pos/BarcodeScannerDialog";
 import CheckoutSuccessDialog from "../components/pos/CheckoutSuccessDialog";
 import CustomerCouponOffers from "../components/coupons/CustomerCouponOffers";
+import CartCouponPicker from "../components/coupons/CartCouponPicker";
 import CustomerPicker from "../components/pos/CustomerPicker";
 import DiscountInput from "../components/pos/DiscountInput";
 import HeldDraftsBar from "../components/pos/HeldDraftsBar";
@@ -49,6 +50,7 @@ import {
 import { buildRetailOrderInput } from "../hooks/retailOrderInput";
 import { useRetailScope } from "../hooks/useRetailScope";
 import { useRetailPosShortcuts } from "../hooks/useRetailPosShortcuts";
+import { useRetailFullscreen } from "../hooks/useRetailFullscreen";
 import { createHidScannerBuffer } from "../hooks/retailScannerInput";
 import { retailWarrantyService } from "../../../services/retailWarrantyService";
 import {
@@ -72,6 +74,7 @@ const money = (value: number) =>
   new Intl.NumberFormat("vi-VN").format(value) + " ₫";
 
 export default function RetailPosPage() {
+  const { fullscreen, toggleFullscreen } = useRetailFullscreen();
   const { scope, userProfile, branchName, activeBranch } = useRetailScope() as any;
   const branchDisplayName =
     branchName ||
@@ -537,7 +540,7 @@ export default function RetailPosPage() {
   };
 
   return (
-    <section className="grid min-h-[75vh] gap-5 lg:grid-cols-[1fr_450px]">
+    <section className={`grid gap-5 lg:grid-cols-[minmax(0,1fr)_450px] ${fullscreen ? "fixed inset-0 z-[45] h-dvh overflow-y-auto bg-slate-50 p-3 sm:p-6" : "min-h-[75vh]"}`}>
       <HidScannerListener onScan={(value) => void scan(value)} />
       {offlineScope && (
         <OnlineRetailSync scope={offlineScope} sync={syncOffline} />
@@ -569,6 +572,17 @@ export default function RetailPosPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-label={fullscreen ? "Thoát toàn màn hình" : "Toàn màn hình"}
+              aria-pressed={fullscreen}
+              title={fullscreen ? "Thoát toàn màn hình (Esc)" : "Toàn màn hình bán hàng"}
+              onClick={() => void toggleFullscreen()}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              {fullscreen ? <Minimize className="h-4 w-4 text-cyan-600" /> : <Maximize className="h-4 w-4 text-cyan-600" />}
+              <span className="hidden sm:inline">{fullscreen ? "Thu nhỏ" : "Toàn màn hình"}</span>
+            </button>
             <button
               type="button"
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-95"
@@ -896,7 +910,6 @@ function ProductGrid({
   onAdd: (product: RetailProduct) => void;
   searchQuery?: string;
 }) {
-  const [expandAll, setExpandAll] = React.useState<boolean | null>(null);
 
   const groups = React.useMemo(() => groupProductsBySku(products), [products]);
   const tree = React.useMemo(() => {
@@ -923,7 +936,7 @@ function ProductGrid({
 
   // When searching, auto-expand all levels so matching items are visible
   const isSearching = Boolean(searchQuery && searchQuery.trim().length > 0);
-  const effectiveExpandAll = isSearching ? true : expandAll;
+  const effectiveExpandAll = isSearching ? true : null;
 
   if (groups.length === 0) {
     return (
@@ -937,46 +950,6 @@ function ProductGrid({
 
   return (
     <div aria-label="Thư mục sản phẩm" className="space-y-3">
-      {/* Category Tree Controls */}
-      <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-white px-4 py-2.5 shadow-2xs">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700">
-            <Folder className="h-4 w-4" />
-          </div>
-          <span className="text-xs font-bold text-slate-800">Cây danh mục hàng</span>
-          <span className="text-[11px] font-medium text-slate-400 truncate">({groups.length} sản phẩm · {tree.length} nhóm cấp 1)</span>
-        </div>
-
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => setExpandAll(false)}
-            className={`inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
-              expandAll === false
-                ? "bg-slate-900 text-white shadow-xs"
-                : "bg-white text-slate-600 hover:bg-slate-50"
-            }`}
-            title="Thu gọn về cây cấp 1"
-          >
-            <ChevronsDownUp className="h-3.5 w-3.5" />
-            <span>Cây cấp 1</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setExpandAll(true)}
-            className={`inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
-              expandAll === true
-                ? "bg-cyan-600 text-white shadow-xs shadow-cyan-600/25"
-                : "bg-white text-slate-600 hover:bg-slate-50"
-            }`}
-            title="Mở rộng tất cả danh mục"
-          >
-            <ChevronsUpDown className="h-3.5 w-3.5" />
-            <span>Mở tất cả</span>
-          </button>
-        </div>
-      </div>
-
       {/* Categories Tree */}
       <div className="space-y-3">
         {tree.map((folder) => (
@@ -1032,6 +1005,7 @@ function ProductFolderBranch({
       <section className="min-w-0 rounded-2xl border border-slate-200/90 bg-white shadow-xs transition-all duration-200 hover:border-slate-300 overflow-hidden">
         <button
           type="button"
+          aria-label={folder.name}
           aria-expanded={expanded}
           aria-controls={contentId}
           onClick={handleToggle}
@@ -1091,6 +1065,7 @@ function ProductFolderBranch({
       <section className="min-w-0 rounded-xl border border-slate-200/80 bg-white p-2.5 sm:p-3 shadow-2xs transition-all hover:border-cyan-300">
         <button
           type="button"
+          aria-label={folder.name}
           aria-expanded={expanded}
           aria-controls={contentId}
           onClick={handleToggle}
@@ -1139,6 +1114,7 @@ function ProductFolderBranch({
     <section className="min-w-0 border-l-2 border-amber-300 pl-3 py-1 space-y-2">
       <button
         type="button"
+        aria-label={folder.name}
         aria-expanded={expanded}
         aria-controls={contentId}
         onClick={handleToggle}
@@ -1435,6 +1411,12 @@ function CartPanel({
             <Ticket className="h-3.5 w-3.5 text-cyan-600" />
             Mã ưu đãi
           </label>
+          <CartCouponPicker
+            scope={scope}
+            customerId={cart.customer?._id}
+            value={cart.couponCode || ""}
+            onChange={(code) => dispatch({ type: "coupon", code })}
+          />
           <div className="relative mt-1.5 flex items-center">
             <input
               aria-label="Mã ưu đãi"

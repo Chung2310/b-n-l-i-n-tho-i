@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { createAdapter } from "@socket.io/redis-adapter";
 import Redis from "ioredis";
 import { UserModel } from "./model/user.model";
+import { isPartnerAccount } from "../shared/partner-account";
 import { ChatRoomModel } from "./model/chat-room.model";
 import { getJwtAccessSecret } from "./config/env";
 import { ddosConfig } from "./config/ddos";
@@ -187,6 +188,7 @@ export async function initSocketServer(httpServer: HTTPServer) {
       if (!user) {
         return next(new Error("Authentication error: User not found"));
       }
+      if (isPartnerAccount(user)) return next(new Error("Tài khoản đối tác không có quyền dùng kênh nội bộ."));
 
       if (user.role !== "superadmin" && (!decoded.sid || user.activeSessionId !== decoded.sid)) {
         return next(new Error("Authentication error: Session replaced"));

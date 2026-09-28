@@ -1,4 +1,6 @@
 import type { Model } from "mongoose";
+import { runInTransaction } from "../../../config/database";
+import { saveSupplierPartner } from "../../partners/partner-supplier.service";
 import {
   ProductAttributeDefinitionModel,
   ProductCatalogBrandModel,
@@ -156,7 +158,21 @@ export const ProductCatalogResourceService = {
     }
 
     const code = raw?.code ? normalizeCode(raw.code, "Mã resource") : await resolveNextCatalogCode(models[kindValue], companyCode, RESOURCE_CODE_PREFIX[kindValue], raw?.name);
-    const document = await models[kindValue].create({ companyCode, ...normalizeResourceInput(kindValue, { ...raw, code }, actor) });
+    const values = { companyCode, ...normalizeResourceInput(kindValue, { ...raw, code }, actor) };
+    if (raw?.createSupplierPartner === true) {
+      if (kindValue !== "brands") throw new ProductCatalogValidationError("Chỉ tạo kèm nhà cung cấp khi tạo hãng.");
+      return runInTransaction(async (session) => {
+        const [brand] = await ProductCatalogBrandModel.create([values], { session });
+        try {
+          await saveSupplierPartner({ companyCode, code: brand.code, name: brand.name, roles: ["supplier"], status: brand.status, updatedBy: actor }, {}, undefined, session);
+        } catch (error) {
+          if (!session) await ProductCatalogBrandModel.deleteOne({ companyCode, _id: brand._id });
+          throw error;
+        }
+        return brand.toObject() as ResourceDocument;
+      });
+    }
+    const document = await models[kindValue].create(values);
     return document.toObject() as ResourceDocument;
   },
 

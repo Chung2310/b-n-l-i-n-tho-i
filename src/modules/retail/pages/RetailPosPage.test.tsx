@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { retailOrdersApi } from "../api/retailOrders.api";
 import { retailProductsApi } from "../api/retailProducts.api";
+import { retailCouponsApi } from "../api/retailCoupons.api";
 import { retailShiftsApi } from "../api/retailShifts.api";
 import { retailWarrantyService } from "../../../services/retailWarrantyService";
 import { customerApi } from "../../customer-management/customerApi";
@@ -20,7 +21,7 @@ vi.mock("../../../pages/Toast", () => ({
   }
 }));
 
-vi.mock("../api/retailCoupons.api", () => ({ retailCouponsApi: { available: vi.fn().mockResolvedValue([]) } }));
+vi.mock("../api/retailCoupons.api", () => ({ retailCouponsApi: { available: vi.fn().mockResolvedValue([]), list: vi.fn() } }));
 vi.mock("../hooks/useRetailScope", () => ({ useRetailScope: () => ({ scope: { companyCode: "ACME", branchId: "B1" }, userProfile: { uid: "u1" } }) }));
 vi.mock("../../customer-management/customerApi", () => ({ customerApi: { billingProfiles: vi.fn() } }));
 vi.mock("../api/retailProducts.api", () => ({ retailProductsApi: { list: vi.fn() } }));
@@ -42,6 +43,7 @@ afterEach(cleanup);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(retailCouponsApi.list).mockResolvedValue({ items: [], total: 0 });
   vi.mocked(customerApi.billingProfiles).mockResolvedValue([{ _id: "bp1", customerId: "c1", legalName: "Cong ty A", taxId: "0312345678", address: "1 Nguyen Hue", invoiceEmail: "a@example.com", isDefault: true, status: "active", version: 1 }] as any);
   vi.mocked(retailProductsApi.list).mockResolvedValue({ items: [product], total: 1, page: 1, limit: 500 });
   vi.mocked(retailOrdersApi.list).mockResolvedValue({ items: [], total: 0, page: 1, limit: 5 });
@@ -51,6 +53,31 @@ beforeEach(() => {
 });
 
 describe("RetailPosPage", () => {
+  it("toggles fullscreen without clearing the current cart", async () => {
+    render(<RetailPosPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "A" }));
+    await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Toàn màn hình" }));
+    expect(screen.getByRole("button", { name: "Thoát toàn màn hình" }).getAttribute("aria-pressed")).toBe("true");
+    expect((screen.getByLabelText("Số lượng Áo") as HTMLInputElement).value).toBe("1");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: "Toàn màn hình" }).getAttribute("aria-pressed")).toBe("false");
+    expect((screen.getByLabelText("Số lượng Áo") as HTMLInputElement).value).toBe("1");
+  });
+  it("uses either a created coupon or a manually typed code in the cart quote", async () => {
+    vi.mocked(retailCouponsApi.list).mockResolvedValue({ items: [{ _id: "coupon-1", code: "SALE10", name: "Giảm 10%", discountType: "percent", value: 10, active: true, startsAt: "2020-01-01", endsAt: "2099-01-01", usageLimit: null, usedCount: 0, minSubtotal: 0, maxDiscount: null, version: 0 }], total: 1 });
+    render(<RetailPosPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "A" }));
+    await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Chọn mã ưu đãi đã tạo" }), "SALE10");
+    expect((screen.getByRole("textbox", { name: "Mã ưu đãi" }) as HTMLInputElement).value).toBe("SALE10");
+    await waitFor(() => expect(retailOrdersApi.quote).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ couponCode: "SALE10" })));
+    await userEvent.clear(screen.getByRole("textbox", { name: "Mã ưu đãi" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Mã ưu đãi" }), "MANUAL20");
+    await waitFor(() => expect(retailOrdersApi.quote).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ couponCode: "MANUAL20" })));
+    await userEvent.click(screen.getByTitle("Xóa mã"));
+    expect((screen.getByRole("textbox", { name: "Mã ưu đãi" }) as HTMLInputElement).value).toBe("");
+  });
   it("nests products in inventory folders and supports expanding level by level and adding a nested SKU", async () => {
     vi.mocked(retailProductsApi.list).mockResolvedValue({
       items: [
@@ -92,7 +119,7 @@ describe("RetailPosPage", () => {
   it("opens POS without requesting or opening a sales shift", async () => {
     vi.mocked(retailShiftsApi.current).mockResolvedValue(null);
     render(<RetailPosPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Mở tất cả" }));
+    await userEvent.click(await screen.findByRole("button", { name: "A" }));
     expect(await screen.findByRole("button", { name: /SKU-1/ })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Mở ca bán hàng" })).toBeNull();
     expect(retailShiftsApi.current).not.toHaveBeenCalled();
@@ -100,7 +127,7 @@ describe("RetailPosPage", () => {
 
   it("keeps payment dialog closed and guides cashier to select a customer", async () => {
     render(<RetailPosPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Mở tất cả" }));
+    await userEvent.click(await screen.findByRole("button", { name: "A" }));
     await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
     await waitFor(() => expect((screen.getByRole("button", { name: "Thanh toán" }) as HTMLButtonElement).disabled).toBe(false));
 
@@ -128,7 +155,7 @@ describe("RetailPosPage", () => {
 
   it("carries customer, VAT profile and adjustments through quote and checkout to receipt", async () => {
     render(<RetailPosPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Mở tất cả" }));
+    await userEvent.click(await screen.findByRole("button", { name: "A" }));
     await userEvent.click(await screen.findByRole("button", { name: /Áo/ }));
     await userEvent.click(screen.getByRole("button", { name: "Chọn khách An" }));
     await userEvent.click(screen.getByRole("button", { name: "Giảm giá Áo" }));
@@ -146,7 +173,7 @@ describe("RetailPosPage", () => {
 
   it("creates a customer debt draft with VAT profile and confirms with no collected payments", async () => {
     render(<RetailPosPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Mở tất cả" }));
+    await userEvent.click(await screen.findByRole("button", { name: "A" }));
     await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
     await userEvent.click(screen.getByRole("button", { name: "Chọn khách An" }));
     await waitFor(() => expect((screen.getByRole("button", { name: "Thanh toán" }) as HTMLButtonElement).disabled).toBe(false));
@@ -163,7 +190,7 @@ describe("RetailPosPage", () => {
       total: 1, page: 1, limit: 500,
     });
     render(<RetailPosPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Mở tất cả" }));
+    await userEvent.click(await screen.findByRole("button", { name: "A" }));
     expect(screen.getByText("Hết hàng")).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: /SKU-1/ }));
     expect(toast.error).toHaveBeenCalledWith("Áo không còn đủ tồn khả dụng.");

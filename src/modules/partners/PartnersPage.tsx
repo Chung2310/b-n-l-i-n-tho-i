@@ -39,6 +39,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { partnerRequest, type Partner } from "./partnerApi";
+import { toast } from "../../pages/Toast";
 
 const money = (n: number) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(n || 0);
@@ -899,6 +900,13 @@ function toDateTimeLocal(value: string | Date | undefined | null): string {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
+function isPastDate(value: string | Date | undefined | null): boolean {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  return date.getTime() < Date.now() - 60000;
+}
+
 function resolvePolicyConfig(initial: any) {
   const c = initial?.config || (initial?.phoneAmount !== undefined ? initial : null);
   return {
@@ -951,9 +959,29 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
     return () => { document.body.style.overflow = overflow; document.removeEventListener("keydown", keydown); previous?.focus(); };
   }, []);
 
+  const validateEffectiveDate = (val: string, showToast = true): boolean => {
+    if (!val) return true;
+    if (isEditing && val === toDateTimeLocal(initial?.effectiveAt)) return true;
+    if (isPastDate(val)) {
+      const errorMsg = "Ngày hiệu lực không được nhỏ hơn ngày hiện tại.";
+      if (showToast) {
+        toast.error(errorMsg);
+      }
+      setMessage(errorMsg);
+      return false;
+    }
+    if (message === "Ngày hiệu lực không được nhỏ hơn ngày hiện tại.") {
+      setMessage("");
+    }
+    return true;
+  };
+
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     if (busyRef.current) return;
+    if (effectiveAt && !validateEffectiveDate(effectiveAt, true)) {
+      return;
+    }
     busyRef.current = true; setBusy(true); setMessage("");
     try {
       const payload = {
@@ -971,9 +999,15 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
       } else {
         await partnerRequest("/policies", "POST", payload);
       }
+      toast.success(isEditing ? "Đã cập nhật chính sách hoa hồng thành công." : "Đã tạo chính sách hoa hồng mới thành công.");
       onSaved();
     } catch (error) {
-      setMessage((error as Error).message);
+      const rawMsg = (error as Error).message || "";
+      const msg = rawMsg.includes("hồi tố") || rawMsg.includes("hiệu lực")
+        ? "Ngày hiệu lực không được nhỏ hơn ngày hiện tại."
+        : rawMsg || "Không thể lưu chính sách hoa hồng.";
+      setMessage(msg);
+      toast.error(msg);
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -1000,10 +1034,10 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
 
           {message && (
             <div
-              role="status"
-              className="flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-700"
+              role="alert"
+              className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700"
             >
-              <AlertCircle className="h-4 w-4 shrink-0" />
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-500" />
               <span>{message}</span>
             </div>
           )}
@@ -1037,9 +1071,23 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
                   Hiệu lực (để trống = ngay)
                   <input
                     type="datetime-local"
-                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500"
+                    className={`mt-1.5 w-full rounded-xl border bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition ${
+                      Boolean(effectiveAt && (!isEditing || effectiveAt !== toDateTimeLocal(initial?.effectiveAt)) && isPastDate(effectiveAt))
+                        ? "border-rose-400 bg-rose-50/40 focus:border-rose-500"
+                        : "border-slate-200 focus:border-cyan-500"
+                    }`}
                     value={effectiveAt}
-                    onChange={(e) => setEffectiveAt(e.target.value)}
+                    onChange={(e) => {
+                      setEffectiveAt(e.target.value);
+                      if (e.target.value) {
+                        validateEffectiveDate(e.target.value, true);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      if (e.target.value) {
+                        validateEffectiveDate(e.target.value, true);
+                      }
+                    }}
                   />
                 </label>
 
@@ -1305,9 +1353,9 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
 // ---------------------------------------------------------
 // MAIN PARTNERS PAGE COMPONENT
 // ---------------------------------------------------------
-export default function PartnersPage() {
+export default function PartnersPage({ portalOnly = false }: { portalOnly?: boolean } = {}) {
   const { hasPermission } = useAuth();
-  const admin = hasPermission("partner:read") || hasPermission("partner:manage");
+  const admin = !portalOnly && (hasPermission("partner:read") || hasPermission("partner:manage"));
 
   const [partners, setPartners] = React.useState<Partner[]>([]);
   const [role, setRole] = React.useState("");
@@ -1350,10 +1398,10 @@ export default function PartnersPage() {
           </div>
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
-              Hoa hồng của tôi
+              Cổng đối tác
             </h1>
             <p className="text-xs text-slate-500">
-              Tra cứu doanh số, sao kê hoa hồng và tiến độ thưởng KPI cá nhân
+              Tra cứu thông tin và sao kê của bạn
             </p>
           </div>
         </div>

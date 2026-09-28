@@ -20,14 +20,28 @@ import { RepairTicketModel } from '../repair/repair-ticket.model';
 import { SupplierModel } from '../../model/supplier.model';
 import { GoodsReceiptModel } from '../../model/goods-receipt.model';
 import { FinanceDebtModel } from '../finance/models/financial-reporting.model';
+import { UserModel } from '../../model/user.model';
 let server: Server | undefined;
 afterEach(async () => { vi.restoreAllMocks(); if (server) await new Promise<void>(resolve => server!.close(() => resolve())); });
 async function request(path: string, headers: Record<string,string> = {}, init: RequestInit = {}) {
-  const app = express(); app.use('/partners',partnerRouter); app.use((error: any,_req: any,res: any,_next: any)=>res.status(error.status || 500).json({error:error.message}));
+  const app = express(); app.use(express.json()); app.use('/partners',partnerRouter); app.use((error: any,_req: any,res: any,_next: any)=>res.status(error.status || 500).json({error:error.message}));
   server = app.listen(0,'127.0.0.1'); await new Promise<void>(resolve=>server!.once('listening',resolve));
   return fetch(`http://127.0.0.1:${(server.address() as any).port}/partners${path}`,{headers, ...init});
 }
 describe('partner route isolation', () => {
+  it.each(['collaborator', 'dealer'])('creates %s accounts as portal accounts without organizational fields', async role => {
+    vi.spyOn(PartnerModel, 'findOne').mockReturnValue({ lean: async () => ({ _id: '507f1f77bcf86cd799439011', companyCode: 'ACME', name: 'Partner', email: 'partner@example.com', roles: [role], status: 'active' }) } as any);
+    vi.spyOn(UserModel, 'exists').mockResolvedValue(null);
+    const create = vi.spyOn(UserModel, 'create').mockResolvedValue({ _id: '507f1f77bcf86cd799439012' } as any);
+    vi.spyOn(PartnerModel, 'findOneAndUpdate').mockReturnValue({ lean: async () => ({ userId: '507f1f77bcf86cd799439012' }) } as any);
+    const response = await request('/507f1f77bcf86cd799439011/account', { 'x-test-user': 'admin', 'x-test-permission': 'partner:manage', 'Content-Type': 'application/json' }, { method: 'POST', body: JSON.stringify({ password: 'TestPassword123' }) });
+    expect(response.status).toBe(200);
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ accountType: 'partner', permissions: ['partner-self:read'] }));
+    const input = create.mock.calls[0][0];
+    expect(input).not.toHaveProperty('department');
+    expect(input).not.toHaveProperty('division');
+    expect(input).not.toHaveProperty('parentId');
+  });
   it('allows inventory staff to pick only active, linked supplier partners', async () => {
     const partners = vi.spyOn(PartnerModel, 'find').mockReturnValue({ select: () => ({ sort: () => ({ lean: async () => [
       { _id: 'partner-1', code: 'DT-1', supplierId: 'supplier-1' },

@@ -6,6 +6,7 @@ import { BranchModel } from "../model/branch.model";
 import { RolePermissionModel } from "../model/role-permission.model";
 import { getJwtAccessSecret } from "../config/env";
 import { expandEffectivePermissions, normalizeStoredPermissions } from "../config/permission-catalog";
+import { isPartnerAccount } from "../../shared/partner-account";
 
 const REGULAR_SESSION_REPLACED_CODE = "SESSION_REPLACED";
 const REGULAR_SESSION_REPLACED_MESSAGE = "Phiên đăng nhập đã được sử dụng trên thiết bị khác. Vui lòng đăng nhập lại.";
@@ -108,7 +109,7 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
   try {
     const decoded = jwt.verify(token, getJwtAccessSecret()) as any;
 
-    const userDoc = await UserModel.findById(decoded.id).select("branchId activeSessionId displayName").lean();
+    const userDoc = await UserModel.findById(decoded.id).select("branchId activeSessionId displayName accountType role permissions").lean();
     if (!userDoc) {
       return res.status(401).json({ status: "error", message: "Mã xác thực không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại." });
     }
@@ -119,6 +120,13 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
         code: REGULAR_SESSION_REPLACED_CODE,
         message: REGULAR_SESSION_REPLACED_MESSAGE,
       });
+    }
+
+    if (isPartnerAccount(userDoc)) {
+      const path = String(req.originalUrl || "").split("?")[0].replace(/\/+$/, "");
+      const allowed = (req.method === "GET" && ["/api/v1/auth/me", "/api/v1/partners/me/statement"].includes(path))
+        || (req.method === "POST" && path === "/api/v1/auth/logout");
+      if (!allowed) return res.status(403).json({ status: "error", message: "Tài khoản này chỉ được sử dụng cổng đối tác." });
     }
 
     let branchId = userDoc?.branchId ? String(userDoc.branchId) : undefined;
@@ -185,9 +193,10 @@ export async function getEffectivePermissions(
   }
 
   const userDoc = userId
-    ? await UserModel.findById(userId).select("permissions").lean()
+    ? await UserModel.findById(userId).select("permissions accountType role").lean()
     : null;
   const customPermissions = userDoc?.permissions || [];
+  if (isPartnerAccount(userDoc)) return new Set(["partner-self:read"]);
 
   let rolePermissions: string[] = [];
   if (companyCode) {
