@@ -559,6 +559,7 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
   const [isBulkVariantModalOpen, setIsBulkVariantModalOpen] = useState(false);
   const [managingSerialLineKey, setManagingSerialLineKey] = useState<string | null>(null);
   const [expandedUnitLines, setExpandedUnitLines] = useState<Record<string, boolean>>({});
+  const [bulkAllWarranty, setBulkAllWarranty] = useState<string>("12");
 
   const activeSerialLine = useMemo(() => {
     return lines.find((l) => l.key === managingSerialLineKey);
@@ -571,13 +572,20 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
   }, [lines, managingSerialLineKey]);
 
   const handleBulkVariantsConfirm = (selectedList: SelectedReceiveVariant[]) => {
-    const currentProduct = products.find((p) => p._id === productId);
-    if (!currentProduct) return;
+    const currentProduct =
+      products.find((p) => p._id === productId) ||
+      (productId && productDetails[productId] ? { _id: productId, name: productDetails[productId].name } : undefined) ||
+      (selectedList[0]?.variant ? { _id: productId || selectedList[0].variant._id, name: selectedList[0].variant.displayName || "Sản phẩm" } : undefined);
+    if (!currentProduct) {
+      toast.error("Không tìm thấy thông tin sản phẩm để thêm vào phiếu.");
+      return;
+    }
 
     setLines((current) => {
       const next = [...current];
       for (const item of selectedList) {
         const existingIndex = next.findIndex((l) => l.variantId === item.variant._id);
+        const warranty = item.supplierWarrantyMonths !== undefined ? item.supplierWarrantyMonths : item.variant.supplierWarrantyMonths;
         if (existingIndex >= 0) {
           const existing = next[existingIndex];
           const newQty = existing.quantity + item.quantity;
@@ -585,6 +593,7 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
             ...existing,
             quantity: newQty,
             unitCost: item.unitCost > 0 ? item.unitCost : existing.unitCost,
+            supplierWarrantyMonths: warranty !== undefined ? warranty : existing.supplierWarrantyMonths,
           };
           next[existingIndex] = unitTracked(updated.trackingMode)
             ? normalizeUnits(updated, Math.round(newQty))
@@ -600,7 +609,7 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
             quantity: item.quantity,
             unitCost: item.unitCost,
             trackingMode: item.variant.trackingMode,
-            supplierWarrantyMonths: item.variant.supplierWarrantyMonths,
+            supplierWarrantyMonths: warranty,
           };
           next.push(unitTracked(draft.trackingMode) ? normalizeUnits(draft, Math.max(1, Math.round(item.quantity))) : draft);
         }
@@ -609,6 +618,17 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
     });
 
     toast.success(`Đã thêm/cập nhật ${selectedList.length} SKU của "${currentProduct.name}" vào phiếu nhập!`);
+  };
+
+  const handleApplyBulkWarrantyToAllLines = () => {
+    const digits = bulkAllWarranty.replace(/\D/g, "");
+    if (digits === "") {
+      toast.error("Vui lòng nhập số tháng bảo hành hợp lệ.");
+      return;
+    }
+    const months = Math.min(1200, Number(digits));
+    setLines((current) => current.map((l) => ({ ...l, supplierWarrantyMonths: months })));
+    toast.success(`Đã áp dụng bảo hành ${months} tháng cho toàn bộ ${lines.length} dòng trong phiếu nhập!`);
   };
 
   const handleSaveSerialLine = (updatedLine: DraftLine) => {
@@ -861,8 +881,30 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-2">
               <h4 className="text-sm font-semibold text-slate-900">Danh sách nhập ({lines.length} dòng)</h4>
+              {lines.length > 0 && (
+                <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1">
+                  <span className="font-medium text-slate-700">Áp BH NCC cho cả phiếu:</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="12"
+                    value={bulkAllWarranty}
+                    onChange={(e) => setBulkAllWarranty(e.target.value.replace(/\D/g, ""))}
+                    className="w-14 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-right font-bold text-slate-900 outline-none focus:border-cyan-600 shadow-sm"
+                    aria-label="Số tháng bảo hành áp dụng cho toàn bộ dòng"
+                  />
+                  <span>tháng</span>
+                  <button
+                    type="button"
+                    onClick={handleApplyBulkWarrantyToAllLines}
+                    className="rounded bg-cyan-700 hover:bg-cyan-800 text-white font-semibold px-2.5 py-1 text-xs shadow-sm transition-colors"
+                  >
+                    Áp dụng
+                  </button>
+                </div>
+              )}
             </div>
             <div className="overflow-x-auto rounded-lg border border-slate-200">
               <table className="w-full text-left text-sm">
@@ -956,19 +998,16 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
                             >
                               {expandedUnitLines[line.key] ? "▲ Thu gọn" : "▼ Xem từng ô"}
                             </button>
-
-                            <label className="flex items-center gap-1 text-[11px] text-slate-500 ml-auto">
-                              BH NCC
-                              <input
-                                value={line.supplierWarrantyMonths ?? ""}
-                                onChange={(event) => updateWarrantyMonths(line.key, event.target.value)}
-                                placeholder="0"
-                                className="w-12 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-right tabular-nums text-xs text-slate-700 outline-none focus:border-cyan-600"
-                                aria-label={`Bảo hành nhà cung cấp ${line.sku} (tháng)`}
-                              />
-                              tháng
-                            </label>
                           </div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <input
+                            value={line.supplierWarrantyMonths ?? ""}
+                            onChange={(event) => updateWarrantyMonths(line.key, event.target.value)}
+                            placeholder="0"
+                            className="w-20 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-right tabular-nums text-sm text-slate-700 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600"
+                            aria-label={`Bảo hành nhà cung cấp ${line.sku} (tháng)`}
+                          />
                         </td>
                         <td className="px-4 py-3 text-right">
                           <input
