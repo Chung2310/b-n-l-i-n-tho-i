@@ -11,6 +11,8 @@ const run = (fn: (r: any) => Promise<any>) => async (req: any, res: any, next: a
         res.json({ success: true, data: await fn(req) });
     }
     catch (error: any) {
+        if (error.code === 20 && /Transaction numbers are only allowed on a replica set member or mongos/i.test(error.message || ""))
+            return res.status(503).json({ code: "FINANCE_TRANSACTIONS_REQUIRED", message: "Giao dịch gặp sự cố, vui lòng thử lại sau." });
         if (error.code === 11000)
             return res.status(409).json({ message: "Chứng từ đã được ghi nhận. Vui lòng tải lại danh sách." });
         if (error.status && error.status < 500)

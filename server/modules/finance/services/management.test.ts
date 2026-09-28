@@ -1,3 +1,4 @@
+import { FinanceDebtModel } from "../models/financial-reporting.model";
 import { RetailInvoiceModel } from "../../retail/models/retail-invoice.model";
 import { FinanceTaxModel } from "../models/management.model";
 import { postDepreciationAtomic } from "./depreciation-posting";
@@ -17,9 +18,9 @@ import { validateManagement } from "../validations/management.validation";
 import { agingBand, businessDay, breakEven, saleLines } from "./management-calculations";
 const scope = { companyCode: "FINANCE_TEST", branchId: "A" };
 let mongo: MongoMemoryReplSet;
-beforeAll(async () => { mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } }); await mongoose.connect(mongo.getUri()); await Promise.all([FinancePayableModel.init(), FinanceVoucherModel.init(), FinanceFollowupModel.init(), FinanceTaxModel.init()]); }, 120000);
+beforeAll(async () => { mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } }); await mongoose.connect(mongo.getUri()); await Promise.all([FinanceDebtModel.init(), FinancePayableModel.init(), FinanceVoucherModel.init(), FinanceFollowupModel.init(), FinanceTaxModel.init()]); }, 120000);
 afterAll(async () => { await mongoose.disconnect(); await mongo?.stop(); });
-beforeEach(async () => { await Promise.all([FinancePayableModel.deleteMany({}), FinanceVoucherModel.deleteMany({}), GoodsReceiptModel.deleteMany({}), FinanceFollowupModel.deleteMany({}), RetailOrderModel.deleteMany({}), RetailAfterSaleModel.deleteMany({}), ReceivableModel.deleteMany({}), ReceivableEntryModel.deleteMany({}), FixedAssetModel.deleteMany({}), AssetDepreciationModel.deleteMany({}), RetailInvoiceModel.deleteMany({}), FinanceTaxModel.deleteMany({})]); });
+beforeEach(async () => { await Promise.all([FinanceDebtModel.deleteMany({}), FinancePayableModel.deleteMany({}), FinanceVoucherModel.deleteMany({}), GoodsReceiptModel.deleteMany({}), FinanceFollowupModel.deleteMany({}), RetailOrderModel.deleteMany({}), RetailAfterSaleModel.deleteMany({}), ReceivableModel.deleteMany({}), ReceivableEntryModel.deleteMany({}), FixedAssetModel.deleteMany({}), AssetDepreciationModel.deleteMany({}), RetailInvoiceModel.deleteMany({}), FinanceTaxModel.deleteMany({})]); });
 async function debt() { return FinancePayableModel.create({ ...scope, receiptId: new mongoose.Types.ObjectId().toString(), supplierId: "SUP", originalAmount: 1000, openingPaid: 0, paidAmount: 0, balance: 1000, dueDate: "2026-09-25" }); }
 const voucher = (id: string, key: string, amount = 600) => ({ kind: "payment", category: "supplier", expenseClass: "none", amount, date: "2026-09-23", method: "cash", payableId: id, idempotencyKey: key });
 describe("Finance management invariants", () => {
@@ -125,4 +126,114 @@ it("concurrent voucher reversals restore payable only once",async()=>{
  expect(attempts.filter(r=>r.status==="fulfilled")).toHaveLength(1);
  expect((await FinancePayableModel.findById(d._id))?.balance).toBe(1000);
  expect(await FinanceVoucherModel.countDocuments()).toBe(2);
+});
+
+async function receiptDebt(paidAmount = 200, overrides: any = {}) {
+  const receipt = await GoodsReceiptModel.create({ ...scope, warehouseId: "WH", receiptCode: "GR-" + new mongoose.Types.ObjectId(), supplierId: "SUP", supplierName: "Supplier", subtotal: 1200, status: "confirmed", createdBy: "U", items: [], financeTerms: { dueOn: "2026-09-25", paidAmount, paymentMethod: "cash" }, ...overrides });
+  const debt = await FinanceDebtModel.create({ companyCode: receipt.companyCode, branchId: receipt.branchId, sourceReceiptId: String(receipt._id), direction: "payable", partyKind: "supplier", partyId: receipt.supplierId, partyName: receipt.supplierName, reference: receipt.receiptCode, amount: 1200 - paidAmount, balance: 1200 - paidAmount, occurredOn: "2026-09-23", dueOn: "2026-09-25", createdBy: "U" });
+  return { receipt, debt };
+}
+describe("Automatically recorded supplier debts", () => {
+  it("shows existing receipt debt with gross value, opening payment and live remaining balance without copying it", async () => {
+    const { receipt, debt } = await receiptDebt();
+    const before = JSON.stringify(await GoodsReceiptModel.findById(receipt._id).lean());
+    await FinanceDebtModel.updateOne({ _id: debt._id }, { $set: { balance: 700 }, $push: { payments: { key: "existing-payment", amount: 300, at: new Date() } } });
+    for (let i = 0; i < 2; i++) {
+      const data = await financeDebts(scope);
+      expect(data.payables).toHaveLength(1);
+      expect(data.payables[0]).toMatchObject({ _id: String(debt._id), receiptId: String(receipt._id), supplierName: "Supplier", originalAmount: 1200, openingPaid: 200, paidAmount: 500, balance: 700, dueDate: "2026-09-25" });
+      expect(data.unregisteredReceipts).toHaveLength(0);
+    }
+    expect(await FinancePayableModel.countDocuments()).toBe(0);
+    expect(await FinanceDebtModel.countDocuments()).toBe(1);
+    expect(JSON.stringify(await GoodsReceiptModel.findById(receipt._id).lean())).toBe(before);
+    expect((await financeReport(scope, { from: "2026-09-01", to: "2026-09-30" })).summary.payable).toBe(700);
+  });
+  it("keeps fully paid receipts and isolates company, branch and unconfirmed receipts", async () => {
+    const { debt } = await receiptDebt(1200);
+    await receiptDebt(0, { branchId: "B" });
+    await receiptDebt(0, { companyCode: "OTHER" });
+    await receiptDebt(0, { status: "draft" });
+    await receiptDebt(0, { status: "cancelled" });
+    const data = await financeDebts(scope);
+    expect(data.payables).toHaveLength(1);
+    expect(data.payables[0]).toMatchObject({ _id: String(debt._id), originalAmount: 1200, paidAmount: 1200, balance: 0 });
+    expect(data.unregisteredReceipts).toHaveLength(0);
+  });
+  it("leaves opted-out receipts available for manual registration and prevents duplicating automatic debt", async () => {
+    const { receipt } = await receiptDebt();
+    await GoodsReceiptModel.create({ ...scope, warehouseId: "WH", receiptCode: "MANUAL", supplierId: "SUP", supplierName: "Supplier", subtotal: 500, status: "confirmed", createdBy: "U", items: [] });
+    const data = await financeDebts(scope);
+    expect(data.unregisteredReceipts.map(r => r.receiptCode)).toEqual(["MANUAL"]);
+    await expect(createPayable(scope, { receiptId: String(receipt._id), openingPaid: 0, dueDate: "2026-09-25" }, {})).rejects.toMatchObject({ status: 409 });
+    expect(await FinancePayableModel.countDocuments()).toBe(0);
+  });
+  it("does not count a receipt twice if it already has a manual payable", async () => {
+    const { receipt } = await receiptDebt();
+    const manual = await FinancePayableModel.create({ ...scope, receiptId: String(receipt._id), supplierId: "SUP", originalAmount: 1200, openingPaid: 200, paidAmount: 400, balance: 800, dueDate: "2026-09-25" });
+    const data = await financeDebts(scope);
+    expect(data.payables).toHaveLength(1);
+    expect(data.payables[0]).toMatchObject({ _id: String(manual._id), balance: 800 });
+    expect(data.unregisteredReceipts).toHaveLength(0);
+  });
+  it("pays, follows up and reverses the original debt atomically with idempotent retries", async () => {
+    const { reverseVoucher } = await import("./management.service");
+    const { financeCashSources } = await import("./finance-cash-sources.service");
+    const { debt } = await receiptDebt();
+    const id = String(debt._id), input = voucher(id, "auto-pay", 600);
+    const payment = await createVoucher(scope, input, { id: "U" });
+    await createVoucher(scope, input, { id: "U" });
+    await expect(createVoucher(scope, { ...input, amount: 1 }, {})).rejects.toThrow();
+    await saveFollowup(scope, { targetType: "payable", targetId: id, status: "contacted" }, { id: "U" });
+    expect((await financeDebts(scope)).payables[0]).toMatchObject({ balance: 400, paidAmount: 800, followup: { status: "contacted" } });
+    expect((await FinanceDebtModel.findById(id))?.payments).toHaveLength(1);
+    expect(await FinanceVoucherModel.countDocuments()).toBe(1);
+    const reversal = { date: "2026-09-23", reason: "Wrong payment", idempotencyKey: "auto-undo" };
+    await reverseVoucher(scope, String(payment._id), reversal, { id: "U" });
+    await reverseVoucher(scope, String(payment._id), reversal, { id: "U" });
+    expect((await financeDebts(scope)).payables[0]).toMatchObject({ balance: 1000, paidAmount: 200 });
+    const restored = await FinanceDebtModel.findById(id);
+    expect(restored?.payments.map(p => p.amount)).toEqual([600, -600]);
+    expect(restored?.version).toBe(2);
+    const cash = (await financeCashSources(scope)).filter(row => row.sourceType === "debt");
+    expect(cash.map(row => row.amount)).toEqual([-600, 600]);
+    expect(cash.map(row => row.occurredOn)).toEqual(["2026-09-23", "2026-09-23"]);
+    expect(await FinanceVoucherModel.countDocuments()).toBe(2);
+  });
+  it("rejects cross-scope operations and concurrent overpayment on receipt debts", async () => {
+    const { debt } = await receiptDebt();
+    const id = String(debt._id);
+    for (const other of [{ ...scope, branchId: "B" }, { ...scope, companyCode: "OTHER" }]) {
+      await expect(createVoucher(other, voucher(id, "wrong-scope"), {})).rejects.toThrow();
+      await expect(saveFollowup(other, { targetType: "payable", targetId: id, status: "done" }, {})).rejects.toThrow();
+    }
+    await expect(createVoucher(scope, voucher(id, "too-large", 1001), {})).rejects.toThrow();
+    expect(await FinanceVoucherModel.countDocuments()).toBe(0);
+    const attempts = await Promise.allSettled([createVoucher(scope, voucher(id, "auto-A"), {}), createVoucher(scope, voucher(id, "auto-B"), {})]);
+    expect(attempts.filter(r => r.status === "fulfilled")).toHaveLength(1);
+    expect((await FinanceDebtModel.findById(id))?.balance).toBe(400);
+    expect(await FinanceVoucherModel.countDocuments()).toBe(1);
+  });
+});
+
+describe("Overdue supplier payment", () => {
+  for (const source of ["manual", "receipt"] as const) {
+    it(source + ": accepts partial and full late payment without changing the original due date", async () => {
+      const d = source === "manual" ? await debt() : (await receiptDebt()).debt;
+      const id = String(d._id);
+      const dueDate = "2020-09-24";
+      if (source === "manual") await FinancePayableModel.updateOne({ _id: id }, { $set: { dueDate } });
+      else await FinanceDebtModel.updateOne({ _id: id }, { $set: { dueOn: dueDate } });
+      const input = validateManagement("voucher", { ...voucher(id, "late-partial", 600), date: businessDay() });
+      await createVoucher(scope, input, {});
+      const partial = (await financeDebts(scope)).payables[0];
+      expect(partial).toMatchObject({ dueDate, balance: 400, aging: "over60" });
+      expect(partial.daysUntil).toBeLessThan(0);
+      await createVoucher(scope, { ...input, amount: 400, idempotencyKey: "late-settlement" }, {});
+      const settled = (await financeDebts(scope)).payables[0];
+      expect(settled).toMatchObject({ dueDate, balance: 0, aging: "over60" });
+      expect(settled.daysUntil).toBeLessThan(0);
+      expect(await FinanceVoucherModel.countDocuments()).toBe(2);
+    });
+  }
 });

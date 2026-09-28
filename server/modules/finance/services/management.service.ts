@@ -12,6 +12,7 @@ import { SerialUnitModel } from "../../inventory/serials/serial-unit.model";
 import { ReceivableModel } from "../models/receivable.model";
 import { ReceivableEntryModel } from "../models/receivable-entry.model";
 import { FinanceVoucherModel, FinancePayableModel, FinanceTaxModel, FinanceFollowupModel, FinanceManagementSettingsModel } from "../models/management.model";
+import { FinanceDebtModel } from "../models/financial-reporting.model";
 import type { FinanceBranchScope } from "../contracts";
 import { businessDay, daysBetween, agingBand, breakEven, saleLines } from "./management-calculations";
 import { validateManagement } from "../validations/management.validation";
@@ -30,11 +31,39 @@ const inRange = (date: string, range: {
     from: string;
     to: string;
 }) => date >= range.from && date <= range.to;
+// Receipt debts are owned by FinanceTradeDebt; keep one balance for both finance screens.
+const receiptDebtFilter = { direction: "payable", partyKind: "supplier", sourceReceiptId: { $type: "string" } } as const;
+async function findReceiptDebt(scope: FinanceBranchScope, id: string, session: mongoose.ClientSession | null = null) {
+    const debt = await FinanceDebtModel.findOne({ ...scope, ...receiptDebtFilter, _id: id }).session(session).lean();
+    if (!debt || !await GoodsReceiptModel.exists({ ...scope, _id: debt.sourceReceiptId, status: "confirmed" }).session(session)
+        || await FinancePayableModel.exists({ ...scope, receiptId: debt.sourceReceiptId }).session(session)) return null;
+    return debt;
+}
+async function payReceiptDebt(scope: FinanceBranchScope, id: string, amount: number, key: string, date: string,
+    actorId: string, session: mongoose.ClientSession, originalKey?: string) {
+    const debt = await findReceiptDebt(scope, id, session);
+    if (!debt || (amount < 0 && !debt.payments.some(p => p.key === originalKey && p.amount === -amount))) return null;
+    return FinanceDebtModel.findOneAndUpdate({ ...scope, ...receiptDebtFilter, _id: id,
+        version: debt.version, balance: amount > 0 ? { $gte: amount } : { $lte: debt.amount + amount }, "payments.key": { $ne: key } },
+        { $inc: { balance: -amount, version: 1 }, $push: { payments: { key, amount, at: new Date(date + "T00:00:00+07:00"), reference: key, actorId } } },
+        { session, returnDocument: "after" });
+}
 export async function financeDebts(scope: FinanceBranchScope) {
-    const [receivables, payables, receipts, followups] = await Promise.all([
+    const [receivables, manualPayables, receipts, followups, receiptDebts] = await Promise.all([
         rows(ReceivableModel.find({ ...scope, balance: { $gt: 0 }, status: { $in: ["open", "partially_paid"] } })),
         rows(FinancePayableModel.find(scope)), rows(GoodsReceiptModel.find({ ...scope, status: "confirmed" }).select("receiptCode supplierId supplierName subtotal receivedAt")), rows(FinanceFollowupModel.find(scope)),
+        rows(FinanceDebtModel.find({ ...scope, ...receiptDebtFilter })),
     ]);
+    const receiptById = new Map(receipts.map(r => [String(r._id), r]));
+    const manualReceiptIds = new Set(manualPayables.map(p => p.receiptId));
+    const payables = [...manualPayables, ...receiptDebts.flatMap(d => {
+        const receipt = receiptById.get(d.sourceReceiptId);
+        if (!receipt || manualReceiptIds.has(d.sourceReceiptId)) return [];
+        return [{ ...d, receiptId: d.sourceReceiptId, receiptCode: receipt.receiptCode,
+            supplierId: receipt.supplierId, supplierName: receipt.supplierName,
+            originalAmount: receipt.subtotal, openingPaid: receipt.subtotal - d.amount,
+            paidAmount: receipt.subtotal - d.balance, dueDate: d.dueOn }];
+    })];
     const today = businessDay();
     const enrich = (r: any, targetType: string) => { const dueDate = typeof r.dueDate === "string" ? r.dueDate : businessDay(r.dueDate); return { ...r, _id: String(r._id), dueDate, aging: agingBand(dueDate, today), daysUntil: daysBetween(today, dueDate), followup: followups.find(f => f.targetType === targetType && f.targetId === String(r._id)) }; };
     return { receivables: receivables.map(r => enrich(r, "receivable")), payables: payables.map(r => enrich(r, "payable")), unregisteredReceipts: receipts.filter(r => !payables.some(p => p.receiptId === String(r._id))) };
@@ -131,6 +160,8 @@ export async function createPayable(scope: FinanceBranchScope, input: any, actor
     const receipt = await GoodsReceiptModel.findOne({ ...scope, _id: input.receiptId, status: "confirmed" }).lean();
     if (!receipt)
         fail("Không tìm thấy phiếu nhập đã xác nhận trong chi nhánh.", 404);
+    if (await FinanceDebtModel.exists({ ...scope, ...receiptDebtFilter, sourceReceiptId: String(receipt._id) }))
+        fail("Phiếu nhập đã được tự động ghi nhận công nợ. Vui lòng tải lại danh sách.", 409);
     if (input.openingPaid > receipt.subtotal)
         fail("Tiền đã trả không được vượt giá trị phiếu nhập.");
     return FinancePayableModel.create({ ...scope, ...input, payableCode: `GN-${businessDay().replaceAll("-", "")}-${randomUUID().slice(0, 8).toUpperCase()}`, receiptCode: receipt.receiptCode, supplierId: receipt.supplierId, supplierName: receipt.supplierName, originalAmount: receipt.subtotal, paidAmount: input.openingPaid, balance: receipt.subtotal - input.openingPaid, createdBy: actor.id });
@@ -162,7 +193,8 @@ export async function createVoucher(scope: FinanceBranchScope, input: any, actor
                 return;
             }
             if (input.payableId) {
-                const payable = await FinancePayableModel.findOneAndUpdate({ ...scope, _id: input.payableId, balance: { $gte: input.amount } }, { $inc: { balance: -input.amount, paidAmount: input.amount } }, { returnDocument: "after", session });
+                const payable = await FinancePayableModel.findOneAndUpdate({ ...scope, _id: input.payableId, balance: { $gte: input.amount } }, { $inc: { balance: -input.amount, paidAmount: input.amount } }, { returnDocument: "after", session })
+                    || await payReceiptDebt(scope, input.payableId, input.amount, `voucher:${input.idempotencyKey}`, input.date, actor.id, session);
                 if (!payable)
                     fail("Khoản phải trả không tồn tại hoặc số tiền vượt dư nợ.", 409);
             }
@@ -176,7 +208,7 @@ export async function createVoucher(scope: FinanceBranchScope, input: any, actor
 }
 export async function saveFollowup(scope: FinanceBranchScope, input: any, actor: any) {
     const model: any = input.targetType === "receivable" ? ReceivableModel : FinancePayableModel;
-    if (!await model.exists({ ...scope, _id: input.targetId }))
+    if (!await model.exists({ ...scope, _id: input.targetId }) && !(input.targetType === "payable" && await findReceiptDebt(scope, input.targetId)))
         fail("Không tìm thấy khoản nợ trong chi nhánh.", 404);
     return FinanceFollowupModel.findOneAndUpdate({ ...scope, targetType: input.targetType, targetId: input.targetId }, { $set: { ...input, updatedBy: actor.id } }, { upsert: true, returnDocument: "after", runValidators: true });
 }
@@ -211,7 +243,8 @@ export async function reverseVoucher(scope: FinanceBranchScope, id: string, inpu
             if (locked.modifiedCount !== 1) fail("Phiếu đã được đảo.", 409);
             if (original.payableId) {
                 const updated = await FinancePayableModel.findOneAndUpdate({ ...scope, _id: original.payableId, paidAmount: { $gte: original.amount } },
-                  { $inc: { balance: original.amount, paidAmount: -original.amount } }, { session, returnDocument: "after" });
+                  { $inc: { balance: original.amount, paidAmount: -original.amount } }, { session, returnDocument: "after" })
+                    || await payReceiptDebt(scope, original.payableId, -original.amount, `voucher-reversal:${id}`, input.date, actor.id, session, `voucher:${original.idempotencyKey}`);
                 if (!updated) fail("Không thể khôi phục dư nợ; cần đối chiếu phiếu gốc.", 409);
             }
             [result] = await FinanceVoucherModel.create([{ _id: reversalId, ...scope, code: "DC-" + randomUUID(),
