@@ -21,6 +21,7 @@ import {
   Wallet,
   X,
 } from "lucide-react";
+import { AfterSaleBadge, AfterSaleHistory } from "../components/orders/AfterSaleHistory";
 import PaymentDialog from "../components/pos/PaymentDialog";
 import { retailOrdersApi } from "../api/retailOrders.api";
 import { retailAfterSalesApi } from "../api/retailAfterSales.api";
@@ -363,6 +364,7 @@ export default function RetailOrdersPageV2() {
                                 ? "Còn xử lý"
                                 : "Đơn treo"}
                         </span>
+                        <AfterSaleBadge order={order} />
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                         {order.paymentStatus ? (
@@ -420,7 +422,7 @@ export default function RetailOrdersPageV2() {
           onClose={() => setSelected(null)}
           onCollect={openCollection}
           onCancel={() => setCancelling(true)}
-          onRefreshDetail={() => void detail(selected._id)}
+          onRefreshDetail={() => { void detail(selected._id); void refresh(); }}
         />
       )}
 
@@ -463,7 +465,9 @@ function OrderDialog({
   onRefreshDetail: () => void;
 }) {
   const [mode, setMode] = React.useState<RetailAfterSaleType>();
-  const canCancel = order.status !== "cancelled" && (order.status !== "completed" || manager);
+  const hasAfterSales = (order.afterSaleSummary?.processedQuantity || 0) > 0;
+  const hasRemaining = !order.afterSaleSummary || order.afterSaleSummary.processedQuantity < order.afterSaleSummary.totalQuantity;
+  const canCancel = !hasAfterSales && order.status !== "cancelled" && (order.status !== "completed" || manager);
   const isCompleted = order.status === "completed";
 
   return (
@@ -530,6 +534,8 @@ function OrderDialog({
           </div>
         </div>
 
+        <AfterSaleHistory order={order} />
+
         {/* Financial Metrics */}
         <div className="mt-5 grid grid-cols-3 gap-3">
           <Metric label="Tổng cộng" value={order.grandTotal} />
@@ -550,7 +556,7 @@ function OrderDialog({
             </button>
           )}
 
-          {isCompleted && (
+          {isCompleted && hasRemaining && (
             <>
               <button
                 type="button"
@@ -725,6 +731,9 @@ function AfterSalesForm({
                 : item.trackingMode === "unit_barcode"
                   ? item.internalBarcodes
                   : undefined;
+            const processed = (order.afterSales || []).flatMap((doc) => doc.items).filter((line) => line.orderLineIndex === i);
+            const remaining = Math.max(0, item.quantity - processed.reduce((sum, line) => sum + line.quantity, 0));
+            const usedSerials = new Set(processed.flatMap((line) => [...(line.serialNumbers || []), ...(line.internalBarcodes || [])]).map((value) => value.trim().toUpperCase()));
             const key = item.trackingMode === "serial" ? "serialNumbers" : "internalBarcodes";
 
             return (
@@ -738,10 +747,11 @@ function AfterSalesForm({
                     type="checkbox"
                     className="h-4 w-4 rounded text-cyan-600 focus:ring-cyan-500"
                     checked={r.selected}
+                    disabled={remaining === 0}
                     onChange={(e) => update(i, { selected: e.target.checked })}
                   />
                   <span>
-                    {item.productName} <span className="font-mono text-xs font-normal text-slate-500">({item.sku})</span>
+                    {item.productName} <span className="text-xs text-slate-500">(Còn {remaining}/{item.quantity})</span> <span className="font-mono text-xs font-normal text-slate-500">({item.sku})</span>
                   </span>
                 </label>
 
@@ -753,7 +763,7 @@ function AfterSalesForm({
                         className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm"
                         type="number"
                         min={1}
-                        max={item.quantity}
+                        max={remaining}
                         disabled={Boolean(codes?.length)}
                         value={r.quantity}
                         onChange={(e) => update(i, { quantity: Number(e.target.value) })}
@@ -777,7 +787,7 @@ function AfterSalesForm({
                       <div className="sm:col-span-2 space-y-1.5">
                         <span className="text-xs font-semibold text-slate-600">Chọn số Serial / IMEI trả:</span>
                         <div className="flex flex-wrap gap-2">
-                          {codes.map((code) => {
+                          {codes.filter((code) => !usedSerials.has(code.trim().toUpperCase())).map((code) => {
                             const values = r[key];
                             const checked = values.includes(code);
                             return (

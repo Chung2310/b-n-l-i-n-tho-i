@@ -10,6 +10,7 @@ import { retailShiftsApi } from "../api/retailShifts.api";
 import { retailWarrantyService } from "../../../services/retailWarrantyService";
 import { customerApi } from "../../customer-management/customerApi";
 import RetailPosPage from "./RetailPosPage";
+import { inventorySerialService } from "../../../services/inventorySerialService";
 import { toast } from "../../../pages/Toast";
 
 vi.mock("../../../pages/Toast", () => ({
@@ -22,6 +23,7 @@ vi.mock("../../../pages/Toast", () => ({
 }));
 
 vi.mock("../api/retailCoupons.api", () => ({ retailCouponsApi: { available: vi.fn().mockResolvedValue([]), list: vi.fn() } }));
+vi.mock("../../../services/inventorySerialService", () => ({ inventorySerialService: { list: vi.fn() } }));
 vi.mock("../hooks/useRetailScope", () => ({ useRetailScope: () => ({ scope: { companyCode: "ACME", branchId: "B1" }, userProfile: { uid: "u1" } }) }));
 vi.mock("../../customer-management/customerApi", () => ({ customerApi: { billingProfiles: vi.fn() } }));
 vi.mock("../api/retailProducts.api", () => ({ retailProductsApi: { list: vi.fn() } }));
@@ -53,6 +55,49 @@ beforeEach(() => {
 });
 
 describe("RetailPosPage", () => {
+  it("selects a serial before adding and leaves the cart unchanged on cancellation", async () => {
+    vi.mocked(retailProductsApi.list).mockResolvedValue({ items: [{ ...product, trackingMode: "serial", productId: "base1", variantId: "v1" }], total: 1, page: 1, limit: 500 });
+    vi.mocked(inventorySerialService.list).mockResolvedValue({ items: [
+      { _id: "unit1", serialNumber: "IMEI001", normalizedSerialNumber: "IMEI001" },
+      { _id: "unit2", serialNumber: "IMEI002", normalizedSerialNumber: "IMEI002" },
+    ], total: 2, page: 1, limit: 100 } as any);
+    render(<RetailPosPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "A" }));
+    const card = await screen.findByRole("button", { name: /SKU-1/ });
+    await userEvent.click(card);
+    expect(screen.getByRole("dialog", { name: "Chọn IMEI / Serial để thêm vào giỏ" })).toBeTruthy();
+    expect(screen.queryByLabelText("Số lượng Áo")).toBeNull();
+    expect((screen.getByRole("button", { name: "Thêm vào giỏ" }) as HTMLButtonElement).disabled).toBe(true);
+    await userEvent.click(await screen.findByRole("radio", { name: "IMEI001" }));
+    await userEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    expect(screen.queryByLabelText("Số lượng Áo")).toBeNull();
+    expect(retailOrdersApi.quote).not.toHaveBeenCalled();
+    await userEvent.click(card);
+    await userEvent.click(await screen.findByRole("radio", { name: "IMEI001" }));
+    await userEvent.click(screen.getByRole("button", { name: "Thêm vào giỏ" }));
+    expect((screen.getByLabelText("Số lượng Áo") as HTMLInputElement).value).toBe("1");
+    await waitFor(() => expect(retailOrdersApi.quote).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ items: [expect.objectContaining({ quantity: 1, serialNumbers: ["IMEI001"] })] })));
+    await userEvent.click(card);
+    await screen.findByRole("radio", { name: "IMEI002" });
+    expect(screen.queryByRole("radio", { name: "IMEI001" })).toBeNull();
+    await userEvent.click(screen.getByRole("radio", { name: "IMEI002" }));
+    await userEvent.click(screen.getByRole("button", { name: "Thêm vào giỏ" }));
+    await waitFor(() => expect(retailOrdersApi.quote).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ items: [expect.objectContaining({ quantity: 2, serialNumbers: ["IMEI001", "IMEI002"] })] })));
+    expect(inventorySerialService.list).toHaveBeenCalledWith(expect.objectContaining({ productId: "base1", variantId: "v1", forSale: true, status: "in_stock" }));
+  });
+
+  it.each(["empty", "error"])("does not add a serial product when the picker is %s", async (scenario) => {
+    vi.mocked(retailProductsApi.list).mockResolvedValue({ items: [{ ...product, trackingMode: "serial" }], total: 1, page: 1, limit: 500 });
+    if (scenario === "error") vi.mocked(inventorySerialService.list).mockRejectedValue(new Error("Lỗi tải serial"));
+    else vi.mocked(inventorySerialService.list).mockResolvedValue({ items: [], total: 0, page: 1, limit: 100 });
+    render(<RetailPosPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "A" }));
+    await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
+    await screen.findByText(scenario === "error" ? "Lỗi tải serial" : "Không có IMEI / Serial khả dụng phù hợp.");
+    expect((screen.getByRole("button", { name: "Thêm vào giỏ" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByLabelText("Số lượng Áo")).toBeNull();
+  });
+
   it("toggles fullscreen without clearing the current cart", async () => {
     render(<RetailPosPage />);
     await userEvent.click(await screen.findByRole("button", { name: "A" }));

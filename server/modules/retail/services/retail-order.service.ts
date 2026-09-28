@@ -1,3 +1,5 @@
+import { attachAfterSaleHistory } from "./retail-after-sale-history";
+import { RetailAfterSaleModel } from "../models/retail-after-sale.model";
 import { resolveCollaborator, snapshotRetail } from "../../partners/commission-snapshot";
 import { reconcileCommission } from "../../partners/commission.service";
 import type { RetailPaymentStatus } from "../interfaces/retail-order.interface";
@@ -229,7 +231,7 @@ export const RetailOrderService = {
   async list(scope: RetailBranchScope, query: any) {
     await expireHeldDrafts(scope, businessDateInVietnam(new Date()));
     const { filter, page, limit, skip } = buildOrderListQuery(scope, query);
-    const [items, total] = await Promise.all([RetailOrderModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(), RetailOrderModel.countDocuments(filter)]); return { items, total, page, limit };
+    const [items, total] = await Promise.all([RetailOrderModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(), RetailOrderModel.countDocuments(filter)]); return { items: await attachAfterSaleHistory(scope, items), total, page, limit };
   },
   async idempotency(scope: RetailBranchScope, key: string) {
     const attempt = await RetailIdempotencyModel.findOne({ companyCode: scope.companyCode, key: String(key || "").trim() }).lean();
@@ -237,7 +239,7 @@ export const RetailOrderService = {
     if (attempt.status !== "completed" || !attempt.orderId) return { status: "processing" as const };
     return { status: "completed" as const, order: await RetailOrderModel.findOne({ _id: attempt.orderId, ...scope }).lean(), invoice: attempt.invoiceId ? await RetailInvoiceModel.findOne({ _id: attempt.invoiceId, ...scope }).lean() : null };
   },
-  async detail(scope: RetailBranchScope, id: string, actor?: any, canManage = false) { if (!Types.ObjectId.isValid(id)) throw new Error("Mã đơn không hợp lệ."); const order: any = await RetailOrderModel.findOne({ _id: id, ...scope }).lean(); if (!order) throw new Error("Không tìm thấy đơn hàng."); if (order.status === "draft" && actor) assertHeldDraftAccess(String(order.createdBy), actorId(actor), canManage); return order; },
+  async detail(scope: RetailBranchScope, id: string, actor?: any, canManage = false) { if (!Types.ObjectId.isValid(id)) throw new Error("Mã đơn không hợp lệ."); const order: any = await RetailOrderModel.findOne({ _id: id, ...scope }).lean(); if (!order) throw new Error("Không tìm thấy đơn hàng."); if (order.status === "draft" && actor) assertHeldDraftAccess(String(order.createdBy), actorId(actor), canManage); return (await attachAfterSaleHistory(scope, [order]))[0]; },
   async createDraft(scope: RetailBranchScope, input: any, actor: any) {
     const currentBusinessDate = businessDateInVietnam(new Date());
     await expireHeldDrafts(scope, currentBusinessDate);
@@ -328,10 +330,11 @@ export const RetailOrderService = {
         if (!order) throw new Error("Đơn không thể hủy.");
         if (order.status === "draft") assertHeldDraftAccess(String(order.createdBy), actorId(actor), canManage);
         if (order.status === "completed" && !canManage) throw Object.assign(new Error("Chỉ quản lý được hủy đơn hoàn tất."), { status: 403 });
+        if (await RetailAfterSaleModel.exists({ ...scope, orderId: String(order._id) }).session(session)) throw retailError("Đơn đã trả hàng hoặc thu mua lại. Vui lòng xử lý phần hàng còn lại bằng phiếu trả hàng.", "ORDER_HAS_AFTER_SALES");
         const remainingRefund = order.paidAmount - order.refundedAmount;
         const refunds = remainingRefund > 0 ? normalizePayments(input.refunds || [], remainingRefund) : { payments: [], total: 0 };
         if (refunds.total !== remainingRefund) throw new Error("Phải ghi nhận đủ số tiền hoàn khi hủy đơn.");
-        if (order.stockApplied && !order.stockRevertedAt) { await revertOrderStock(scope, String(order._id), order.orderCode, order.items, actorName(actor), session); await releaseSerialsForOrder(scope, String(order._id), actorId(actor), actorName(actor), session); order.stockRevertedAt = new Date(); }
+        if (order.stockApplied && !order.stockRevertedAt) { const receipt = await revertOrderStock(scope, String(order._id), order.orderCode, order.items, actorName(actor), session, { order, actorId: actorId(actor), reason }); order.restockReceiptId = String(receipt._id); order.restockReceiptCode = receipt.receiptCode; await releaseSerialsForOrder(scope, String(order._id), actorId(actor), actorName(actor), session, { id: String(receipt._id), warehouseId: receipt.warehouseId }); order.stockRevertedAt = new Date(); }
         if (order.couponSnapshot && order.status !== "draft") await releaseCoupon(scope, order.couponSnapshot.id, session);
         await enqueueOrderTierRefresh(scope, "cancel", order, session);
         order.refunds.push(...refunds.payments.map((item: any) => ({ method: item.method, amount: item.amount, reference: item.reference, refundedAt: new Date(), refundedBy: actorId(actor), refundedByName: actorName(actor), shiftId: shift?._id ? String(shift._id) : undefined, businessDate: shift?.businessDate || businessDateInVietnam(new Date()), reason })));
@@ -347,6 +350,7 @@ export const RetailOrderService = {
     return result;
   },
   async deleteCancelled(scope: RetailBranchScope, id: string) {
+    if (await RetailOrderModel.exists({ _id: id, ...scope, stockApplied: true })) throw retailError("Đơn đã phát sinh xuất/nhập kho phải được giữ lại để tra cứu.", "ORDER_HAS_STOCK_HISTORY");
     const result = await RetailOrderModel.deleteOne({ _id: id, ...scope, status: "cancelled" });
     if (result.deletedCount !== 1) throw new Error("Chỉ được xóa đơn đã hủy.");
     return { id };

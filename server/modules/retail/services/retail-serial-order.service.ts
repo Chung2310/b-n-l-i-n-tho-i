@@ -51,13 +51,13 @@ export async function claimSerialsForOrder(scope: RetailBranchScope, items: Arra
   }
 }
 
-export async function releaseSerialsForOrder(scope: RetailBranchScope, orderId: string, actorId: string, actorName: string, session: ClientSession) {
+export async function releaseSerialsForOrder(scope: RetailBranchScope, orderId: string, actorId: string, actorName: string, session: ClientSession, receipt?: { id: string; warehouseId: string }) {
   const serials = await SerialUnitModel.find({ companyCode: scope.companyCode, branchId: scope.branchId, currentDocumentType: "retail-order", currentDocumentId: orderId, status: "sold" }).session(session).lean();
   for (const serial of serials) {
-    const released = await SerialUnitModel.findOneAndUpdate({ _id: serial._id, status: "sold" }, { $set: { status: "in_stock", updatedBy: actorId }, // Máy quay lại kho thì mọi dấu vết đã bán phải sạch, nếu không sẽ còn bảo hành khách của đơn đã hủy.
-      $unset: { currentDocumentType: 1, currentDocumentId: 1, customerId: 1, customerWarranty: 1, soldAt: 1, soldOrderId: 1, soldOrderCode: 1, soldBranchId: 1 } }, { returnDocument: 'after', session });
+    const released = await SerialUnitModel.findOneAndUpdate({ _id: serial._id, status: "sold" }, { $set: { status: "in_stock", updatedBy: actorId, ...(receipt ? { warehouseId: receipt.warehouseId, currentDocumentType: "goods-receipt", currentDocumentId: receipt.id } : {}) },
+      $unset: { ...(!receipt ? { currentDocumentType: 1, currentDocumentId: 1 } : {}), customerId: 1, customerWarranty: 1, soldAt: 1, soldOrderId: 1, soldOrderCode: 1, soldBranchId: 1, soldInvoiceId: 1 } }, { returnDocument: 'after', session });
     if (!released) continue;
-    await SerialEventModel.create([{ companyCode: scope.companyCode, branchId: scope.branchId, serialUnitId: String(serial._id), serialNumber: serial.serialNumber, eventType: "sale_cancelled", fromStatus: "sold", toStatus: "in_stock", documentType: "retail-order", documentId: orderId, actorId, actorName }], { session });
+    await SerialEventModel.create([{ companyCode: scope.companyCode, branchId: scope.branchId, serialUnitId: String(serial._id), serialNumber: serial.serialNumber, eventType: "sale_cancelled", fromStatus: "sold", toStatus: "in_stock", documentType: receipt ? "goods-receipt" : "retail-order", documentId: receipt?.id || orderId, actorId, actorName }], { session });
   }
   return serials.length;
 }

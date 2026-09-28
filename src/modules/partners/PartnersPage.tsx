@@ -35,10 +35,12 @@ import {
   Check,
   ContactRound,
   UserPlus,
+  Package,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { partnerRequest, type Partner } from "./partnerApi";
+import { ProductCommissions } from "./ProductCommissions";
 import { toast } from "../../pages/Toast";
 
 const money = (n: number) =>
@@ -913,7 +915,7 @@ function resolvePolicyConfig(initial: any) {
     phoneAmount: c?.phoneAmount ?? 200000,
     accessoryBps: c?.accessoryBps ?? 1000,
     repairBps: c?.repairBps ?? 1000,
-    rules: Array.isArray(c?.rules) ? structuredClone(c.rules) : [],
+
   };
 }
 
@@ -1141,162 +1143,10 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
               </div>
             </div>
 
-            {/* Specific Rules */}
-            <div>
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Quy tắc hoa hồng riêng biệt (SKU / Nhóm hàng)
-                </h3>
-                <span className="text-xs text-slate-400">
-                  {config.rules.length} quy tắc
-                </span>
-              </div>
-
-              <div className="space-y-2.5">
-                {config.rules.map((r: any, index: number) => (
-                  <div
-                    key={index}
-                    className="flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50/80 p-3"
-                  >
-                    <select
-                      aria-label="Loại sản phẩm"
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
-                      value={r.kind}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          rules: config.rules.map((v: any, i: number) =>
-                            i === index
-                              ? { ...v, kind: e.target.value, amount: undefined, rateBps: undefined }
-                              : v
-                          ),
-                        })
-                      }
-                    >
-                      <option value="phone">Điện thoại</option>
-                      <option value="accessory">Phụ kiện</option>
-                    </select>
-
-                    <select
-                      aria-label="Loại quy tắc"
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
-                      value={r.sku !== undefined ? "sku" : "category"}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          rules: config.rules.map((v: any, i: number) =>
-                            i === index
-                              ? { kind: v.kind, [e.target.value]: "" }
-                              : v
-                          ),
-                        })
-                      }
-                    >
-                      <option value="category">Nhóm hàng</option>
-                      <option value="sku">SKU</option>
-                    </select>
-
-                    <input
-                      aria-label="SKU hoặc nhóm hàng"
-                      required
-                      placeholder="Nhập mã SKU hoặc tên nhóm..."
-                      className="min-w-[150px] flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
-                      value={r.sku ?? r.category}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          rules: config.rules.map((v: any, i: number) =>
-                            i === index
-                              ? { ...v, [r.sku !== undefined ? "sku" : "category"]: e.target.value }
-                              : v
-                          ),
-                        })
-                      }
-                    />
-
-                    <input
-                      aria-label="Mức riêng (để trống dùng mặc định)"
-                      type="number"
-                      placeholder={r.kind === "phone" ? "đ/máy (mặc định)" : "% (mặc định)"}
-                      className="w-44 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
-                      min={r.kind === "phone" ? 150000 : 10}
-                      max={r.kind === "phone" ? 300000 : 15}
-                      step={r.kind === "phone" ? 1000 : 0.01}
-                      value={
-                        r.kind === "phone"
-                          ? r.amount ?? ""
-                          : r.rateBps === undefined
-                            ? ""
-                            : r.rateBps / 100
-                      }
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          rules: config.rules.map((v: any, i: number) =>
-                            i === index
-                              ? {
-                                ...v,
-                                [r.kind === "phone" ? "amount" : "rateBps"]:
-                                  e.target.value === ""
-                                    ? undefined
-                                    : Math.round(
-                                      Number(e.target.value) * (r.kind === "phone" ? 1 : 100)
-                                    ),
-                              }
-                              : v
-                          ),
-                        })
-                      }
-                    />
-
-                    <button
-                      type="button"
-                      className="flex items-center gap-1 rounded-lg p-1.5 text-xs text-rose-600 hover:bg-rose-50 cursor-pointer"
-                      onClick={() =>
-                        setConfig({
-                          ...config,
-                          rules: config.rules.filter((_: any, i: number) => i !== index),
-                        })
-                      }
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span>Xóa</span>
-                    </button>
-                  </div>
-                ))}
-
-                {config.rules.length === 0 && (
-                  <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
-                    Chưa có quy tắc riêng biệt nào. Hệ thống sẽ áp dụng mức cơ sở mặc định.
-                  </p>
-                )}
-              </div>
-
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
-                  onClick={() =>
-                    setConfig({
-                      ...config,
-                      rules: [...config.rules, { kind: "phone", category: "" }],
-                    })
-                  }
-                >
-                  <Plus className="h-4 w-4" />
-                  Thêm quy tắc
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={busy}
-                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-sky-600 px-6 py-2 text-xs font-bold text-white shadow-md shadow-cyan-500/20 hover:from-cyan-500 hover:to-sky-500 disabled:opacity-50 transition cursor-pointer"
-                >
-                  {busy ? "Đang lưu..." : isEditing ? "Cập nhật chính sách" : "Lưu phiên bản"}
-                </button>
-              </div>
-            </div>
-
+            <p className="text-xs text-slate-500">Cấu hình hoa hồng riêng cho từng sản phẩm tại tab Hoa hồng sản phẩm.</p>
+            <button type="submit" disabled={busy} className="rounded-xl bg-cyan-600 px-6 py-2 text-xs font-bold text-white disabled:opacity-50">
+              {busy ? "Đang lưu..." : isEditing ? "Cập nhật chính sách" : "Lưu phiên bản"}
+            </button>
           </fieldset>
           <div className="flex justify-end border-t border-slate-100 pt-4">
             <button
@@ -1335,14 +1185,14 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
     </div>
     {message && <p role="status" className="rounded-xl bg-cyan-50 p-3 text-sm text-cyan-700">{message}</p>}
     {error ? <div role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}<button type="button" onClick={() => setRevision(value => value + 1)} className="ml-3 font-semibold underline">Thử lại</button></div> : loading ? <p role="status" className="py-8 text-center text-sm text-slate-500">Đang tải chính sách...</p> : items.length === 0 ? <p className="rounded-xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">Chưa có chính sách. Chọn “Tạo mới” để thêm chính sách hoa hồng.</p> : <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-      <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs text-slate-500 dark:bg-slate-800"><tr>{["Áp dụng cho", "Hiệu lực từ", "Điện thoại / máy", "Phụ kiện", "Công sửa chữa", "Quy tắc riêng", "Thao tác"].map(label => <th key={label} className="whitespace-nowrap px-4 py-3 font-semibold">{label}</th>)}</tr></thead>
+      <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs text-slate-500 dark:bg-slate-800"><tr>{["Áp dụng cho", "Hiệu lực từ", "Điện thoại / máy", "Phụ kiện", "Công sửa chữa", "Thao tác"].map(label => <th key={label} className="whitespace-nowrap px-4 py-3 font-semibold">{label}</th>)}</tr></thead>
         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">{items.map(policy => <tr key={policy._id} className="text-slate-700 dark:text-slate-300">
           <td className="px-4 py-3 font-semibold">{policy.partnerId ? partners.find(partner => partner._id === policy.partnerId)?.name || policy.partnerId : "Toàn công ty"}</td>
           <td className="whitespace-nowrap px-4 py-3">{new Date(policy.effectiveAt).toLocaleString("vi-VN")}</td>
           <td className="whitespace-nowrap px-4 py-3">{money(policy.config?.phoneAmount)}</td>
           <td className="px-4 py-3">{(policy.config?.accessoryBps || 0) / 100}%</td>
           <td className="px-4 py-3">{(policy.config?.repairBps || 0) / 100}%</td>
-          <td className="px-4 py-3">{policy.config?.rules?.length || 0}</td>
+
           <td className="px-4 py-3"><button type="button" onClick={() => { setDraft(policy); setMessage(""); }} className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold text-cyan-600 hover:text-cyan-500 cursor-pointer"><Edit3 className="h-3.5 w-3.5" />Sửa</button></td>
         </tr>)}</tbody></table>
     </div>}
@@ -1468,6 +1318,19 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
               Chính sách
             </button>
           )}
+          {hasPermission("commission-policy:manage") && (
+            <button
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition cursor-pointer ${
+                tab === "products"
+                  ? "bg-white text-cyan-700 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+              onClick={() => setTab("products")}
+            >
+              <Package className="h-3.5 w-3.5" />
+              Hoa hồng sản phẩm
+            </button>
+          )}
         </nav>
       </div>
 
@@ -1526,7 +1389,7 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
         </div>
       )}
 
-      {tab === "policy" ? (
+      {tab === "products" ? <ProductCommissions /> : tab === "policy" ? (
         <PolicyEditor partners={partners} />
       ) : (
         <>

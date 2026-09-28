@@ -1,5 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Package, RotateCw, Search, UserCheck } from "lucide-react";
+import {
+  Package,
+  RotateCw,
+  Search,
+  UserCheck,
+  Wrench,
+  Zap,
+  Cpu,
+  Bell,
+  MessageSquare,
+  Star,
+  CheckCircle2,
+} from "lucide-react";
 import { Dropdown, type DropdownOption } from "../../components/common/Dropdown";
 import { toast } from "../../pages/Toast";
 import { authService } from "../../services/authService";
@@ -157,7 +169,7 @@ function TechnicianPicker({ ticket, onChanged }: { ticket: RepairTicket; onChang
         <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700 text-sm">
-              👨‍🔧
+              <Wrench className="h-4 w-4" />
             </span>
             <b className="font-bold text-slate-900 text-sm">Kỹ thuật viên phụ trách</b>
           </div>
@@ -201,7 +213,10 @@ function TechnicianPicker({ ticket, onChanged }: { ticket: RepairTicket; onChang
             menuClassName="w-full min-w-[260px] shadow-xl"
           />
           <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-400 px-1">
-            <span>⚡ Tự động lưu ngay khi chọn</span>
+            <span className="flex items-center gap-1">
+              <Zap className="h-3 w-3 text-amber-500" />
+              <span>Tự động lưu ngay khi chọn</span>
+            </span>
             {busy && <span className="text-cyan-600 font-semibold animate-pulse">Đang đồng bộ...</span>}
           </div>
         </div>
@@ -602,7 +617,7 @@ function PartsSection({ ticket, onChanged }: { ticket: RepairTicket; onChanged: 
       title={
         <div className="flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700 text-sm">
-            🔩
+            <Cpu className="h-4 w-4" />
           </span>
           <span>Thiết bị thay thế (xuất từ kho)</span>
         </div>
@@ -784,7 +799,7 @@ function NotificationsSection({ ticket }: { ticket: RepairTicket }) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-700 text-sm">
-                📢
+                <Bell className="h-4 w-4" />
               </span>
               <b className="font-bold text-slate-900 text-sm">Thông báo 4 bước</b>
             </div>
@@ -794,7 +809,8 @@ function NotificationsSection({ ticket }: { ticket: RepairTicket }) {
               className="inline-flex items-center gap-1.5 rounded-xl bg-linear-to-r from-sky-600 to-cyan-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:from-sky-700 hover:to-cyan-700 transition cursor-pointer"
               title="Mở màn hình Chat 1-1 CSKH với khách"
             >
-              <span>💬</span> Nhắn tin CSKH
+              <MessageSquare className="h-3.5 w-3.5" />
+              <span>Nhắn tin CSKH</span>
             </button>
           </div>
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
@@ -904,15 +920,16 @@ function RatingSection({ ticket }: { ticket: RepairTicket }) {
       title={
         <div className="flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-700 text-sm">
-            ⭐
+            <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
           </span>
           <span>Chấm điểm kỹ thuật (tại quầy)</span>
         </div>
       }
     >
       {state === "done" ? (
-        <p className="text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-          ✓ Đã ghi nhận đánh giá tại quầy. Cảm ơn quý khách!
+        <p className="text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-1.5">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+          <span>Đã ghi nhận đánh giá tại quầy. Cảm ơn quý khách!</span>
         </p>
       ) : (
         <>

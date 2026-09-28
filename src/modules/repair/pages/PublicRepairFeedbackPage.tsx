@@ -1,4 +1,5 @@
 import React from "react";
+import { Star } from "lucide-react";
 
 type RepairFeedbackTicket = {
   ticketCode: string;
@@ -91,7 +92,9 @@ export default function PublicRepairFeedbackPage() {
                 {[1, 2, 3, 4, 5].map((score) => (
                   <label key={score} className="cursor-pointer">
                     <input className="sr-only" type="radio" name="rating" value={score} checked={rating === score} onChange={() => setRating(score)} />
-                    <span className={`flex h-10 w-10 items-center justify-center rounded-full border text-sm font-black ${rating >= score ? "border-amber-400 bg-amber-50 text-amber-600" : "border-slate-200 text-slate-400"}`} aria-hidden="true">★</span>
+                    <span className={`flex h-10 w-10 items-center justify-center rounded-full border text-sm font-black transition ${rating >= score ? "border-amber-400 bg-amber-50 text-amber-500" : "border-slate-200 text-slate-300"}`} aria-hidden="true">
+                      <Star className={`h-5 w-5 ${rating >= score ? "fill-amber-400 text-amber-500" : "text-slate-300"}`} />
+                    </span>
                     <span className="sr-only">{score} sao</span>
                   </label>
                 ))}

@@ -454,6 +454,7 @@ function ReturnDetailModal({
 
         {/* Customer & Creator Meta */}
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {doc.receiptCode && <div className="rounded-xl bg-cyan-50 p-3 text-sm text-cyan-800">Đã nhập kho · {doc.receiptCode}</div>}
           <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
               Khách hàng

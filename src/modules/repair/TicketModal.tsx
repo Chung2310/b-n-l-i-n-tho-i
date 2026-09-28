@@ -1,6 +1,7 @@
-import React, { useRef, useState } from "react";
-import { Sparkles, Calculator, CheckCircle2, RotateCw, FileText } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Sparkles, Calculator, CheckCircle2, RotateCw, FileText, Check, AlertTriangle } from "lucide-react";
 import RepairRefundForm from "../partners/RepairRefundForm";
+import { customerApi } from "../customer-management/customerApi";
 import { repairService, type RepairTicket } from "../../services/repairService";
 import RepairTicketExtras from "./RepairTicketExtras";
 import {
@@ -64,11 +65,58 @@ const handleCurrencyChange = (
   }
 };
 
+function isHexObjectId(str?: string): boolean {
+  if (!str) return false;
+  return /^[0-9a-fA-F]{24}$/.test(str.trim());
+}
+
+function getFriendlyCustomerCode(ticket: RepairTicket): string {
+  if (ticket.customerCode && !isHexObjectId(ticket.customerCode)) {
+    return ticket.customerCode;
+  }
+  if (ticket.customerId && !isHexObjectId(ticket.customerId)) {
+    return ticket.customerId;
+  }
+  if (ticket.customerPhone) {
+    return `KH-${ticket.customerPhone.trim()}`;
+  }
+  return "";
+}
+
 export default function TicketModal({
   ticket,
   onClose,
   onChanged,
 }: TicketModalProps) {
+  const [customerCode, setCustomerCode] = useState<string>(() =>
+    getFriendlyCustomerCode(ticket)
+  );
+
+  useEffect(() => {
+    let active = true;
+    const initial = getFriendlyCustomerCode(ticket);
+    setCustomerCode(initial);
+
+    const phone = ticket.customerPhone?.replace(/\D/g, "");
+    if ((isHexObjectId(ticket.customerId) || !initial) && phone) {
+      void customerApi
+        .list({ q: phone, limit: 1, status: "active" })
+        .then((res) => {
+          if (!active) return;
+          const matched = res.items.find(
+            (c) => c.phone?.replace(/\D/g, "") === phone
+          );
+          if (matched?.customerCode) {
+            setCustomerCode(matched.customerCode);
+          }
+        })
+        .catch(() => {});
+    }
+    return () => {
+      active = false;
+    };
+  }, [ticket.customerId, ticket.customerCode, ticket.customerPhone]);
+
   const initialQuote = ticket.quotedAmount ?? ticket.totalAmount ?? 0;
   const [quote, setQuote] = useState(
     initialQuote > 0 ? initialQuote.toLocaleString("vi-VN") : "0"
@@ -197,7 +245,7 @@ export default function TicketModal({
                           : "bg-slate-200 text-slate-500"
                       }`}
                     >
-                      {isCompleted ? "✓" : s.step}
+                      {isCompleted ? <Check className="h-3.5 w-3.5 stroke-[3]" /> : s.step}
                     </div>
                     <span
                       className={`text-[11px] font-medium leading-tight ${
@@ -226,7 +274,9 @@ export default function TicketModal({
             <p className="mt-1 font-medium text-slate-800">
               {ticket.customerName} · {ticket.customerPhone}
             </p>
-            <p className="text-xs text-slate-500">Mã: {ticket.customerId}</p>
+            {customerCode ? (
+              <p className="text-xs text-slate-500">Mã: {customerCode}</p>
+            ) : null}
             <p className="text-xs text-slate-500">Tiếp nhận: {date(ticket.receivedAt)}</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 text-sm">
@@ -436,7 +486,8 @@ export default function TicketModal({
             {/* Warning if labor fee exceeds quote */}
             {parseDigits(laborFee) > parseDigits(quote) && parseDigits(quote) > 0 && (
               <div className="rounded-xl bg-amber-50 border border-amber-200/90 px-3 py-2 text-xs text-amber-800 font-semibold flex items-center gap-2">
-                <span>⚠️ Tiền công ({parseDigits(laborFee).toLocaleString("vi-VN")} đ) lớn hơn tổng số tiền báo giá ({parseDigits(quote).toLocaleString("vi-VN")} đ). Vui lòng kiểm tra lại.</span>
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                <span>Tiền công ({parseDigits(laborFee).toLocaleString("vi-VN")} đ) lớn hơn tổng số tiền báo giá ({parseDigits(quote).toLocaleString("vi-VN")} đ). Vui lòng kiểm tra lại.</span>
               </div>
             )}
 

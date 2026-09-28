@@ -164,20 +164,23 @@ export async function connectDB() {
  * Helper để chạy logic trong Transaction nếu DB hỗ trợ (Replica Set),
  * ngược lại chạy bình thường (dành cho môi trường Local DB Standalone).
  */
+let cachedIsReplicaSet: boolean | null = null;
+
 export async function runInTransaction<T>(callback: (session?: mongoose.ClientSession) => Promise<T>): Promise<T> {
   if (process.env.DISABLE_TRANSACTIONS === "true" || process.env.MONGODB_REPLICA_SET === "false") {
     return callback(undefined);
   }
 
-  let isReplicaSet = false;
-  try {
-    const topologyInfo = await mongoose.connection.db?.admin().command({ hello: 1 });
-    isReplicaSet = Boolean(topologyInfo?.setName) || topologyInfo?.msg === "isdbgrid";
-  } catch {
-    isReplicaSet = false;
+  if (cachedIsReplicaSet === null) {
+    try {
+      const topologyInfo = await mongoose.connection.db?.admin().command({ hello: 1 });
+      cachedIsReplicaSet = Boolean(topologyInfo?.setName) || topologyInfo?.msg === "isdbgrid";
+    } catch {
+      cachedIsReplicaSet = false;
+    }
   }
-  
-  if (!isReplicaSet) {
+
+  if (!cachedIsReplicaSet) {
     // Standalone fallback: chạy không có transaction
     return callback(undefined);
   }
@@ -185,10 +188,27 @@ export async function runInTransaction<T>(callback: (session?: mongoose.ClientSe
   const session = await mongoose.startSession();
   try {
     let result: T;
-    await session.withTransaction(async (s) => {
-      result = await callback(s);
-    });
-    return result!;
+    try {
+      await session.withTransaction(async (s) => {
+        result = await callback(s);
+      });
+      return result!;
+    } catch (txError: any) {
+      const msg = String(txError?.message || "");
+      const origMsg = String(txError?.originalError?.message || "");
+      if (
+        msg.includes("replica set member") ||
+        msg.includes("does not support retryable writes") ||
+        origMsg.includes("replica set member") ||
+        origMsg.includes("Transaction numbers are only allowed") ||
+        txError?.codeName === "IllegalOperation" ||
+        txError?.originalError?.codeName === "IllegalOperation"
+      ) {
+        cachedIsReplicaSet = false;
+        return await callback(undefined);
+      }
+      throw txError;
+    }
   } finally {
     await session.endSession();
   }

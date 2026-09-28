@@ -67,56 +67,67 @@ export async function reconcileCommission(sourceType: "retail" | "repair", sourc
   return runInTransaction((session) => run(session));
 }
 
-export async function closePartnerMonths(companyCode: string, partnerId: string) {
-  const session = await mongoose.startSession();
-  try { await session.withTransaction(async () => {
+export async function closePartnerMonths(companyCode: string, partnerId: string, existingSession?: ClientSession) {
+  const run = async (session?: ClientSession) => {
     const partner = await lockedPartner(companyCode, partnerId, session);
-    const periods = await CommissionLedgerModel.distinct("period", { companyCode, partnerId, kind: { $ne: "payout" }, period: { $lt: monthKey(new Date()) } }).session(session);
+    const query = CommissionLedgerModel.distinct("period", {
+      companyCode,
+      partnerId,
+      kind: { $ne: "payout" },
+      period: { $lt: monthKey(new Date()) },
+    });
+    const periods = await (session ? query.session(session) : query);
     for (const period of periods) await adjustKpi(partner, period, session);
-    await partner.save({ session });
-  }); } finally { await session.endSession(); }
+    await partner.save(session ? { session } : {});
+  };
+  if (existingSession !== undefined) return run(existingSession);
+  return runInTransaction((session) => run(session));
 }
 
-export async function recordPartnerPayout(companyCode: string, partnerId: string, input: any, actorId: string) {
+export async function recordPartnerPayout(companyCode: string, partnerId: string, input: any, actorId: string, existingSession?: ClientSession) {
   const amount = integer(input.amount, 1), reference = String(input.reference || "").trim(), key = String(input.idempotencyKey || "").trim();
   if (!reference || !key || key.length > 100) throw invalid("Cần chứng từ thanh toán và khóa chống trùng.");
   const idempotencyKey = `payout:${partnerId}:${key}`;
-  const session = await mongoose.startSession(); let result: any;
-  try { await session.withTransaction(async () => {
+  const run = async (session?: ClientSession) => {
     const partner = await lockedPartner(companyCode, partnerId, session);
-    const replay = await CommissionLedgerModel.findOne({ companyCode, idempotencyKey }).session(session).lean();
+    const replayQuery = CommissionLedgerModel.findOne({ companyCode, idempotencyKey }).lean();
+    const replay = await (session ? replayQuery.session(session) : replayQuery);
     if (replay) {
       if (replay.amount !== -amount || replay.reference !== reference) throw invalid("Khóa chi trả đã dùng cho nội dung khác.", 409);
-      result = replay; return;
+      return replay;
     }
     if (partner.balance < amount) throw invalid("Số tiền vượt số dư hoa hồng khả dụng.", 409);
     await append(partner, { sourceType: "payout", sourceId: key, period: monthKey(new Date()), kind: "payout", amount: -amount, machines: 0, reason: "Xác nhận đã chi hoa hồng", reference, idempotencyKey, createdBy: actorId }, session);
-    await partner.save({ session });
-    result = await CommissionLedgerModel.findOne({ companyCode, idempotencyKey }).session(session).lean();
-  }); } finally { await session.endSession(); }
-  return result;
+    await partner.save(session ? { session } : {});
+    const resultQuery = CommissionLedgerModel.findOne({ companyCode, idempotencyKey }).lean();
+    return await (session ? resultQuery.session(session) : resultQuery);
+  };
+  if (existingSession !== undefined) return run(existingSession);
+  return runInTransaction((session) => run(session));
 }
 
-export async function refundRepairCommission(scope: { companyCode: string; branchId: string }, id: string, input: any, actorId: string) {
+export async function refundRepairCommission(scope: { companyCode: string; branchId: string }, id: string, input: any, actorId: string, existingSession?: ClientSession) {
   const amount = integer(input.amount, 1), laborAmount = integer(input.laborAmount, 0, amount);
   const reason = String(input.reason || "").trim(), key = String(input.idempotencyKey || "").trim(), reference = String(input.reference || "").trim();
   if (!reason || !key || key.length > 100 || !reference) throw invalid("Cần lý do, chứng từ hoàn tiền và khóa chống trùng.");
-  const session = await mongoose.startSession(); let result: any;
-  try { await session.withTransaction(async () => {
-    const ticket: any = await RepairTicketModel.findOne({ _id: id, ...scope, status: "delivered" }).session(session);
+  const run = async (session?: ClientSession) => {
+    const ticketQuery = RepairTicketModel.findOne({ _id: id, ...scope, status: "delivered" });
+    const ticket: any = await (session ? ticketQuery.session(session) : ticketQuery);
     if (!ticket) throw invalid("Chỉ hoàn tiền phiếu đã giao.", 409);
     const rows = ticket.commissionRefunds || [];
     const replay = rows.find((r: any) => r.key === key);
-    if (replay) { if (replay.amount !== amount || replay.laborAmount !== laborAmount || replay.reference !== reference) throw invalid("Khóa hoàn tiền đã dùng.", 409); result = ticket; return; }
+    if (replay) { if (replay.amount !== amount || replay.laborAmount !== laborAmount || replay.reference !== reference) throw invalid("Khóa hoàn tiền đã dùng.", 409); return ticket; }
     const totalRefund = rows.reduce((s: number, r: any) => s + r.amount, 0) + amount;
     const laborRefund = rows.reduce((s: number, r: any) => s + r.laborAmount, 0) + laborAmount;
     const base = (ticket.commissionSnapshot?.lines || repairLines(ticket, ticket.commissionSnapshot?.policy || { repairBps: 1000 } as any))[0].base;
     if (totalRefund > ticket.paidAmount || laborRefund > base || totalRefund - laborRefund > ticket.totalAmount - base) throw invalid("Hoàn tiền vượt giá trị tiền công/linh kiện còn lại.");
     ticket.commissionRefunds = [...rows, { key, amount, laborAmount, reason, reference, at: new Date(), by: actorId }];
-    await ticket.save({ session });
-    await reconcileCommission("repair", id, scope.companyCode, session); result = ticket;
-  }); } finally { await session.endSession(); }
-  return result;
+    await ticket.save(session ? { session } : {});
+    await reconcileCommission("repair", id, scope.companyCode, session);
+    return ticket;
+  };
+  if (existingSession !== undefined) return run(existingSession);
+  return runInTransaction((session) => run(session));
 }
 
 /** Durable source snapshots are the recovery queue, including repairs whose legacy events are best-effort. */

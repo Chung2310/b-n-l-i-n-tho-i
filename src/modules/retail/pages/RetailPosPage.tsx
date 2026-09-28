@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Folder,
   FolderOpen,
+  ImageIcon,
   Plus,
   Tag,
   HelpCircle,
@@ -40,6 +41,7 @@ import ScanFeedback, {
 } from "../components/pos/ScanFeedback";
 import RetailOfflineQueuePanel from "../components/pos/RetailOfflineQueuePanel";
 import { SerialPicker, UnitBarcodePicker } from "../components/pos/RetailUnitPickerDialog";
+import AddSerialToCartDialog from "../components/pos/AddSerialToCartDialog";
 import { retailOrdersApi } from "../api/retailOrders.api";
 import { retailProductsApi } from "../api/retailProducts.api";
 import {
@@ -93,6 +95,7 @@ export default function RetailPosPage() {
   const [paying, setPaying] = React.useState(false);
   const [billingProfiles, setBillingProfiles] = React.useState<any[]>([]);
   const [scanning, setScanning] = React.useState(false);
+  const [pendingProduct, setPendingProduct] = React.useState<RetailProduct | null>(null);
   const [completed, setCompleted] = React.useState<RetailOrderResult | null>(
     null,
   );
@@ -333,6 +336,10 @@ export default function RetailPosPage() {
         return;
       }
       const duplicate = Boolean(line);
+      if (product.trackingMode === "serial") {
+        addProductToCart(product, true);
+        return;
+      }
       dispatch({ type: "add", product });
       setQ("");
       const kind = duplicate ? "duplicate" : "success";
@@ -355,7 +362,11 @@ export default function RetailPosPage() {
       toast.error(`${product.name} không còn đủ tồn khả dụng.`);
       return;
     }
-    dispatch({ type: "add", product });
+    if (product.trackingMode === "serial") {
+      setPendingProduct(product);
+    } else {
+      dispatch({ type: "add", product });
+    }
     if (clearSearch) setQ("");
   };
 
@@ -696,6 +707,24 @@ export default function RetailPosPage() {
         />
       )}
 
+      {pendingProduct && (
+        <AddSerialToCartDialog
+          product={pendingProduct}
+          excluded={cart.lines.flatMap((line) => line.serialNumbers || [])}
+          onClose={() => setPendingProduct(null)}
+          onConfirm={(serialNumber) => {
+            const line = cart.lines.find((item) => item.product._id === pendingProduct._id);
+            if ((line?.quantity || 0) >= pendingProduct.stock) {
+              toast.error(`${pendingProduct.name} không còn đủ tồn khả dụng.`);
+              return;
+            }
+            dispatch({ type: "add", product: pendingProduct });
+            dispatch({ type: "serials", productId: pendingProduct._id, serialNumbers: [...(line?.serialNumbers || []), serialNumber] });
+            setPendingProduct(null);
+          }}
+        />
+      )}
+
       {scanning && (
         <BarcodeScannerDialog
           onScan={(value) => void scan(value)}
@@ -734,7 +763,7 @@ function groupProductsBySku(products: RetailProduct[]): ProductGroup[] {
   return Array.from(groups.values());
 }
 
-function ProductCard({
+function ProductRow({
   group,
   onAdd,
 }: {
@@ -745,6 +774,7 @@ function ProductCard({
     group.variants.find((variant) => variant.stock > 0) || group.variants[0]
   )._id;
   const [selectedId, setSelectedId] = React.useState(defaultId);
+  const [failedImageUrl, setFailedImageUrl] = React.useState<string | null>(null);
   const [open, setOpen] = React.useState(false);
 
   React.useEffect(() => {
@@ -762,18 +792,32 @@ function ProductCard({
   const isSoldOut = selected.stock <= 0;
 
   return (
-    <div className="group relative flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-2xs transition-all duration-200 hover:border-cyan-400 hover:shadow-md">
+    <div className="group relative min-w-0 bg-white transition-colors hover:bg-cyan-50/50">
       <button
         type="button"
-        className={`w-full text-left transition active:scale-[0.99] cursor-pointer ${
+        className={`flex w-full min-w-0 items-center gap-3 px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-500 cursor-pointer ${
           isSoldOut ? "opacity-80" : ""
         }`}
         onClick={() => onAdd(selected)}
       >
-        <div className="flex items-start justify-between gap-2">
-          <span className="block font-bold text-sm text-slate-900 group-hover:text-cyan-700 transition line-clamp-2 leading-snug">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-100 bg-slate-50 sm:h-11 sm:w-11">
+          {selected.imageUrl && selected.imageUrl !== failedImageUrl ? (
+            <img
+              src={selected.imageUrl}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="h-full w-full object-contain"
+              onError={() => setFailedImageUrl(selected.imageUrl!)}
+            />
+          ) : <ImageIcon aria-hidden="true" className="h-5 w-5 text-slate-300" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <span title={group.name} className="block truncate text-sm font-semibold leading-snug text-slate-900 transition group-hover:text-cyan-700">
             {group.name}
           </span>
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <span title={selected.sku} className="min-w-0 truncate font-mono text-[11px] text-slate-400">SKU: {selected.sku}</span>
           <span
             className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
               isSoldOut
@@ -785,18 +829,15 @@ function ProductCard({
           >
             {isSoldOut ? "Hết hàng" : `Tồn: ${selected.stock}`}
           </span>
+          </div>
         </div>
 
-        <span className="mt-1 block font-mono text-xs text-slate-400 truncate">
-          SKU: {selected.sku}
-        </span>
-
-        <div className="mt-3 flex items-center justify-between pt-2 border-t border-slate-100">
-          <span className="font-mono text-base font-bold text-cyan-700">
+        <div className="flex max-w-[50%] shrink-0 items-center gap-2 sm:gap-3">
+          <span className="min-w-0 break-words text-right text-sm font-bold tabular-nums text-cyan-700">
             {money(selected.price)}
           </span>
           <span
-            className={`flex h-7 w-7 items-center justify-center rounded-xl transition shadow-2xs ${
+            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition ${
               isSoldOut
                 ? "bg-slate-100 text-slate-400"
                 : "bg-cyan-50 text-cyan-700 group-hover:bg-cyan-600 group-hover:text-white"
@@ -808,20 +849,20 @@ function ProductCard({
       </button>
 
       {group.variants.length > 1 && (
-        <div className="relative mt-2.5 pt-2 border-t border-slate-100">
+        <div className="relative mx-3 mb-2 max-w-sm">
           <button
             type="button"
             aria-haspopup="listbox"
             aria-expanded={open}
             aria-label={`Chọn SKU cho ${group.name}`}
             onClick={() => setOpen((value) => !value)}
-            className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-slate-50 px-2.5 py-1.5 text-left text-xs transition hover:border-cyan-400 hover:bg-white cursor-pointer"
+            className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200/80 bg-slate-50 px-2 py-1 text-left text-xs transition hover:border-cyan-400 hover:bg-white cursor-pointer"
           >
-            <span className="min-w-0">
-              <span className="block truncate font-medium text-slate-700 text-xs">
+            <span className="flex min-w-0 flex-1 items-center gap-2">
+              <span className="min-w-0 flex-1 truncate font-medium text-slate-700 text-xs">
                 {selected.variantName || selected.sku}
               </span>
-              <span className="block text-[10px] text-slate-400">
+              <span className="shrink-0 text-[10px] text-slate-400">
                 {group.variants.length} SKU · Tổng tồn: {totalStock}
               </span>
             </span>
@@ -1040,9 +1081,9 @@ function ProductFolderBranch({
 
         <div id={contentId} hidden={!expanded} className="border-t border-slate-100 bg-slate-50/30 p-3 sm:p-4 space-y-3">
           {folder.groups.length > 0 && (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="min-w-0 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
               {folder.groups.map((group) => (
-                <ProductCard key={group.key} group={group} onAdd={onAdd} />
+                <ProductRow key={group.key} group={group} onAdd={onAdd} />
               ))}
             </div>
           )}
@@ -1090,9 +1131,9 @@ function ProductFolderBranch({
 
         <div id={contentId} hidden={!expanded} className="mt-2.5 pt-2.5 border-t border-slate-100 space-y-2.5">
           {folder.groups.length > 0 && (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="min-w-0 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
               {folder.groups.map((group) => (
-                <ProductCard key={group.key} group={group} onAdd={onAdd} />
+                <ProductRow key={group.key} group={group} onAdd={onAdd} />
               ))}
             </div>
           )}
@@ -1137,9 +1178,9 @@ function ProductFolderBranch({
 
       <div id={contentId} hidden={!expanded} className="pt-2 space-y-2">
         {folder.groups.length > 0 && (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="min-w-0 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
             {folder.groups.map((group) => (
-              <ProductCard key={group.key} group={group} onAdd={onAdd} />
+              <ProductRow key={group.key} group={group} onAdd={onAdd} />
             ))}
           </div>
         )}
