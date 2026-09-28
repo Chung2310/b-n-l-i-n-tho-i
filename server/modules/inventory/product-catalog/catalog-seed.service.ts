@@ -19,7 +19,7 @@ export const CatalogSeedService = {
       { code: "CAT-DT-IPHONE", name: "iPhone (Apple)", parentCode: "CAT-DIEN-THOAI", defaultTrackingMode: "serial" },
       { code: "CAT-DT-SAMSUNG", name: "Samsung Galaxy", parentCode: "CAT-DIEN-THOAI", defaultTrackingMode: "serial" },
       { code: "CAT-DT-XIAOMI", name: "Xiaomi / Redmi", parentCode: "CAT-DIEN-THOAI", defaultTrackingMode: "serial" },
-      
+
       { code: "CAT-TB-IPAD", name: "iPad (Apple)", parentCode: "CAT-TABLET", defaultTrackingMode: "serial" },
       { code: "CAT-TB-SAMSUNG", name: "Galaxy Tab", parentCode: "CAT-TABLET", defaultTrackingMode: "serial" },
 
@@ -65,13 +65,13 @@ export const CatalogSeedService = {
           "Titan Tự Nhiên",
           "Titan Đen",
           "Titan Trắng",
-          "Đen (Black)",
-          "Trắng (White)",
-          "Xanh Dương (Blue)",
-          "Hồng (Pink)",
-          "Vàng (Gold)",
-          "Bạc (Silver)",
-          "Xám (Gray)"
+          "Đen ",
+          "Trắng ",
+          "Xanh Dương ",
+          "Hồng ",
+          "Vàng ",
+          "Bạc ",
+          "Xám "
         ],
       },
       {
