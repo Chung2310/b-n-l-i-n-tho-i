@@ -14,14 +14,11 @@ import {
   RotateCw,
   X,
   Percent,
-  Coins,
-  AlertCircle,
   Check,
-  Filter,
-  Sparkles,
   Info,
 } from "lucide-react";
 import { partnerRequest } from "./partnerApi";
+import { toast } from "../../pages/Toast";
 
 export type Rule = {
   kind: "phone" | "accessory";
@@ -61,7 +58,6 @@ const ACCESSORY_PRESETS = [10, 12, 15];
 
 export function ProductCommissions() {
   const [data, setData] = useState<Data>();
-  const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [filterMode, setFilterMode] = useState<"all" | "configured" | "default">("all");
   const [selected, setSelected] = useState<string[]>([]);
@@ -69,7 +65,6 @@ export function ProductCommissions() {
   const [kind, setKind] = useState<Rule["kind"]>("phone");
   const [value, setValue] = useState("200000");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
 
   // Manage collapsed state for category/product nodes
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set());
@@ -89,11 +84,11 @@ export function ProductCommissions() {
   const expandAll = () => setCollapsedKeys(new Set());
 
   const load = useCallback(async () => {
-    setError("");
     try {
-      setData(await partnerRequest<Data>("/product-commissions"));
+      const res = await partnerRequest<Data>("/product-commissions");
+      setData(res);
     } catch (e) {
-      setError((e as Error).message);
+      toast.error((e as Error).message || "Không thể tải danh mục hoa hồng sản phẩm.");
     }
   }, []);
 
@@ -115,14 +110,11 @@ export function ProductCommissions() {
       )
     );
     setEditing(skus);
-    setError("");
-    setMessage("");
   };
 
   const save = async (reset = false) => {
     if (busy) return;
     setBusy(true);
-    setError("");
     try {
       await partnerRequest("/product-commissions", "PUT", {
         skus: editing,
@@ -137,10 +129,14 @@ export function ProductCommissions() {
       });
       setEditing([]);
       setSelected([]);
-      setMessage("Đã lưu cấu hình hoa hồng sản phẩm.");
+      toast.success(
+        reset
+          ? "Đã khôi phục về chính sách chung."
+          : "Đã lưu cấu hình hoa hồng sản phẩm."
+      );
       await load();
     } catch (e) {
-      setError((e as Error).message);
+      toast.error((e as Error).message || "Không thể lưu cấu hình.");
     } finally {
       setBusy(false);
     }
@@ -149,17 +145,23 @@ export function ProductCommissions() {
   // Build tree from categories, products, and variants
   const roots = useMemo(() => {
     if (!data) return [];
-    const cats = new Map<string, Node>(
-      data.categories.map((c) => [
-        c.code,
-        { key: `cat-${c.code}`, name: c.name, children: [], isCategory: true },
-      ])
-    );
+
+    const cats = new Map<string, Node>();
+    for (const c of data.categories) {
+      cats.set(c.code.trim().toUpperCase(), {
+        key: `cat-${c.code}`,
+        name: c.name,
+        children: [],
+        isCategory: true,
+      });
+    }
+
     const result: Node[] = [];
 
     for (const c of data.categories) {
-      const visited = new Set([c.code]);
-      let parent = c.parentCode;
+      const codeKey = c.code.trim().toUpperCase();
+      const visited = new Set([codeKey]);
+      let parent = c.parentCode?.trim().toUpperCase();
       let cycle = false;
       while (parent) {
         if (visited.has(parent)) {
@@ -167,11 +169,16 @@ export function ProductCommissions() {
           break;
         }
         visited.add(parent);
-        parent = data.categories.find((x) => x.code === parent)?.parentCode;
+        const parentCategory = data.categories.find(
+          (x) => x.code.trim().toUpperCase() === parent
+        );
+        parent = parentCategory?.parentCode?.trim().toUpperCase();
       }
-      const node = cats.get(c.code)!;
-      if (!cycle && c.parentCode && cats.has(c.parentCode)) {
-        cats.get(c.parentCode)!.children.push(node);
+
+      const node = cats.get(codeKey)!;
+      const parentKey = c.parentCode?.trim().toUpperCase();
+      if (!cycle && parentKey && cats.has(parentKey)) {
+        cats.get(parentKey)!.children.push(node);
       } else {
         result.push(node);
       }
@@ -179,7 +186,7 @@ export function ProductCommissions() {
 
     for (const p of data.products) {
       const children = data.variants
-        .filter((v) => v.productId === p._id)
+        .filter((v) => String(v.productId) === String(p._id))
         .map((v) => ({
           key: `var-${v._id}`,
           name: `${v.displayName || p.name} · ${v.sku}`,
@@ -187,13 +194,16 @@ export function ProductCommissions() {
           children: [],
         }));
       if (!children.length) continue;
+
       const node: Node = {
         key: `prod-${p._id}`,
         name: p.name,
         children,
         isProduct: true,
       };
-      const cat = cats.get(p.categoryCode);
+
+      const catKey = p.categoryCode?.trim().toUpperCase();
+      const cat = catKey ? cats.get(catKey) : undefined;
       if (cat) cat.children.push(node);
       else result.push(node);
     }
@@ -467,15 +477,33 @@ export function ProductCommissions() {
           </button>
         </div>
 
-        {/* Metric Overview Cards */}
+        {/* Metric Overview Cards: Separate, clear metric cards without confusing slashes */}
         {data && (
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 pt-3 border-t border-slate-100">
             <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3">
               <span className="block text-[11px] font-semibold text-slate-500">
-                Tổng biến thể (SKU)
+                Nhóm ngành hàng
               </span>
               <span className="text-xl font-black text-slate-900">
-                {totalVariants}
+                {data.categories.length} <span className="text-xs font-semibold text-slate-500">nhóm</span>
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3">
+              <span className="block text-[11px] font-semibold text-slate-500">
+                Tổng sản phẩm
+              </span>
+              <span className="text-xl font-black text-slate-900">
+                {data.products.length} <span className="text-xs font-semibold text-slate-500">sản phẩm</span>
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-cyan-200/80 bg-cyan-50/50 p-3">
+              <span className="block text-[11px] font-bold text-cyan-800">
+                Tổng biến thể (SKU)
+              </span>
+              <span className="text-xl font-black text-cyan-700">
+                {totalVariants} <span className="text-xs font-semibold text-cyan-600">SKU</span>
               </span>
             </div>
 
@@ -484,60 +512,17 @@ export function ProductCommissions() {
                 Đã đặt mức riêng
               </span>
               <span className="text-xl font-black text-emerald-700">
-                {customConfiguredCount}
-              </span>
-            </div>
-
-            <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3">
-              <span className="block text-[11px] font-semibold text-slate-500">
-                Dùng chính sách chung
-              </span>
-              <span className="text-xl font-black text-slate-700">
-                {defaultPolicyCount}
-              </span>
-            </div>
-
-            <div className="rounded-xl border border-cyan-200/80 bg-cyan-50/50 p-3">
-              <span className="block text-[11px] font-bold text-cyan-800">
-                Nhóm & Sản phẩm
-              </span>
-              <span className="text-xl font-black text-cyan-700">
-                {data.categories.length} / {data.products.length}
+                {customConfiguredCount} <span className="text-xs font-semibold text-emerald-600">SKU</span>
+                {totalVariants > 0 && (
+                  <span className="ml-1 text-xs font-medium text-emerald-600/80">
+                    ({Math.round((customConfiguredCount / totalVariants) * 100)}%)
+                  </span>
+                )}
               </span>
             </div>
           </div>
         )}
       </div>
-
-      {/* Alerts */}
-      {error && (
-        <div
-          role="alert"
-          className="flex items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 shadow-2xs"
-        >
-          <div className="flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
-            <span>{error}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="text-xs font-bold underline hover:text-rose-900 cursor-pointer"
-          >
-            Tải lại
-          </button>
-        </div>
-      )}
-
-      {message && (
-        <div
-          role="status"
-          className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 font-semibold shadow-2xs"
-        >
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-          <span>{message}</span>
-        </div>
-      )}
 
       {/* Search, Filter and Selection Toolbar */}
       <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs sm:flex-row sm:items-center sm:justify-between">

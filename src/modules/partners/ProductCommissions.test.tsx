@@ -4,8 +4,17 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, expect, it, vi } from 'vitest';
 import { ProductCommissions } from './ProductCommissions';
 import { partnerRequest } from './partnerApi';
+import { toast } from '../../pages/Toast';
 
 vi.mock('./partnerApi', () => ({ partnerRequest: vi.fn() }));
+vi.mock('../../pages/Toast', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
+}));
 
 afterEach(() => {
   cleanup();
@@ -47,7 +56,7 @@ it('selects all variants from a category and saves a standalone bulk rate', asyn
       rule: { kind: 'phone', amount: 300000 },
     })
   );
-  await screen.findByText('Đã lưu cấu hình hoa hồng sản phẩm.');
+  await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Đã lưu cấu hình hoa hồng sản phẩm.'));
 });
 
 it('resets a customized SKU back to general policy using "Dùng chính sách"', async () => {
@@ -67,7 +76,7 @@ it('resets a customized SKU back to general policy using "Dùng chính sách"', 
       rule: null,
     })
   );
-  await screen.findByText('Đã lưu cấu hình hoa hồng sản phẩm.');
+  await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Đã khôi phục về chính sách chung.'));
 });
 
 it('configures accessory commission as percentage', async () => {
