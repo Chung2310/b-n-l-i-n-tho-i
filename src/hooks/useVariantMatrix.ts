@@ -42,7 +42,7 @@ export function generateEAN13(seed?: string): string {
   return code + checksum;
 }
 
-export function cleanOptionSlug(val: string): string {
+export function cleanOptionSlug(val: string, maxLength = 10): string {
   return val
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -50,7 +50,7 @@ export function cleanOptionSlug(val: string): string {
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "")
-    .substring(0, 10);
+    .substring(0, maxLength);
 }
 
 export function generateMatrixFromOptions(
@@ -103,7 +103,8 @@ export function generateMatrixFromOptions(
       .map((c: any) => cleanOptionSlug(c.value))
       .join('-');
 
-    const cleanBase = cleanOptionSlug(baseSku);
+    // Tên sản phẩm có thể dài hơn giá trị thuộc tính, nên mã gốc dùng giới hạn riêng.
+    const cleanBase = cleanOptionSlug(baseSku, 40);
     const generatedSku = cleanBase ? `${cleanBase}-${skuSuffix}` : `SKU-${skuSuffix}`;
 
     // 1. Chỉ khớp khi bộ thuộc tính chính xác

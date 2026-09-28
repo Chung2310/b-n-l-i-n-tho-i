@@ -47,6 +47,17 @@ describe("useVariantMatrix", () => {
     expect(matrix[0].barcode).toHaveLength(13);
   });
 
+  it("uses the product name as the base SKU when no product code exists", () => {
+    const options: Option[] = [
+      { code: "COLOR", name: "Màu sắc", values: ["Đen"] },
+      { code: "STORAGE", name: "Dung lượng", values: ["128GB"] },
+    ];
+
+    const matrix = generateMatrixFromOptions(options, "iphone 15 promax");
+
+    expect(matrix[0].sku).toBe("IPHONE-15-PROMAX-DEN-128GB");
+  });
+
   it("preserves custom price, barcode, image and sku when options update", () => {
     const initialOptions: Option[] = [
       { code: "COLOR", name: "Màu sắc", values: ["Đen"] },
