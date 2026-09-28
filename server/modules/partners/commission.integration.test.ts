@@ -81,4 +81,18 @@ describe('commission ledger transactions', () => {
     expect(await balance()).toBe(20000);
     await expect(refundRepairCommission({companyCode,branchId:'b1'},String(_id),{...input,amount:900000,idempotencyKey:'ref2'},'admin')).rejects.toThrow();
   });
+  it('operates correctly on standalone MongoDB when transactions are disabled', async () => {
+    process.env.DISABLE_TRANSACTIONS = "true";
+    try {
+      const id = await order(1);
+      await reconcileCommission('retail', id, companyCode);
+      expect(await balance()).toBe(200000);
+      await closePartnerMonths(companyCode, partnerId);
+      const paid = await recordPartnerPayout(companyCode, partnerId, { amount: 100000, reference: 'CASH', idempotencyKey: 'payout-standalone' }, 'admin');
+      expect(paid).toBeDefined();
+      expect(await balance()).toBe(100000);
+    } finally {
+      delete process.env.DISABLE_TRANSACTIONS;
+    }
+  });
 });
