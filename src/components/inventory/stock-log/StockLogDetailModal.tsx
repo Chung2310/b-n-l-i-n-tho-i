@@ -65,15 +65,22 @@ export function StockLogDetailModal({
   const [linkedReceipt, setLinkedReceipt] = useState<GoodsReceipt | null>(null);
   const [loadingLinked, setLoadingLinked] = useState(false);
 
+function isHexObjectId(str?: string): boolean {
+  if (!str) return false;
+  return /^[0-9a-fA-F]{24}$/.test(str.trim());
+}
+
   // Parse reference code if exists (e.g. PN-MAIN-20260923-0001, XK-..., POS...)
+  // Bỏ hoàn toàn các dạng mã hex hệ thống / ObjectId kỹ thuật (như 6ab377932cfb5e00e249096a)
   const referenceCode = useMemo(() => {
     const fromTitle = log.title?.match(/(?:PN|XK|POS|HD|XUAT|NHAP)-[A-Z0-9-]+/i)?.[0];
-    if (fromTitle) return fromTitle;
+    if (fromTitle && !isHexObjectId(fromTitle)) return fromTitle;
     const fromNotes = log.notes?.match(/(?:PN|XK|POS|HD|XUAT|NHAP)-[A-Z0-9-]+/i)?.[0];
-    if (fromNotes) return fromNotes;
-    const rawRef = (log as any).sourceCode || (log as any).receiptCode || (log as any).refId;
-    if (rawRef && typeof rawRef === "string" && rawRef.length < 30) return rawRef;
-    return log.id;
+    if (fromNotes && !isHexObjectId(fromNotes)) return fromNotes;
+    const rawRef = (log as any).sourceCode || (log as any).receiptCode;
+    if (rawRef && typeof rawRef === "string" && rawRef.length < 30 && !isHexObjectId(rawRef)) return rawRef;
+    if (log.id && !isHexObjectId(log.id)) return log.id;
+    return null;
   }, [log]);
 
   // Attempt to fetch linked GoodsReceipt if inbound to get original supplier, amounts and serials
@@ -290,11 +297,13 @@ export function StockLogDetailModal({
                 )}
               </span>
 
-              {/* Reference / Document code */}
-              <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-100/80 px-2 py-0.5 font-mono text-xs font-bold text-slate-800">
-                <Hash className="h-3 w-3 text-slate-400" />
-                {referenceCode}
-              </span>
+              {/* Reference / Document code - chỉ hiển thị khi có mã chứng từ nghiệp vụ, không hiển thị mã ID hex hệ thống */}
+              {referenceCode && (
+                <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-100/80 px-2 py-0.5 font-mono text-xs font-bold text-slate-800">
+                  <Hash className="h-3 w-3 text-slate-400" />
+                  {referenceCode}
+                </span>
+              )}
 
               {/* Status Badge */}
               <span
@@ -315,24 +324,21 @@ export function StockLogDetailModal({
                 <Clock className="h-3.5 w-3.5 text-slate-400" />
                 {formatLogDate(log.createdAt)}
               </span>
-              {log.id !== referenceCode && (
-                <span className="font-mono text-[11px] text-slate-400">
-                  ID hệ thống: {log.id}
-                </span>
-              )}
             </div>
           </div>
 
           {/* Quick Actions in Header */}
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => copyToClipboard(referenceCode, "code", "Mã chứng từ")}
-              className="hidden sm:inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
-            >
-              <Copy className="h-3.5 w-3.5 text-slate-400" />
-              {copiedKey === "code" ? "Đã chép" : "Sao chép mã"}
-            </button>
+            {referenceCode && (
+              <button
+                type="button"
+                onClick={() => copyToClipboard(referenceCode, "code", "Mã chứng từ")}
+                className="hidden sm:inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+              >
+                <Copy className="h-3.5 w-3.5 text-slate-400" />
+                {copiedKey === "code" ? "Đã chép" : "Sao chép mã"}
+              </button>
+            )}
 
             {status === "Đang chờ" && onEdit && (
               <button
@@ -597,20 +603,13 @@ export function StockLogDetailModal({
             </div>
           </section>
 
-          {/* Notes & Extra Technical Details */}
-          {(log.notes || (log as any).idempotencyKey) && (
+          {/* Notes */}
+          {log.notes && (
             <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-2 text-xs">
-              {log.notes && (
-                <div>
-                  <span className="font-bold text-slate-700">Ghi chú phiếu: </span>
-                  <span className="text-slate-600">{log.notes}</span>
-                </div>
-              )}
-              {(log as any).idempotencyKey && (
-                <div className="font-mono text-[11px] text-slate-400">
-                  Idempotency Key: {(log as any).idempotencyKey}
-                </div>
-              )}
+              <div>
+                <span className="font-bold text-slate-700">Ghi chú phiếu: </span>
+                <span className="text-slate-600">{log.notes}</span>
+              </div>
             </div>
           )}
         </div>
