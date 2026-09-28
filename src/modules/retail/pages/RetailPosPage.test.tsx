@@ -240,4 +240,31 @@ describe("RetailPosPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /SKU-1/ }));
     expect(toast.error).toHaveBeenCalledWith("Áo không còn đủ tồn khả dụng.");
   });
+
+  it("renders a floating SKU dropdown for products with multiple SKUs and selects a different SKU", async () => {
+    vi.mocked(retailProductsApi.list).mockResolvedValue({
+      items: [
+        { ...product, _id: "p1-v1", productId: "parent-1", name: "iPhone 15", sku: "IP15-128", variantName: "128GB", price: 20_000_000, stock: 5 },
+        { ...product, _id: "p1-v2", productId: "parent-1", name: "iPhone 15", sku: "IP15-256", variantName: "256GB", price: 23_000_000, stock: 3 },
+      ],
+      total: 2, page: 1, limit: 500,
+    });
+    render(<RetailPosPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "A" }));
+
+    // SKU dropdown toggle button is present
+    const skuDropdownButton = await screen.findByRole("button", { name: "Chọn SKU cho iPhone 15" });
+    expect(skuDropdownButton).toBeTruthy();
+    expect(skuDropdownButton.textContent).toContain("2 SKU · Tổng tồn: 8");
+
+    // Open dropdown
+    await userEvent.click(skuDropdownButton);
+    expect(screen.getByRole("listbox")).toBeTruthy();
+    expect(screen.getByRole("option", { name: /256GB/ })).toBeTruthy();
+
+    // Select second variant
+    await userEvent.click(screen.getByRole("option", { name: /256GB/ }));
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(await screen.findByLabelText("Số lượng iPhone 15")).toBeTruthy();
+  });
 });
