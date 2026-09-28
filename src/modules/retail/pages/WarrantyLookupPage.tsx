@@ -20,6 +20,7 @@ import {
   Building2,
   Sparkles,
   Lightbulb,
+  X,
 } from "lucide-react";
 import {
   retailWarrantyService,
@@ -231,7 +232,9 @@ export default function WarrantyLookupPage() {
                 className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 cursor-pointer"
                 title="Xóa nhập liệu"
               >
-                <span className="rounded-full bg-slate-200/70 p-1 text-[10px] hover:bg-slate-300">✕</span>
+                <span className="rounded-full bg-slate-200/70 p-1 hover:bg-slate-300 text-slate-600 flex items-center justify-center">
+                  <X className="h-3 w-3" />
+                </span>
               </button>
             )}
           </div>
@@ -373,8 +376,8 @@ export default function WarrantyLookupPage() {
           {/* Top Verification Banner */}
           <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900 px-6 py-3.5 text-white">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500 text-white font-black text-xs">
-                ✓
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-2xs">
+                <Check className="h-4 w-4 stroke-[3]" />
               </div>
               <span className="text-sm font-bold tracking-tight text-slate-100">
                 XÁC NHẬN: THIẾT BỊ XUẤT BÁN TẠI SHOP

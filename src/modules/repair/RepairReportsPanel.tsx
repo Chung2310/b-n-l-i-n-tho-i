@@ -7,7 +7,7 @@ import {
 import { toast } from "../../pages/Toast";
 import { Dropdown } from "../../components/common/Dropdown";
 import { TablePagination } from "../../components/common/TablePagination";
-import { RotateCw, Calendar } from "lucide-react";
+import { RotateCw, Calendar, Star } from "lucide-react";
 
 export const formatMoney = (value?: number) =>
   `${Number(value || 0).toLocaleString("vi-VN")} đ`;
@@ -640,8 +640,9 @@ export default function RepairReportsPanel() {
                     </td>
                     <td className="py-3 px-3 text-center">
                       {row.averageRating ? (
-                        <span className="inline-flex items-center gap-0.5 rounded-md bg-amber-50 border border-amber-200/70 px-2 py-0.5 text-xs font-bold text-amber-800">
-                          ★ {row.averageRating}
+                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 border border-amber-200/70 px-2 py-0.5 text-xs font-bold text-amber-800">
+                          <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                          <span>{row.averageRating}</span>
                         </span>
                       ) : (
                         <span className="text-slate-400">—</span>

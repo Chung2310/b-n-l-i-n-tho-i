@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { apiFetch } from "../shared/lib/apiFetch";
-import { RotateCcw, AlertCircle, Receipt, FileText, CheckCircle2 } from "lucide-react";
+import { RotateCcw, AlertCircle, Receipt, FileText, CheckCircle2, DollarSign, Wrench } from "lucide-react";
 
 const money = (value: number) => Number(value || 0).toLocaleString("vi-VN");
 
@@ -157,7 +157,8 @@ export default function RepairRefundForm({ ticket, onChanged }: { ticket: any; o
           </div>
           {rawAmount > 0 ? (
             <div className="flex items-center gap-1.5 text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200/80 w-fit">
-              <span>💵 Đang nhập:</span>
+              <DollarSign className="h-3.5 w-3.5 text-rose-600" />
+              <span>Đang nhập:</span>
               <span>{rawAmount.toLocaleString("vi-VN")} đ</span>
             </div>
           ) : (
@@ -185,7 +186,8 @@ export default function RepairRefundForm({ ticket, onChanged }: { ticket: any; o
           </div>
           {rawLabor > 0 ? (
             <div className="flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200/80 w-fit">
-              <span>🔧 Tiền công:</span>
+              <Wrench className="h-3.5 w-3.5 text-amber-600" />
+              <span>Tiền công:</span>
               <span>{rawLabor.toLocaleString("vi-VN")} đ</span>
             </div>
           ) : (
