@@ -12,6 +12,14 @@ export const PartnerModel = model("RetailPartner", partner);
 const policy = new Schema({ companyCode: { type: String, required: true }, partnerId: { type: String, default: "" }, effectiveAt: { type: Date, required: true }, config: { type: Schema.Types.Mixed, required: true }, createdBy: String }, { timestamps: true });
 policy.index({ companyCode: 1, partnerId: 1, effectiveAt: 1 }, { unique: true });
 export const CommissionPolicyModel = model("PartnerCommissionPolicy", policy);
+const productCommission = new Schema({
+  companyCode: { type: String, required: true },
+  sku: { type: String, required: true },
+  rule: { type: Schema.Types.Mixed, default: null },
+  updatedBy: String,
+}, { timestamps: true });
+productCommission.index({ companyCode: 1, sku: 1 }, { unique: true });
+export const ProductCommissionModel = model("PartnerProductCommission", productCommission);
 const ledger = new Schema({
   companyCode: { type: String, required: true }, partnerId: { type: String, required: true }, branchId: String,
   sourceType: { type: String, required: true }, sourceId: { type: String, required: true }, sourceCode: String,

@@ -32,10 +32,11 @@ export function allocateBases(items: Array<{ lineTotal: number }>, discount: num
   for (const row of [...values].sort((a, b) => b.fraction - a.fraction || a.index - b.index)) if (remainder-- > 0) row.value++;
   return values.map(i => i.value);
 }
-export function retailLines(order: any, policy: CommissionPolicy): CommissionLine[] {
+export function retailLines(order: any, policy: CommissionPolicy, productRules: Array<{ sku: string; rule: CommissionRule | null }> = []): CommissionLine[] {
   const bases = allocateBases(order.items, Number(order.orderDiscount || 0));
   return order.items.map((item: any, line: number) => {
-    const rule = policy.rules.find(r => r.sku === item.sku) || policy.rules.find(r => r.category && r.category === item.category);
+    const configured = productRules.find(r => r.sku === item.sku);
+    const rule = configured?.rule || (!configured ? policy.rules.find(r => r.sku === item.sku) : undefined) || policy.rules.find(r => r.category && r.category === item.category);
     if (!rule) throw invalid(`Chưa cấu hình hoa hồng cho SKU ${item.sku}.`);
     const quantity = integer(item.quantity, 1);
     const rate = rule.kind === "phone" ? rule.amount! : rule.rateBps!;

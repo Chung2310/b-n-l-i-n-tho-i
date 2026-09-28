@@ -12,6 +12,7 @@ import { RepairTicketModel } from "../repair/repair-ticket.model";
 import { closePartnerMonths, recordPartnerPayout, startCommissionRecovery } from "./commission.service";
 import { saveSupplierPartner, supplierPartnerProfile } from "./partner-supplier.service";
 import { GoodsReceiptModel } from "../../model/goods-receipt.model";
+import { listProductCommissions, saveProductCommissions } from "./product-commission.service";
 import { FinanceDebtModel } from "../finance/models/financial-reporting.model";
 
 export const partnerRouter = Router();
@@ -91,6 +92,8 @@ partnerRouter.get("/me/statement", own, route(async req => {
   if (statement.partner.status === "inactive") throw invalid("Hồ sơ đối tác đã ngừng hoạt động.", 403);
   return statement;
 }));
+partnerRouter.get("/product-commissions", policies, route(async req => listProductCommissions(partnerCompany(req))));
+partnerRouter.put("/product-commissions", policies, route(async req => saveProductCommissions(partnerCompany(req), req.body, req.user.id)));
 partnerRouter.get("/policies", read, route(async req => ({ defaults: defaultPolicy, items: await CommissionPolicyModel.find({ companyCode: partnerCompany(req) }).sort({ effectiveAt: -1 }).limit(100).lean() })));
 partnerRouter.post("/policies", policies, route(async req => {
   const companyCode = partnerCompany(req), partnerId = req.body.partnerId ? id(req.body.partnerId) : "";

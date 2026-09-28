@@ -35,10 +35,12 @@ import {
   Check,
   ContactRound,
   UserPlus,
+  Package,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { partnerRequest, type Partner } from "./partnerApi";
+import { ProductCommissions } from "./ProductCommissions";
 import { toast } from "../../pages/Toast";
 
 const money = (n: number) =>
@@ -1145,15 +1147,15 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Quy tắc hoa hồng riêng biệt (SKU / Nhóm hàng)
+                  Phân loại và mức hoa hồng theo nhóm hàng
                 </h3>
                 <span className="text-xs text-slate-400">
-                  {config.rules.length} quy tắc
+                  {config.rules.filter((r: any) => !r.sku).length} nhóm hàng
                 </span>
               </div>
 
               <div className="space-y-2.5">
-                {config.rules.map((r: any, index: number) => (
+                {config.rules.map((r: any, index: number) => r.sku !== undefined ? null : (
                   <div
                     key={index}
                     className="flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50/80 p-3"
@@ -1177,29 +1179,12 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
                       <option value="accessory">Phụ kiện</option>
                     </select>
 
-                    <select
-                      aria-label="Loại quy tắc"
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
-                      value={r.sku !== undefined ? "sku" : "category"}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          rules: config.rules.map((v: any, i: number) =>
-                            i === index
-                              ? { kind: v.kind, [e.target.value]: "" }
-                              : v
-                          ),
-                        })
-                      }
-                    >
-                      <option value="category">Nhóm hàng</option>
-                      <option value="sku">SKU</option>
-                    </select>
+
 
                     <input
                       aria-label="SKU hoặc nhóm hàng"
                       required
-                      placeholder="Nhập mã SKU hoặc tên nhóm..."
+                      placeholder="Nhập mã nhóm hàng..."
                       className="min-w-[150px] flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-cyan-500"
                       value={r.sku ?? r.category}
                       onChange={(e) =>
@@ -1265,9 +1250,9 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
                   </div>
                 ))}
 
-                {config.rules.length === 0 && (
+                {config.rules.filter((r: any) => !r.sku).length === 0 && (
                   <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
-                    Chưa có quy tắc riêng biệt nào. Hệ thống sẽ áp dụng mức cơ sở mặc định.
+                    Thêm nhóm hàng để xác định loại hoa hồng. Cấu hình từng SKU tại tab Hoa hồng sản phẩm.
                   </p>
                 )}
               </div>
@@ -1468,6 +1453,19 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
               Chính sách
             </button>
           )}
+          {hasPermission("commission-policy:manage") && (
+            <button
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition cursor-pointer ${
+                tab === "products"
+                  ? "bg-white text-cyan-700 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+              onClick={() => setTab("products")}
+            >
+              <Package className="h-3.5 w-3.5" />
+              Hoa hồng sản phẩm
+            </button>
+          )}
         </nav>
       </div>
 
@@ -1526,7 +1524,7 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
         </div>
       )}
 
-      {tab === "policy" ? (
+      {tab === "products" ? <ProductCommissions /> : tab === "policy" ? (
         <PolicyEditor partners={partners} />
       ) : (
         <>
