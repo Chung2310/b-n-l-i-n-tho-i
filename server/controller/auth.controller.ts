@@ -15,6 +15,7 @@ import { getEffectivePermissions } from "../middleware/auth";
 import { profileResourceService } from "../service/profile-resource.service";
 import { employeeDocumentResourceService } from "../service/employee-document-resource.service";
 import { resourceIndexingService } from "../service/resource-indexing.service";
+import { isPartnerAccount } from "../../shared/partner-account";
 
 /** Redirect URI cho OAuth Google Drive (khớp Google Cloud Console). */
 function buildDriveRedirectUri(req: Request): string {
@@ -243,6 +244,7 @@ export const authController = {
         ? await CompanyModel.findOne({ code: userObj.companyCode }).select("enabledModules businessType driveOAuth driveFolderId").lean()
         : null;
       userObj.businessType = company?.businessType ?? "general";
+      if (isPartnerAccount(userObj)) userObj.accountType = "partner";
       userObj.enabledModules = resolveProfileEnabledModules(company?.enabledModules, company?.businessType);
       userObj.permissions = await resolveProfilePermissions(userId, userObj.role, userObj.companyCode);
 

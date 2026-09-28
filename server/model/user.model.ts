@@ -121,6 +121,7 @@ const UserSchema = new Schema<IUser>({
   displayName: { type: String, required: true },
   photoURL: { type: String },
   role: { type: String, default: "user" },
+  accountType: { type: String, enum: ["internal", "partner"], index: true },
   createdAt: { type: Date, default: Date.now },
   birthDate: { type: Date },
   facebookIntegration: { type: FacebookIntegrationSchema, default: null },

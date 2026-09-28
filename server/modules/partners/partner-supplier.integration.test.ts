@@ -4,6 +4,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PartnerModel } from "./partner.models";
 import { SupplierModel } from "../../model/supplier.model";
 import { saveSupplierPartner, supplierPartnerProfile } from "./partner-supplier.service";
+import { ProductCatalogBrandModel } from "../../model/product-catalog-resource.model";
+import { ProductCatalogResourceService } from "../inventory/product-catalog/product-catalog-resource.service";
 
 let repl: MongoMemoryReplSet;
 const input = { companyCode: "SUPPLIER_TEST", code: "NCC-1", name: "Nguồn hàng", roles: ["supplier" as const], status: "active" as const, phone: "0901234567", email: "supplier@example.com", address: "Hà Nội", updatedBy: "admin" };
@@ -11,10 +13,32 @@ describe("supplier profiles managed through partners", () => {
   beforeAll(async () => {
     repl = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
     await mongoose.connect(repl.getUri());
-    await Promise.all([PartnerModel.init(), SupplierModel.init()]);
+    await Promise.all([PartnerModel.init(), SupplierModel.init(), ProductCatalogBrandModel.init()]);
   }, 120000);
   afterAll(async () => { await mongoose.disconnect(); if (repl) await repl.stop(); });
-  beforeEach(async () => { await Promise.all([PartnerModel.deleteMany({}), SupplierModel.deleteMany({})]); });
+  beforeEach(async () => { await Promise.all([PartnerModel.deleteMany({}), SupplierModel.deleteMany({}), ProductCatalogBrandModel.deleteMany({})]); });
+
+  it("quick-creates a product brand and a linked supplier partner in the same company", async () => {
+    const brand = await ProductCatalogResourceService.create(input.companyCode, "brands", { name: "Nguồn hàng mới", createSupplierPartner: true }, "admin");
+    const partner = await PartnerModel.findOne({ companyCode: input.companyCode, code: brand.code }).lean();
+    expect(partner).toMatchObject({ name: brand.name, roles: ["supplier"], status: "active" });
+    const supplier = await SupplierModel.findById(partner!.supplierId).lean();
+    expect(supplier).toMatchObject({ companyCode: input.companyCode, name: brand.name, code: brand.code, status: "active" });
+  });
+
+  it("does not create a partner for ordinary brand-only creation", async () => {
+    await ProductCatalogResourceService.create(input.companyCode, "brands", { name: "Thương hiệu" }, "admin");
+    expect(await PartnerModel.countDocuments()).toBe(0);
+    expect(await SupplierModel.countDocuments()).toBe(0);
+  });
+
+  it("rolls back quick-created brands and suppliers if the partner cannot be saved", async () => {
+    await PartnerModel.create({ ...input, roles: ["dealer"] });
+    await expect(ProductCatalogResourceService.create(input.companyCode, "brands", { code: input.code, name: "Nguồn hàng mới", createSupplierPartner: true }, "admin")).rejects.toThrow();
+    expect(await ProductCatalogBrandModel.countDocuments()).toBe(0);
+    expect(await SupplierModel.countDocuments()).toBe(0);
+    expect(await PartnerModel.countDocuments()).toBe(1);
+  });
 
   it("creates a complete supplier selectable by inventory using the linked ID", async () => {
     const partner = await saveSupplierPartner(input, { taxCode: " 0312345678 ", paymentTerms: "30 ngày", notes: "Giao sáng" });

@@ -26,6 +26,7 @@ export interface GoogleDriveIntegration {
 }
 
 export interface UserProfile {
+  accountType?: "internal" | "partner";
   uid: string;
   email: string;
   displayName: string;

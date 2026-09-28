@@ -2,6 +2,7 @@ import { runInTransaction } from "../../config/database";
 import { SupplierModel } from "../../model/supplier.model";
 import { PartnerModel } from "./partner.models";
 import { invalid } from "./commission-calculation";
+import type { ClientSession } from "mongoose";
 
 export function supplierPartnerProfile(partner: any, supplier?: any) {
   if (!supplier) return partner;
@@ -20,8 +21,8 @@ export function supplierPartnerProfile(partner: any, supplier?: any) {
 }
 
 // Both screens use the existing Supplier ID, preserving receipt and debt links.
-export async function saveSupplierPartner(input: any, details: any, partnerId?: string) {
-  return runInTransaction(async (session) => {
+export async function saveSupplierPartner(input: any, details: any, partnerId?: string, transactionSession?: ClientSession) {
+  const save = async (session?: ClientSession) => {
     const scope = { companyCode: input.companyCode };
     const partner = partnerId
       ? await PartnerModel.findOne({ ...scope, _id: partnerId }).session(session || null)
@@ -59,5 +60,6 @@ export async function saveSupplierPartner(input: any, details: any, partnerId?: 
       throw error;
     }
     return supplierPartnerProfile(partner.toObject(), supplier.toObject());
-  });
+  };
+  return transactionSession ? save(transactionSession) : runInTransaction(save);
 }

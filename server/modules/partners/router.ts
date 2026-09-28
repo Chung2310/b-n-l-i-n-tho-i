@@ -155,8 +155,6 @@ async function provisionPartnerAccount(req: any, partner: any, password: string,
 
   const companyCode = String(partner.companyCode);
   const partnerId = String(partner._id);
-  const group = partner.roles?.[0] || "collaborator";
-  const groupLabels: Record<string, string> = { collaborator: "Cộng tác viên", dealer: "Đại lý" };
   let user: any;
   try {
     user = await UserModel.create({
@@ -164,11 +162,9 @@ async function provisionPartnerAccount(req: any, partner: any, password: string,
       password: await bcrypt.hash(password, 10),
       displayName,
       role: "user",
+      accountType: "partner",
       companyCode,
       permissions: ["partner-self:read"],
-      department: "Đối tác",
-      division: groupLabels[group] || "Đối tác",
-      jobTitle: groupLabels[group] || "Đối tác",
       phone: partner.phone || undefined,
       status: "offline",
       isActive: true,

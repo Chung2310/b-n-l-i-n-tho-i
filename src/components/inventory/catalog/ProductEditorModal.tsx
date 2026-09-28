@@ -12,7 +12,6 @@ import {
   type VariantInput,
   productCatalogService,
 } from "../../../services/productCatalogService";
-import { inventoryReceivingService } from "../../../services/inventoryReceivingService";
 import { generateEAN13, type Option, type GeneratedVariant, cleanOptionSlug } from "../../../hooks/useVariantMatrix";
 import { buildMatrixVariantInput } from "../productVariantPayload";
 import { shouldCreateInitialPrice } from "../productCatalogCreation";
@@ -147,9 +146,10 @@ export function ProductEditorModal({
   const [quickCreating, setQuickCreating] = useState(false);
 
   const handleQuickCreateBrand = async () => {
+    if (quickCreating) return;
     const trimmedName = quickBrandName.trim();
     if (!trimmedName) {
-      toast.error("Vui lòng nhập tên thương hiệu / hãng.");
+      toast.error("Vui lòng nhập tên nhà cung cấp / hãng.");
       return;
     }
     setQuickCreating(true);
@@ -159,6 +159,7 @@ export function ProductEditorModal({
         name: trimmedName,
         code,
         status: "active",
+        createSupplierPartner: true,
       });
 
       setLocalBrands((prev) => {
@@ -167,7 +168,7 @@ export function ProductEditorModal({
       });
 
       setField("brandCode", created.code);
-      toast.success(`Đã tạo thương hiệu "${created.name}" thành công!`);
+      toast.success(`Đã tạo "${created.name}" và thêm vào Quản lý đối tác.`);
       setIsQuickCreatingBrand(false);
       setQuickBrandName("");
       setQuickBrandCode("");
@@ -691,7 +692,7 @@ export function ProductEditorModal({
                     className="w-full"
                     triggerClassName="w-full text-xs font-medium"
                     actionButton={{
-                      label: "Tạo nhanh thương hiệu",
+                      label: "Tạo nhanh nhà cung cấp / hãng",
                       icon: <Plus className="h-3.5 w-3.5 text-cyan-600" />,
                       onClick: () => setIsQuickCreatingBrand(true),
                     }}
@@ -1032,12 +1033,14 @@ export function ProductEditorModal({
             </div>
 
             <div className="mt-4 space-y-3">
+              <p className="text-xs text-slate-500">Nhà cung cấp sẽ được thêm vào Quản lý đối tác và có thể chọn khi nhập hàng.</p>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Tên nhà cung cấp / Hãng <span className="text-rose-500">*</span>
                 </label>
                 <input
                   autoFocus
+                  aria-label="Tên nhà cung cấp / Hãng"
                   type="text"
                   value={quickBrandName}
                   onChange={(e) => setQuickBrandName(e.target.value)}
@@ -1058,6 +1061,7 @@ export function ProductEditorModal({
                 <input
                   type="text"
                   value={quickBrandCode}
+                  aria-label="Mã nhà cung cấp / Hãng"
                   onChange={(e) => setQuickBrandCode(e.target.value.toUpperCase())}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {

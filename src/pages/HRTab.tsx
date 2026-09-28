@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
+import { internalAccounts } from "../../shared/partner-account";
 import { Building2, FolderTree, Briefcase, GraduationCap, Layers, Calendar, CalendarDays, Clock3, Clock, FileSignature, Mail, UserSearch, ChevronLeft, ChevronRight } from "lucide-react";
 import { HRSubTabType, EmployeeNode, TrainingCourse, UserProfile } from "../types";
 import { useAuth } from "../context/AuthContext";
@@ -125,7 +126,7 @@ export default function HRTab() {
       } else {
         data = await authService.getUsersByCompany(selectedCompanyCode);
       }
-      setUsersList(data);
+      setUsersList(internalAccounts(data));
     } catch (error) {
       console.error("Lỗi khi tải danh sách nhân sự:", error);
       toast.error(getApiErrorMessage(error, "Không thể tải sơ đồ nhân sự."));
