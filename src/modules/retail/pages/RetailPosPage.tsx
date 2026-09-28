@@ -792,7 +792,11 @@ function ProductRow({
   const isSoldOut = selected.stock <= 0;
 
   return (
-    <div className="group relative min-w-0 bg-white transition-colors hover:bg-cyan-50/50">
+    <div
+      className={`group relative min-w-0 bg-white transition-colors hover:bg-cyan-50/50 ${
+        open ? "z-30" : "z-0"
+      }`}
+    >
       <button
         type="button"
         className={`flex w-full min-w-0 items-center gap-3 px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-500 cursor-pointer ${
@@ -849,7 +853,7 @@ function ProductRow({
       </button>
 
       {group.variants.length > 1 && (
-        <div className="relative mx-3 mb-2 max-w-sm">
+        <div className={`relative mx-3 mb-2 max-w-sm ${open ? "z-40" : ""}`}>
           <button
             type="button"
             aria-haspopup="listbox"
@@ -876,12 +880,12 @@ function ProductRow({
           {open && (
             <>
               <div
-                className="fixed inset-0 z-10"
+                className="fixed inset-0 z-40"
                 onClick={() => setOpen(false)}
               />
               <ul
                 role="listbox"
-                className="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-auto rounded-2xl border border-slate-200 bg-white py-1.5 shadow-xl"
+                className="absolute left-0 right-0 z-50 mt-1 max-h-60 overflow-auto rounded-2xl border border-slate-200 bg-white py-1.5 shadow-2xl ring-1 ring-slate-900/5"
               >
                 {group.variants.map((variant) => {
                   const active = variant._id === selected._id;
@@ -1043,14 +1047,16 @@ function ProductFolderBranch({
 
   if (depth === 1) {
     return (
-      <section className="min-w-0 rounded-2xl border border-slate-200/90 bg-white shadow-xs transition-all duration-200 hover:border-slate-300 overflow-hidden">
+      <section className="min-w-0 rounded-2xl border border-slate-200/90 bg-white shadow-xs transition-all duration-200 hover:border-slate-300">
         <button
           type="button"
           aria-label={folder.name}
           aria-expanded={expanded}
           aria-controls={contentId}
           onClick={handleToggle}
-          className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition hover:bg-slate-50/80 cursor-pointer select-none"
+          className={`flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition hover:bg-slate-50/80 cursor-pointer select-none ${
+            expanded ? "rounded-t-2xl" : "rounded-2xl"
+          }`}
         >
           <div className="flex items-center gap-3 min-w-0">
             <div
@@ -1079,7 +1085,7 @@ function ProductFolderBranch({
           </div>
         </button>
 
-        <div id={contentId} hidden={!expanded} className="border-t border-slate-100 bg-slate-50/30 p-3 sm:p-4 space-y-3">
+        <div id={contentId} hidden={!expanded} className="rounded-b-2xl border-t border-slate-100 bg-slate-50/30 p-3 sm:p-4 space-y-3">
           {folder.groups.length > 0 && (
             <div className="min-w-0 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
               {folder.groups.map((group) => (

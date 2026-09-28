@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProductCatalogV2Section } from "./ProductCatalogV2Section";
 import { productCatalogService } from "../../services/productCatalogService";
 
 vi.mock("../../services/productCatalogService", () => {
   const productCatalogService = {
-    listProducts: vi.fn(), listResources: vi.fn(), getProduct: vi.fn(), listPrices: vi.fn(), createVariants: vi.fn(), createVariant: vi.fn(), updateVariant: vi.fn(), upsertPrice: vi.fn(),
+    listProducts: vi.fn(), listResources: vi.fn(), getProduct: vi.fn(), listPrices: vi.fn(), createVariants: vi.fn(), createVariant: vi.fn(), updateVariant: vi.fn(), upsertPrice: vi.fn(), deleteProduct: vi.fn(),
   };
   return { productCatalogService, subscribeResourceChanges: vi.fn(() => () => {}) };
 });
@@ -20,6 +20,11 @@ const product = {
 };
 
 describe("ProductCatalogV2Section bulk SKU form", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(productCatalogService.listProducts).mockResolvedValue({ items: [product], total: 1, page: 1, limit: 10 });
@@ -92,5 +97,39 @@ describe("ProductCatalogV2Section bulk SKU form", () => {
     } else {
       expect(productCatalogService.upsertPrice).not.toHaveBeenCalled();
     }
+  });
+
+  it("shows confirmation popup when clicking delete product, and cancels when dismissed", async () => {
+    const { container } = render(<ProductCatalogV2Section />);
+    await screen.findByText("Áo thun");
+
+    const deleteBtn = container.querySelector('button[title="Xóa"]')!;
+    expect(deleteBtn).toBeDefined();
+    fireEvent.click(deleteBtn);
+
+    // ConfirmDialog opens
+    expect(await screen.findByText("Xác nhận xóa sản phẩm")).not.toBeNull();
+    expect(screen.getByText(/Bạn có chắc chắn muốn xóa sản phẩm "Áo thun"/)).not.toBeNull();
+
+    // Click "Hủy"
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    await waitFor(() => expect(screen.queryByText("Xác nhận xóa sản phẩm")).toBeNull());
+    expect(productCatalogService.deleteProduct).not.toHaveBeenCalled();
+  });
+
+  it("deletes the product when confirmed in the popup", async () => {
+    vi.mocked(productCatalogService.deleteProduct).mockResolvedValue();
+    const { container } = render(<ProductCatalogV2Section />);
+    await screen.findByText("Áo thun");
+
+    const deleteBtn = container.querySelector('button[title="Xóa"]')!;
+    fireEvent.click(deleteBtn);
+
+    expect(await screen.findByText("Xác nhận xóa sản phẩm")).not.toBeNull();
+
+    // Click "Xóa sản phẩm"
+    fireEvent.click(screen.getByRole("button", { name: "Xóa sản phẩm" }));
+
+    await waitFor(() => expect(productCatalogService.deleteProduct).toHaveBeenCalledWith("product-1"));
   });
 });

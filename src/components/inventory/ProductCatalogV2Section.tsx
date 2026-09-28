@@ -40,6 +40,7 @@ import { ProductViewerModal } from "./catalog/ProductViewerModal";
 import { ProductEditorModal } from "./catalog/ProductEditorModal";
 import { CatalogSetupModal } from "./catalog/CatalogSetupModal";
 import { Dropdown, type DropdownOption } from "../common/Dropdown";
+import { ConfirmDialog } from "../common/ConfirmDialog";
 import { VariantModal } from "./catalog/VariantModal";
 import { BulkVariantModal } from "./catalog/BulkVariantModal";
 
@@ -57,6 +58,8 @@ export function ProductCatalogV2Section() {
   const [viewer, setViewer] = useState<CatalogProductDetail | null>(null);
   const [setupKind, setSetupKind] = useState<ProductResourceKind | "templates" | null>(null);
   const [variantTarget, setVariantTarget] = useState<VariantTarget | null>(null);
+  const [productToDelete, setProductToDelete] = useState<CatalogProduct | null>(null);
+  const [deletingProduct, setDeletingProduct] = useState(false);
 
   // 1. Chỉ tải danh sách sản phẩm khi đổi trang hoặc lọc
   const loadProducts = async (pageToLoad = page) => {
@@ -168,14 +171,18 @@ export function ProductCatalogV2Section() {
     }
   };
 
-  const deleteProduct = async (product: CatalogProduct) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa sản phẩm ${product.name}?`)) return;
+  const confirmDeleteProduct = async () => {
+    if (!productToDelete) return;
+    setDeletingProduct(true);
     try {
-      await productCatalogService.deleteProduct(product._id);
-      toast.success("Đã xóa sản phẩm.");
+      await productCatalogService.deleteProduct(productToDelete._id);
+      toast.success(`Đã xóa sản phẩm "${productToDelete.name}".`);
+      setProductToDelete(null);
       await load();
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Lỗi: Không thể xóa sản phẩm đã có lịch sử giao dịch."));
+    } finally {
+      setDeletingProduct(false);
     }
   };
 
@@ -596,7 +603,7 @@ export function ProductCatalogV2Section() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => void deleteProduct(product)}
+                            onClick={() => setProductToDelete(product)}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
                             title="Xóa"
                           >
@@ -725,6 +732,17 @@ export function ProductCatalogV2Section() {
           }}
         />
       )}
+      <ConfirmDialog
+        isOpen={Boolean(productToDelete)}
+        title="Xác nhận xóa sản phẩm"
+        description={`Bạn có chắc chắn muốn xóa sản phẩm "${productToDelete?.name}"? Thao tác này chỉ xóa được khi sản phẩm và tất cả biến thể chưa phát sinh giao dịch tồn kho.`}
+        confirmLabel="Xóa sản phẩm"
+        cancelLabel="Hủy"
+        tone="danger"
+        isSubmitting={deletingProduct}
+        onClose={() => !deletingProduct && setProductToDelete(null)}
+        onConfirm={confirmDeleteProduct}
+      />
     </section>
   );
 }
