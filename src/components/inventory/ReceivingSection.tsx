@@ -1109,14 +1109,74 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
             </div>
           </div>
 
+          {/* Cấu hình Thanh toán & Công nợ nhà cung cấp */}
+          <div className="space-y-3 rounded-xl border border-cyan-200/80 bg-cyan-50/40 p-4 shadow-xs">
+            <label className="flex items-center gap-2.5 text-sm font-semibold text-slate-800 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={financeEnabled}
+                onChange={(e) => setFinanceEnabled(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-cyan-700 focus:ring-cyan-600 cursor-pointer"
+              />
+              <span>Tự ghi nhận công nợ nhà cung cấp khi hoàn thành nhập kho</span>
+            </label>
+
+            {financeEnabled && (
+              <div className="grid gap-3 sm:grid-cols-3 pt-1">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Hạn thanh toán</label>
+                  <input
+                    type="date"
+                    required
+                    value={financeTerms.dueOn}
+                    onChange={(e) => setFinanceTerms({ ...financeTerms, dueOn: e.target.value })}
+                    className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600 shadow-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Đã thanh toán (VND)</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    required
+                    value={money(financeTerms.paidAmount)}
+                    onChange={(e) => {
+                      const num = Number(e.target.value.replace(/\D/g, ""));
+                      setFinanceTerms({ ...financeTerms, paidAmount: isNaN(num) ? 0 : num });
+                    }}
+                    placeholder="0"
+                    className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600 shadow-xs tabular-nums text-right font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Phương thức đã trả</label>
+                  <select
+                    value={financeTerms.paymentMethod}
+                    onChange={(e) => setFinanceTerms({ ...financeTerms, paymentMethod: e.target.value })}
+                    className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600 shadow-xs cursor-pointer"
+                  >
+                    <option value="cash">Tiền mặt</option>
+                    <option value="bank">Ngân hàng / Chuyển khoản</option>
+                  </select>
+                </div>
+              </div>
+            )}
+            <p className="text-xs text-slate-500">
+              * Nợ = Giá trị phiếu nhập trừ số đã thanh toán. Khoản đã trả cần gán quỹ tại Tài chính → Sổ quỹ. Không nhập lại công nợ này thủ công.
+            </p>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">Ghi chú phiếu nhập</label>
-            <div className="mb-4 space-y-3 rounded-xl border border-cyan-100 bg-cyan-50/40 p-4">
-              <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={financeEnabled} onChange={e => setFinanceEnabled(e.target.checked)} /> Tự ghi nhận công nợ nhà cung cấp khi hoàn thành nhập kho</label>
-              {financeEnabled && <div className="grid gap-3 sm:grid-cols-3"><label className="text-sm">Hạn thanh toán<input className="mt-1 w-full rounded-lg border p-2" type="date" required value={financeTerms.dueOn} onChange={e => setFinanceTerms({ ...financeTerms, dueOn: e.target.value })} /></label><label className="text-sm">Đã thanh toán (VND)<input className="mt-1 w-full rounded-lg border p-2" type="number" min="0" step="1" required value={financeTerms.paidAmount} onChange={e => setFinanceTerms({ ...financeTerms, paidAmount: Number(e.target.value) })} /></label><label className="text-sm">Phương thức đã trả<select className="mt-1 w-full rounded-lg border p-2" value={financeTerms.paymentMethod} onChange={e => setFinanceTerms({ ...financeTerms, paymentMethod: e.target.value })}><option value="cash">Tiền mặt</option><option value="bank">Ngân hàng</option></select></label></div>}
-              <p className="text-xs text-slate-500">Nợ = giá trị phiếu nhập trừ số đã thanh toán. Khoản đã trả cần gán quỹ tại Tài chính → Sổ quỹ. Không nhập lại công nợ này thủ công.</p>
-            </div>
-            <textarea rows={2} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Nhập ghi chú hoặc thông tin tham chiếu..." className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600" />
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="Nhập ghi chú hoặc thông tin tham chiếu..."
+              className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600 shadow-xs"
+            />
           </div>
 
           <div className="flex items-center justify-between border-t border-slate-200 pt-5 mt-2">
