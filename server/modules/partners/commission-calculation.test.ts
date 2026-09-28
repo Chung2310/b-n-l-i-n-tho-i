@@ -31,6 +31,14 @@ describe("commission calculations", () => {
     expect(line.base).toBe(360000); expect(line.amount).toBe(36000);
     expect(remainingLine(line, 0, 180000).amount).toBe(18000);
   });
+  it("uses exactly one product rate, falls back for other lines and can disable legacy SKU rules", () => {
+    const custom = validatePolicy({ ...policy, rules: [...policy.rules, { kind: "phone", sku: "P", amount: 250000 }] });
+    const order = { items: [{ sku: "P", category: "Điện thoại", quantity: 2, lineTotal: 2000000 }, { sku: "A", category: "Phụ kiện", quantity: 1, lineTotal: 1000000 }] };
+    const lines = retailLines(order, custom, [{ sku: "P", rule: { kind: "phone", amount: 300000 } }]);
+    expect(lines.map(l => l.amount)).toEqual([600000, 100000]);
+    expect(remainingLine(lines[0], 1).amount).toBe(300000);
+    expect(retailLines(order, custom, [{ sku: "P", rule: null }])[0].amount).toBe(400000);
+  });
   it("uses the highest KPI tier and Vietnamese month boundaries", () => {
     expect([9,10,19,20,25].map(kpiBonus)).toEqual([0,1000000,1000000,2500000,2500000]);
     expect(monthKey('2026-08-31T16:59:59Z')).toBe('2026-08');
