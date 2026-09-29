@@ -23,7 +23,7 @@ export const retailOrderController = {
     try {
       res.json({ success: true, data: await RetailOrderService.idempotency(scope(req), req.params.key) });
     } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
+      res.status(error.status || 400).json({ success: false, error: error.message, code: error.code });
     }
   },
   list: async (req: Request, res: Response) => {
@@ -51,14 +51,14 @@ export const retailOrderController = {
     try {
       res.status(201).json({ success: true, data: await RetailOrderService.createDraft(scope(req), req.body || {}, (req as any).user) });
     } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
+      res.status(error.status || 400).json({ success: false, error: error.message, code: error.code });
     }
   },
   update: async (req: Request, res: Response) => {
     try {
       res.json({ success: true, data: await RetailOrderService.updateDraft(scope(req), req.params.id, req.body || {}, (req as any).user, await hasEffectiveRetailCapability((req as any).user || {}, "manager")) });
     } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
+      res.status(error.status || 400).json({ success: false, error: error.message, code: error.code });
     }
   },
   confirm: async (req: Request, res: Response) => {
@@ -66,14 +66,14 @@ export const retailOrderController = {
       const actor = (req as any).user || {};
       res.json({ success: true, data: await RetailOrderService.confirm(scope(req), req.params.id, req.body || {}, actor, undefined, await hasEffectiveRetailCapability(actor, "manager")) });
     } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
+      res.status(error.status || 400).json({ success: false, error: error.message, code: error.code });
     }
   },
   collect: async (req: Request, res: Response) => {
     try {
       res.json({ success: true, data: await RetailOrderService.collect(scope(req), req.params.id, req.body || {}, (req as any).user, undefined) });
     } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
+      res.status(error.status || 400).json({ success: false, error: error.message, code: error.code });
     }
   },
   cancel: async (req: Request, res: Response) => {

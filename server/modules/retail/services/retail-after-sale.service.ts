@@ -1,9 +1,9 @@
+import { createHash } from "node:crypto";
 import { reconcileCommission } from "../../partners/commission.service";
 import mongoose, { Types } from "mongoose";
 import { createRetailRestockReceipt } from "./retail-restock-receipt.service";
 import { summarizeAfterSales } from "./retail-after-sale-history";
 import { ProductVariantModel } from "../../../model/product-variant.model";
-import { ensureDefaultWarehouse } from "../../inventory/warehouse/warehouse.service";
 import { SerialUnitModel } from "../../inventory/serials/serial-unit.model";
 import { SerialEventModel } from "../../inventory/serials/serial-event.model";
 import { normalizeSerialNumber } from "../../inventory/serials/serial-state";
@@ -15,6 +15,7 @@ import { businessDateInVietnam } from "./cashier-shift.service";
 import { enqueueTierRefresh, processTierRefreshBySourceKey } from "./retail-customer-tier.service";
 import { CustomerPointService } from "../../customer-management/services/customer-point.service";
 import { CustomerPointLedgerModel } from "../../customer-management/models/customer-point-ledger.model";
+import { loadRetailStockSource, remainingRetailCost, restockItemFromSource, retailStockSourceError } from "./retail-stock-source";
 
 
 const actorId = (a: any) => String(a.id || a.uid || ""); const actorName = (a: any) => String(a.displayName || a.email || "");
@@ -52,17 +53,33 @@ function selectedItems(order: any, input: any, used: Map<number, number>) {
   });
 }
 
-async function restoreSerials(scope: RetailBranchScope, order: any, doc: any, actor: any, session?: mongoose.ClientSession) {
-  const warehouse = await ensureDefaultWarehouse(scope.companyCode, scope.branchId, session);
+async function restoreSerials(scope: RetailBranchScope, order: any, doc: any, actor: any, warehouseId: string, session: mongoose.ClientSession) {
+  const conflict = (): never => { throw fail("Máy không còn khớp lần bán gốc. Cần đối soát trước khi trả/thu mua.", "AFTER_SALE_SERIAL_CONFLICT", 409); };
+  if (!session.inTransaction()) throw fail("Hoàn máy yêu cầu transaction đang hoạt động.", "TRANSACTION_REQUIRED", 503);
+  const tracked = doc.items.some((item: any) => ["serial", "unit_barcode"].includes(item.trackingMode));
+  if (!tracked) return;
+  const source = await loadRetailStockSource(scope, String(order._id), order.items, session);
   for (const item of doc.items) {
     const ids = item.trackingMode === "serial" ? (item.serialNumbers || []).map((v: string) => ({ normalizedSerialNumber: normalizeSerialNumber(v) })) : item.trackingMode === "unit_barcode" ? (item.internalBarcodes || []).map((v: string) => ({ normalizedInternalBarcode: normalizeInternalBarcode(v) })) : [];
     for (const identifier of ids) {
+      const entry = source.entries[item.orderLineIndex];
+      const filter = { ...scope, ...identifier, warehouseId: source.warehouseId, productId: entry.productId,
+        variantId: entry.variantId || { $exists: false }, sku: entry.sku, status: "sold", soldOrderId: String(order._id),
+        soldBranchId: scope.branchId, currentDocumentType: "retail-order", currentDocumentId: String(order._id) };
+      const unit = await SerialUnitModel.findOne(filter).session(session).lean();
+      if (!unit) conflict();
+      const event = await SerialEventModel.findOne({ companyCode: scope.companyCode, serialUnitId: String(unit._id) }).sort({ occurredAt: -1, _id: -1 }).session(session).lean();
+      if (!event || event.branchId !== scope.branchId || event.eventType !== "sold" || event.fromStatus !== "in_stock"
+        || event.toStatus !== "sold" || event.documentType !== "retail-order" || event.documentId !== String(order._id)) conflict();
+      // Optional barcode selection must describe these same serial units, not other units on the line.
+      if (item.trackingMode === "serial" && item.internalBarcodes?.length
+        && (item.internalBarcodes.length !== item.quantity || !item.internalBarcodes.includes(unit.normalizedInternalBarcode))) conflict();
       const serial: any = await SerialUnitModel.findOneAndUpdate(
-        { ...scope, ...identifier, status: "sold", soldOrderId: String(order._id) },
-        { $set: { status: "in_stock", warehouseId: String(warehouse._id), currentDocumentType: "goods-receipt", currentDocumentId: String(doc.receiptId), updatedBy: actorId(actor) }, $unset: { customerId: 1, customerWarranty: 1, soldAt: 1, soldOrderId: 1, soldOrderCode: 1, soldInvoiceId: 1, soldBranchId: 1 } },
+        { ...filter, _id: unit._id },
+        { $set: { status: "in_stock", warehouseId, currentDocumentType: "goods-receipt", currentDocumentId: String(doc.receiptId), updatedBy: actorId(actor) }, $unset: { customerId: 1, customerWarranty: 1, soldAt: 1, soldOrderId: 1, soldOrderCode: 1, soldInvoiceId: 1, soldBranchId: 1 } },
         { returnDocument: "after", ...(session ? { session } : {}) }
       );
-      if (!serial) throw fail("IMEI/serial đã được nhập lại hoặc không còn ở trạng thái đã bán.", "SERIAL_NOT_SOLD", 409);
+      if (!serial) conflict();
       await SerialEventModel.create([
         { ...scope, serialUnitId: String(serial._id), serialNumber: serial.serialNumber, eventType: doc.type === "return" ? "sales_return" : "customer_buyback", fromStatus: "sold", toStatus: "in_stock", documentType: "goods-receipt", documentId: String(doc.receiptId), reason: doc.reason, actorId: actorId(actor), actorName: actorName(actor) }
       ], session ? { session } : {});
@@ -127,10 +144,43 @@ export const RetailAfterSaleService = {
     const businessDate = shift?.businessDate || businessDateInVietnam(new Date());
     if (!["return", "buyback"].includes(input.type)) throw fail("Loại chứng từ không hợp lệ."); const reason = String(input.reason || "").trim(); if (!reason) throw fail("Lý do là bắt buộc.");
     const paymentMethod = String(input.paymentMethod || "cash") as "cash" | "card" | "transfer" | "ewallet", idempotencyKey = String(input.idempotencyKey || "").trim(); if (!["cash", "card", "transfer", "ewallet"].includes(paymentMethod)) throw fail("Phương thức chi tiền không hợp lệ."); if (!idempotencyKey) throw fail("Thiếu khóa chống tạo trùng.");
-    const replay = await RetailAfterSaleModel.findOne({ companyCode: scope.companyCode, idempotencyKey }).lean(); if (replay) return replay; if (!Types.ObjectId.isValid(input.orderId)) throw fail("Mã đơn bán gốc không hợp lệ.");
+    if (!Types.ObjectId.isValid(input.orderId)) throw fail("Mã đơn bán gốc không hợp lệ.");
+    if (!Array.isArray(input.items) || !input.items.length) throw fail("Vui lòng chọn ít nhất một sản phẩm.");
+    if (input.items.some((item: any) => !item ||
+        (item.serialNumbers != null && !Array.isArray(item.serialNumbers)) ||
+        (item.internalBarcodes != null && !Array.isArray(item.internalBarcodes)))) {
+      throw fail("Dòng sản phẩm hoặc danh sách mã máy không hợp lệ.");
+    }
+    // Hash only accepted request fields, with the same defaults as posting. Do not
+    // include today's date: retrying a lost response tomorrow is still a replay.
+    const requestFingerprint = createHash("sha256").update(JSON.stringify({
+      version: 1, companyCode: scope.companyCode, branchId: scope.branchId,
+      actorId: actorId(actor), shiftId: String(shift?._id || ""),
+      type: input.type, orderId: String(input.orderId), reason, paymentMethod,
+      paymentReference: String(input.paymentReference || "").trim(),
+      items: input.items.map((item: any) => ({
+        orderLineIndex: Number(item.orderLineIndex), quantity: Number(item.quantity),
+        unitAmount: input.type === "buyback" ? Number(item.unitAmount) : undefined,
+        serialNumbers: (item.serialNumbers || []).map(String).map(normalizeSerialNumber).filter(Boolean),
+        internalBarcodes: (item.internalBarcodes || []).map(String).map(normalizeInternalBarcode).filter(Boolean),
+        condition: String(item.condition || "good"), note: String(item.note || "").trim(),
+      })),
+    })).digest("hex");
+    const checkedReplay = (doc: any) => {
+      if (doc.branchId !== scope.branchId || doc.orderId !== String(input.orderId) ||
+          doc.requestFingerprint !== requestFingerprint) {
+        throw fail("Khóa chống tạo trùng đã dùng cho yêu cầu khác hoặc chứng từ cũ chưa có dấu kiểm tra. Vui lòng đối chiếu chứng từ gốc.", "AFTER_SALE_IDEMPOTENCY_CONFLICT", 409);
+      }
+      return doc;
+    };
+    const replayFilter = { companyCode: scope.companyCode, idempotencyKey };
+    const replay = await RetailAfterSaleModel.findOne(replayFilter).lean();
+    if (replay) return checkedReplay(replay);
     const session = await mongoose.startSession();
     let result: any;
     try { result = await session.withTransaction(async () => {
+      const committed = await RetailAfterSaleModel.findOne(replayFilter).session(session).lean();
+      if (committed) return checkedReplay(committed);
       const orderQuery = RetailOrderModel.findOne({ _id: input.orderId, ...scope, status: "completed", paymentStatus: { $in: ["paid", "refunded"] } });
       const order: any = await (session ? orderQuery.session(session) : orderQuery);
       if (!order) throw fail("Chỉ xử lý được đơn đã hoàn tất và thanh toán đủ.", "ORDER_NOT_ELIGIBLE", 409);
@@ -138,29 +188,38 @@ export const RetailAfterSaleService = {
       const prior: any[] = await (session ? priorQuery.session(session) : priorQuery);
       const used = new Map<number, number>(); for (const d of prior) for (const i of d.items || []) used.set(i.orderLineIndex, (used.get(i.orderLineIndex) || 0) + i.quantity);
       const items = selectedItems(order, input, used), totalAmount = items.reduce((s: number, i: any) => s + i.lineAmount, 0); if (totalAmount <= 0) throw fail("Tổng tiền phải lớn hơn 0.");
+      const stockSource = input.type === "return" ? await loadRetailStockSource(scope, String(order._id), order.items, session) : null;
+      if (stockSource) {
+        const expectedCost = remainingRetailCost(order.items, prior);
+        if (!Number.isFinite(order.totalCost) || Math.abs(order.totalCost - expectedCost) > 0.000001) retailStockSourceError();
+        for (const item of items) {
+          const entry = stockSource.entries[item.orderLineIndex];
+          Object.assign(item, { unitCost: entry.unitCost, stockLedgerId: String(entry._id), stockWarehouseId: entry.warehouseId });
+        }
+      }
       const _id = new Types.ObjectId(), code = `${input.type === "return" ? "TH" : "TM"}-${businessDate.replaceAll("-", "")}-${String(_id).slice(-6).toUpperCase()}`;
       const [doc] = await (RetailAfterSaleModel as any).create(
-        [{ _id, ...scope, code, type: input.type, orderId: String(order._id), orderCode: order.orderCode, customerId: order.customerId, customerName: order.customerName, customerPhone: order.customerPhone, items, totalAmount, paymentMethod, paymentReference: String(input.paymentReference || "").trim() || undefined, reason, shiftId: shift?._id ? String(shift._id) : undefined, businessDate: businessDate, idempotencyKey, createdBy: actorId(actor), createdByName: actorName(actor) }],
+        [{ _id, ...scope, code, type: input.type, orderId: String(order._id), orderCode: order.orderCode, customerId: order.customerId, customerName: order.customerName, customerPhone: order.customerPhone, items, totalAmount, paymentMethod, paymentReference: String(input.paymentReference || "").trim() || undefined, reason, shiftId: shift?._id ? String(shift._id) : undefined, businessDate: businessDate, idempotencyKey, requestFingerprint, createdBy: actorId(actor), createdByName: actorName(actor) }],
         session ? { session } : {}
       );
       const variantsQuery = ProductVariantModel.find({ companyCode: scope.companyCode, _id: { $in: items.map((i: any) => i.productId) } }).lean();
-      const variants = await (session ? variantsQuery.session(session) : variantsQuery);
+      const variants = stockSource ? [] : await (session ? variantsQuery.session(session) : variantsQuery);
       const map = new Map(variants.map((v: any) => [String(v._id), v]));
       const receipt = await createRetailRestockReceipt(scope, {
         kind: input.type === "return" ? "sales_return" : "buyback", sourceId: String(doc._id), sourceCode: code,
-        order, items: items.map((i: any) => { const v: any = map.get(i.productId); return { ...i, productId: v ? String(v.productId) : i.productId, ...(v ? { variantId: String(v._id) } : { legacyProductId: i.productId }) }; }),
+        order, warehouseId: stockSource?.warehouseId,
+        items: items.map((i: any) => { if (stockSource) return restockItemFromSource(i, stockSource.entries[i.orderLineIndex]); const v: any = map.get(i.productId); return { ...i, productId: v ? String(v.productId) : i.productId, ...(v ? { variantId: String(v._id) } : { legacyProductId: i.productId }) }; }),
         reason, actorId: actorId(actor), actorName: actorName(actor), idempotencyKey: `after-sale:${doc._id}:in`,
       }, session);
       doc.receiptId = String(receipt._id);
       doc.receiptCode = receipt.receiptCode;
       await doc.save({ session });
-      await restoreSerials(scope, order, doc, actor, session);
+      await restoreSerials(scope, order, doc, actor, receipt.warehouseId, session);
       if (input.type === "return") {
         order.refunds.push({ method: paymentMethod, amount: totalAmount, reference: doc.paymentReference, refundedAt: new Date(), refundedBy: actorId(actor), refundedByName: actorName(actor), shiftId: shift?._id ? String(shift._id) : undefined, businessDate: businessDate, reason });
         order.refundedAmount += totalAmount;
         order.paymentStatus = order.refundedAmount >= order.grandTotal ? "refunded" : "paid";
-        const returnedCost = items.reduce((s: number, i: any) => s + (Number(i.unitCost || 0) * Number(i.quantity || 1)), 0);
-        order.totalCost = Math.max(0, Number(order.totalCost || 0) - returnedCost);
+        order.totalCost = remainingRetailCost(order.items, [...prior, doc]);
         if (order.customerId) {
           await revertPointsOnReturn(scope, order, doc, totalAmount, actor, session);
           await enqueueTierRefresh(scope, String(order.customerId), `retail-after-sale:${doc._id}:tier-return`, session);
@@ -171,7 +230,13 @@ export const RetailAfterSaleService = {
       await order.save({ session });
       if (input.type === "return" && order.commissionSnapshot) await reconcileCommission("retail", String(order._id), scope.companyCode, session);
       return doc;
-    }); } finally { await session.endSession(); }
+    }); } catch (error: any) {
+      // Only the request-key unique index establishes a concurrent replay.
+      if (error?.code !== 11000 || !error?.keyPattern?.companyCode || !error?.keyPattern?.idempotencyKey) throw error;
+      const committed = await RetailAfterSaleModel.findOne(replayFilter).lean();
+      if (!committed) throw error;
+      result = checkedReplay(committed);
+    } finally { await session.endSession(); }
     if (input.type === "return" && result?.customerId) {
       const sourceKey = `retail-after-sale:${result._id}:tier-return`;
       setImmediate(() => void processTierRefreshBySourceKey(scope.companyCode, sourceKey).catch((error) => console.error("[retail-tier-refresh]", error)));

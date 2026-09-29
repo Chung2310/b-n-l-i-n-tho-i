@@ -78,14 +78,36 @@ export async function getCount(scope: Scope, countId: string) {
 export async function createCount(scope: Scope, warehouseId: string, actor: Actor, notes?: string) {
   if (!code(actor.id)) fail("Thiếu định danh người lập kiểm kê.", 401);
   if (!code(warehouseId)) fail("Kho kiểm kê là bắt buộc.");
-  return inInventoryTransaction(async (session) => {
+  return inInventoryTransaction((session) => createCountSnapshot(scope, warehouseId, actor, session, notes), undefined, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" } });
+}
+
+async function createCountSnapshot(scope: Scope, warehouseId: string, actor: Actor, session: mongoose.ClientSession, notes?: string, recreatedFromId?: string) {
     const snapshotStartedAt = new Date();
     const warehouse = await WarehouseModel.findOne({ _id: warehouseId, companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, isActive: true, kind: { $ne: "transit" } }).session(session).lean();
     if (!warehouse) fail("Kho kiểm kê không còn hoạt động hoặc không thuộc phạm vi.", 409);
-    const items = await countItems(scope, warehouseId, session);
+    const snapshotItems = await countItems(scope, warehouseId, session);
+    const items = recreatedFromId ? snapshotItems.map((item) => ({ ...item, countedQuantity: 0, quantityDelta: -item.systemQuantity })) : snapshotItems;
     const countCode = "KK-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
-    const [count] = await InventoryCountModel.create([{ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId, countCode, snapshotStartedAt, status: "draft", items, notes: code(notes) || undefined, createdBy: nameOf(actor), createdById: code(actor.id), version: 0 }], { session });
+    const [count] = await InventoryCountModel.create([{ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId, countCode, snapshotStartedAt, recreatedFromId, status: "draft", items, notes: code(notes) || undefined, createdBy: nameOf(actor), createdById: code(actor.id), version: 0 }], { session });
     return count;
+}
+
+export async function recreateCount(scope: Scope, countId: string, actor: Actor) {
+  if (!code(actor.id)) fail("Thiếu định danh người lập kiểm kê.", 401);
+  return inInventoryTransaction(async (session) => {
+    const filter = { companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId };
+    const source = await InventoryCountModel.findOne({ _id: countId, ...filter }).session(session);
+    if (!source) fail("Không tìm thấy phiếu kiểm kê.", 404);
+    if (source.status !== "conflict") fail("Chỉ tạo lại phiếu kiểm kê đã xung đột tồn kho.", 409);
+    if (source.replacementCountId) {
+      const existing = await InventoryCountModel.findOne({ _id: source.replacementCountId, ...filter, recreatedFromId: String(source._id) }).session(session);
+      if (!existing) fail("Liên kết phiếu tạo lại không hợp lệ. Cần đối soát trước khi tiếp tục.", 409);
+      return existing;
+    }
+    const replacement = await createCountSnapshot(scope, source.warehouseId, actor, session, undefined, String(source._id));
+    source.replacementCountId = String(replacement._id);
+    await saveCount(source, session);
+    return replacement;
   }, undefined, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" } });
 }
 
@@ -190,7 +212,8 @@ export const startCount = (scope: Scope, id: string, actor: Actor) => transition
 export const submitCount = (scope: Scope, id: string, actor: Actor) => transition(scope, id, "pending_approval", actor);
 export const cancelCount = (scope: Scope, id: string, actor: Actor) => transition(scope, id, "cancelled", actor);
 
-export async function approveCount(scope: Scope, countId: string, actor: Actor) {
+export type CountApprovalInput = { expectedVersion?: unknown; discrepancyConfirmed?: unknown; reason?: unknown; unexpectedScanResolutions?: unknown };
+export async function approveCount(scope: Scope, countId: string, actor: Actor, review: CountApprovalInput = {}) {
   if (!code(actor.id)) fail("Thiếu định danh người duyệt kiểm kê.", 401);
   const session = await mongoose.startSession();
   let conflictVersion: number | undefined;
@@ -202,6 +225,24 @@ export async function approveCount(scope: Scope, countId: string, actor: Actor) 
       if (!count.createdById) fail("Phiếu cũ thiếu định danh người lập. Hãy lập phiếu kiểm kê mới để duyệt độc lập.", 409);
       if (count.submittedBy && !count.submittedById) fail("Phiếu cũ thiếu định danh người gửi duyệt. Hãy lập phiếu kiểm kê mới.", 409);
       if (code(actor.id) === count.createdById || code(actor.id) === count.submittedById) fail("Người lập hoặc gửi duyệt không được tự duyệt phiếu kiểm kê.", 403);
+      if (typeof review.expectedVersion !== "number" || !Number.isSafeInteger(review.expectedVersion) || review.expectedVersion < 0) fail("Cần phiên bản phiếu để xác nhận duyệt. Hãy tải lại phiếu.");
+      if (review.expectedVersion !== count.version) fail("Phiếu đã thay đổi. Hãy tải lại và xác nhận chênh lệch mới.", 409);
+      for (const item of count.items as any[]) {
+        if (calculateQuantityDelta(Number(item.systemQuantity), Number(item.countedQuantity)) !== Number(item.quantityDelta)) fail("Số lượng và chênh lệch trên phiếu không khớp. Cần đối soát lại.", 409);
+        if (isUnitTracked(item.trackingMode)) {
+          const expected = (item.expectedUnits || []).map((unit: any) => String(unit.serialUnitId));
+          const scanned = (item.scannedUnitIds || []).map(String);
+          if (new Set(expected).size !== expected.length || expected.length !== item.systemQuantity || new Set(scanned).size !== scanned.length || scanned.length !== item.countedQuantity || scanned.some((id: string) => !expected.includes(id))) fail("Danh sách máy và số lượng trên phiếu không khớp. Cần đối soát lại.", 409);
+        }
+      }
+      const missingCount = count.items.reduce((total: number, item: any) => total + (isUnitTracked(item.trackingMode) ? (item.expectedUnits || []).filter((unit: any) => !(item.scannedUnitIds || []).includes(String(unit.serialUnitId))).length : 0), 0);
+      const hasDiscrepancy = missingCount > 0 || count.items.some((item: any) => Number(item.quantityDelta) !== 0);
+      const reason = typeof review.reason === "string" ? review.reason.trim() : "";
+      if (reason.length > 2000 || (hasDiscrepancy && (review.discrepancyConfirmed !== true || !reason))) fail("Phải xác nhận chênh lệch và nhập lý do (tối đa 2.000 ký tự) trước khi điều chỉnh tồn hoặc ghi nhận máy thất lạc.");
+      const resolutions = Array.isArray(review.unexpectedScanResolutions) ? review.unexpectedScanResolutions : [];
+      const unexpected = count.unexpectedScans || [];
+      if (resolutions.length !== unexpected.length || new Set(resolutions.map((entry: any) => entry?.code)).size !== resolutions.length || resolutions.some((entry: any) => !entry || typeof entry.reason !== "string" || !entry.reason.trim() || entry.reason.trim().length > 2000 || !unexpected.some((scan: any) => scan.code === entry.code))) fail("Cần ghi rõ kết quả đối chiếu cho từng mã ngoài dự kiến; không được bỏ qua hoặc thêm mã khác.");
+      count.approvalReview = { expectedVersion: review.expectedVersion, reason: reason || undefined, confirmedById: code(actor.id), confirmedAt: new Date(), unexpectedScanResolutions: resolutions.map((entry: any) => ({ code: entry.code, reason: entry.reason.trim() })) };
       const balances = await InventoryBalanceModel.find({ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId: count.warehouseId }).session(session).lean();
       const balanceMap = new Map(balances.map((balance: any) => [String(balance.productId) + ":" + String(balance.variantId || ""), balance]));
       if (balances.length !== count.items.length) {
@@ -233,11 +274,11 @@ export async function approveCount(scope: Scope, countId: string, actor: Actor) 
         const missing = (item.expectedUnits || []).filter((entry: any) => !scanned.has(String(entry.serialUnitId)));
         for (const entry of missing) {
           const updated = await SerialUnitModel.findOneAndUpdate(
-            { _id: entry.serialUnitId, companyCode: normalizedCompany(scope.companyCode), status: "in_stock" },
-            { $set: { status: "lost", updatedBy: nameOf(actor) } },
+            { _id: entry.serialUnitId, companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId: count.warehouseId, productId: item.productId, variantId: item.variantId, status: "in_stock" },
+            { $set: { status: "lost", updatedBy: code(actor.id), currentDocumentType: "inventory-count", currentDocumentId: String(count._id) } },
             { returnDocument: 'after', session },
           );
-          if (!updated) continue;
+          if (!updated) fail("Máy chưa quét đã thay đổi trạng thái hoặc vị trí. Không thể ghi nhận thất lạc; cần đối soát lại.", 409);
           await SerialEventModel.create([{ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, serialUnitId: String(entry.serialUnitId), serialNumber: updated.serialNumber, eventType: "count_lost", fromStatus: "in_stock", toStatus: "lost", documentType: "inventory-count", documentId: String(count._id), reason: `Kiểm kê ${count.countCode} không tìm thấy máy`, actorId: code(actor.id), actorName: nameOf(actor) }], { session });
         }
       }

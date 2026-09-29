@@ -1,7 +1,7 @@
 import React from "react";
 import { X } from "lucide-react";
-import { DEFAULT_MODULE_KEYS, MODULE_KEYS, MODULE_OPTIONS, type ModuleKey } from "../../../config/modules";
-import { ACTIVE_BUSINESS_TYPES, BUSINESS_TYPES, BUSINESS_TYPE_LABELS, DEFAULT_BUSINESS_TYPE, getRequiredBusinessModule, isModuleAllowedForBusinessType, resolveBusinessType, type BusinessType } from "../../../config/businessTypes";
+import { DEFAULT_MODULE_KEYS, MODULE_OPTIONS, type ModuleKey } from "../../../config/modules";
+import { DEFAULT_BUSINESS_TYPE, resolveBusinessType, type BusinessType } from "../../../config/businessTypes";
 import { superAdminTenantService, type Tenant, type TenantSummary } from "../../../services/superAdminTenantService";
 
 type Props = {
@@ -33,11 +33,9 @@ export function TenantModuleDialog({ code, onClose, onSaved }: Props) {
         setSummary(result.summary);
         setBusinessType(nextBusinessType);
         const modules = Array.isArray(result.tenant.enabledModules)
-          ? result.tenant.enabledModules.filter((key): key is ModuleKey => MODULE_KEYS.includes(key as ModuleKey))
+          ? (result.tenant.enabledModules as ModuleKey[])
           : [...DEFAULT_MODULE_KEYS];
-        const allowed = modules.filter((key) => isModuleAllowedForBusinessType(key, nextBusinessType));
-        const required = getRequiredBusinessModule(nextBusinessType);
-        setSelected(required && !allowed.includes(required) ? [required, ...allowed] : allowed);
+        setSelected(modules);
       })
       .catch((cause: any) => {
         if (active.current) setError(`${cause.message}${cause.correlationId ? ` (${cause.correlationId})` : ""}`);
@@ -65,13 +63,6 @@ export function TenantModuleDialog({ code, onClose, onSaved }: Props) {
     setSelected((current) => moduleKeys.every((key) => current.includes(key))
       ? current.filter((item) => !moduleKeys.includes(item))
       : [...new Set([...current, ...moduleKeys])]);
-  };
-
-  const changeBusinessType = (next: BusinessType) => {
-    const allowed = selected.filter((key) => isModuleAllowedForBusinessType(key, next));
-    const required = getRequiredBusinessModule(next);
-    setBusinessType(next);
-    setSelected(required && !allowed.includes(required) ? [required, ...allowed] : allowed);
   };
 
   const save = async () => {
@@ -145,24 +136,6 @@ export function TenantModuleDialog({ code, onClose, onSaved }: Props) {
               <div><dt className="text-xs text-slate-500">Trạng thái</dt><dd className="mt-1 text-sm">{tenant.lifecycleStatus || "—"}</dd></div>
               <div><dt className="text-xs text-slate-500">Số người dùng</dt><dd className="mt-1 font-semibold">{summary?.userCount ?? "—"}</dd></div>
             </dl>
-
-            <div>
-              <h4 className="text-sm font-bold">Loại hình doanh nghiệp / Nhãn thực thể</h4>
-              <p className="mt-1 text-xs text-slate-400">Đổi tên xưng hô đối tượng mặc định cho doanh nghiệp này (SuperAdmin đặc quyền).</p>
-              <select
-                aria-label="Loại hình doanh nghiệp"
-                value={businessType}
-                onChange={(e) => changeBusinessType(e.target.value as BusinessType)}
-                disabled={saving}
-                className="mt-2.5 w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-xs text-slate-100 outline-none focus:border-cyan-400 cursor-pointer font-medium"
-              >
-                {BUSINESS_TYPES.filter((type) => (ACTIVE_BUSINESS_TYPES as readonly string[]).includes(type) || type === businessType).map((type) => (
-                  <option key={type} value={type}>
-                    {BUSINESS_TYPE_LABELS[type]}
-                  </option>
-                ))}
-              </select>
-            </div>
 
             <div>
               <h4 className="text-sm font-bold">Module được kích hoạt</h4>

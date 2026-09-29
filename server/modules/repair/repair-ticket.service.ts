@@ -14,6 +14,7 @@ import { recordRepairSerialLifecycle } from "./services/repair-serial-lifecycle"
 import { lookupDeviceOptional, requireSoldSerialForRepair } from "./repair-sold-serial.service";
 import { RepairSettingsModel } from "./repair-settings.model";
 import { getCustomerContact } from "../customer-management/contracts";
+import { inInventoryTransaction } from "../inventory/inventory-transaction";
 
 export type RepairScope = { companyCode: string; branchId: string };
 export type RepairActor = { id: string; name: string };
@@ -94,6 +95,7 @@ function afterRepairTicketEvent(ticket: any, event: "received" | "technician_ass
 }
 
 export async function transitionRepairTicket(scope: RepairScope, id: string, to: RepairStatus, actor: RepairActor, note?: string, customerNotified = false, session?: ClientSession, technicianId?: string) {
+  if (to === "cancelled") return cancelRepairTicket(scope, id, note || "", actor, session);
   const query = RepairTicketModel.findOne({ _id: id, ...scope }); if (session) query.session(session); const ticket: any = await query; if (!ticket) throw Object.assign(new Error("Không tìm thấy phiếu sửa chữa."), { statusCode: 404 });
   assertRepairTransition(ticket.status, to); const from = ticket.status;
   if (to === "delivered" && Math.max(0, Number(ticket.totalAmount || 0) - Number(ticket.paidAmount || 0)) > 0) throw Object.assign(new Error("Không thể giao máy khi phiếu còn công nợ."), { statusCode: 403, code: "REPAIR_DEBT_BLOCKED" });
@@ -163,16 +165,28 @@ export async function recordRepairPayment(scope: RepairScope, id: string, amount
   ticket.paidAmount += amount; ticket.dueAmount = Math.max(0, ticket.totalAmount - ticket.paidAmount); ticket.paymentStatus = ticket.dueAmount === 0 ? "paid" : "partial"; ticket.updatedBy = actor.id; await ticket.save(); return ticket.toObject();
 }
 
-export async function cancelRepairTicket(scope: RepairScope, id: string, reason: string, actor: RepairActor) {
+export async function cancelRepairTicket(scope: RepairScope, id: string, reason: string, actor: RepairActor, existingSession?: ClientSession) {
   const note = String(reason || "").trim(); if (!note) throw Object.assign(new Error("Lý do hủy phiếu là bắt buộc."), { statusCode: 400 });
-  const ticket: any = await RepairTicketModel.findOne({ _id: id, ...scope }); if (!ticket) throw Object.assign(new Error("Không tìm thấy phiếu sửa chữa."), { statusCode: 404 });
-  assertRepairTransition(ticket.status, "cancelled"); const from = ticket.status; ticket.status = "cancelled"; ticket.statusHistory.push({ from, to: "cancelled", at: new Date(), by: actor.id, byName: actor.name, note, customerNotified: false }); await ticket.save();
-  // Huỷ phiếu thì linh kiện đã xuất phải quay về kho, nếu không kho âm dần theo mỗi phiếu huỷ.
-  const { listRepairParts, returnRepairPart } = await import("./repair-part.service");
-  for (const part of await listRepairParts(scope, id)) {
-    if ((part as any).status !== "issued") continue;
-    await returnRepairPart(scope, id, String((part as any)._id), `Huỷ phiếu: ${note}`, actor).catch(() => undefined);
-  } return ticket.toObject();
+  return inInventoryTransaction(async (session) => {
+    const ticket: any = await RepairTicketModel.findOne({ _id: id, ...scope }).session(session);
+    if (!ticket) throw Object.assign(new Error("Không tìm thấy phiếu sửa chữa."), { statusCode: 404 });
+    const { listRepairParts, returnRepairPart } = await import("./repair-part.service");
+    if (ticket.status === "cancelled" && ticket.statusHistory.at(-1)?.note === note) {
+      const parts = await listRepairParts(scope, id, session);
+      if (parts.some((part) => part.status === "issued")) throw Object.assign(new Error("Phiếu đã hủy còn linh kiện chưa hoàn. Cần đối soát dữ liệu cũ."), { statusCode: 409 });
+      return ticket.toObject();
+    }
+    assertRepairTransition(ticket.status, "cancelled");
+    const from = ticket.status;
+    ticket.status = "cancelled";
+    ticket.statusHistory.push({ from, to: "cancelled", at: new Date(), by: actor.id, byName: actor.name, note, customerNotified: false });
+    await ticket.save({ session });
+    for (const part of await listRepairParts(scope, id, session)) {
+      if (part.status !== "issued") continue;
+      await returnRepairPart(scope, id, String(part._id), `Huỷ phiếu: ${note}`, actor, session);
+    }
+    return RepairTicketModel.findOne({ _id: id, ...scope }).session(session).lean();
+  }, existingSession);
 }
 
 export async function createFeedbackQr(scope: RepairScope, id: string) {

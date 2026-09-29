@@ -19,6 +19,13 @@ const files = [
   "server/service/crud-inventory-guard.test.ts",
   "server/service/crud-branch-scope.test.ts",
   "server/modules/retail/services/retail-after-sale.service.test.ts",
+  "src/modules/retail/hooks/useAfterSaleRequest.test.tsx",
+  "src/modules/retail/pages/AfterSalesForm.test.tsx",
+  "src/modules/retail/components/orders/CollectionDialog.test.tsx",
+  "src/modules/retail/pages/CancelDialog.test.tsx",
+  "src/modules/retail/offline/confirmOfflineOrder.test.ts",
+  "src/modules/retail/offline/draftCreationRequest.test.ts",
+  "src/services/apiClientError.test.ts",
   "src/pages/inventoryBranchRefresh.test.tsx",
 ];
 const nodeTests = [], vitestTests = [];

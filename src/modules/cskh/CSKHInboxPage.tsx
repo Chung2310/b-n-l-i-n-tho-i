@@ -215,7 +215,7 @@ export default function CSKHInboxPage() {
               Hộp Thư CSKH 1-1 & AI Marketing Copilot
             </h1>
             <p className="text-[11px] text-slate-500">
-              Chăm sóc khách hàng sửa chữa & bán lẻ · Anh Khoa Mobile
+              Chăm sóc khách hàng sửa chữa & bán lẻ · Igen Retail ERP
             </p>
           </div>
         </div>

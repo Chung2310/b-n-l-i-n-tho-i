@@ -1,6 +1,10 @@
 /** Read-only evidence matching. Never substitute today's price/average or an arbitrary receipt. */
 export function resolveSaleCost(order: any, item: any, index: number, ledger: any[], receipts: any[], otherSales: any[] = [], acquisitions: any[] = []) {
   const positive = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n > 0;
+  if (item.stockLedgerId || item.stockWarehouseId) {
+    const cost = linkedStockCost(order, String(order._id), item, index, ledger, false);
+    return { cost, costBasis: cost === null ? "missing" : "stock_issue", costReference: cost === null ? undefined : item.stockLedgerId };
+  }
   if (positive(item.unitCost) && positive(item.quantity)) return { cost: item.unitCost * item.quantity, costBasis: "order_snapshot" };
   const sameScope = (r: any) => r.companyCode === order.companyCode && r.branchId === order.branchId;
   const sameItem = (r: any) => r.sku === item.sku && String(r.variantId || r.productId) === String(item.variantId || item.productId);
@@ -79,4 +83,24 @@ export function resolveSaleCost(order: any, item: any, index: number, ledger: an
     }
   }
   return { cost: null, costBasis: "missing", costReference: undefined };
+}
+
+function linkedStockCost(scope: any, orderId: string, item: any, index: number, ledger: any[], partial: boolean): number | null {
+  const matches = ledger.filter((entry) => String(entry._id) === item.stockLedgerId);
+  if (matches.length !== 1) return null;
+  const entry = matches[0];
+  if (!item.stockWarehouseId || entry.companyCode !== scope.companyCode || entry.branchId !== scope.branchId
+    || entry.warehouseId !== item.stockWarehouseId || entry.sourceType !== "retail-order" || String(entry.sourceId) !== orderId
+    || entry.sourceLine !== index || entry.direction !== "out" || entry.purpose !== "sale"
+    || entry.sku !== item.sku || String(entry.variantId || entry.productId) !== String(item.variantId || item.productId)
+    || !Number.isSafeInteger(item.quantity) || item.quantity <= 0 || !Number.isSafeInteger(entry.quantity)
+    || (partial ? entry.quantity < item.quantity : entry.quantity !== item.quantity) || entry.quantityDelta !== -entry.quantity
+    || !Number.isFinite(item.unitCost) || item.unitCost < 0 || entry.unitCost !== item.unitCost) return null;
+  return item.unitCost * item.quantity;
+}
+
+export function resolveReturnCost(doc: any, item: any, ledger: any[]): number | null {
+  if (item.stockLedgerId || item.stockWarehouseId) return linkedStockCost(doc, String(doc.orderId), item, item.orderLineIndex, ledger, true);
+  // Preserve the old evidence policy for historical snapshots without explicit posting links.
+  return Number.isFinite(item.unitCost) && item.unitCost > 0 && Number.isFinite(item.quantity) && item.quantity > 0 ? item.unitCost * item.quantity : null;
 }

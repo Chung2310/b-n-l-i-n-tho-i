@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
 vi.mock("../../services/repairService", () => ({
-  repairService: { parts: vi.fn(async () => []) },
+  repairService: { parts: vi.fn(async () => []), issuePart: vi.fn() },
   repairExtras: {
     assignTechnician: vi.fn(),
     notifications: vi.fn(async () => []),
@@ -18,8 +18,27 @@ vi.mock("../../services/authService", () => ({
 
 import RepairTicketExtras from "./RepairTicketExtras";
 import type { RepairTicket } from "../../services/repairService";
+import { repairService } from "../../services/repairService";
 
 afterEach(cleanup);
+
+test("retains the issue key after a lost response and changes it for a different request", async () => {
+  const user = (await import("@testing-library/user-event")).default.setup();
+  const issue = vi.mocked(repairService.issuePart).mockReset().mockRejectedValue(new Error("Connection lost"));
+  render(<RepairTicketExtras ticket={{ ...ticket, status: "repairing" }} onChanged={() => undefined} />);
+  await user.click(screen.getByRole("checkbox", { name: /Linh kiện không có trong kho/ }));
+  await user.type(screen.getByPlaceholderText(/Ốc vít, keo dán/), "Glue");
+  const submit = () => screen.getByRole("button", { name: "Thêm linh kiện (không trừ kho)" });
+  await user.click(submit());
+  await screen.findByText("Connection lost");
+  await user.click(submit());
+  await waitFor(() => expect(issue).toHaveBeenCalledTimes(2));
+  expect(issue.mock.calls[1][1].idempotencyKey).toBe(issue.mock.calls[0][1].idempotencyKey);
+  await user.click(screen.getByLabelText("Tăng số lượng"));
+  await user.click(submit());
+  await waitFor(() => expect(issue).toHaveBeenCalledTimes(3));
+  expect(issue.mock.calls[2][1].idempotencyKey).not.toBe(issue.mock.calls[0][1].idempotencyKey);
+});
 
 const ticket: RepairTicket = {
   _id: "repair-1", ticketCode: "REP-001", status: "diagnosing", customerId: "customer-1", customerName: "Khách hàng", customerPhone: "0900000000",

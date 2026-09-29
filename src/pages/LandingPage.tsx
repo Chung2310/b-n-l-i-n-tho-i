@@ -17,9 +17,9 @@ const markup = content
   .replaceAll("{{termsUrl}}", escapeAttribute(TERMS_OF_SERVICE_URL))
   .replaceAll("{{deletionUrl}}", escapeAttribute(USER_DATA_DELETION_URL));
 const meta = {
-  title: "iGen — Đồng hành cùng cửa hàng điện thoại",
-  description: "iGen kết nối hành trình bán hàng, chăm sóc khách hàng và bảo hành dành cho cửa hàng điện thoại, phụ kiện và sửa chữa.",
-  keywords: "igen, cửa hàng điện thoại, bán hàng điện thoại, chăm sóc khách hàng, bảo hành",
+  title: "Igen Retail ERP — Nền tảng Quản trị Bán lẻ & Bảo hành Điện thoại",
+  description: "Igen Retail ERP kết nối hành trình bán hàng đa kênh, quản lý kho IMEI/Serial, chăm sóc khách hàng và bảo hành chuyên sâu.",
+  keywords: "Igen Retail ERP, cửa hàng điện thoại, bán hàng điện thoại, chăm sóc khách hàng, bảo hành",
   path: "/",
 };
 

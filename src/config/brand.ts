@@ -1,5 +1,5 @@
-export const BRAND_NAME = "Anh Khoa Mobile";
-export const BRAND_TAGLINE = "Enterprise Hub";
+export const BRAND_NAME = "Igen Retail ERP";
+export const BRAND_TAGLINE = "Hệ thống Quản trị Bán lẻ & Bảo hành";
 export const SERVICE_WEBSITE_URL = "https://erp.igentechsolutions.com";
 export const SUPPORT_EMAIL = "igen.work99@gmail.com";
 export const SUPPORT_URL = `${SERVICE_WEBSITE_URL}/#phap-ly`;

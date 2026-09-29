@@ -10,6 +10,13 @@ const entry = { id: "c", itemId: "i", countedQuantity: 7, expectedVersion: 3 };
 const queued = () => JSON.parse(localStorage.getItem(key) || "[]");
 
 describe("versioned inventory count edits", () => {
+  it("sends explicit approval review with its version", async () => {
+    const review = { expectedVersion: 3, discrepancyConfirmed: true, reason: "Recounted", unexpectedScanResolutions: [{ code: "EXTRA", reason: "Excluded" }] };
+    fetchMock.mockResolvedValue({ data: { _id: "c", version: 4 } });
+    await inventoryCountService.approve("c", review);
+    expect(fetchMock.mock.calls[0][0]).toBe("/inventory/counts/c/approve");
+    expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string)).toEqual(review);
+  });
   beforeEach(() => { vi.restoreAllMocks(); fetchMock.mockReset(); localStorage.clear(); vi.spyOn(navigator, "onLine", "get").mockReturnValue(true); });
   it("sends the displayed version with quantity and rejects a missing version locally", async () => {
     fetchMock.mockResolvedValue({ data: { _id: "c", version: 4 } });

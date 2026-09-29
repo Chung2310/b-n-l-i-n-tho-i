@@ -344,7 +344,7 @@ export default function GuideTab() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-              Cẩm nang Hướng dẫn Sử dụng Anh Khoa Mobile
+              Cẩm nang Hướng dẫn Sử dụng Igen Retail ERP
             </h1>
             <p className="text-xs text-gray-500 mt-0.5">
               Tài liệu hướng dẫn thao tác từng bước bằng ngôn ngữ đơn giản, dễ hiểu cho mọi nhân viên.

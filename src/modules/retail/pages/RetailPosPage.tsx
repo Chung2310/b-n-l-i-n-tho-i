@@ -1,4 +1,6 @@
 import React from "react";
+import { confirmOfflineOrder } from "../offline/confirmOfflineOrder";
+import { prepareDraftCreation, prepareDraftUpdate, clearDraftCreation, allowRejectedDraftEdit, type DraftCreationRequest, type DraftUpdateRequest } from "../offline/draftCreationRequest";
 import CollaboratorPicker from "../../partners/CollaboratorPicker";
 import {
   Camera,
@@ -92,6 +94,7 @@ export default function RetailPosPage() {
   const [draft, setDraft] = React.useState<RetailOrder | null>(null);
   const [q, setQ] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const draftWriteBusy = React.useRef(false);
   const [paying, setPaying] = React.useState(false);
   const [billingProfiles, setBillingProfiles] = React.useState<any[]>([]);
   const [scanning, setScanning] = React.useState(false);
@@ -426,47 +429,68 @@ export default function RetailPosPage() {
   };
 
   const saveDraft = async () => {
+    if (draftWriteBusy.current) return;
     if (!cart.lines.length) return;
     if (!cart.customer?._id) {
       toast.error("Vui lòng chọn khách hàng trước khi lưu đơn.");
       return;
     }
+    draftWriteBusy.current = true;
     setBusy(true);
+    let request: DraftCreationRequest | undefined;
     try {
       const input = buildRetailOrderInput(cart);
-      if (draft)
-        await retailOrdersApi.updateDraft(scope, draft._id, {
-          ...input,
-          version: draft.version,
-        });
-      else await retailOrdersApi.createDraft(scope, input);
+      if (draft) {
+        request = prepareDraftUpdate(scope, userProfile?.uid || "", draft._id, { ...input, version: draft.version });
+        await retailOrdersApi.updateDraft(scope, draft._id, { ...request.input, idempotencyKey: request.idempotencyKey });
+        clearDraftCreation(scope, userProfile?.uid || "", request, draft._id);
+      }
+      else {
+        request = prepareDraftCreation(scope, userProfile?.uid || "", input);
+        await retailOrdersApi.createDraft(scope, { ...request.input, idempotencyKey: request.idempotencyKey });
+        clearDraftCreation(scope, userProfile?.uid || "", request);
+      }
       dispatch({ type: "reset" });
       setDraft(null);
       refreshDrafts();
       toast.success("Đã treo đơn. Đơn không giữ tồn kho.");
     } catch (error) {
+      if (request) allowRejectedDraftEdit(scope, userProfile?.uid || "", request, error, draft?._id);
       show(error);
     } finally {
+      draftWriteBusy.current = false;
       setBusy(false);
     }
   };
 
   const checkout = async (payments: RetailPaymentInput[], dueDate?: string) => {
-    if (!cart.quote || cart.quoteDirty) return;
+    if (!cart.quote || cart.quoteDirty || draftWriteBusy.current) return;
+    draftWriteBusy.current = true;
     const customerId = cart.customer?._id;
     setBusy(true);
     const key = crypto.randomUUID();
     const input = { ...buildRetailOrderInput(cart), dueDate };
     let savedId = draft?._id;
+    let savedVersion = draft?.version;
+    let draftSaved = false;
+    let draftCreation: DraftCreationRequest | undefined;
+    let draftUpdate: DraftUpdateRequest | undefined;
     try {
+      if (!draft) draftCreation = prepareDraftCreation(scope, userProfile?.uid || "", input);
+      else draftUpdate = prepareDraftUpdate(scope, userProfile?.uid || "", draft._id, { ...input, version: draft.version });
       const saved = draft
         ? await retailOrdersApi.updateDraft(scope, draft._id, {
-            ...input,
-            version: draft.version,
+            ...draftUpdate!.input,
+            idempotencyKey: draftUpdate!.idempotencyKey,
           })
-        : await retailOrdersApi.createDraft(scope, input);
+        : await retailOrdersApi.createDraft(scope, { ...draftCreation!.input, idempotencyKey: draftCreation!.idempotencyKey });
       savedId = saved._id;
+      savedVersion = saved.version;
+      draftSaved = true;
+      if (draftCreation) clearDraftCreation(scope, userProfile?.uid || "", draftCreation);
+      if (draftUpdate) clearDraftCreation(scope, userProfile?.uid || "", draftUpdate, draftUpdate.orderId);
       const result = await retailOrdersApi.confirm(scope, saved._id, {
+        expectedVersion: saved.version,
         expectedGrandTotal: cart.quote.grandTotal,
         payments,
         idempotencyKey: key,
@@ -474,6 +498,8 @@ export default function RetailPosPage() {
       finish(result);
       setPaying(false);
     } catch (error) {
+      if (!draftSaved && draftCreation) allowRejectedDraftEdit(scope, userProfile?.uid || "", draftCreation, error);
+      if (!draftSaved && draftUpdate) allowRejectedDraftEdit(scope, userProfile?.uid || "", draftUpdate, error, draftUpdate.orderId);
       const attempt = await retailOrdersApi
         .idempotency(scope, key)
         .catch(() => null);
@@ -486,6 +512,10 @@ export default function RetailPosPage() {
             offlineScope,
             {
               draftId: savedId,
+              draftVersion: savedVersion,
+              draftSaved,
+              draftCreation,
+              draftUpdate,
               input,
               expectedGrandTotal: cart.quote.grandTotal,
               payments,
@@ -509,11 +539,14 @@ export default function RetailPosPage() {
           await retailOrdersApi
             .cancel(scope, savedId, {
               reason: "Tự động hủy draft sau khi thanh toán thất bại.",
+              idempotencyKey: `cancel-failed:${key}`,
+              expectedVersion: savedVersion,
             })
             .catch(() => {});
         show(error);
       }
     } finally {
+      draftWriteBusy.current = false;
       setBusy(false);
     }
   };
@@ -534,17 +567,7 @@ export default function RetailPosPage() {
   const syncOffline = async (activeScope: OfflineScope) => {
     const results = await syncRetailOfflineQueue(queueRef.current, activeScope, {
       check: (key) => retailOrdersApi.idempotency(activeScope, key),
-      send: async (item) => {
-        const payload = item.payload as any;
-        const order = payload.draftId
-          ? { _id: payload.draftId }
-          : await retailOrdersApi.createDraft(activeScope, payload.input);
-        return retailOrdersApi.confirm(activeScope, order._id, {
-          expectedGrandTotal: payload.expectedGrandTotal,
-          payments: payload.payments,
-          idempotencyKey: item.idempotencyKey,
-        });
-      },
+      send: (item) => confirmOfflineOrder(activeScope, item, queueRef.current),
     });
     refreshOffline();
     return results;

@@ -304,6 +304,7 @@ function IssuePartForm({ ticket, onIssued }: { ticket: RepairTicket; onIssued: (
   };
 
   const searchTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingIssueRef = React.useRef<{ fingerprint: string; key: string } | null>(null);
 
   const search = (value: string) => {
     setQuery(value);
@@ -347,7 +348,11 @@ function IssuePartForm({ ticket, onIssued }: { ticket: RepairTicket; onIssued: (
     setBusy(true);
     setError("");
     try {
-      const key = `repair:${ticket._id}:part:${manual ? "manual" : selected!._id}:${Date.now()}`;
+      const fingerprint = JSON.stringify({ ticketId: ticket._id, manual, productId: selected?._id, manualName, manualSku, quantity, unitCost, unitPrice, billing });
+      if (pendingIssueRef.current?.fingerprint !== fingerprint) {
+        pendingIssueRef.current = { fingerprint, key: `repair:${ticket._id}:part:${crypto.randomUUID()}` };
+      }
+      const key = pendingIssueRef.current.key;
       await repairService.issuePart(ticket._id, {
         productId: manual ? key : selected!._id,
         sku: manual ? manualSku.trim() || "MANUAL" : selected!.sku,
@@ -359,6 +364,7 @@ function IssuePartForm({ ticket, onIssued }: { ticket: RepairTicket; onIssued: (
         manual,
         idempotencyKey: key,
       });
+      pendingIssueRef.current = null;
       toggleManual(manual);
       setQuantity(1);
       onIssued();
@@ -487,6 +493,7 @@ function IssuePartForm({ ticket, onIssued }: { ticket: RepairTicket; onIssued: (
                 type="text"
                 inputMode="numeric"
                 aria-label="Giá vốn"
+                readOnly={!manual}
                 value={unitCost}
                 onChange={(e) => handleCurrencyChange(e, setUnitCost)}
                 placeholder="VD: 150.000"
@@ -500,11 +507,13 @@ function IssuePartForm({ ticket, onIssued }: { ticket: RepairTicket; onIssued: (
               <button
                 type="button"
                 onClick={() => setUnitCost("0")}
+                disabled={!manual}
                 className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
               >
                 0đ
               </button>
             </div>
+            {!manual && <p className="text-xs font-normal text-slate-500">Giá vốn thực tế được chốt theo tồn kho khi xuất.</p>}
           </div>
 
           <div className="flex flex-col gap-1 text-xs font-bold text-slate-700">

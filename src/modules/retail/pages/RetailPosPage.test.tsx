@@ -226,7 +226,7 @@ describe("RetailPosPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Gửi ghi nợ toàn bộ" }));
 
     await waitFor(() => expect(retailOrdersApi.createDraft).toHaveBeenCalledWith({ companyCode: "ACME", branchId: "B1" }, expect.objectContaining({ customerId: "c1", billingProfileId: "bp1", dueDate: "2026-09-30" })));
-    expect(retailOrdersApi.confirm).toHaveBeenCalledWith({ companyCode: "ACME", branchId: "B1" }, "o1", expect.objectContaining({ payments: [] }));
+    expect(retailOrdersApi.confirm).toHaveBeenCalledWith({ companyCode: "ACME", branchId: "B1" }, "o1", expect.objectContaining({ payments: [], expectedVersion: 1 }));
   });
 
   it("displays zero-stock products and warns when attempting to add to cart", async () => {

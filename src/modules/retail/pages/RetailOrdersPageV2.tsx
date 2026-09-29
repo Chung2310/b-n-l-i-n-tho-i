@@ -22,13 +22,14 @@ import {
   X,
 } from "lucide-react";
 import { AfterSaleBadge, AfterSaleHistory } from "../components/orders/AfterSaleHistory";
-import PaymentDialog from "../components/pos/PaymentDialog";
+import CollectionDialog from "../components/orders/CollectionDialog";
 import { retailOrdersApi } from "../api/retailOrders.api";
-import { retailAfterSalesApi } from "../api/retailAfterSales.api";
 import { useRetailScope } from "../hooks/useRetailScope";
+import { useAfterSaleRequest } from "../hooks/useAfterSaleRequest";
 import type { RetailAfterSaleInput, RetailAfterSaleType, RetailOrder, RetailPaymentInput } from "../types";
 import { getApiErrorMessage } from "../../../utils/errorMessage";
 import { toast } from "../../../pages/Toast";
+import { ApiClientError } from "../../../services/apiClientError";
 
 const money = (value: number) => new Intl.NumberFormat("vi-VN").format(value) + " ₫";
 
@@ -101,28 +102,16 @@ export default function RetailOrdersPageV2() {
     setCollecting(true);
   };
 
-  const collect = async (payments: RetailPaymentInput[]) => {
-    if (!selected) return;
-    try {
-      const updated = await retailOrdersApi.collect(scope, selected._id, payments);
+  const collected = (updated: RetailOrder) => {
       setSelected(updated);
       setCollecting(false);
       toast.success("Đã ghi nhận thanh toán công nợ thành công.");
       void refresh();
-    } catch (cause) {
-      const msg = getApiErrorMessage(cause, "Không thu được công nợ.");
-      setError(msg);
-      toast.error(msg);
-    }
   };
 
-  const cancel = async (reason: string, refundMethod: RetailPaymentInput["method"]) => {
+  const cancelled = (updated: RetailOrder) => {
     if (!selected) return;
     const wasDraft = selected.status === "draft";
-    const remaining = Math.max(0, selected.paidAmount - (selected.refundedAmount || 0));
-    const refunds = remaining ? [{ method: refundMethod, amount: remaining }] : [];
-    try {
-      const updated = await retailOrdersApi.cancel(scope, selected._id, { reason, refunds });
       if (wasDraft) {
         setSelected(null);
       } else {
@@ -131,11 +120,6 @@ export default function RetailOrdersPageV2() {
       setCancelling(false);
       toast.success("Đã hủy đơn hàng thành công.");
       void refresh();
-    } catch (cause) {
-      const msg = getApiErrorMessage(cause, "Không hủy được đơn hàng.");
-      setError(msg);
-      toast.error(msg);
-    }
   };
 
   // KPI Computations
@@ -428,21 +412,19 @@ export default function RetailOrdersPageV2() {
 
       {/* Payment / Debt Collection Dialog */}
       {collecting && selected && (
-        <PaymentDialog
-          total={selected.dueAmount}
-          busy={false}
-          customerId={selected.customerId}
-          onClose={() => setCollecting(false)}
-          onSubmit={(payments) => collect(payments)}
+        <CollectionDialog
+          order={selected}
+          close={() => setCollecting(false)}
+          done={collected}
         />
       )}
 
       {/* Cancel Order Dialog */}
       {cancelling && selected && (
         <CancelDialog
-          refundRequired={selected.paidAmount > 0}
+          order={selected}
           onClose={() => setCancelling(false)}
-          onSubmit={cancel}
+          done={cancelled}
         />
       )}
     </section>
@@ -616,7 +598,7 @@ function Metric({ label, value }: { label: string; value: number }) {
   );
 }
 
-function AfterSalesForm({
+export function AfterSalesForm({
   order,
   type,
   close,
@@ -627,19 +609,21 @@ function AfterSalesForm({
   close: () => void;
   done: () => void;
 }) {
-  const { scope } = useRetailScope();
-  const [reason, setReason] = React.useState("");
-  const [method, setMethod] = React.useState<RetailAfterSaleInput["paymentMethod"]>("cash");
-  const [busy, setBusy] = React.useState(false);
+  const { scope, userProfile } = useRetailScope();
+  const request = useAfterSaleRequest(scope, userProfile?.uid || "", order._id);
+  const { pending, busy } = request;
+  const [reason, setReason] = React.useState(pending?.reason || "");
+  const [method, setMethod] = React.useState<RetailAfterSaleInput["paymentMethod"]>(pending?.paymentMethod || "cash");
+  const blocked = request.scopeChanged || Boolean(request.storageError) || Boolean(pending && pending.type !== type);
 
   const [rows, setRows] = React.useState(() =>
-    order.items.map((i) => ({
-      selected: false,
-      quantity: 1,
-      unitAmount: Math.round(i.lineTotal / i.quantity),
+    order.items.map((i, index) => ({
+      selected: Boolean(pending?.items.some((item) => item.orderLineIndex === index)),
+      quantity: pending?.items.find((item) => item.orderLineIndex === index)?.quantity || 1,
+      unitAmount: pending?.items.find((item) => item.orderLineIndex === index)?.unitAmount ?? Math.round(i.lineTotal / i.quantity),
       condition: "good" as const,
-      serialNumbers: [] as string[],
-      internalBarcodes: [] as string[],
+      serialNumbers: pending?.items.find((item) => item.orderLineIndex === index)?.serialNumbers || [] as string[],
+      internalBarcodes: pending?.items.find((item) => item.orderLineIndex === index)?.internalBarcodes || [] as string[],
     }))
   );
 
@@ -677,23 +661,20 @@ function AfterSalesForm({
   );
 
   const submit = async () => {
-    if (!scope) return;
-    setBusy(true);
+    if (!scope || blocked) return;
     try {
-      const d = await retailAfterSalesApi.create(scope, {
+      const d = await request.send({
         type,
         orderId: order._id,
         items,
         paymentMethod: method,
         reason: reason.trim(),
-        idempotencyKey: crypto.randomUUID(),
       });
+      if (!d) return;
       toast.success(`Đã tạo chứng từ ${d.code}`);
       done();
     } catch (e) {
       toast.error(getApiErrorMessage(e, "Không tạo được chứng từ sau bán hàng."));
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -721,6 +702,14 @@ function AfterSalesForm({
           </button>
         </div>
 
+        {(pending || blocked) && <p role="alert" className="mt-4 text-sm text-amber-700">
+          {request.storageError || (request.scopeChanged
+            ? "Chi nhánh hoặc tài khoản đã thay đổi. Vui lòng mở lại đơn hàng."
+            : pending?.type !== type && pending
+              ? "Đơn này có yêu cầu đang chờ thuộc nghiệp vụ khác. Vui lòng mở lại đúng thao tác để kiểm tra kết quả."
+              : "Yêu cầu đã được lưu. Nếu chưa nhận được kết quả, hãy thử lại yêu cầu cũ; nội dung được giữ nguyên để tránh chi tiền và nhập kho trùng.")}
+        </p>}
+        <fieldset disabled={busy || Boolean(pending) || blocked}>
         <div className="mt-4 space-y-3">
           <p className="text-xs font-semibold uppercase text-slate-400">Chọn mặt hàng áp dụng:</p>
           {order.items.map((item, i) => {
@@ -850,6 +839,7 @@ function AfterSalesForm({
           </label>
         </div>
 
+        </fieldset>
         {/* Footer */}
         <div className="mt-6 flex items-center justify-between pt-4 border-t border-slate-100">
           <div>
@@ -867,11 +857,11 @@ function AfterSalesForm({
             </button>
             <button
               type="button"
-              disabled={busy || !items.length || !reason.trim()}
+              disabled={busy || blocked || !items.length || !reason.trim()}
               className="rounded-xl bg-cyan-600 px-6 py-2.5 font-bold text-white shadow-sm transition hover:bg-cyan-700 disabled:opacity-40"
               onClick={() => void submit()}
             >
-              {busy ? "Đang xử lý..." : "Xác nhận"}
+              {busy ? "Đang xử lý..." : pending ? "Thử lại yêu cầu cũ" : "Xác nhận"}
             </button>
           </div>
         </div>
@@ -880,25 +870,63 @@ function AfterSalesForm({
   );
 }
 
-function CancelDialog({
-  refundRequired,
+export function CancelDialog({
+  order,
   onClose,
-  onSubmit,
+  done,
 }: {
-  refundRequired: boolean;
+  order: RetailOrder;
   onClose: () => void;
-  onSubmit: (reason: string, method: RetailPaymentInput["method"]) => Promise<void>;
+  done: (order: RetailOrder) => void;
 }) {
-  const [reason, setReason] = React.useState("");
-  const [method, setMethod] = React.useState<RetailPaymentInput["method"]>("cash");
+  const { scope, userProfile } = useRetailScope();
+  const identity = JSON.stringify([scope?.companyCode, scope?.branchId, userProfile?.uid, order._id]);
+  const origin = React.useRef(identity), current = React.useRef(identity), mounted = React.useRef(true);
+  current.current = identity;
+  React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const storageKey = `retail-cancellation-pending:v1:${identity}`;
+  type Pending = { reason: string; refunds: RetailPaymentInput[]; idempotencyKey: string; expectedVersion: number };
+  const [initial] = React.useState(() => {
+    try {
+      const raw = sessionStorage.getItem(storageKey);
+      const pending: Pending | null = raw ? JSON.parse(raw) : null;
+      if (pending && (!pending.idempotencyKey || typeof pending.reason !== "string" || !Array.isArray(pending.refunds) || !Number.isSafeInteger(pending.expectedVersion))) throw new Error();
+      return { pending, error: "" };
+    } catch { return { pending: null, error: "Không đọc được yêu cầu hủy đang chờ. Vui lòng đối chiếu đơn gốc." }; }
+  });
+  const [pending, setPending] = React.useState(initial.pending);
+  const pendingRef = React.useRef(initial.pending), inFlight = React.useRef(false), completed = React.useRef(false);
+  const [error, setError] = React.useState(initial.error);
+  const blocked = origin.current !== identity || Boolean(initial.error) || !scope || !userProfile?.uid;
+  const remaining = Math.max(0, order.paidAmount - (order.refundedAmount || 0));
+  const refundRequired = pending ? pending.refunds.length > 0 : remaining > 0;
+  const [reason, setReason] = React.useState(initial.pending?.reason || "");
+  const [method, setMethod] = React.useState<RetailPaymentInput["method"]>(initial.pending?.refunds[0]?.method || "cash");
   const [submitting, setSubmitting] = React.useState(false);
 
   const handleCancel = async () => {
-    if (!reason.trim() || submitting) return;
+    if (!reason.trim() || inFlight.current || completed.current || blocked || !scope) return;
+    const retry = Boolean(pendingRef.current);
+    const request: Pending = pendingRef.current || { reason: reason.trim(), refunds: remaining ? [{ method, amount: remaining }] : [], idempotencyKey: crypto.randomUUID(), expectedVersion: order.version };
+    try { sessionStorage.setItem(storageKey, JSON.stringify(request)); }
+    catch { setError("Không lưu được yêu cầu để thử lại an toàn. Chưa gửi hủy đơn."); return; }
+    inFlight.current = true;
+    pendingRef.current = request;
+    setPending(request);
+    setError("");
     setSubmitting(true);
     try {
-      await onSubmit(reason.trim(), method);
+      const updated = await retailOrdersApi.cancel(scope, order._id, request);
+      completed.current = true;
+      try { sessionStorage.removeItem(storageKey); } catch { /* retain safe replay */ }
+      if (mounted.current && current.current === identity) done(updated);
+    } catch (cause) {
+      if (!retry && cause instanceof ApiClientError && cause.status === 400 && cause.code === "CANCELLATION_INVALID") {
+        try { sessionStorage.removeItem(storageKey); pendingRef.current = null; setPending(null); } catch { /* retain original */ }
+      }
+      setError(getApiErrorMessage(cause, "Chưa rõ kết quả hủy. Hãy thử lại yêu cầu cũ."));
     } finally {
+      inFlight.current = false;
       setSubmitting(false);
     }
   };
@@ -926,6 +954,7 @@ function CancelDialog({
           <label className="text-xs font-semibold text-slate-600">Lý do hủy (bắt buộc):</label>
           <textarea
             aria-label="Lý do hủy"
+            disabled={Boolean(pending) || blocked || submitting}
             className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-sm focus:border-rose-500 focus:outline-none focus:ring-4 focus:ring-rose-500/10"
             rows={3}
             placeholder="Nhập lý do hủy đơn hàng..."
@@ -939,6 +968,7 @@ function CancelDialog({
             <label className="text-xs font-semibold text-slate-600">Phương thức hoàn tiền:</label>
             <select
               aria-label="Phương thức hoàn tiền"
+              disabled={Boolean(pending) || blocked || submitting}
               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm bg-white"
               value={method}
               onChange={(e) => setMethod(e.target.value as any)}
@@ -953,12 +983,15 @@ function CancelDialog({
 
         <button
           type="button"
-          disabled={!reason.trim() || submitting}
+          disabled={!reason.trim() || submitting || blocked}
           className="w-full rounded-xl bg-red-600 py-3 font-bold text-white shadow-md shadow-red-500/20 transition hover:bg-red-700 active:scale-95 disabled:opacity-40"
           onClick={() => void handleCancel()}
         >
-          {submitting ? "Đang xử lý..." : "Xác nhận hủy đơn"}
+          {submitting ? "Đang xử lý..." : pending ? "Thử lại yêu cầu hủy cũ" : "Xác nhận hủy đơn"}
         </button>
+        {pending && <p className="text-sm">Giữ nguyên yêu cầu hủy và số tiền hoàn để tránh xử lý hai lần. Đóng cửa sổ không hủy thao tác đã gửi.</p>}
+        {blocked && <p role="alert">Phạm vi đã thay đổi hoặc không đọc được yêu cầu. Vui lòng mở lại đúng đơn để đối chiếu.</p>}
+        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       </div>
     </div>
   );

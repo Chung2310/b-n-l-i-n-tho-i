@@ -492,7 +492,7 @@ export default function CelebrationEmailTab() {
                   Từ:
                 </span>
                 <span className="text-slate-800 font-medium">
-                  Hệ thống Anh Khoa Mobile &lt;no-reply@igen.vn&gt;
+                  Hệ thống Igen Retail ERP &lt;no-reply@igen.vn&gt;
                 </span>
               </div>
               <div className="flex items-center gap-3">

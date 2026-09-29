@@ -1,4 +1,5 @@
 import { InventoryLedgerEntryModel } from "../../../model/inventory-ledger-entry.model";
+import { resolveReturnCost } from "./cost-resolution";
 import { AssetDepreciationModel } from "../models/asset-depreciation.model";
 import { RetailInvoiceModel } from "../../retail/models/retail-invoice.model";
 import mongoose from "mongoose";
@@ -83,7 +84,8 @@ export async function financeReport(scope: FinanceBranchScope, query: any) {
     ]);
     const settings = settingsRows.find(s => s.period === range.from.slice(0, 7));
     const variantIds = [...new Set(orders.flatMap(o => o.items.map((i: any) => String(i.variantId || i.productId))))];
-    const issues = variantIds.length ? await rows(InventoryLedgerEntryModel.find({ ...scope, $or: [{ variantId: { $in: variantIds } }, { productId: { $in: variantIds } }] })) : [];
+    const returnOrderIds = [...new Set(aftersales.filter(a => a.type === "return").map(a => a.orderId))];
+    const issues = variantIds.length || returnOrderIds.length ? await rows(InventoryLedgerEntryModel.find({ ...scope, $or: [{ variantId: { $in: variantIds } }, { productId: { $in: variantIds } }, { sourceType: "retail-order", sourceId: { $in: returnOrderIds } }] })) : [];
     const serialIds = orders.flatMap(o => o.items.flatMap((i: any) => i.serialNumbers || []));
     const barcodeIds = orders.flatMap(o => o.items.flatMap((i: any) => i.internalBarcodes || []));
     const otherSales = serialIds.length || barcodeIds.length ? await rows(RetailOrderModel.find({ ...scope, status: { $in: ["confirmed", "completed"] }, $or: [{ "items.serialNumbers": { $in: serialIds } }, { "items.internalBarcodes": { $in: barcodeIds } }] }).select("companyCode branchId confirmedAt completedAt createdAt items")) : [];
@@ -91,8 +93,10 @@ export async function financeReport(scope: FinanceBranchScope, query: any) {
     const lines = orders.flatMap(o => saleLines(o, issues, receipts, otherSales, acquisitions));
     // Buybacks are purchases, not negative sales. Returns carry their source costs.
     for (const a of aftersales.filter(a => a.type === "return"))
-        for (const item of a.items)
-            lines.push({ ...item, orderId: a.orderId, orderCode: a.orderCode, branchId: a.branchId, salespersonName: "Hoàn hàng", salespersonId: "", date: a.businessDate, quantity: -item.quantity, revenue: -item.lineAmount, cost: item.unitCost > 0 ? -item.unitCost * item.quantity : null, grossProfit: item.unitCost > 0 ? -item.lineAmount + item.unitCost * item.quantity : null, costBasis: item.unitCost > 0 ? "return_snapshot" : "missing" });
+        for (const item of a.items) {
+            const returnCost = resolveReturnCost(a, item, issues);
+            lines.push({ ...item, orderId: a.orderId, orderCode: a.orderCode, branchId: a.branchId, salespersonName: "Hoàn hàng", salespersonId: "", date: a.businessDate, quantity: -item.quantity, revenue: -item.lineAmount, cost: returnCost === null ? null : -returnCost, grossProfit: returnCost === null ? null : -item.lineAmount + returnCost, costBasis: returnCost === null ? "missing" : "return_snapshot" });
+        }
     const missingCostCount = lines.filter(l => l.cost === null).length;
     const revenue = sum(lines, "revenue"), cost = missingCostCount ? null : sum(lines, "cost"), grossProfit = cost === null ? null : revenue - cost;
     const expenses = vouchers.filter(v => v.expenseClass !== "none" && (v.kind === "payment" || v.reversalOf)).map(v => ({ ...v, amount: v.reversalOf ? -v.amount : v.amount }));

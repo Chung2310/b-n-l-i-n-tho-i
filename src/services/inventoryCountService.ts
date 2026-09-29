@@ -6,7 +6,8 @@ export type CountItem = { _id: string; productId: string; variantId?: string; sk
 export type UnexpectedScanReason = "other_warehouse" | "sold" | "unknown" | "wrong_status";
 export type UnexpectedScan = { code: string; reason: UnexpectedScanReason; serialUnitId?: string; sku?: string; productName?: string; warehouseId?: string; status?: string; scannedAt: string };
 export type ScanResult = { outcome: "counted" | "duplicate" | "unexpected"; reason?: UnexpectedScanReason; sku?: string; productName?: string; count: InventoryCount };
-export type InventoryCount = { _id: string; version: number; countCode: string; warehouseId: string; status: CountStatus; items: CountItem[]; unexpectedScans?: UnexpectedScan[]; createdAt: string; createdById?: string; submittedBy?: string; submittedById?: string; approvedById?: string };
+export type CountApprovalReview = { expectedVersion: number; discrepancyConfirmed: boolean; reason: string; unexpectedScanResolutions: Array<{ code: string; reason: string }> };
+export type InventoryCount = { _id: string; version: number; countCode: string; warehouseId: string; status: CountStatus; items: CountItem[]; unexpectedScans?: UnexpectedScan[]; createdAt: string; createdById?: string; submittedBy?: string; submittedById?: string; approvedById?: string; recreatedFromId?: string; replacementCountId?: string; approvalReview?: { reason?: string; confirmedById: string; confirmedAt: string; expectedVersion: number; unexpectedScanResolutions: Array<{ code: string; reason: string }> } };
 type Envelope<T> = { status: string; data: T };
 const root = "/inventory/counts";
 const queueKey = "igen.inventory-count.pending";
@@ -30,6 +31,7 @@ export const inventoryCountService = {
     return latest;
   },
   async create(warehouseId: string) { return (await apiFetch<Envelope<InventoryCount>>(root, { method: "POST", body: JSON.stringify({ warehouseId }) })).data; },
+  async recreate(id: string) { return (await apiFetch<Envelope<InventoryCount>>(root + "/" + id + "/recreate", { method: "POST" })).data; },
   async updateItem(id: string, itemId: string, countedQuantity: number, expectedVersion: number) {
     try { return await sendUpdate({ id, itemId, countedQuantity, expectedVersion }); }
     catch (error) { if (!navigator.onLine && validVersion(expectedVersion)) { const queue = readQueue().filter((item) => !(item.id === id && item.itemId === itemId)); queue.push({ id, itemId, countedQuantity, expectedVersion }); writeQueue(queue); } throw error; }
@@ -56,6 +58,6 @@ export const inventoryCountService = {
   discardPending(id: string) { writeQueue(readQueue().filter((item) => item.id !== id)); },
   async start(id: string) { return (await apiFetch<Envelope<InventoryCount>>(root + "/" + id + "/start", { method: "POST" })).data; },
   async submit(id: string) { return (await apiFetch<Envelope<InventoryCount>>(root + "/" + id + "/submit", { method: "POST" })).data; },
-  async approve(id: string) { return (await apiFetch<Envelope<InventoryCount>>(root + "/" + id + "/approve", { method: "POST" })).data; },
+  async approve(id: string, review: CountApprovalReview) { return (await apiFetch<Envelope<InventoryCount>>(root + "/" + id + "/approve", { method: "POST", body: JSON.stringify(review) })).data; },
   async cancel(id: string) { return (await apiFetch<Envelope<InventoryCount>>(root + "/" + id + "/cancel", { method: "POST" })).data; },
 };

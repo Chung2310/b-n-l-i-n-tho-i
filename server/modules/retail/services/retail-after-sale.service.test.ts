@@ -43,7 +43,11 @@ beforeEach(async () => {
     items: [{ productId: variantId, sku: "PHONE", productName: "Điện thoại", unit: "máy", quantity: 2, unitPrice: 100, unitCost: 60, discountAmount: 0, lineTotal: 200, trackingMode: "serial", serialNumbers: ["SN1", "SN2"] }],
     subtotal: 200, orderDiscount: 0, taxRate: 0, taxAmount: 0, shippingFee: 0, grandTotal: 200, totalCost: 120, paidAmount: 200, dueAmount: 0, salespersonId: actor.id, salespersonName: actor.displayName, createdBy: actor.id, createdByName: actor.displayName,
   });
+  await InventoryLedgerEntryModel.create({ ...scope, warehouseId, productId: String(productId), variantId, sku: "PHONE", productName: "Điện thoại", direction: "out", purpose: "sale", quantity: 2, quantityDelta: -2, unitCost: 60, unitPrice: 100, sourceType: "retail-order", sourceId: String(order._id), sourceLine: 0, idempotencyKey: `order:${order._id}:out`, operatorName: actor.displayName });
   await SerialUnitModel.create(["SN1", "SN2"].map((serial) => ({ ...scope, warehouseId, productId: String(productId), variantId, sku: "PHONE", productName: "Điện thoại", internalBarcode: `BC-${serial}`, normalizedInternalBarcode: `BC-${serial}`, serialNumber: serial, normalizedSerialNumber: serial, status: "sold" as const, soldOrderId: String(order._id), createdBy: actor.id, updatedBy: actor.id })));
+  await SerialUnitModel.updateMany({}, { $set: { soldBranchId: scope.branchId, currentDocumentType: "retail-order", currentDocumentId: String(order._id) } });
+  const units = await SerialUnitModel.find().lean();
+  await SerialEventModel.create(units.map((unit) => ({ ...scope, serialUnitId: String(unit._id), serialNumber: unit.serialNumber, eventType: "sold", fromStatus: "in_stock", toStatus: "sold", documentType: "retail-order", documentId: String(order._id), actorId: actor.id, actorName: actor.displayName })));
 });
 
 function input(type = "return", serial = "SN1", key = "request-1") {
@@ -56,7 +60,7 @@ describe("after-sale receipts and stock", () => {
     const receipt = await GoodsReceiptModel.findById(doc.receiptId).lean();
     expect(receipt).toMatchObject({ status: "confirmed", receiptKind: "sales_return", orderId: String(order._id), subtotal: 60, customerName: "An" });
     expect(receipt?.items[0]).toMatchObject({ variantId, quantity: 1, serialNumbers: ["SN1"], unitDetails: [{ internalBarcode: "BC-SN1", serialNumber: "SN1" }] });
-    expect(await InventoryLedgerEntryModel.findOne().lean()).toMatchObject({ sourceType: "goods-receipt", sourceId: doc.receiptId, quantityDelta: 1 });
+    expect(await InventoryLedgerEntryModel.findOne({ direction: "in" }).lean()).toMatchObject({ sourceType: "goods-receipt", sourceId: doc.receiptId, quantityDelta: 1 });
     expect(await SerialUnitModel.findOne({ serialNumber: "SN1" }).lean()).toMatchObject({ status: "in_stock", currentDocumentId: doc.receiptId });
     expect(await RetailOrderModel.findById(order._id).lean()).toMatchObject({ afterSaleStatus: "partially_returned", refundedAmount: 100 });
     const replay: any = await RetailAfterSaleService.create(scope, input(), actor);
@@ -80,10 +84,10 @@ describe("after-sale receipts and stock", () => {
 
   it("rolls back the receipt, money, stock and history if a serial cannot be restored", async () => {
     await SerialUnitModel.updateOne({ serialNumber: "SN1" }, { $set: { status: "in_stock" } });
-    await expect(RetailAfterSaleService.create(scope, input(), actor)).rejects.toThrow(/đã được nhập lại/);
+    await expect(RetailAfterSaleService.create(scope, input(), actor)).rejects.toMatchObject({ code: "AFTER_SALE_SERIAL_CONFLICT" });
     expect(await GoodsReceiptModel.countDocuments()).toBe(0);
     expect(await RetailAfterSaleModel.countDocuments()).toBe(0);
-    expect(await InventoryLedgerEntryModel.countDocuments()).toBe(0);
+    expect(await InventoryLedgerEntryModel.countDocuments({ direction: "in" })).toBe(0);
     expect((await InventoryBalanceModel.findOne().lean())?.quantity).toBe(0);
     expect((await RetailOrderModel.findById(order._id).lean())?.refundedAmount).toBe(0);
   });
@@ -119,12 +123,12 @@ describe("after-sale receipts and stock", () => {
     const doc: any = await RetailAfterSaleService.create(scope, input(), actor);
     await GoodsReceiptModel.deleteMany({});
     await RetailAfterSaleModel.updateOne({ _id: doc._id }, { $unset: { receiptId: 1, receiptCode: 1 } });
-    await InventoryLedgerEntryModel.updateMany({}, { $set: { sourceType: "retail-after-sale", sourceId: String(doc._id), sourceCode: doc.code } });
+    await InventoryLedgerEntryModel.updateMany({ direction: "in" }, { $set: { sourceType: "retail-after-sale", sourceId: String(doc._id), sourceCode: doc.code } });
     expect(await backfillRetailRestockReceipts(scope)).toMatchObject([{ status: "ready" }]);
     expect(await GoodsReceiptModel.countDocuments()).toBe(0);
     expect(await backfillRetailRestockReceipts(scope, true)).toMatchObject([{ status: "created" }]);
     expect((await InventoryBalanceModel.findOne().lean())?.quantity).toBe(1);
-    expect(await InventoryLedgerEntryModel.countDocuments()).toBe(1);
+    expect(await InventoryLedgerEntryModel.countDocuments({ direction: "in" })).toBe(1);
     expect(await backfillRetailRestockReceipts(scope, true)).toEqual([]);
     expect(await GoodsReceiptModel.countDocuments()).toBe(1);
   });

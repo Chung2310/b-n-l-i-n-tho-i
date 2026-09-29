@@ -85,7 +85,7 @@ export default function TermsOfService() {
   const meta = {
     title: `Terms of Service | ${BRAND_NAME}`,
     description: `Terms of Service for ${BRAND_NAME}, including connected platform use, AI-assisted features and customer responsibilities.`,
-    keywords: "terms of service, TikTok Shop, platform integrations, Anh Khoa Mobile",
+    keywords: "terms of service, TikTok Shop, platform integrations, Igen Retail ERP",
     path: "/terms-of-service",
   };
 
