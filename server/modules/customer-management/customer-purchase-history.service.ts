@@ -21,6 +21,53 @@ type PurchaseHistoryOrder = {
   createdAt?: unknown;
 };
 
+export interface CustomerPurchaseHistoryItem {
+  _id: string;
+  orderCode?: string;
+  recordType?: "purchase" | "repair" | "warranty" | "buyback" | "return";
+  typeLabel?: string;
+  status?: string;
+  statusLabel?: string;
+  businessDate?: string;
+  grandTotal: number;
+  paidAmount: number;
+  dueAmount: number;
+  itemCount: number;
+  salespersonName?: string;
+  description?: string;
+  createdAt?: string;
+  customerName?: string;
+  customerPhone?: string;
+  subtotal?: number;
+  orderDiscount?: number;
+  discountAmount?: number;
+  shippingFee?: number;
+  paymentStatus?: string;
+  items?: any[];
+  payments?: any[];
+  device?: any;
+  deviceInfo?: string;
+  symptom?: string;
+  diagnosis?: string;
+  laborFee?: number;
+  partCost?: number;
+  technicianName?: string;
+  ticketType?: string;
+  statusHistory?: any[];
+  coverage?: any;
+  warrantyInfo?: {
+    serialNumber?: string;
+    productName?: string;
+    expiresAt?: string | Date;
+    isExpired?: boolean;
+  };
+  reason?: string;
+  paymentMethod?: string;
+  paymentReference?: string;
+  orderCodeRef?: string;
+  receiptCode?: string;
+}
+
 export interface CustomerPurchaseHistoryRepository {
   customer(scope: CustomerScope, customerId: string): Promise<unknown | null>;
   orders(filter: Record<string, unknown>, sort: Record<string, SortOrder>): Promise<PurchaseHistoryOrder[]>;
@@ -248,7 +295,7 @@ export function createCustomerPurchaseHistoryService(repository: CustomerPurchas
         };
       });
 
-      const allItems = [...orderItems, ...repairItems, ...warrantyItems, ...afterSaleItems].sort((a, b) => {
+      const allItems: CustomerPurchaseHistoryItem[] = [...orderItems, ...repairItems, ...warrantyItems, ...afterSaleItems].sort((a, b) => {
         const dateA = a.businessDate || "";
         const dateB = b.businessDate || "";
         if (dateA !== dateB) return dateB.localeCompare(dateA);

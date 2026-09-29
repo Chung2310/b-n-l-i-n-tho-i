@@ -155,6 +155,7 @@ export interface CustomerPurchaseHistoryItem {
   diagnosis?: string;
   laborFee?: number;
   partCost?: number;
+  discountAmount?: number;
   technicianName?: string;
   ticketType?: string;
   statusHistory?: Array<{

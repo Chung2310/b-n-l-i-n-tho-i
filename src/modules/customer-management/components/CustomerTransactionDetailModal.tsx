@@ -258,7 +258,9 @@ export default function CustomerTransactionDetailModal({
                   {statusMeta.label}
                 </span>
                 {loadingLive && (
-                  <RotateCw className="h-3.5 w-3.5 animate-spin text-slate-400" title="Đang đồng bộ..." />
+                  <span title="Đang đồng bộ...">
+                    <RotateCw className="h-3.5 w-3.5 animate-spin text-slate-400" />
+                  </span>
                 )}
               </div>
               <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
