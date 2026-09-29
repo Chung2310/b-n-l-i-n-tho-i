@@ -40,6 +40,7 @@ export interface IInventoryCountUnexpectedScan {
 }
 
 export interface IInventoryCount extends Document {
+  snapshotStartedAt?: Date;
   companyCode: string;
   branchId: string;
   warehouseId: string;

@@ -7,7 +7,7 @@ import { InventoryLedgerEntryModel } from "../../../model/inventory-ledger-entry
 import { ProductCatalogModel } from "../../../model/product-catalog.model";
 import { ProductVariantModel } from "../../../model/product-variant.model";
 import { WarehouseModel } from "../../../model/warehouse.model";
-import { approveCount, scanCountUnit, submitCount, updateCountItem } from "./inventory-count.service";
+import { approveCount, createCount, scanCountUnit, submitCount, updateCountItem } from "./inventory-count.service";
 import { SerialUnitModel } from "../serials/serial-unit.model";
 import { SerialEventModel } from "../serials/serial-event.model";
 
@@ -165,5 +165,74 @@ describe("inventory count approval integration", () => {
       await expect(updateCountItem(scope, String(count._id), String(count.items[0]._id), { countedQuantity: 99, expectedVersion })).rejects.toMatchObject({ statusCode: 400 });
     }
     expect((await InventoryCountModel.findById(count._id).lean())?.version).toBe(count.version);
+  });
+  it("captures balances and expected machines from one snapshot despite an intervening stock change", async () => {
+    await scanningCount();
+    await ProductVariantModel.updateOne({ _id: variantId }, { trackingMode: "serial" });
+    await InventoryBalanceModel.updateOne({ variantId }, { quantity: 2 });
+    const original = mongoose.Query.prototype.exec;
+    let changed = false;
+    vi.spyOn(mongoose.Query.prototype, "exec").mockImplementation(async function(this: any, ...args: any[]) {
+      const result = await original.apply(this, args as any);
+      if (!changed && this.model === InventoryBalanceModel && this.op === "find" && this.getOptions().session) {
+        changed = true;
+        await mongoose.connection.transaction(async (session) => {
+          await InventoryBalanceModel.updateOne({ variantId }, { $set: { quantity: 1 }, $inc: { version: 1 } }, { session });
+          await SerialUnitModel.updateOne({ serialNumber: "A" }, { status: "sold" }, { session });
+        });
+      }
+      return result;
+    });
+    const started = new Date();
+    const count: any = await createCount(scope, warehouseId, { id: "counter" });
+    expect(changed).toBe(true);
+    expect(count.snapshotStartedAt.getTime()).toBeGreaterThanOrEqual(started.getTime());
+    expect(count.items[0].systemQuantity).toBe(2);
+    expect(count.items[0].sourceBalanceVersion).toBe(0);
+    expect(count.items[0].expectedUnits).toHaveLength(2);
+    expect((await InventoryBalanceModel.findOne().lean())?.quantity).toBe(1);
+    count.status = "pending_approval"; await count.save();
+    await expect(approveCount(scope, String(count._id), { id: "approver" })).rejects.toMatchObject({ code: "COUNT_STOCK_CONFLICT" });
+  });
+  it("rejects approval when a new SKU balance appears after count creation", async () => {
+    const count = await seedCount();
+    await InventoryBalanceModel.create({ ...scope, warehouseId, productId, variantId: new mongoose.Types.ObjectId().toString(), sku: "NEW", quantity: 1, averageCost: 5, version: 0 });
+    await expect(approveCount(scope, String(count._id), { id: "approver" })).rejects.toMatchObject({ code: "COUNT_STOCK_CONFLICT" });
+    expect((await InventoryCountModel.findById(count._id).lean())?.status).toBe("conflict");
+    expect(await InventoryLedgerEntryModel.countDocuments()).toBe(0);
+  });
+  it("allows an empty warehouse snapshot but rejects it after stock is introduced", async () => {
+    await seedCount();
+    await InventoryBalanceModel.deleteMany({});
+    const count: any = await createCount(scope, warehouseId, { id: "counter" });
+    expect(count.items).toHaveLength(0);
+    count.status = "pending_approval"; await count.save();
+    expect((await approveCount(scope, String(count._id), { id: "approver" })).status).toBe("completed");
+    const second: any = await createCount(scope, warehouseId, { id: "counter" });
+    second.status = "pending_approval"; await second.save();
+    await InventoryBalanceModel.create({ ...scope, warehouseId, productId, variantId, sku: "SKU-1", quantity: 1, averageCost: 5 });
+    await expect(approveCount(scope, String(second._id), { id: "approver" })).rejects.toMatchObject({ code: "COUNT_STOCK_CONFLICT" });
+  });
+  it("does not create a snapshot for a warehouse outside scope or transit", async () => {
+    await seedCount();
+    await expect(createCount({ ...scope, companyCode: "OTHER" }, warehouseId, { id: "counter" })).rejects.toMatchObject({ statusCode: 409 });
+    await expect(createCount({ ...scope, branchId: "OTHER" }, warehouseId, { id: "counter" })).rejects.toMatchObject({ statusCode: 409 });
+    await WarehouseModel.updateOne({ _id: warehouseId }, { kind: "transit" });
+    await expect(createCount(scope, warehouseId, { id: "counter" })).rejects.toMatchObject({ statusCode: 409 });
+    expect(await InventoryCountModel.countDocuments()).toBe(1);
+  });
+  it("fails before creating a count when transactions are disabled", async () => {
+    await seedCount();
+    vi.stubEnv("DISABLE_TRANSACTIONS", "true");
+    try { await expect(createCount(scope, warehouseId, { id: "counter" })).rejects.toMatchObject({ statusCode: 503 }); }
+    finally { vi.unstubAllEnvs(); }
+    expect(await InventoryCountModel.countDocuments()).toBe(1);
+  });
+  it("leaves no partial count when snapshot document persistence fails", async () => {
+    await seedCount();
+    vi.spyOn(InventoryCountModel, "create").mockRejectedValueOnce(new Error("snapshot save failed"));
+    await expect(createCount(scope, warehouseId, { id: "counter" })).rejects.toThrow("snapshot save failed");
+    expect(await InventoryCountModel.countDocuments()).toBe(1);
+    expect((await InventoryBalanceModel.findOne().lean())?.version).toBe(0);
   });
 });

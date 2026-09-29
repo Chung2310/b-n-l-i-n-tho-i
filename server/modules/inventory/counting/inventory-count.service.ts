@@ -9,7 +9,8 @@ import { SerialUnitModel } from "../serials/serial-unit.model";
 import { SerialEventModel } from "../serials/serial-event.model";
 import { normalizeSerialNumber } from "../serials/serial-state";
 import { normalizeInternalBarcode } from "../serials/unit-barcode-validation";
-import { getWarehouse } from "../warehouse/warehouse.service";
+import { WarehouseModel } from "../../../model/warehouse.model";
+import { inInventoryTransaction } from "../inventory-transaction";
 
 const isUnitTracked = (trackingMode?: string) => trackingMode === "serial" || trackingMode === "unit_barcode";
 
@@ -29,20 +30,19 @@ async function saveCount(count: any, session?: mongoose.ClientSession) {
   }
 }
 
-async function countItems(scope: Scope, warehouseId: string) {
-  const balances = await InventoryBalanceModel.find({ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId }).sort({ sku: 1 }).lean();
+async function countItems(scope: Scope, warehouseId: string, session: mongoose.ClientSession) {
+  const balances = await InventoryBalanceModel.find({ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId }).sort({ sku: 1 }).session(session).lean();
   const productIds = [...new Set(balances.map((item) => item.productId))];
   const variantIds = balances.map((item) => item.variantId).filter(Boolean);
-  const [products, variants] = await Promise.all([
-    ProductCatalogModel.find({ _id: { $in: productIds }, companyCode: normalizedCompany(scope.companyCode) }).select("name").lean(),
-    ProductVariantModel.find({ _id: { $in: variantIds }, companyCode: normalizedCompany(scope.companyCode) }).select("barcode displayName trackingMode").lean(),
-  ]);
+  // Operations on one transaction session must be sequential.
+  const products = await ProductCatalogModel.find({ _id: { $in: productIds }, companyCode: normalizedCompany(scope.companyCode) }).select("name").session(session).lean();
+  const variants = await ProductVariantModel.find({ _id: { $in: variantIds }, companyCode: normalizedCompany(scope.companyCode) }).select("barcode displayName trackingMode").session(session).lean();
   const productMap = new Map(products.map((item: any) => [String(item._id), item]));
   const variantMap = new Map(variants.map((item: any) => [String(item._id), item]));
   // Hàng theo dõi từng đơn vị đếm bằng cách quét, nên phải biết trước kho đang ghi những máy nào.
   const unitTrackedVariantIds = variants.filter((item: any) => isUnitTracked(item.trackingMode)).map((item: any) => String(item._id));
   const serialUnits = unitTrackedVariantIds.length
-    ? await SerialUnitModel.find({ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId, variantId: { $in: unitTrackedVariantIds }, status: "in_stock" }).select("variantId internalBarcode serialNumber").lean()
+    ? await SerialUnitModel.find({ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId, variantId: { $in: unitTrackedVariantIds }, status: "in_stock" }).select("variantId internalBarcode serialNumber").session(session).lean()
     : [];
   const unitsByVariant = new Map<string, any[]>();
   for (const unit of serialUnits as any[]) {
@@ -77,11 +77,15 @@ export async function getCount(scope: Scope, countId: string) {
 
 export async function createCount(scope: Scope, warehouseId: string, actor: Actor, notes?: string) {
   if (!code(warehouseId)) fail("Kho kiểm kê là bắt buộc.");
-  const warehouse = await getWarehouse(normalizedCompany(scope.companyCode), scope.branchId, warehouseId);
-  if (!warehouse?.isActive) fail("Kho kiểm kê không còn hoạt động.", 409);
-  const items = await countItems(scope, warehouseId);
-  const countCode = "KK-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
-  return InventoryCountModel.create({ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId, countCode, status: "draft", items, notes: code(notes) || undefined, createdBy: nameOf(actor), version: 0 });
+  return inInventoryTransaction(async (session) => {
+    const snapshotStartedAt = new Date();
+    const warehouse = await WarehouseModel.findOne({ _id: warehouseId, companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, isActive: true, kind: { $ne: "transit" } }).session(session).lean();
+    if (!warehouse) fail("Kho kiểm kê không còn hoạt động hoặc không thuộc phạm vi.", 409);
+    const items = await countItems(scope, warehouseId, session);
+    const countCode = "KK-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
+    const [count] = await InventoryCountModel.create([{ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId, countCode, snapshotStartedAt, status: "draft", items, notes: code(notes) || undefined, createdBy: nameOf(actor), version: 0 }], { session });
+    return count;
+  }, undefined, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" } });
 }
 
 export async function updateCountItem(scope: Scope, countId: string, itemId: string, input: { countedQuantity?: unknown; note?: unknown; expectedVersion?: unknown }) {
@@ -190,9 +194,12 @@ export async function approveCount(scope: Scope, countId: string, actor: Actor) 
       const count: any = await InventoryCountModel.findOne({ _id: countId, companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId }).session(session);
       if (!count) fail("Không tìm thấy phiếu kiểm kê.", 404);
       assertCountTransition(count.status as InventoryCountStatus, "completed");
-      const filters = count.items.map((item: any) => ({ productId: item.productId, ...(item.variantId ? { variantId: item.variantId } : {}) }));
-      const balances = await InventoryBalanceModel.find({ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId: count.warehouseId, $or: filters }).session(session).lean();
+      const balances = await InventoryBalanceModel.find({ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId: count.warehouseId }).session(session).lean();
       const balanceMap = new Map(balances.map((balance: any) => [String(balance.productId) + ":" + String(balance.variantId || ""), balance]));
+      if (balances.length !== count.items.length) {
+        conflictVersion = count.version;
+        throw Object.assign(new Error("Danh sách tồn kho đã thay đổi sau khi chốt kiểm kê. Hãy tạo lại phiếu."), { statusCode: 409, code: "COUNT_STOCK_CONFLICT" });
+      }
       for (const item of count.items as any[]) {
         const balance: any = balanceMap.get(String(item.productId) + ":" + String(item.variantId || ""));
         if (!balance || Number(balance.version) !== Number(item.sourceBalanceVersion)) {
