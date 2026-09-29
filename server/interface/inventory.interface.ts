@@ -1,6 +1,6 @@
 import { Document } from "mongoose";
 
-export type WarehouseKind = "selling" | "central" | "defective" | "warranty" | "other";
+export type WarehouseKind = "selling" | "central" | "defective" | "warranty" | "other" | "transit";
 export type InventoryMovementDirection = "in" | "out";
 export type InventoryMovementPurpose = "sale" | "cancel" | "purchase" | "sales-return" | "supplier-return" | "transfer" | "count" | "count_adjustment" | "opening" | "other";
 export type SupplierStatus = "active" | "inactive";
@@ -40,6 +40,10 @@ export interface IInventoryCountUnexpectedScan {
 }
 
 export interface IInventoryCount extends Document {
+  createdById?: string;
+  submittedById?: string;
+  approvedById?: string;
+  snapshotStartedAt?: Date;
   companyCode: string;
   branchId: string;
   warehouseId: string;
@@ -130,7 +134,8 @@ export interface ISupplier extends Document {
 
 export interface IGoodsReceiptItem {
   productId: string;
-  variantId: string;
+  variantId?: string;
+  legacyProductId?: string;
   barcode?: string;
   sku: string;
   trackingMode?: "none" | "quantity" | "unit_barcode" | "lot" | "serial";
@@ -146,6 +151,13 @@ export interface IGoodsReceiptItem {
 }
 
 export interface IGoodsReceipt extends Document {
+  receiptKind?: "purchase" | "sales_return" | "buyback" | "sales_cancel";
+  sourceId?: string;
+  sourceCode?: string;
+  orderId?: string;
+  orderCode?: string;
+  customerId?: string;
+  customerName?: string;
   financeTerms?: { dueOn: string; paidAmount: number; paymentMethod?: string };
   companyCode: string;
   branchId: string;

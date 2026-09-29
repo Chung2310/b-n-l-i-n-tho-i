@@ -9,6 +9,8 @@ import { SerialUnitModel } from "../serials/serial-unit.model";
 import { SerialEventModel } from "../serials/serial-event.model";
 import { normalizeSerialNumber } from "../serials/serial-state";
 import { normalizeInternalBarcode } from "../serials/unit-barcode-validation";
+import { WarehouseModel } from "../../../model/warehouse.model";
+import { inInventoryTransaction } from "../inventory-transaction";
 
 const isUnitTracked = (trackingMode?: string) => trackingMode === "serial" || trackingMode === "unit_barcode";
 
@@ -19,20 +21,28 @@ const normalizedCompany = (value: string) => code(value).toUpperCase();
 const nameOf = (actor: Actor) => code(actor.email || actor.id) || "system";
 function fail(message: string, statusCode = 400): never { throw Object.assign(new Error(message), { statusCode }); }
 
-async function countItems(scope: Scope, warehouseId: string) {
-  const balances = await InventoryBalanceModel.find({ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId }).sort({ sku: 1 }).lean();
+async function saveCount(count: any, session?: mongoose.ClientSession) {
+  try {
+    await count.save(session ? { session } : undefined);
+  } catch (error: any) {
+    if (error?.name === "VersionError") throw Object.assign(new Error("Phiếu kiểm kê vừa thay đổi. Hãy tải lại trước khi tiếp tục."), { statusCode: 409, code: "COUNT_VERSION_CONFLICT" });
+    throw error;
+  }
+}
+
+async function countItems(scope: Scope, warehouseId: string, session: mongoose.ClientSession) {
+  const balances = await InventoryBalanceModel.find({ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId }).sort({ sku: 1 }).session(session).lean();
   const productIds = [...new Set(balances.map((item) => item.productId))];
   const variantIds = balances.map((item) => item.variantId).filter(Boolean);
-  const [products, variants] = await Promise.all([
-    ProductCatalogModel.find({ _id: { $in: productIds }, companyCode: normalizedCompany(scope.companyCode) }).select("name").lean(),
-    ProductVariantModel.find({ _id: { $in: variantIds }, companyCode: normalizedCompany(scope.companyCode) }).select("barcode displayName trackingMode").lean(),
-  ]);
+  // Operations on one transaction session must be sequential.
+  const products = await ProductCatalogModel.find({ _id: { $in: productIds }, companyCode: normalizedCompany(scope.companyCode) }).select("name").session(session).lean();
+  const variants = await ProductVariantModel.find({ _id: { $in: variantIds }, companyCode: normalizedCompany(scope.companyCode) }).select("barcode displayName trackingMode").session(session).lean();
   const productMap = new Map(products.map((item: any) => [String(item._id), item]));
   const variantMap = new Map(variants.map((item: any) => [String(item._id), item]));
   // Hàng theo dõi từng đơn vị đếm bằng cách quét, nên phải biết trước kho đang ghi những máy nào.
   const unitTrackedVariantIds = variants.filter((item: any) => isUnitTracked(item.trackingMode)).map((item: any) => String(item._id));
   const serialUnits = unitTrackedVariantIds.length
-    ? await SerialUnitModel.find({ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId, variantId: { $in: unitTrackedVariantIds }, status: "in_stock" }).select("variantId internalBarcode serialNumber").lean()
+    ? await SerialUnitModel.find({ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId, variantId: { $in: unitTrackedVariantIds }, status: "in_stock" }).select("variantId internalBarcode serialNumber").session(session).lean()
     : [];
   const unitsByVariant = new Map<string, any[]>();
   for (const unit of serialUnits as any[]) {
@@ -66,15 +76,24 @@ export async function getCount(scope: Scope, countId: string) {
 }
 
 export async function createCount(scope: Scope, warehouseId: string, actor: Actor, notes?: string) {
+  if (!code(actor.id)) fail("Thiếu định danh người lập kiểm kê.", 401);
   if (!code(warehouseId)) fail("Kho kiểm kê là bắt buộc.");
-  const items = await countItems(scope, warehouseId);
-  const countCode = "KK-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
-  return InventoryCountModel.create({ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId, countCode, status: "draft", items, notes: code(notes) || undefined, createdBy: nameOf(actor), version: 0 });
+  return inInventoryTransaction(async (session) => {
+    const snapshotStartedAt = new Date();
+    const warehouse = await WarehouseModel.findOne({ _id: warehouseId, companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, isActive: true, kind: { $ne: "transit" } }).session(session).lean();
+    if (!warehouse) fail("Kho kiểm kê không còn hoạt động hoặc không thuộc phạm vi.", 409);
+    const items = await countItems(scope, warehouseId, session);
+    const countCode = "KK-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
+    const [count] = await InventoryCountModel.create([{ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId, countCode, snapshotStartedAt, status: "draft", items, notes: code(notes) || undefined, createdBy: nameOf(actor), createdById: code(actor.id), version: 0 }], { session });
+    return count;
+  }, undefined, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" } });
 }
 
-export async function updateCountItem(scope: Scope, countId: string, itemId: string, input: { countedQuantity?: unknown; note?: unknown }) {
+export async function updateCountItem(scope: Scope, countId: string, itemId: string, input: { countedQuantity?: unknown; note?: unknown; expectedVersion?: unknown }) {
+  if (typeof input.expectedVersion !== "number" || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0) fail("Cần phiên bản phiếu kiểm kê hợp lệ. Hãy tải lại phiếu trước khi lưu.");
   const count = await InventoryCountModel.findOne({ _id: countId, companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId });
   if (!count) fail("Không tìm thấy phiếu kiểm kê.", 404);
+  if (count.version !== input.expectedVersion) throw Object.assign(new Error("Phiếu kiểm kê đã thay đổi. Hãy tải lại phiếu và đối chiếu số lượng trước khi lưu."), { statusCode: 409, code: "COUNT_VERSION_CONFLICT" });
   assertEditableStatus(count.status as InventoryCountStatus);
   const item: any = count.items.find((entry: any) => String(entry._id) === itemId);
   if (!item) fail("Không tìm thấy dòng kiểm kê.", 404);
@@ -83,7 +102,7 @@ export async function updateCountItem(scope: Scope, countId: string, itemId: str
   if (input.countedQuantity === undefined) {
     if (input.note !== undefined) item.note = code(input.note) || undefined;
     count.markModified("items");
-    await count.save();
+    await saveCount(count);
     return count.toObject();
   }
   const counted = Number(input.countedQuantity);
@@ -91,12 +110,24 @@ export async function updateCountItem(scope: Scope, countId: string, itemId: str
   item.quantityDelta = calculateQuantityDelta(Number(item.systemQuantity), counted);
   if (input.note !== undefined) item.note = code(input.note) || undefined;
   count.markModified("items");
-  await count.save();
+  await saveCount(count);
   return count.toObject();
 }
 
 /** Quét một mã nội bộ/IMEI trong lúc kiểm kê: đánh dấu đã thấy, hoặc xếp vào danh sách ngoài dự kiến. */
 export async function scanCountUnit(scope: Scope, countId: string, rawCode: unknown) {
+  // Re-read the latest list/status after a competing scan; retry only a known
+  // version conflict, never persistence errors with an uncertain result.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try { return await scanCountUnitOnce(scope, countId, rawCode); }
+    catch (error: any) {
+      if (error?.code !== "COUNT_VERSION_CONFLICT" || attempt === 4) throw error;
+    }
+  }
+  throw new Error("Unreachable scan retry state");
+}
+
+async function scanCountUnitOnce(scope: Scope, countId: string, rawCode: unknown) {
   const value = code(rawCode);
   if (!value) fail("Thiếu mã cần quét.");
   const count = await InventoryCountModel.findOne({ _id: countId, companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId });
@@ -115,7 +146,7 @@ export async function scanCountUnit(scope: Scope, countId: string, rawCode: unkn
       scans.push({ code: value, reason, serialUnitId: unit ? String(unit._id) : undefined, sku: unit?.sku, productName: unit?.productName, warehouseId: unit?.warehouseId, status: unit?.status, scannedAt: new Date() });
       count.unexpectedScans = scans as any;
       count.markModified("unexpectedScans");
-      await count.save();
+      await saveCount(count);
     }
     return { outcome: "unexpected" as const, reason, count: count.toObject() };
   };
@@ -138,7 +169,7 @@ export async function scanCountUnit(scope: Scope, countId: string, rawCode: unkn
   item.countedQuantity = item.scannedUnitIds.length;
   item.quantityDelta = calculateQuantityDelta(Number(item.systemQuantity), item.countedQuantity);
   count.markModified("items");
-  await count.save();
+  await saveCount(count);
   return { outcome: "counted" as const, sku: item.sku, productName: item.productName, count: count.toObject() };
 }
 
@@ -147,9 +178,12 @@ async function transition(scope: Scope, countId: string, status: InventoryCountS
   if (!count) fail("Không tìm thấy phiếu kiểm kê.", 404);
   assertCountTransition(count.status as InventoryCountStatus, status);
   count.status = status;
-  if (status === "pending_approval") { count.submittedBy = nameOf(actor); count.submittedAt = new Date(); }
+  if (status === "pending_approval") {
+    if (!code(actor.id)) fail("Thiếu định danh người gửi duyệt.", 401);
+    count.submittedBy = nameOf(actor); count.submittedById = code(actor.id); count.submittedAt = new Date();
+  }
   if (status === "cancelled") count.cancelledAt = new Date();
-  await count.save();
+  await saveCount(count);
   return count.toObject();
 }
 export const startCount = (scope: Scope, id: string, actor: Actor) => transition(scope, id, "counting", actor);
@@ -157,21 +191,28 @@ export const submitCount = (scope: Scope, id: string, actor: Actor) => transitio
 export const cancelCount = (scope: Scope, id: string, actor: Actor) => transition(scope, id, "cancelled", actor);
 
 export async function approveCount(scope: Scope, countId: string, actor: Actor) {
+  if (!code(actor.id)) fail("Thiếu định danh người duyệt kiểm kê.", 401);
   const session = await mongoose.startSession();
+  let conflictVersion: number | undefined;
   try {
     await session.withTransaction(async () => {
       const count: any = await InventoryCountModel.findOne({ _id: countId, companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId }).session(session);
       if (!count) fail("Không tìm thấy phiếu kiểm kê.", 404);
       assertCountTransition(count.status as InventoryCountStatus, "completed");
-      const filters = count.items.map((item: any) => ({ productId: item.productId, ...(item.variantId ? { variantId: item.variantId } : {}) }));
-      const balances = await InventoryBalanceModel.find({ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId: count.warehouseId, $or: filters }).session(session).lean();
+      if (!count.createdById) fail("Phiếu cũ thiếu định danh người lập. Hãy lập phiếu kiểm kê mới để duyệt độc lập.", 409);
+      if (count.submittedBy && !count.submittedById) fail("Phiếu cũ thiếu định danh người gửi duyệt. Hãy lập phiếu kiểm kê mới.", 409);
+      if (code(actor.id) === count.createdById || code(actor.id) === count.submittedById) fail("Người lập hoặc gửi duyệt không được tự duyệt phiếu kiểm kê.", 403);
+      const balances = await InventoryBalanceModel.find({ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId: count.warehouseId }).session(session).lean();
       const balanceMap = new Map(balances.map((balance: any) => [String(balance.productId) + ":" + String(balance.variantId || ""), balance]));
+      if (balances.length !== count.items.length) {
+        conflictVersion = count.version;
+        throw Object.assign(new Error("Danh sách tồn kho đã thay đổi sau khi chốt kiểm kê. Hãy tạo lại phiếu."), { statusCode: 409, code: "COUNT_STOCK_CONFLICT" });
+      }
       for (const item of count.items as any[]) {
         const balance: any = balanceMap.get(String(item.productId) + ":" + String(item.variantId || ""));
         if (!balance || Number(balance.version) !== Number(item.sourceBalanceVersion)) {
-          count.status = "conflict";
-          await count.save({ session });
-          fail("Tồn kho đã thay đổi sau khi bắt đầu kiểm kê.", 409);
+          conflictVersion = count.version;
+          throw Object.assign(new Error("Tồn kho đã thay đổi sau khi bắt đầu kiểm kê."), { statusCode: 409, code: "COUNT_STOCK_CONFLICT" });
         }
       }
       const items = count.items.filter((item: any) => Number(item.quantityDelta) !== 0);
@@ -202,12 +243,13 @@ export async function approveCount(scope: Scope, countId: string, actor: Actor) 
       }
       count.status = "completed";
       count.approvedBy = nameOf(actor);
+      count.approvedById = code(actor.id);
       count.approvedAt = new Date();
-      await count.save({ session });
+      await saveCount(count, session);
     });
     return getCount(scope, countId);
   } catch (error: any) {
-    if (Number(error?.statusCode) === 409) await InventoryCountModel.updateOne({ _id: countId, companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId }, { $set: { status: "conflict" } });
+    if (error?.code === "COUNT_STOCK_CONFLICT") await InventoryCountModel.updateOne({ _id: countId, companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, status: "pending_approval", version: conflictVersion }, { $set: { status: "conflict" }, $inc: { version: 1 } });
     throw error;
   } finally {
     await session.endSession();

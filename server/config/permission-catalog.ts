@@ -34,6 +34,7 @@ export const PERMISSION_FEATURES: PermissionFeatureDefinition[] = [
   feature("timekeeping", "Chấm công", "Nhân sự"),
   feature("work", "Công việc", "Công việc"),
   feature("inventory", "Kho và sản phẩm", "Kho và sản phẩm"),
+  feature("inventory-count-approval", "Duyệt kiểm kê kho", "Kho và sản phẩm"),
   feature("partner", "Đối tác", "Đối tác"),
   feature("partner-self", "Tra cứu hoa hồng cá nhân", "Đối tác"),
   feature("commission-policy", "Chính sách hoa hồng", "Đối tác"),

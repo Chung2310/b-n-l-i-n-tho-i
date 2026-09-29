@@ -1,13 +1,15 @@
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose, { Types } from "mongoose";
 import { beforeAll, afterAll, beforeEach, describe, expect, it } from "vitest";
-import { PartnerModel, CommissionLedgerModel, CommissionPolicyModel } from "./partner.models";
+import { PartnerModel, CommissionLedgerModel, CommissionPolicyModel, ProductCommissionModel } from "./partner.models";
+import { ProductVariantModel } from "../../model/product-variant.model";
+import { saveProductCommissions } from "./product-commission.service";
 import { RetailOrderModel } from "../retail/models/retail-order.model";
 import { RetailAfterSaleModel } from "../retail/models/retail-after-sale.model";
 import { RepairTicketModel } from "../repair/repair-ticket.model";
 import { closePartnerMonths, reconcileCommission, recordPartnerPayout, refundRepairCommission } from "./commission.service";
 import { defaultPolicy, retailLines, validatePolicy } from "./commission-calculation";
-import { snapshotPolicy } from "./commission-snapshot";
+import { snapshotPolicy, snapshotRetail } from "./commission-snapshot";
 
 let repl: MongoMemoryReplSet;
 const companyCode = "COMMISSION_TEST";
@@ -28,8 +30,23 @@ describe('commission ledger transactions', () => {
   }, 120000);
   afterAll(async () => { await mongoose.disconnect(); if (repl) await repl.stop(); });
   beforeEach(async () => {
+    await Promise.all([ProductCommissionModel.deleteMany({}), ProductVariantModel.deleteMany({})]);
     await Promise.all([PartnerModel.deleteMany({}), CommissionLedgerModel.deleteMany({}), CommissionPolicyModel.deleteMany({}), RetailOrderModel.deleteMany({}), RetailAfterSaleModel.deleteMany({}), RepairTicketModel.deleteMany({})]);
     partnerId = String((await PartnerModel.create({ companyCode, code: 'CTV', name: 'CTV test', roles: ['collaborator'] }))._id);
+  });
+  it('saves standalone rates in bulk, isolates tenants and freezes order snapshots', async () => {
+    await ProductVariantModel.collection.insertMany([{ companyCode, sku: 'P' }, { companyCode, sku: 'A' }] as any);
+    await expect(saveProductCommissions('OTHER', { skus: ['P'], rule: { kind: 'phone', amount: 300000 } }, 'admin')).rejects.toThrow();
+    await saveProductCommissions(companyCode, { skus: ['P', 'A'], rule: { kind: 'phone', amount: 300000 } }, 'admin');
+    const input = { companyCode, collaboratorId: partnerId, items: [{ sku: 'P', quantity: 2, lineTotal: 2000000 }] };
+    const snapshot = await snapshotRetail(input);
+    expect(snapshot!.lines[0].amount).toBe(600000);
+    await saveProductCommissions(companyCode, { skus: ['P'], rule: { kind: 'phone', amount: 150000 } }, 'admin');
+    expect(snapshot!.lines[0].amount).toBe(600000);
+    expect((await snapshotRetail(input))!.lines[0].amount).toBe(300000);
+    await CommissionPolicyModel.create({ companyCode, partnerId: '', effectiveAt: new Date(0), config: { ...policy, rules: [{ kind: 'phone', category: 'PHONE', amount: 200000 }, { kind: 'phone', sku: 'P', amount: 250000 }] } });
+    await saveProductCommissions(companyCode, { skus: ['P'], rule: null }, 'admin');
+    expect((await snapshotRetail({ ...input, items: [{ ...input.items[0], category: 'PHONE', trackingMode: 'serial' }] }))!.lines[0].amount).toBe(400000);
   });
   it('is idempotent under concurrent delivery and adjusts a closed KPI month after return', async () => {
     const id = await order(20);
@@ -80,5 +97,19 @@ describe('commission ledger transactions', () => {
     await refundRepairCommission({companyCode,branchId:'b1'},String(_id),input,'admin');
     expect(await balance()).toBe(20000);
     await expect(refundRepairCommission({companyCode,branchId:'b1'},String(_id),{...input,amount:900000,idempotencyKey:'ref2'},'admin')).rejects.toThrow();
+  });
+  it('operates correctly on standalone MongoDB when transactions are disabled', async () => {
+    process.env.DISABLE_TRANSACTIONS = "true";
+    try {
+      const id = await order(1);
+      await reconcileCommission('retail', id, companyCode);
+      expect(await balance()).toBe(200000);
+      await closePartnerMonths(companyCode, partnerId);
+      const paid = await recordPartnerPayout(companyCode, partnerId, { amount: 100000, reference: 'CASH', idempotencyKey: 'payout-standalone' }, 'admin');
+      expect(paid).toBeDefined();
+      expect(await balance()).toBe(100000);
+    } finally {
+      delete process.env.DISABLE_TRANSACTIONS;
+    }
   });
 });

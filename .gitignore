@@ -46,4 +46,5 @@ service-account*.json
 service_account*.json
 .worktrees/
 .superpowers/
-docs/
+docs/*
+!docs/inventory-remediation-plan.md

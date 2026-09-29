@@ -26,11 +26,15 @@ const InventoryCountSchema = new Schema<IInventoryCount>(
     branchId: { type: String, required: true, trim: true, index: true },
     warehouseId: { type: String, required: true, trim: true, index: true },
     countCode: { type: String, required: true, trim: true },
+    snapshotStartedAt: { type: Date },
     unexpectedScans: { type: [{ _id: false, code: String, reason: { type: String, enum: ["other_warehouse", "sold", "unknown", "wrong_status"] }, serialUnitId: String, sku: String, productName: String, warehouseId: String, status: String, scannedAt: Date }], default: undefined },
     status: { type: String, enum: ["draft", "counting", "pending_approval", "completed", "cancelled", "conflict"], required: true, default: "draft", index: true },
     items: { type: [InventoryCountItemSchema], required: true, default: [] },
     notes: { type: String, trim: true },
     createdBy: { type: String, required: true, trim: true },
+    createdById: { type: String, trim: true },
+    submittedById: { type: String, trim: true },
+    approvedById: { type: String, trim: true },
     submittedBy: { type: String, trim: true },
     approvedBy: { type: String, trim: true },
     submittedAt: Date,
@@ -38,7 +42,7 @@ const InventoryCountSchema = new Schema<IInventoryCount>(
     cancelledAt: Date,
     version: { type: Number, required: true, min: 0, default: 0 },
   },
-  { timestamps: true },
+  { timestamps: true, optimisticConcurrency: true, versionKey: "version" },
 );
 
 InventoryCountSchema.index({ companyCode: 1, countCode: 1 }, { unique: true });

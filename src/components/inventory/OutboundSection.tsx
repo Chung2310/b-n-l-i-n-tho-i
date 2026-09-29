@@ -25,6 +25,7 @@ import {
 import type { StockLog, StockLogPurpose } from "../../types";
 
 export interface OutboundSectionProps {
+  onReverse?: (id: string, reason: string) => Promise<{ _id: string }>;
   stockLogs?: StockLog[];
   isLoading?: boolean;
   initialWarehouseId?: string;
@@ -40,6 +41,7 @@ export interface OutboundSectionProps {
 }
 
 export function OutboundSection({
+  onReverse,
   stockLogs = [],
   isLoading = false,
   initialWarehouseId,
@@ -123,6 +125,9 @@ export function OutboundSection({
 
     return {
       id: log.id,
+      refType: typedLog.refType,
+      refId: typedLog.refId,
+      reversalId: typedLog.reversalId,
       title: log.title || `Xuất kho: ${log.productName || log.sku}`,
       createdAt: log.createdAt,
       status: (log.status === "Thành công" ? "Hoàn thành" : log.status) || "Đang chờ",
@@ -148,8 +153,9 @@ export function OutboundSection({
     const total = outboundLogs.length;
     const pending = outboundLogs.filter((l) => l.status === "Đang chờ").length;
     const processing = outboundLogs.filter((l) => l.status === "Đang xử lý").length;
-    const completed = outboundLogs.filter((l) => l.status === "Hoàn thành").length;
-    const totalUnits = outboundLogs.reduce(
+    const effective = outboundLogs.filter((l) => l.status === "Hoàn thành" && !l.reversalId);
+    const completed = effective.length;
+    const totalUnits = effective.reduce(
       (sum, l) => sum + l.items.reduce((itemSum, item) => itemSum + item.quantity, 0),
       0
     );
@@ -415,7 +421,7 @@ export function OutboundSection({
 
         <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs col-span-2 md:col-span-1">
           <div className="text-[11px] font-bold uppercase tracking-wider text-cyan-700">
-            Tổng máy xuất
+            Máy đã xuất (chưa đảo)
           </div>
           <div className="mt-1 text-xl font-bold text-cyan-800 tabular-nums">
             {kpiMetrics.totalUnits.toLocaleString("vi-VN")}
@@ -676,7 +682,7 @@ export function OutboundSection({
                         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap ${statusBadge.badgeClass}`}
                       >
                         <span className={`w-1.5 h-1.5 rounded-full ${statusBadge.dotClass}`} />
-                        {ticket.status}
+                        {ticket.reversalId ? "Đã đảo toàn bộ" : ticket.status}
                       </span>
                     </td>
 
@@ -784,6 +790,11 @@ export function OutboundSection({
           onClose={() => setViewingTicket(null)}
           warehouses={warehouses}
           onUpdateStatus={onUpdateStatus}
+          onReverse={onReverse ? async (id, reason) => {
+            const result = await onReverse(id, reason);
+            setViewingTicket((current) => current?.id === id ? { ...current, reversalId: result._id } : current);
+            return result;
+          } : undefined}
           onEdit={(t) => {
             setViewingTicket(null);
             setEditingTicket(t);

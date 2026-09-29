@@ -105,7 +105,7 @@ export function resolveTier(
 }
 
 export async function enqueueTierRefresh(scope: RetailBranchScope, customerId: string, sourceKey: string, session: ClientSession): Promise<void> {
-  if (!customerId || !sourceKey) return;
+  if (!customerId || !sourceKey || !Types.ObjectId.isValid(customerId)) return;
   await RetailCustomerTierJobModel.updateOne(
     { companyCode: scope.companyCode, sourceKey },
     { $setOnInsert: { ...scope, customerId, sourceKey, status: "pending", attempts: 0 } },

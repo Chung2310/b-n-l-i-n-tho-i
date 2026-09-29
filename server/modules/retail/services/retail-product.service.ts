@@ -132,6 +132,7 @@ export const RetailProductService = {
           barcode: variant.barcode,
           name: `${product.name} - ${variant.displayName || variant.sku}`,
           variantName: variant.displayName || variant.sku,
+          imageUrl: variant.mediaIds?.[0] || product.mediaIds?.[0],
           category: product.categoryCode,
           brand: product.brandCode,
           unit: variant.unitCode,

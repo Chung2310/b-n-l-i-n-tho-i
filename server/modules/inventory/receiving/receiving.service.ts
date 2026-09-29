@@ -1,8 +1,8 @@
 import { FinanceDebtModel } from "../../finance/models/financial-reporting.model";
 import { financeToday, validDay, moneyInput } from "../../finance/services/financial-calculations";
 ﻿import mongoose, { Types } from "mongoose";
-import { runInTransaction } from "../../../config/database";
-import { BranchModel } from "../../../model/branch.model";
+import { inInventoryTransaction } from "../inventory-transaction";
+import { isReceiptCodeCollision, nextReceiptCode, receiptBusinessDay } from "./receipt-number.service";
 import { GoodsReceiptModel } from "../../../model/goods-receipt.model";
 import { ProductCatalogModel } from "../../../model/product-catalog.model";
 import { ProductVariantModel } from "../../../model/product-variant.model";
@@ -134,14 +134,6 @@ async function resolveReceiptItems(company: string, rawItems: ReturnType<typeof 
   });
 }
 
-async function receiptCode(scope: Scope) {
-  const branch = await BranchModel.findOne({ _id: scope.branchId, companyCode: scope.companyCode, isActive: true }).select("code").lean();
-  if (!branch) throw new ReceivingValidationError("Chi nhánh không hợp lệ.");
-  const prefix = `PN-${String(branch.code || "CN").toUpperCase().replace(/[^A-Z0-9-]/g, "")}-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}`;
-  const count = await GoodsReceiptModel.countDocuments({ companyCode: scope.companyCode, branchId: scope.branchId, receiptCode: { $regex: `^${prefix}-` } });
-  return `${prefix}-${String(count + 1).padStart(4, "0")}`;
-}
-
 export async function listReceipts(rawScope: Scope, query: any = {}) {
   const scope = normalizeScope(rawScope);
   const page = Math.max(1, Number(query.page) || 1);
@@ -175,8 +167,17 @@ export async function createReceipt(rawScope: Scope, input: any, actor: Actor) {
   const items = (await resolveReceiptItems(scope.companyCode, rawItems)).map((item: any, index) => ({ ...item, serialNumbers: Array.isArray(input?.items?.[index]?.serialNumbers) ? input.items[index].serialNumbers : undefined, unitDetails: Array.isArray(input?.items?.[index]?.unitDetails) ? input.items[index].unitDetails : undefined }));
   validateReceivingSerialLines(items as any);
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
-  const receipt = await GoodsReceiptModel.create({ companyCode: scope.companyCode, branchId: scope.branchId, warehouseId: String(warehouse._id), receiptCode: await receiptCode(scope), supplierId, supplierName: supplier.name, status: "draft", receivedAt: input?.receivedAt ? new Date(input.receivedAt) : undefined, items, subtotal, financeTerms: receiptFinanceTerms(input.financeTerms, subtotal), notes: text(input?.notes, "Ghi chú") || undefined, createdBy: actorId(actor), createdByName: actor.email || actor.id, version: 0 });
-  return receipt.toObject();
+  const payload = { companyCode: scope.companyCode, branchId: scope.branchId, warehouseId: String(warehouse._id), supplierId, supplierName: supplier.name, status: "draft" as const, receivedAt: input?.receivedAt ? new Date(input.receivedAt) : undefined, items, subtotal, financeTerms: receiptFinanceTerms(input.financeTerms, subtotal), notes: text(input?.notes, "Ghi chú") || undefined, createdBy: actorId(actor), createdByName: actor.email || actor.id, version: 0 };
+  const businessDay = receiptBusinessDay();
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const receiptCode = await nextReceiptCode(scope, businessDay);
+    try {
+      return (await GoodsReceiptModel.create({ ...payload, receiptCode })).toObject();
+    } catch (error) {
+      if (!isReceiptCodeCollision(error)) throw error;
+    }
+  }
+  throw Object.assign(new Error("Mã phiếu nhập liên tục bị trùng. Hãy kiểm tra bộ đếm trước khi thử lại."), { statusCode: 409 });
 }
 
 export async function updateReceipt(rawScope: Scope, id: string, input: any, actor: Actor) {
@@ -201,7 +202,7 @@ export async function updateReceipt(rawScope: Scope, id: string, input: any, act
 export async function confirmReceipt(rawScope: Scope, id: string, actor: Actor) {
   const scope = normalizeScope(rawScope);
   if (!Types.ObjectId.isValid(id)) throw new ReceivingValidationError("Phiếu nhập không hợp lệ.");
-  return runInTransaction(async (session) => {
+  return inInventoryTransaction(async (session) => {
     const receipt: any = await GoodsReceiptModel.findOne({ _id: id, ...scope, status: "receiving" }).session(session || null);
     if (!receipt) {
       const confirmed = await GoodsReceiptModel.findOne({ _id: id, ...scope, status: "confirmed" }).session(session || null).lean();

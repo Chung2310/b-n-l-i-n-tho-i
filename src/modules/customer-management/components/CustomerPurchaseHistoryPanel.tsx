@@ -9,11 +9,18 @@ import {
   Check,
   Package,
   RotateCw,
+  Wrench,
+  Coins,
+  RotateCcw,
+  ArrowDownLeft,
+  ArrowLeftRight,
+  Eye,
 } from "lucide-react";
 import { customerApi } from "../customerApi";
 import type { CustomerPurchaseHistory } from "../types";
 import { Dropdown } from "../../../components/common/Dropdown";
 import { TablePagination } from "../../../components/common/TablePagination";
+import CustomerTransactionDetailModal from "./CustomerTransactionDetailModal";
 
 type Props = { customerId: string; companyCode: string; branchId?: string };
 
@@ -30,6 +37,7 @@ const STATUS_CONFIG: Record<
   string,
   { label: string; badge: string }
 > = {
+  // Bán lẻ & Chung
   draft: {
     label: "Nháp",
     badge: "bg-slate-100 text-slate-700 border-slate-200",
@@ -46,13 +54,84 @@ const STATUS_CONFIG: Record<
     label: "Đã hủy",
     badge: "bg-rose-50 text-rose-700 border-rose-200",
   },
+
+  // Phiếu sửa chữa
+  received: {
+    label: "Tiếp nhận",
+    badge: "bg-sky-50 text-sky-700 border-sky-200",
+  },
+  diagnosing: {
+    label: "Chẩn đoán",
+    badge: "bg-indigo-50 text-indigo-700 border-indigo-200",
+  },
+  quoted: {
+    label: "Đã báo giá",
+    badge: "bg-amber-50 text-amber-700 border-amber-200",
+  },
+  approved: {
+    label: "Khách duyệt",
+    badge: "bg-cyan-50 text-cyan-700 border-cyan-200",
+  },
+  in_progress: {
+    label: "Đang sửa",
+    badge: "bg-orange-50 text-orange-700 border-orange-200",
+  },
+  done: {
+    label: "Sửa xong",
+    badge: "bg-teal-50 text-teal-700 border-teal-200",
+  },
+  delivered: {
+    label: "Đã trả máy",
+    badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  },
+  active: {
+    label: "Còn bảo hành",
+    badge: "bg-teal-50 text-teal-700 border-teal-200",
+  },
+  expired: {
+    label: "Hết hạn BH",
+    badge: "bg-slate-100 text-slate-600 border-slate-200",
+  },
+};
+
+const TYPE_CONFIG = {
+  purchase: {
+    label: "Mua hàng",
+    badge: "bg-blue-50 text-blue-700 border-blue-200",
+    icon: ShoppingBag,
+    codeBg: "bg-cyan-50/80 border-cyan-100 text-cyan-800",
+  },
+  repair: {
+    label: "Sửa chữa",
+    badge: "bg-purple-50 text-purple-700 border-purple-200",
+    icon: Wrench,
+    codeBg: "bg-purple-50/80 border-purple-100 text-purple-800",
+  },
+  warranty: {
+    label: "Bảo hành",
+    badge: "bg-teal-50 text-teal-700 border-teal-200",
+    icon: ShieldCheck,
+    codeBg: "bg-teal-50/80 border-teal-100 text-teal-800",
+  },
+  buyback: {
+    label: "Bán lại / Thu mua",
+    badge: "bg-amber-50 text-amber-800 border-amber-200",
+    icon: ArrowDownLeft,
+    codeBg: "bg-amber-50/80 border-amber-100 text-amber-900",
+  },
+  return: {
+    label: "Đổi trả hàng",
+    badge: "bg-rose-50 text-rose-700 border-rose-200",
+    icon: RotateCcw,
+    codeBg: "bg-rose-50/80 border-rose-100 text-rose-800",
+  },
 };
 
 const statusLabel = (status?: string) =>
   STATUS_CONFIG[status || ""]?.label || status || "Không rõ";
 
 const orderLabel = (order: CustomerPurchaseHistory["items"][number]) =>
-  order.orderCode || `Đơn treo #${order._id.slice(-6)}`;
+  order.orderCode || `Mã #${order._id.slice(-6)}`;
 
 function CopyTextButton({ text, title }: { text: string; title: string }) {
   const [copied, setCopied] = useState(false);
@@ -86,10 +165,12 @@ export default function CustomerPurchaseHistoryPanel({
   const [history, setHistory] = useState<CustomerPurchaseHistory | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [selectedTransaction, setSelectedTransaction] = useState<CustomerPurchaseHistory["items"][number] | null>(null);
 
   const loadHistory = useCallback(async () => {
     if (!branchId) {
@@ -130,9 +211,12 @@ export default function CustomerPurchaseHistoryPanel({
 
   const filteredItems = useMemo(() => {
     if (!history?.items) return [];
-    if (!statusFilter) return history.items;
-    return history.items.filter((item) => item.status === statusFilter);
-  }, [history?.items, statusFilter]);
+    return history.items.filter((item) => {
+      const matchType = !typeFilter || (item.recordType || "purchase") === typeFilter;
+      const matchStatus = !statusFilter || item.status === statusFilter;
+      return matchType && matchStatus;
+    });
+  }, [history?.items, typeFilter, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
   const paginatedItems = useMemo(() => {
@@ -170,15 +254,15 @@ export default function CustomerPurchaseHistoryPanel({
     {
       label: "Số đơn",
       value: String(history.summary.orderCount),
-      subtext: "đơn tại chi nhánh",
-      icon: ShoppingBag,
+      subtext: "tất cả giao dịch",
+      icon: ArrowLeftRight,
       color: "text-cyan-700",
       bg: "bg-cyan-50/70 border-cyan-100",
     },
     {
       label: "Tổng đã mua",
       value: currency.format(history.summary.totalPurchased),
-      subtext: "giá trị tích lũy",
+      subtext: history.summary.totalRepair ? `+ ${currency.format(history.summary.totalRepair)} sửa chữa` : "giá trị tích lũy",
       icon: TrendingUp,
       color: "text-slate-900",
       bg: "bg-slate-50 border-slate-200/80",
@@ -214,7 +298,7 @@ export default function CustomerPurchaseHistoryPanel({
   ];
 
   return (
-    <section className="mt-4 space-y-4" aria-label="Lịch sử mua hàng">
+    <section className="mt-4 space-y-4" aria-label="Lịch sử mua bán">
       {/* Top 5 Summary Bento Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {cards.map((card) => {
@@ -248,14 +332,14 @@ export default function CustomerPurchaseHistoryPanel({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 p-4 bg-slate-50/50">
           <div className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-100 text-cyan-700">
-              <ShoppingBag className="h-4 w-4" />
+              <ArrowLeftRight className="h-4 w-4" />
             </div>
             <div>
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                Lịch sử Đơn hàng Chi nhánh
+                Lịch sử Giao dịch Mua bán & Dịch vụ
               </h3>
               <p className="text-[11px] text-slate-400 mt-0.5">
-                Chi tiết tất cả hóa đơn bán lẻ phát sinh tại chi nhánh được chọn
+                Gồm đơn mua hàng, phiếu sửa chữa, bảo hành, bán lại (thu mua) và đổi trả hàng
               </p>
             </div>
           </div>
@@ -271,6 +355,12 @@ export default function CustomerPurchaseHistoryPanel({
                 { value: "", label: "Tất cả trạng thái" },
                 { value: "completed", label: "Hoàn thành" },
                 { value: "confirmed", label: "Đã xác nhận" },
+                { value: "active", label: "Còn bảo hành" },
+                { value: "expired", label: "Hết hạn BH" },
+                { value: "done", label: "Sửa xong" },
+                { value: "delivered", label: "Đã trả máy" },
+                { value: "in_progress", label: "Đang sửa" },
+                { value: "received", label: "Tiếp nhận" },
                 { value: "draft", label: "Nháp" },
                 { value: "cancelled", label: "Đã hủy" },
               ]}
@@ -283,12 +373,49 @@ export default function CustomerPurchaseHistoryPanel({
               type="button"
               onClick={() => setRefreshTrigger((prev) => prev + 1)}
               disabled={loading}
-              title="Tải lại đơn hàng"
+              title="Tải lại giao dịch"
               className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-100 transition cursor-pointer"
             >
               <RotateCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             </button>
           </div>
+        </div>
+
+        {/* Transaction Type Filter Pills */}
+        <div className="flex flex-wrap items-center gap-1.5 p-3 bg-white border-b border-slate-100 text-xs">
+          <span className="text-[11px] font-bold text-slate-400 mr-1 uppercase">Lọc theo loại:</span>
+          {[
+            { id: "", label: "Tất cả", count: history.summary.orderCount, icon: ArrowLeftRight },
+            { id: "purchase", label: "Mua hàng", count: history.summary.purchaseCount ?? history.items.filter(i => (i.recordType || "purchase") === "purchase").length, icon: ShoppingBag },
+            { id: "repair", label: "Sửa chữa", count: history.summary.repairCount ?? history.items.filter(i => i.recordType === "repair").length, icon: Wrench },
+            { id: "warranty", label: "Bảo hành", count: history.summary.warrantyCount ?? history.items.filter(i => i.recordType === "warranty").length, icon: ShieldCheck },
+            { id: "buyback", label: "Bán lại / Thu mua", count: history.summary.buybackCount ?? history.items.filter(i => i.recordType === "buyback").length, icon: ArrowDownLeft },
+            { id: "return", label: "Đổi trả hàng", count: history.summary.returnCount ?? history.items.filter(i => i.recordType === "return").length, icon: RotateCcw },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const active = typeFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setTypeFilter(tab.id);
+                  setPage(1);
+                }}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer text-xs ${
+                  active
+                    ? "bg-slate-900 text-white shadow-xs"
+                    : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/80"
+                }`}
+              >
+                <Icon className="h-3 w-3" />
+                <span>{tab.label}</span>
+                <span className={`text-[10px] rounded-full px-1.5 py-0.2 font-mono ${active ? "bg-slate-700 text-white" : "bg-slate-200 text-slate-700"}`}>
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {history.items.length === 0 ? (
@@ -298,18 +425,21 @@ export default function CustomerPurchaseHistoryPanel({
               Khách hàng chưa có đơn mua tại chi nhánh này.
             </p>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Các đơn hàng tạo tại chi nhánh khác hoặc kênh khác không hiển thị tại đây.
+              Các đơn hàng, phiếu sửa chữa hoặc đổi trả tạo tại chi nhánh khác không hiển thị tại đây.
             </p>
           </div>
         ) : filteredItems.length === 0 ? (
           <div className="py-10 text-center text-slate-400">
             <Package className="h-7 w-7 mx-auto mb-1.5 text-slate-300" />
             <p className="text-xs font-bold text-slate-600">
-              Không tìm thấy đơn hàng nào với trạng thái đã chọn.
+              Không tìm thấy giao dịch nào phù hợp với bộ lọc đã chọn.
             </p>
             <button
               type="button"
-              onClick={() => setStatusFilter("")}
+              onClick={() => {
+                setTypeFilter("");
+                setStatusFilter("");
+              }}
               className="mt-2 text-xs font-semibold text-cyan-600 hover:underline cursor-pointer"
             >
               Xóa bộ lọc
@@ -317,79 +447,106 @@ export default function CustomerPurchaseHistoryPanel({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[850px] text-left text-xs border-collapse">
+            <table className="w-full min-w-[900px] text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3 px-3.5 whitespace-nowrap">Mã đơn hàng</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Ngày bán</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Sản phẩm</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Mã chứng từ</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Loại GD</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Ngày GD</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Sản phẩm / Dịch vụ</th>
                   <th className="py-3 px-3.5 text-right whitespace-nowrap">Tổng tiền</th>
                   <th className="py-3 px-3.5 text-right whitespace-nowrap">Đã thanh toán</th>
                   <th className="py-3 px-3.5 text-right whitespace-nowrap">Công nợ</th>
                   <th className="py-3 px-3.5 whitespace-nowrap">Nhân viên</th>
                   <th className="py-3 px-3.5 text-right whitespace-nowrap">Trạng thái</th>
+                  <th className="py-3 px-3.5 text-center whitespace-nowrap">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                {paginatedItems.map((order) => {
+                {paginatedItems.map((item) => {
                   const cfg =
-                    STATUS_CONFIG[order.status || ""] || {
-                      label: order.status || "Không rõ",
+                    STATUS_CONFIG[item.status || ""] || {
+                      label: item.status || "Không rõ",
                       badge: "bg-slate-50 text-slate-700 border-slate-200",
                     };
-                  const code = orderLabel(order);
+                  const code = orderLabel(item);
+                  const typeMeta = TYPE_CONFIG[item.recordType || "purchase"] || TYPE_CONFIG.purchase;
+                  const TypeIcon = typeMeta.icon;
 
                   return (
                     <tr
-                      key={order._id}
-                      className="hover:bg-slate-50/80 transition-colors group"
+                      key={item._id}
+                      onClick={() => setSelectedTransaction(item)}
+                      title="Nhấp để xem chi tiết giao dịch"
+                      className="hover:bg-slate-50/90 transition-colors group cursor-pointer"
                     >
                       {/* Order Code */}
                       <td className="py-3 px-3.5 whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-50/80 px-2 py-0.5 border border-cyan-100 font-mono text-xs font-bold text-cyan-800">
+                        <div className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-0.5 border font-mono text-xs font-bold ${typeMeta.codeBg}`}>
                           <span>{code}</span>
-                          <CopyTextButton text={code} title="Mã đơn" />
+                          <CopyTextButton text={code} title="Mã" />
                         </div>
+                      </td>
+
+                      {/* Transaction Type */}
+                      <td className="py-3 px-3.5 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-bold ${typeMeta.badge}`}>
+                          <TypeIcon className="h-3 w-3 shrink-0" />
+                          <span>{typeMeta.label}</span>
+                        </span>
                       </td>
 
                       {/* Business Date */}
                       <td className="py-3 px-3.5 text-slate-500 whitespace-nowrap font-mono text-[11px]">
-                        {date(order.businessDate)}
+                        {date(item.businessDate)}
                       </td>
 
-                      {/* Item count */}
-                      <td className="py-3 px-3.5 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 font-semibold text-slate-700 text-xs">
-                          {order.itemCount} sản phẩm
-                        </span>
+                      {/* Item count & Description */}
+                      <td className="py-3 px-3.5 max-w-[280px]">
+                        <div className="flex flex-col gap-0.5">
+                          {item.description ? (
+                            <span className="font-semibold text-slate-800 text-xs truncate" title={item.description}>
+                              {item.description}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 font-semibold text-slate-700 text-xs">
+                              {item.itemCount} sản phẩm
+                            </span>
+                          )}
+                          {item.description && (
+                            <span className="text-[10px] text-slate-400">
+                              {item.recordType === "repair" ? "1 thiết bị sửa chữa" : item.recordType === "warranty" ? "1 thiết bị bảo hành" : `${item.itemCount} sản phẩm`}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Grand Total */}
                       <td className="py-3 px-3.5 text-right font-black text-slate-900 whitespace-nowrap">
-                        {currency.format(order.grandTotal)}
+                        {currency.format(item.grandTotal)}
                       </td>
 
                       {/* Paid Amount */}
                       <td className="py-3 px-3.5 text-right font-bold text-emerald-700 whitespace-nowrap">
-                        {currency.format(order.paidAmount)}
+                        {currency.format(item.paidAmount)}
                       </td>
 
                       {/* Due Amount */}
                       <td className="py-3 px-3.5 text-right whitespace-nowrap">
                         <span
                           className={`font-bold ${
-                            order.dueAmount > 0
+                            item.dueAmount > 0
                               ? "text-rose-600"
                               : "text-slate-400 font-medium"
                           }`}
                         >
-                          {currency.format(order.dueAmount)}
+                          {currency.format(item.dueAmount)}
                         </span>
                       </td>
 
                       {/* Salesperson */}
-                      <td className="py-3 px-3.5 text-slate-600 whitespace-nowrap">
-                        <span>Nhân viên: {order.salespersonName || "—"}</span>
+                      <td className="py-3 px-3.5 text-slate-600 whitespace-nowrap text-xs">
+                        <span>Nhân viên: {item.salespersonName || "—"}</span>
                       </td>
 
                       {/* Status */}
@@ -397,8 +554,24 @@ export default function CustomerPurchaseHistoryPanel({
                         <span
                           className={`inline-block rounded-md border px-2.5 py-0.5 text-[11px] font-bold ${cfg.badge}`}
                         >
-                          {statusLabel(order.status)}
+                          {statusLabel(item.status)}
                         </span>
+                      </td>
+
+                      {/* Action */}
+                      <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTransaction(item);
+                          }}
+                          title="Xem chi tiết giao dịch"
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-2xs hover:border-cyan-400 hover:bg-cyan-50 hover:text-cyan-700 transition cursor-pointer"
+                        >
+                          <Eye className="h-3.5 w-3.5 text-slate-500" />
+                          <span>Chi tiết</span>
+                        </button>
                       </td>
                     </tr>
                   );
@@ -419,11 +592,20 @@ export default function CustomerPurchaseHistoryPanel({
               setPageSize(newSize);
               setPage(1);
             }}
-            itemLabel="đơn hàng"
+            itemLabel="giao dịch"
           />
         )}
       </div>
+
+      {/* Transaction Detail Modal */}
+      {selectedTransaction && (
+        <CustomerTransactionDetailModal
+          transaction={selectedTransaction}
+          companyCode={companyCode}
+          branchId={branchId}
+          onClose={() => setSelectedTransaction(null)}
+        />
+      )}
     </section>
   );
 }
-

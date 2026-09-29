@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { partnerRequest } from "./partnerApi";
+import { UserPlus } from "lucide-react";
+import { partnerRequest, type Partner } from "./partnerApi";
 import { Dropdown } from "../../components/common/Dropdown";
+import CreateCollaboratorDialog from "./CreateCollaboratorDialog";
 
 export interface CollaboratorPickerProps {
   value?: string;
   onChange: (id: string) => void;
   className?: string;
   label?: string;
+  allowCreate?: boolean;
 }
 
 export default function CollaboratorPicker({
@@ -14,13 +17,15 @@ export default function CollaboratorPicker({
   onChange,
   className = "",
   label = "CTV giới thiệu",
+  allowCreate = true,
 }: CollaboratorPickerProps) {
   const [items, setItems] = useState<Array<{ _id: string; code: string; name: string }>>([]);
   const [error, setError] = useState("");
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     let active = true;
-    partnerRequest("/collaborators")
+    partnerRequest<Array<{ _id: string; code: string; name: string }>>("/collaborators")
       .then((data) => {
         if (active) setItems(data || []);
       })
@@ -31,6 +36,16 @@ export default function CollaboratorPicker({
       active = false;
     };
   }, []);
+
+  const handleCreated = (partner: Partner) => {
+    const newItem = {
+      _id: partner._id,
+      code: partner.code,
+      name: partner.name,
+    };
+    setItems((prev) => [newItem, ...prev.filter((p) => p._id !== partner._id)]);
+    onChange(partner._id);
+  };
 
   const options = [
     { value: "", label: "Không có CTV (Khách đến trực tiếp)" },
@@ -46,7 +61,21 @@ export default function CollaboratorPicker({
 
   return (
     <div className={`flex flex-col gap-1.5 text-sm ${className}`}>
-      {label && <span className="font-semibold text-slate-700">{label}</span>}
+      <div className="flex items-center justify-between">
+        {label && <span className="font-semibold text-slate-700">{label}</span>}
+        {allowCreate && (
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-cyan-600 hover:text-cyan-700 transition cursor-pointer"
+            title="Tạo trực tiếp cộng tác viên mới"
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            <span>+ Thêm CTV</span>
+          </button>
+        )}
+      </div>
+
       <Dropdown<string>
         aria-label="Chọn CTV giới thiệu"
         value={value || ""}
@@ -58,8 +87,24 @@ export default function CollaboratorPicker({
         searchPlaceholder="Tìm kiếm CTV theo mã hoặc tên..."
         className="w-full"
         triggerClassName="w-full justify-between py-2.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 text-slate-800 shadow-2xs font-normal"
+        actionButton={
+          allowCreate
+            ? {
+                label: "Tạo trực tiếp CTV mới",
+                icon: <UserPlus className="h-3.5 w-3.5 text-cyan-600" />,
+                onClick: () => setShowCreateModal(true),
+              }
+            : undefined
+        }
       />
       {error && <span className="text-xs text-rose-600 font-medium">Không tải được CTV: {error}</span>}
+
+      {showCreateModal && (
+        <CreateCollaboratorDialog
+          onClose={() => setShowCreateModal(false)}
+          onCreated={handleCreated}
+        />
+      )}
     </div>
   );
 }

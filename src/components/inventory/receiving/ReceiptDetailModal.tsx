@@ -201,7 +201,7 @@ export function ReceiptDetailModal({
             {/* Card 1: Supplier */}
             <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3.5 space-y-1">
               <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                Nhà cung cấp
+                {receipt.receiptKind && receipt.receiptKind !== "purchase" ? "Khách hàng" : "Nhà cung cấp"}
               </span>
               <p className="text-sm font-bold text-slate-900 truncate" title={receipt.supplierName}>
                 {receipt.supplierName || "—"}

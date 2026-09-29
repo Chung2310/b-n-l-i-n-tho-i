@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import CollaboratorPicker from "../partners/CollaboratorPicker";
+import { customerApi } from "../customer-management/customerApi";
 import { repairService } from "../../services/repairService";
 import type { RepairCreatePrefill } from "./repairBoardTypes";
 
@@ -22,6 +23,21 @@ export interface CreateRepairModalProps {
   onClose: () => void;
   onCreated: () => void;
 }
+
+const isHexObjectId = (str?: string): boolean => {
+  if (!str) return false;
+  return /^[0-9a-fA-F]{24}$/.test(str.trim());
+};
+
+const getInitialCustomerId = (prefill: RepairCreatePrefill): string => {
+  if (prefill.customerCode && !isHexObjectId(prefill.customerCode)) {
+    return prefill.customerCode;
+  }
+  if (prefill.customerId && !isHexObjectId(prefill.customerId)) {
+    return prefill.customerId;
+  }
+  return "";
+};
 
 const CONDITION_PRESETS = [
   "Máy đẹp 99%",
@@ -52,7 +68,7 @@ export default function CreateRepairModal({
     productName: prefill.productName || "",
     serialNumber: prefill.serialNumber || "",
     collaboratorId: "",
-    customerId: prefill.customerId || "",
+    customerId: getInitialCustomerId(prefill),
     customerName: prefill.customerName || "",
     customerPhone: prefill.customerPhone || "",
     symptom: "",
@@ -64,7 +80,7 @@ export default function CreateRepairModal({
   useEffect(() => {
     setForm((current) => ({
       ...current,
-      customerId: prefill.customerId || current.customerId,
+      customerId: getInitialCustomerId(prefill) || current.customerId,
       customerName: prefill.customerName || current.customerName,
       customerPhone: prefill.customerPhone || current.customerPhone,
       productName: prefill.productName || current.productName,
@@ -73,12 +89,42 @@ export default function CreateRepairModal({
     }));
   }, [
     prefill.customerId,
+    prefill.customerCode,
     prefill.customerName,
     prefill.customerPhone,
     prefill.productName,
     prefill.serialNumber,
     prefill.ticketType,
   ]);
+
+  // Tự động tìm kiếm thông tin khách hàng khi nhập số điện thoại (từ 9 số trở lên)
+  useEffect(() => {
+    const phone = form.customerPhone.trim().replace(/\D/g, "");
+    if (phone.length < 9) return;
+    let active = true;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await customerApi.list({ q: phone, limit: 1, status: "active" });
+        if (!active || !res?.items?.length) return;
+        const matched = res.items.find(
+          (c) => c.phone?.replace(/\D/g, "") === phone
+        );
+        if (matched) {
+          setForm((prev) => ({
+            ...prev,
+            customerId: matched.customerCode || prev.customerId,
+            customerName: prev.customerName || matched.name,
+          }));
+        }
+      } catch {
+        // Bỏ qua lỗi tìm kiếm ngầm
+      }
+    }, 400);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [form.customerPhone]);
 
   const addPresetToCondition = (preset: string) => {
     setForm((curr) => {
@@ -114,13 +160,17 @@ export default function CreateRepairModal({
     setError("");
     try {
       const isService = form.ticketType === "service";
+      const finalCustomerCode =
+        form.customerId.trim() && !isHexObjectId(form.customerId.trim())
+          ? form.customerId.trim()
+          : `KH-${form.customerPhone.trim() || Date.now().toString().slice(-6)}`;
+
       await repairService.create({
         ticketType: form.ticketType,
         collaboratorId: form.collaboratorId,
         ticketCode: `${isService ? "SRV" : "WAR"}-${Date.now().toString().slice(-8)}`,
-        customerId:
-          form.customerId.trim() ||
-          `KH-${form.customerPhone.trim() || Date.now().toString().slice(-6)}`,
+        customerId: finalCustomerCode,
+        customerCode: finalCustomerCode,
         customerName: form.customerName,
         customerPhone: form.customerPhone,
         device: {

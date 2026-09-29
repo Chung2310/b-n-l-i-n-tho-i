@@ -5,7 +5,7 @@ export async function financeManagement<T = any>(path: string, body?: unknown, m
         if (response.status === 401 || response.status === 403)
             throw new Error("Bạn chưa được cấp quyền thực hiện nghiệp vụ tài chính này.");
         const payload = await response.json().catch(() => ({}));
-        throw new Error(response.status < 500 && payload.message ? payload.message : "Không thể xử lý dữ liệu tài chính. Vui lòng thử lại.");
+        throw new Error((response.status < 500 || (response.status === 503 && payload.code === "FINANCE_TRANSACTIONS_REQUIRED")) && payload.message ? payload.message : "Không thể xử lý dữ liệu tài chính. Vui lòng thử lại.");
     }
     return (await response.json()).data;
 }

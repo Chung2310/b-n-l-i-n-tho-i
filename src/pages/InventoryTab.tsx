@@ -25,6 +25,7 @@ import { WarehouseSection } from "../components/inventory/WarehouseSection";
 import { ReceivingSection } from "../components/inventory/ReceivingSection";
 import { SerialRegistrySection } from "../components/inventory/SerialRegistrySection";
 import { OutboundSection } from "../components/inventory/OutboundSection";
+import { InventoryTransferSection } from "../components/inventory/InventoryTransferSection";
 
 // Lazy-loaded subcomponents
 const AiForecastPanel = lazy(() =>
@@ -70,7 +71,7 @@ function getStockLogItems(log: StockLog) {
 export default function InventoryTab() {
   const subTabsRef = useRef<HTMLDivElement>(null);
   const scrollSubTabs = (direction: "left" | "right") => subTabsRef.current?.scrollBy({ left: direction === "left" ? -280 : 280, behavior: "smooth" });
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const { activeBranchId, loading: branchLoading } = useBranch();
   const [subTab, setSubTab] = useSubTabRouter<InventorySubTabType>(INVENTORY_SUB_TAB_ROUTES, "SẢN PHẨM");
   const [products, setProducts] = useState<ProductItem[]>([]);
@@ -378,6 +379,7 @@ export default function InventoryTab() {
   };
 
   const handleCreateTransaction = async (payload: {
+    idempotencyKey?: string;
     type: "nhập" | "xuất";
     purpose?: import("../types").StockLogPurpose;
     customerId?: string;
@@ -436,6 +438,7 @@ export default function InventoryTab() {
 
     // Lưu phiếu vào Firebase
     await inventoryStockLogService.createLog({
+      idempotencyKey: payload.idempotencyKey,
       type: payload.type,
       purpose: payload.purpose,
       customerId: payload.customerId,
@@ -677,6 +680,7 @@ export default function InventoryTab() {
               { id: "NHẬP HÀNG", label: "Nhập hàng" },
               { id: "IMEI / SERIAL", label: "IMEI / Serial" },
               { id: "XUẤT HÀNG", label: "Xuất hàng" },
+              { id: "ĐIỀU CHUYỂN", label: "Điều chuyển" },
               { id: "GIAO DỊCH KHO", label: "Giao dịch kho" },
               { id: "DỰ BÁO", label: "Dự báo" },
             ].map((tab) => {
@@ -712,7 +716,8 @@ export default function InventoryTab() {
           setSubTab("XUẤT HÀNG");
         }} />}
         {subTab === "NHẬP HÀNG" && <ReceivingSection />}
-        {subTab === "IMEI / SERIAL" && <SerialRegistrySection />}
+        {subTab === "ĐIỀU CHUYỂN" && activeBranchId && <InventoryTransferSection key={activeBranchId} branchId={activeBranchId} canManage={hasPermission?.("inventory:manage") || false} />}
+        {subTab === "IMEI / SERIAL" && <SerialRegistrySection key={activeBranchId} onTransfers={() => setSubTab("ĐIỀU CHUYỂN")} />}
 
         {subTab === "PHÂN LOẠI SẢN PHẨM" && (
           <div className="space-y-6" id="product_classification_tab">
@@ -892,6 +897,8 @@ export default function InventoryTab() {
           )}
           {subTab === "XUẤT HÀNG" && (
             <OutboundSection
+              key={activeBranchId}
+              onReverse={activeBranchId && hasPermission?.("inventory:manage") ? (id, reason) => inventoryStockLogService.reverseOutbound(id, reason, activeBranchId) : undefined}
               stockLogs={stockLogs}
               isLoading={stockLogLoading}
               initialWarehouseId={outboundPrefill?.warehouseId}

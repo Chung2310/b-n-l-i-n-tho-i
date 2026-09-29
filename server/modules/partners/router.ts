@@ -12,12 +12,14 @@ import { RepairTicketModel } from "../repair/repair-ticket.model";
 import { closePartnerMonths, recordPartnerPayout, startCommissionRecovery } from "./commission.service";
 import { saveSupplierPartner, supplierPartnerProfile } from "./partner-supplier.service";
 import { GoodsReceiptModel } from "../../model/goods-receipt.model";
+import { listProductCommissions, saveProductCommissions } from "./product-commission.service";
 import { FinanceDebtModel } from "../finance/models/financial-reporting.model";
 
 export const partnerRouter = Router();
 partnerRouter.use(requireAuth as any);
 const read = requirePermission(["partner:read", "partner:manage"]) as any;
 const manage = requirePermission("partner:manage") as any;
+const createPartner = requirePermission(["partner:manage", "retail:manage", "repair:manage"]) as any;
 const policies = requirePermission("commission-policy:manage") as any;
 const finance = requirePermission("commission-payment:manage") as any;
 const own = requirePermission(["partner-self:read", "partner-self:manage"]) as any;
@@ -91,6 +93,8 @@ partnerRouter.get("/me/statement", own, route(async req => {
   if (statement.partner.status === "inactive") throw invalid("Hồ sơ đối tác đã ngừng hoạt động.", 403);
   return statement;
 }));
+partnerRouter.get("/product-commissions", policies, route(async req => listProductCommissions(partnerCompany(req))));
+partnerRouter.put("/product-commissions", policies, route(async req => saveProductCommissions(partnerCompany(req), req.body, req.user.id)));
 partnerRouter.get("/policies", read, route(async req => ({ defaults: defaultPolicy, items: await CommissionPolicyModel.find({ companyCode: partnerCompany(req) }).sort({ effectiveAt: -1 }).limit(100).lean() })));
 partnerRouter.post("/policies", policies, route(async req => {
   const companyCode = partnerCompany(req), partnerId = req.body.partnerId ? id(req.body.partnerId) : "";
@@ -107,7 +111,7 @@ partnerRouter.patch("/policies/:id", policies, route(async req => {
   if (partnerId && !await PartnerModel.exists({ companyCode, _id: partnerId, roles: "collaborator" })) throw invalid("CTV không tồn tại.");
   const effectiveAt = req.body.effectiveAt ? new Date(req.body.effectiveAt) : existing.effectiveAt;
   if (!Number.isFinite(effectiveAt.getTime())) throw invalid("Ngày hiệu lực không hợp lệ.");
-  const config = req.body.config ? validatePolicy(req.body.config) : existing.config;
+  const config = validatePolicy(req.body.config ? { ...req.body.config, rules: req.body.config.rules ?? existing.config.rules } : existing.config);
   existing.partnerId = partnerId;
   existing.effectiveAt = effectiveAt;
   existing.config = config;
@@ -183,7 +187,7 @@ async function provisionPartnerAccount(req: any, partner: any, password: string,
   return { partnerId, userId: String(user._id), email, displayName, permissions: ["partner-self:read"] };
 }
 
-partnerRouter.post("/", manage, route(async req => {
+partnerRouter.post("/", createPartner, route(async req => {
   const input = await partnerInput(req);
   const partner = input.roles.includes("supplier")
     ? await saveSupplierPartner(input, req.body)

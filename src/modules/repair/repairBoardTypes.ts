@@ -247,6 +247,7 @@ export type RepairCreatePrefill = {
   serialNumber?: string;
   productName?: string;
   customerId?: string;
+  customerCode?: string;
   customerName?: string;
   customerPhone?: string;
   coverage?: RepairTicket["coverage"];

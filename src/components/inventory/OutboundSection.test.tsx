@@ -98,6 +98,17 @@ const mockStockLogs: StockLog[] = [
 ];
 
 describe("OutboundSection", () => {
+  it("excludes reversed and draft documents from issued quantity while preserving their history", async () => {
+    const source = mockStockLogs[0];
+    render(<OutboundSection stockLogs={[
+      source,
+      { ...source, id: "posted", status: "Hoàn thành" },
+      { ...source, id: "reversed", status: "Hoàn thành", reversalId: "r1" } as any,
+    ]} onCreateTransaction={vi.fn()} onUpdateTransaction={vi.fn()} />);
+    await screen.findByText("reversed");
+    expect(screen.getByText("Đã đảo toàn bộ")).toBeTruthy();
+    expect(screen.getByText("Máy đã xuất (chưa đảo)").parentElement?.textContent).toContain("2");
+  });
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();

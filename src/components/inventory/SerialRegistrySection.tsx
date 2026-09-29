@@ -17,6 +17,7 @@ const statuses: Array<"" | SerialUnitStatus> = [
   "",
   "in_stock",
   "in_transit",
+  "internal_use",
   "sold",
   "returned",
   "defective",
@@ -26,6 +27,7 @@ const statuses: Array<"" | SerialUnitStatus> = [
 ];
 
 const serialStatusLabels: Record<SerialUnitStatus, string> = {
+  internal_use: "Đang sử dụng nội bộ",
   in_stock: "Trong kho",
   in_transit: "Đang chuyển kho",
   sold: "Đã bán",
@@ -37,6 +39,7 @@ const serialStatusLabels: Record<SerialUnitStatus, string> = {
 };
 
 const statusBadgeStyles: Record<SerialUnitStatus, string> = {
+  internal_use: "bg-violet-50 text-violet-800 border-violet-200",
   in_stock: "bg-emerald-50 text-emerald-800 border-emerald-200",
   in_transit: "bg-amber-50 text-amber-800 border-amber-200",
   sold: "bg-blue-50 text-blue-800 border-blue-200",
@@ -48,9 +51,11 @@ const statusBadgeStyles: Record<SerialUnitStatus, string> = {
 };
 
 const serialEventLabels: Record<string, string> = {
+  internal_use: "Cấp phát sử dụng nội bộ",
   received: "Nhập kho",
   sold: "Bán hàng",
   sale_cancelled: "Hủy bán hàng",
+  stock_log_reversed: "Đảo phiếu xuất, hoàn kho",
   transferred: "Điều chuyển kho",
   transfer_requested: "Yêu cầu chuyển kho",
   transfer_received: "Đã nhận chuyển kho",
@@ -63,6 +68,15 @@ const serialEventLabels: Record<string, string> = {
 
 function serialStatusLabel(status?: SerialUnitStatus) {
   return status ? serialStatusLabels[status] : "Chưa có trạng thái";
+}
+
+function InternalUseDetails({ unit }: { unit: InventorySerialUnit }) {
+  if (unit.status !== "internal_use" || !unit.internalUse) return null;
+  return <div className="mt-1 text-[11px] text-violet-800">
+    <div>Người nhận: {unit.internalUse.recipientName}</div>
+    <div>Giá vốn cấp phát: {unit.internalUse.unitCost.toLocaleString("vi-VN")} ₫</div>
+    <div>Phiếu: <span className="font-mono">{unit.internalUse.stockLogId}</span></div>
+  </div>;
 }
 
 function serialEventLabel(eventType: string) {
@@ -82,7 +96,7 @@ export interface MachineGroup {
   defectiveOrRepair: number;
 }
 
-export function SerialRegistrySection() {
+export function SerialRegistrySection({ onTransfers }: { onTransfers?: () => void } = {}) {
   const [items, setItems] = useState<InventorySerialUnit[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState("");
@@ -100,11 +114,6 @@ export function SerialRegistrySection() {
     events: InventorySerialEvent[];
   } | null>(null);
 
-  const [transferItem, setTransferItem] = useState<InventorySerialUnit | null>(null);
-  const [transferBranch, setTransferBranch] = useState("");
-  const [transferWarehouseId, setTransferWarehouseId] = useState("");
-  const [transferReason, setTransferReason] = useState("");
-  const [transferring, setTransferring] = useState(false);
 
   // Pagination & Copying
   const [copiedSerial, setCopiedSerial] = useState<string | null>(null);
@@ -687,6 +696,7 @@ export function SerialRegistrySection() {
                                     >
                                       {serialStatusLabel(item.status)}
                                     </span>
+                                    <InternalUseDetails unit={item} />
                                   </td>
 
                                   {/* Updated */}
@@ -725,14 +735,10 @@ export function SerialRegistrySection() {
                                         Lịch sử
                                       </button>
 
-                                      {item.status === "in_stock" && (
+                                      {onTransfers && item.status === "in_stock" && (
                                         <button
                                           type="button"
-                                          onClick={() => {
-                                            setTransferItem(item);
-                                            setTransferBranch("");
-                                            setTransferReason("");
-                                          }}
+                                          onClick={onTransfers}
                                           className="rounded-md border border-slate-200 hover:bg-slate-50 px-1.5 py-0.5 text-[11px] font-semibold text-slate-700 transition-colors cursor-pointer"
                                           title="Yêu cầu điều chuyển kho"
                                         >
@@ -740,56 +746,7 @@ export function SerialRegistrySection() {
                                         </button>
                                       )}
 
-                                      {item.status === "in_transit" && (
-                                        <>
-                                          <button
-                                            type="button"
-                                            onClick={async () => {
-                                              try {
-                                                await inventorySerialService.acceptTransfer(
-                                                  item._id,
-                                                  {}
-                                                );
-                                                toast.success("Đã xác nhận nhận hàng vào kho.");
-                                                await load();
-                                              } catch (problem) {
-                                                toast.error(
-                                                  problem instanceof Error
-                                                    ? problem.message
-                                                    : "Không thể xác nhận nhận hàng."
-                                                );
-                                              }
-                                            }}
-                                            className="rounded-md bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 text-[11px] font-bold transition-colors cursor-pointer"
-                                          >
-                                            Nhận
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={async () => {
-                                              const reason = window.prompt("Lý do hủy chuyển kho:");
-                                              if (!reason) return;
-                                              try {
-                                                await inventorySerialService.cancelTransfer(
-                                                  item._id,
-                                                  reason
-                                                );
-                                                toast.info("Đã hủy chuyển kho.");
-                                                await load();
-                                              } catch (problem) {
-                                                toast.error(
-                                                  problem instanceof Error
-                                                    ? problem.message
-                                                    : "Không thể hủy chuyển kho."
-                                                );
-                                              }
-                                            }}
-                                            className="rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50 px-1.5 py-0.5 text-[11px] font-bold transition-colors cursor-pointer"
-                                          >
-                                            Hủy
-                                          </button>
-                                        </>
-                                      )}
+                                      {onTransfers && item.status === "in_transit" && <button type="button" onClick={onTransfers} className="text-xs text-cyan-800 underline">Xem phiếu điều chuyển</button>}
                                     </div>
                                   </td>
                                 </tr>
@@ -891,6 +848,7 @@ export function SerialRegistrySection() {
                           >
                             {serialStatusLabel(item.status)}
                           </span>
+                          <InternalUseDetails unit={item} />
                         </td>
                         <td className="px-3 py-2.5 text-xs text-slate-500 whitespace-nowrap">
                           {new Date(item.updatedAt).toLocaleString("vi-VN", {
@@ -922,14 +880,10 @@ export function SerialRegistrySection() {
                             >
                               Lịch sử
                             </button>
-                            {item.status === "in_stock" && (
+                            {onTransfers && item.status === "in_stock" && (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setTransferItem(item);
-                                  setTransferBranch("");
-                                  setTransferReason("");
-                                }}
+                                onClick={onTransfers}
                                 className="rounded-md border border-slate-200 hover:bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
                               >
                                 Chuyển
@@ -1069,95 +1023,6 @@ export function SerialRegistrySection() {
         </div>
       )}
 
-      {/* 7. Transfer Modal Dialog */}
-      {transferItem && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Yêu cầu điều chuyển kho"
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs"
-          onClick={() => setTransferItem(null)}
-        >
-          <div
-            className="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150 p-5 space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">
-                Yêu cầu điều chuyển thiết bị
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Mã IMEI: <b className="font-mono text-slate-800">{transferItem.serialNumber}</b> ({transferItem.productName})
-              </p>
-            </div>
-
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                setTransferring(true);
-                try {
-                  await inventorySerialService.requestTransfer(transferItem._id, {
-                    toBranchId: transferBranch.trim(),
-                    toWarehouseId: transferWarehouseId.trim() || undefined,
-                    reason: transferReason.trim(),
-                  });
-                  toast.success("Đã tạo yêu cầu điều chuyển kho.");
-                  setTransferItem(null);
-                  await load();
-                } catch (err: any) {
-                  toast.error(err?.message || "Không thể tạo yêu cầu chuyển kho.");
-                } finally {
-                  setTransferring(false);
-                }
-              }}
-              className="space-y-3 text-xs"
-            >
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Mã chi nhánh nhận <span className="text-rose-600">*</span>
-                </label>
-                <input
-                  required
-                  value={transferBranch}
-                  onChange={(e) => setTransferBranch(e.target.value)}
-                  placeholder="VD: CN-QUAN-1 hoặc KHO-PHU"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Lý do điều chuyển <span className="text-rose-600">*</span>
-                </label>
-                <input
-                  required
-                  value={transferReason}
-                  onChange={(e) => setTransferReason(e.target.value)}
-                  placeholder="VD: Điều phối kho theo đơn đặt hàng, bổ sung hàng..."
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setTransferItem(null)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={transferring}
-                  className="rounded-lg bg-cyan-700 hover:bg-cyan-800 px-4 py-1.5 text-xs font-bold text-white transition-colors disabled:opacity-50"
-                >
-                  {transferring ? "Đang xử lý..." : "Xác nhận chuyển"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </section>
   );
 }

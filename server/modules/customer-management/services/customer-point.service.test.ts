@@ -193,4 +193,41 @@ describe("CustomerPointService - Sổ Cái & Vòng Đời Điểm Thưởng", ()
       })
     ).rejects.toThrow(/Vui lòng nhập lý do/);
   });
+
+  it("thu hồi điểm khi trả hàng: trừ pointsBalance, trừ totalPointsEarned và ghi sổ REFUND_REVERT", async () => {
+    const mockCustomer = {
+      _id: "cust-1",
+      companyCode: "IGEN",
+      pointsBalance: 125,
+      totalPointsEarned: 175,
+      save: vi.fn().mockResolvedValue(true),
+    };
+
+    vi.spyOn(CustomerModel, "findOne").mockReturnValue({
+      session: vi.fn().mockResolvedValue(mockCustomer),
+    } as any);
+
+    vi.spyOn(CustomerPointLedgerModel.prototype, "save").mockResolvedValue({} as any);
+
+    const result = await CustomerPointService.revertRefundPoints({
+      companyCode: "IGEN",
+      customerId: "cust-1",
+      points: 75,
+      sourceType: "retail_order",
+      sourceId: "order-101",
+      sourceCode: "TH-2609-000001",
+      reason: "Thu hồi điểm trả hàng đơn HD-101",
+      actor: { id: "mgr-1", name: "Quản lý" },
+    });
+
+    expect(mockCustomer.pointsBalance).toBe(50); // 125 - 75
+    expect(mockCustomer.totalPointsEarned).toBe(100); // 175 - 75
+    expect(mockCustomer.save).toHaveBeenCalled();
+    expect(result).toBeDefined();
+    expect(result?.points).toBe(-75);
+    expect(result?.type).toBe("REFUND_REVERT");
+    expect(result?.balanceBefore).toBe(125);
+    expect(result?.balanceAfter).toBe(50);
+  });
 });
+

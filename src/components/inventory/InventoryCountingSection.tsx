@@ -7,6 +7,7 @@ import {
 import { toast } from "../../pages/Toast";
 import { Dropdown } from "../common/Dropdown";
 import { printInventoryCountVoucher } from "./printInventoryCountVoucher";
+import { useAuth } from "../../context/AuthContext";
 
 const BarcodeScannerDialog = React.lazy(() => import("./InventoryBarcodeScannerDialog"));
 
@@ -35,6 +36,8 @@ export function InventoryCountingModal({
   onClose: () => void;
   onApplied?: () => void;
 }) {
+  const { user, hasPermission } = useAuth();
+  const actorId = String((user as any)?.id || (user as any)?._id || user?.uid || "");
   const [count, setCount] = useState<InventoryCount | null>(null);
   const [counts, setCounts] = useState<InventoryCount[]>([]);
   const [camera, setCamera] = useState(false);
@@ -43,6 +46,7 @@ export function InventoryCountingModal({
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
   const [processingAction, setProcessingAction] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const canApprove = Boolean(actorId && count?.createdById && (!count.submittedBy || count.submittedById) && actorId !== count.createdById && actorId !== count.submittedById && hasPermission("inventory-count-approval:manage"));
 
   // Load existing counts for this warehouse
   const loadCounts = async () => {
@@ -65,7 +69,9 @@ export function InventoryCountingModal({
   }, [warehouseId]);
 
   useEffect(() => {
-    const sync = () => void inventoryCountService.syncPending();
+    const sync = () => void inventoryCountService.syncPending().then(({ remaining }) => {
+      if (remaining) toast.error("Có số lượng kiểm kê chưa đồng bộ. Hãy mở phiếu, tải lại và đối chiếu trước khi lưu.");
+    }).catch(() => toast.error("Không thể đồng bộ số lượng kiểm kê."));
     window.addEventListener("online", sync);
     sync();
     return () => window.removeEventListener("online", sync);
@@ -169,6 +175,7 @@ export function InventoryCountingModal({
     if (!count) return;
 
     if (action === "approve") {
+      if (!canApprove) { toast.error("Cần người duyệt độc lập có quyền duyệt kiểm kê."); return; }
       const confirmApprove = window.confirm(
         `XÁC NHẬN CÂN BẰNG TỒN KHO:\n\nPhiếu ${count.countCode} sẽ được duyệt.\nTồn kho thực tế trong hệ thống sẽ được tự động điều chỉnh theo số lượng đã đếm.\nCác máy IMEI không tìm thấy sẽ được ghi nhận thất lạc.\n\nBạn có chắc chắn muốn duyệt?`
       );
@@ -207,12 +214,23 @@ export function InventoryCountingModal({
     if (!count) return;
     const safeQty = Math.max(0, newQuantity);
     try {
-      const next = await inventoryCountService.updateItem(count._id, itemId, safeQty);
+      const next = await inventoryCountService.updateItem(count._id, itemId, safeQty, count.version);
       setCount(next);
       setCounts((curr) => curr.map((c) => (c._id === next._id ? next : c)));
     } catch (error: any) {
       toast.error(error?.message || "Không thể lưu số lượng.");
     }
+  };
+
+  const handleReload = async () => {
+    if (!count || !window.confirm("Tải lại sẽ bỏ các số lượng chưa lưu và bản chờ đồng bộ của phiếu này. Bạn đã ghi lại số cần đối chiếu chưa?")) return;
+    setProcessingAction("reload");
+    try {
+      const latest = await inventoryCountService.reload(count._id);
+      setCount(latest);
+      setCounts((current) => current.map((item) => item._id === latest._id ? latest : item));
+    } catch (error: any) { toast.error(error?.message || "Không thể tải lại phiếu kiểm kê."); }
+    finally { setProcessingAction(null); }
   };
 
   // Copy helper
@@ -287,6 +305,7 @@ export function InventoryCountingModal({
           </div>
 
           <div className="flex items-center gap-2">
+            {count && <button type="button" disabled={Boolean(processingAction) || scanning} onClick={() => void handleReload()} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold">Tải lại phiếu</button>}
             {count && (
               <button
                 type="button"
@@ -866,7 +885,8 @@ export function InventoryCountingModal({
             {count?.status === "pending_approval" && (
               <button
                 type="button"
-                disabled={processingAction === "approve"}
+                disabled={processingAction === "approve" || !canApprove}
+                title={!canApprove ? "Cần người duyệt độc lập có quyền duyệt kiểm kê; phiếu phải có định danh người lập/gửi." : undefined}
                 onClick={() => void handleTransition("approve")}
                 className="rounded-lg bg-emerald-700 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-800 transition-colors disabled:opacity-50"
               >

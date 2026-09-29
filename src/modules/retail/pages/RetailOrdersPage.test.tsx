@@ -28,6 +28,20 @@ async function openOutstandingOrder(order: ReturnType<typeof outstandingOrder>) 
 }
 
 describe("RetailOrdersPage", () => {
+  it("shows persisted after-sale status and the receipt, and prevents processing a fully returned order again", async () => {
+    const order: RetailOrder = { ...outstandingOrder("c1"), status: "completed", dueAmount: 0, paymentStatus: "refunded",
+      afterSaleSummary: { status: "returned", returnedQuantity: 1, boughtBackQuantity: 0, processedQuantity: 1, totalQuantity: 1 },
+      afterSales: [{ _id: "as1", code: "TH-01", type: "return", orderId: "o1", orderCode: "DH-01", receiptId: "pn1", receiptCode: "PN-TH-01", totalAmount: 500000, paymentMethod: "cash", reason: "Khách đổi máy", businessDate: "2026-09-28", createdAt: "2026-09-28T08:00:00Z", items: [{ orderLineIndex: 0, quantity: 1, condition: "good", sku: "PHONE", productName: "Điện thoại", lineAmount: 500000, serialNumbers: ["SN001"] }] }],
+    };
+    await openOutstandingOrder(order);
+    expect(screen.getAllByText("Đã trả toàn bộ").length).toBeGreaterThan(0);
+    expect(screen.getByText("Đã nhập kho · PN-TH-01")).toBeTruthy();
+    expect(screen.getByText(/IMEI\/SN: SN001/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Trả hàng" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Thu mua lại" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Hủy/hoàn tiền" })).toBeNull();
+  });
+
   it("collects a full payment for an outstanding customer order", async () => {
     const order = outstandingOrder("c1");
     vi.mocked(retailOrdersApi.collect).mockResolvedValue({ ...order, dueAmount: 0, paidAmount: 500_000, paymentStatus: "paid" });

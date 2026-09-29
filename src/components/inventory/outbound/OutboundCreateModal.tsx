@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   X,
   Plus,
@@ -44,6 +44,7 @@ export interface OutboundCreateModalProps {
   warehouses: Warehouse[];
   catalogProducts?: ProductItem[];
   onSave: (payload: {
+    idempotencyKey?: string;
     id?: string;
     type: "xuất";
     purpose: StockLogPurpose;
@@ -89,7 +90,7 @@ export function OutboundCreateModal({
   const [loadingBalances, setLoadingBalances] = useState(false);
 
   // Form Fields
-  const [purpose, setPurpose] = useState<StockLogPurpose>("chuyển kho");
+  const [purpose, setPurpose] = useState<StockLogPurpose>("nội bộ");
   const [customerName, setCustomerName] = useState<string>("");
   const [destinationWarehouseId, setDestinationWarehouseId] = useState<string>("");
   const [title, setTitle] = useState<string>("");
@@ -100,6 +101,8 @@ export function OutboundCreateModal({
   // Product Lines
   const [lines, setLines] = useState<OutboundDraftLine[]>([]);
   const [saving, setSaving] = useState(false);
+  const createRequest = useRef<{ content: string; key: string } | null>(null);
+  useEffect(() => { if (!isOpen) createRequest.current = null; }, [isOpen]);
 
   // IMEI Picker Submodal state
   const [activeImeiLineKey, setActiveImeiLineKey] = useState<string | null>(null);
@@ -221,8 +224,8 @@ export function OutboundCreateModal({
       );
     } else {
       // Phiếu mới hoàn toàn
-      setTitle("Phiếu điều chuyển kho");
-      setPurpose("chuyển kho");
+      setTitle("Phiếu xuất nội bộ");
+      setPurpose("nội bộ");
       setCustomerName("");
       setDestinationWarehouseId("");
       setOperatorName("");
@@ -487,6 +490,14 @@ export function OutboundCreateModal({
   // Submit toàn bộ phiếu xuất
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (purpose === "chuyển kho") {
+      toast.error("Hãy tạo phiếu tại tab Điều chuyển để theo dõi kho gửi, hàng đang vận chuyển và kho nhận.");
+      return;
+    }
+    if (purpose === "nội bộ" && status === "Hoàn thành" && (!customerName.trim() || !notes.trim())) {
+      toast.error("Vui lòng nhập người/phòng ban nhận và lý do cấp phát trong ghi chú.");
+      return;
+    }
 
     if (!sourceWarehouseId) {
       toast.error("Vui lòng chọn Kho xuất hàng.");
@@ -563,16 +574,13 @@ export function OutboundCreateModal({
     }
 
     // Tên người nhận tùy theo mục đích
-    const resolvedCustomerName =
-      purpose === "chuyển kho"
-        ? (warehouses.find((w) => w._id === destinationWarehouseId)?.name || customerName)
-        : customerName;
+    const resolvedCustomerName = customerName;
 
     setSaving(true);
     try {
-      await onSave({
+      const draft = {
         id: initialTicket?.id,
-        type: "xuất",
+        type: "xuất" as const,
         purpose,
         customerName: resolvedCustomerName.trim() || undefined,
         title: title.trim(),
@@ -581,7 +589,12 @@ export function OutboundCreateModal({
         status,
         warehouseId: sourceWarehouseId,
         items: validItems,
-      });
+      };
+      const content = JSON.stringify(draft);
+      if (!createRequest.current || createRequest.current.content !== content) {
+        createRequest.current = { content, key: crypto.randomUUID() };
+      }
+      await onSave({ ...draft, idempotencyKey: createRequest.current.key });
       onClose();
     } catch (err: any) {
       toast.error(err?.message || "Không thể lưu phiếu xuất kho.");
@@ -609,7 +622,7 @@ export function OutboundCreateModal({
     {
       value: "chuyển kho",
       label: "Điều chuyển kho sang cơ sở khác",
-      sublabel: "Chuyển đến một kho hoặc chi nhánh khác trong hệ thống",
+      sublabel: "Tạo phiếu tại tab Điều chuyển; phiếu xuất cũ không dùng để chuyển kho",
     },
     {
       value: "nội bộ",
@@ -783,8 +796,10 @@ export function OutboundCreateModal({
                         value={customerName}
                         onChange={(e) => setCustomerName(e.target.value)}
                         placeholder="Ví dụ: Phòng Kỹ thuật - Nguyễn Văn A"
+                        required={status === "Hoàn thành"}
                         className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-cyan-600 focus:outline-none shadow-2xs"
                       />
+                      <p className="mt-1 text-xs text-violet-700">Máy chuyển sang sử dụng nội bộ và không còn khả dụng để bán. Nhập lý do cấp phát vào ghi chú; thu hồi tại chi tiết phiếu.</p>
                     </div>
                   )}
 

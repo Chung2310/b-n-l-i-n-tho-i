@@ -360,7 +360,8 @@ export function ProductEditorModal({
         let sku = (v.sku || "").trim();
         if (!sku) {
           const skuSuffix = v.optionValues.map((opt) => cleanOptionSlug(opt.value)).join("-");
-          sku = form.productCode ? `${form.productCode}-${skuSuffix}` : `SKU-${skuSuffix}-${generateEAN13().slice(9)}`;
+          const baseSku = form.productCode || cleanOptionSlug(form.name, 40);
+          sku = baseSku ? `${baseSku}-${skuSuffix}` : `SKU-${skuSuffix}-${generateEAN13().slice(9)}`;
         }
         return buildMatrixVariantInput({
           row: { ...v, sku },
@@ -456,7 +457,8 @@ export function ProductEditorModal({
             let sku = (v.sku || "").trim();
             if (!sku) {
               const skuSuffix = v.optionValues.map((opt) => cleanOptionSlug(opt.value)).join("-");
-              sku = payload.productCode ? `${payload.productCode}-${skuSuffix}` : `SKU-${skuSuffix}-${generateEAN13().slice(9)}`;
+              const baseSku = payload.productCode || form.productCode || cleanOptionSlug(form.name, 40);
+              sku = baseSku ? `${baseSku}-${skuSuffix}` : `SKU-${skuSuffix}-${generateEAN13().slice(9)}`;
             }
             return buildMatrixVariantInput({
               row: { ...v, sku },
@@ -494,7 +496,8 @@ export function ProductEditorModal({
             let sku = (v.sku || "").trim();
             if (!sku) {
               const skuSuffix = v.optionValues.map((opt) => cleanOptionSlug(opt.value)).join("-");
-              sku = payload.productCode ? `${payload.productCode}-${skuSuffix}` : `SKU-${skuSuffix}-${generateEAN13().slice(9)}`;
+              const baseSku = payload.productCode || form.productCode || cleanOptionSlug(form.name, 40);
+              sku = baseSku ? `${baseSku}-${skuSuffix}` : `SKU-${skuSuffix}-${generateEAN13().slice(9)}`;
             }
             return buildMatrixVariantInput({
               row: { ...v, sku },
@@ -528,7 +531,7 @@ export function ProductEditorModal({
           // Single create flow
           let sku = (variant.sku || "").trim();
           if (!sku) {
-            sku = payload.productCode || `SKU-${generateEAN13().slice(6)}`;
+            sku = payload.productCode || cleanOptionSlug(form.name, 40) || `SKU-${generateEAN13().slice(6)}`;
           }
           const created = await productCatalogService.createProduct({
             ...payload,
@@ -731,7 +734,7 @@ export function ProductEditorModal({
                 productType={form.productType}
                 trackingMode={variant.trackingMode}
                 onTrackingModeChange={(mode) => setVariant((c) => ({ ...c, trackingMode: mode }))}
-                baseSku={form.productCode}
+                baseSku={form.productCode || form.name}
               />
             </div>
           )}
