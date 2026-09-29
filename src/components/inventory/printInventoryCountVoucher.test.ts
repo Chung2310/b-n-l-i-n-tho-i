@@ -33,6 +33,7 @@ describe("printInventoryCountVoucher", () => {
 
     const sampleCount: InventoryCount = {
       _id: "c1",
+      version: 0,
       countCode: "KK-MUDHSALJ-3ABZ",
       warehouseId: "w1",
       status: "counting",

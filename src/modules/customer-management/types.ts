@@ -75,17 +75,54 @@ export type PaginatedCustomers = { items: Customer[]; total: number; page: numbe
 export interface BillingProfile { _id: string; customerId: string; legalName: string; taxId: string; address: string; invoiceEmail: string; contactName?: string; isDefault: boolean; status: CustomerStatus; version: number }
 export type BillingProfileInput = Pick<BillingProfile, "legalName" | "taxId" | "address" | "invoiceEmail"> & Partial<Pick<BillingProfile, "contactName" | "isDefault">>;
 
+export type CustomerTransactionType = "purchase" | "repair" | "warranty" | "buyback" | "return";
+
 export interface CustomerPurchaseHistorySummary {
   orderCount: number;
+  purchaseCount?: number;
+  repairCount?: number;
+  warrantyCount?: number;
+  buybackCount?: number;
+  returnCount?: number;
   totalPurchased: number;
+  totalRepair?: number;
+  totalBuyback?: number;
+  totalRefunded?: number;
   totalPaid: number;
   currentDebt: number;
   lastPurchaseAt?: string;
 }
 
+export interface CustomerPurchaseHistoryLineItem {
+  productId?: string;
+  sku?: string;
+  productName?: string;
+  quantity?: number;
+  unitPrice?: number;
+  unitAmount?: number;
+  discountAmount?: number;
+  lineTotal?: number;
+  lineAmount?: number;
+  serialNumbers?: string[];
+  internalBarcodes?: string[];
+  trackingMode?: string;
+  condition?: string;
+  note?: string;
+}
+
+export interface CustomerPurchaseHistoryPayment {
+  method: string;
+  amount: number;
+  paidAt?: string;
+  receivedByName?: string;
+  reference?: string;
+}
+
 export interface CustomerPurchaseHistoryItem {
   _id: string;
   orderCode?: string;
+  recordType?: CustomerTransactionType;
+  typeLabel?: string;
   status?: string;
   businessDate?: string;
   grandTotal: number;
@@ -93,6 +130,64 @@ export interface CustomerPurchaseHistoryItem {
   dueAmount: number;
   itemCount: number;
   salespersonName?: string;
+  description?: string;
+  createdAt?: string;
+
+  // Enriched detail fields
+  customerName?: string;
+  customerPhone?: string;
+  subtotal?: number;
+  orderDiscount?: number;
+  shippingFee?: number;
+  paymentStatus?: string;
+  items?: CustomerPurchaseHistoryLineItem[];
+  payments?: CustomerPurchaseHistoryPayment[];
+
+  // Repair specific
+  device?: {
+    name?: string;
+    serialNumber?: string;
+    imei?: string;
+    condition?: string;
+    accessories?: string[];
+  };
+  symptom?: string;
+  diagnosis?: string;
+  laborFee?: number;
+  partCost?: number;
+  technicianName?: string;
+  ticketType?: string;
+  statusHistory?: Array<{
+    from?: string;
+    to: string;
+    at: string;
+    byName: string;
+    note?: string;
+  }>;
+
+  // After-sale / Buyback / Return specific
+  reason?: string;
+  paymentMethod?: string;
+  paymentReference?: string;
+  orderCodeRef?: string;
+  receiptCode?: string;
+
+  // Warranty & extra info
+  deviceInfo?: string;
+  statusLabel?: string;
+  coverage?: {
+    customer?: {
+      covered?: boolean;
+      endAt?: string | Date;
+    };
+    costBearer?: string;
+  };
+  warrantyInfo?: {
+    serialNumber?: string;
+    productName?: string;
+    expiresAt?: string | Date;
+    isExpired?: boolean;
+  };
 }
 
 export interface CustomerPurchaseHistory {

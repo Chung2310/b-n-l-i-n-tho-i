@@ -1,7 +1,9 @@
 import { getAccessToken } from "./authService";
+import { apiFetch } from "../modules/shared/lib/apiFetch";
 import { StockLog, StockLogItem, StockLogPurpose } from "../types";
 
 export type StockLogCreateInput = {
+  idempotencyKey?: string;
   type: "nhập" | "xuất";
   purpose?: StockLogPurpose;
   customerId?: string;
@@ -32,6 +34,11 @@ function toIsoDateString(value?: string) {
 const activeListeners = new Set<() => void>();
 
 export const inventoryStockLogService = {
+  async reverseOutbound(id: string, reason: string, branchId: string): Promise<{ _id: string }> {
+    const result = await apiFetch<{ data: { _id: string } }>(`/inventory/stock-logs/${id}/reverse`, { method: "POST", headers: { "x-branch-id": branchId }, body: JSON.stringify({ reason }) });
+    inventoryStockLogService.notifySubscribers();
+    return result.data;
+  },
   subscribe(branchId: string, callback: (logs: StockLog[]) => void, onError?: (error: unknown) => void) {
     const controller = new AbortController();
     const fetchLogs = async () => {
@@ -103,6 +110,7 @@ export const inventoryStockLogService = {
         method: "POST",
         headers,
         body: JSON.stringify({
+          idempotencyKey: input.idempotencyKey,
           type: input.type,
           purpose: input.type === "xuất" ? input.purpose : undefined,
           customerId: input.customerId,

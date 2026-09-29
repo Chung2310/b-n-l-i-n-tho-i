@@ -17,6 +17,9 @@ export interface OutboundTicketItem {
 
 export interface OutboundTicket {
   id: string;
+  refType?: string;
+  refId?: string;
+  reversalId?: string;
   title?: string;
   createdAt: string | number | Date;
   status?: string;
@@ -334,6 +337,7 @@ export function printOutboundVoucher(options: PrintOutboundVoucherOptions): void
 
       <div class="title-box">
         <h1 class="title-main">PHIẾU XUẤT KHO</h1>
+        ${ticket.reversalId ? `<div style="font-weight:700;color:#be123c">ĐÃ ĐẢO TOÀN BỘ — Chỉ dùng đối chiếu lịch sử</div>` : ""}
         <div class="title-sub">Ngày ${day} tháng ${month} năm ${year} (In lúc ${timeStr})</div>
         <div class="title-code">Mục đích: ${purposeLabel(ticket.purpose)}</div>
       </div>

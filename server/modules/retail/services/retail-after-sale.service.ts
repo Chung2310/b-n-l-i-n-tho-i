@@ -12,6 +12,9 @@ import type { RetailBranchScope } from "../contracts";
 import { RetailAfterSaleModel } from "../models/retail-after-sale.model";
 import { RetailOrderModel } from "../models/retail-order.model";
 import { businessDateInVietnam } from "./cashier-shift.service";
+import { enqueueTierRefresh, processTierRefreshBySourceKey } from "./retail-customer-tier.service";
+import { CustomerPointService } from "../../customer-management/services/customer-point.service";
+import { CustomerPointLedgerModel } from "../../customer-management/models/customer-point-ledger.model";
 
 
 const actorId = (a: any) => String(a.id || a.uid || ""); const actorName = (a: any) => String(a.displayName || a.email || "");
@@ -67,7 +70,58 @@ async function restoreSerials(scope: RetailBranchScope, order: any, doc: any, ac
   }
 }
 
+async function revertPointsOnReturn(scope: RetailBranchScope, order: any, doc: any, totalAmount: number, actor: any, session?: mongoose.ClientSession) {
+  if (!order.customerId) return;
+  try {
+    const earnLedger = await CustomerPointLedgerModel.findOne({
+      companyCode: scope.companyCode,
+      sourceId: String(order._id),
+      type: "EARN_ORDER",
+    }).session(session || null);
+
+    if (earnLedger && earnLedger.points > 0) {
+      const priorReverts = await CustomerPointLedgerModel.find({
+        companyCode: scope.companyCode,
+        sourceId: String(order._id),
+        type: "REFUND_REVERT",
+      }).session(session || null);
+      const alreadyReverted = priorReverts.reduce((sum: number, r: any) => sum + Math.abs(r.points), 0);
+      const remainingEarned = Math.max(0, earnLedger.points - alreadyReverted);
+
+      let pointsToRevert = 0;
+      if (order.refundedAmount >= order.grandTotal) {
+        pointsToRevert = remainingEarned;
+      } else {
+        const ratio = Math.min(1, totalAmount / Math.max(1, order.grandTotal));
+        pointsToRevert = Math.min(remainingEarned, Math.max(1, Math.round(earnLedger.points * ratio)));
+      }
+
+      if (pointsToRevert > 0) {
+        await CustomerPointService.revertRefundPoints({
+          companyCode: scope.companyCode,
+          branchId: scope.branchId,
+          customerId: String(order.customerId),
+          points: pointsToRevert,
+          sourceType: "retail_order",
+          sourceId: String(order._id),
+          sourceCode: doc.code,
+          reason: `Thu hồi điểm do trả hàng phiếu ${doc.code} (đơn ${order.orderCode})`,
+          actor: { id: actorId(actor), name: actorName(actor) },
+          session,
+        });
+      }
+    }
+  } catch (err) {
+    console.error("[revertPointsOnReturn] error:", err);
+  }
+}
+
 export const RetailAfterSaleService = {
+  async get(scope: RetailBranchScope, id: string) {
+    const doc = await RetailAfterSaleModel.findOne({ _id: id, ...scope }).lean();
+    if (!doc) throw fail("Không tìm thấy chứng từ đổi trả / thu mua.", "AFTER_SALE_NOT_FOUND", 404);
+    return doc;
+  },
   async list(scope: RetailBranchScope, query: any) { const page = Math.max(1, Number(query.page) || 1), limit = Math.min(100, Math.max(1, Number(query.limit) || 20)), filter: any = { ...scope, ...(query.type ? { type: String(query.type) } : {}), ...(query.orderId ? { orderId: String(query.orderId) } : {}) }; const [items, total] = await Promise.all([RetailAfterSaleModel.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(), RetailAfterSaleModel.countDocuments(filter)]); return { items, total, page, limit }; },
   async create(scope: RetailBranchScope, input: any, actor: any, shift?: any) {
     const businessDate = shift?.businessDate || businessDateInVietnam(new Date());
@@ -75,7 +129,8 @@ export const RetailAfterSaleService = {
     const paymentMethod = String(input.paymentMethod || "cash") as "cash" | "card" | "transfer" | "ewallet", idempotencyKey = String(input.idempotencyKey || "").trim(); if (!["cash", "card", "transfer", "ewallet"].includes(paymentMethod)) throw fail("Phương thức chi tiền không hợp lệ."); if (!idempotencyKey) throw fail("Thiếu khóa chống tạo trùng.");
     const replay = await RetailAfterSaleModel.findOne({ companyCode: scope.companyCode, idempotencyKey }).lean(); if (replay) return replay; if (!Types.ObjectId.isValid(input.orderId)) throw fail("Mã đơn bán gốc không hợp lệ.");
     const session = await mongoose.startSession();
-    try { return await session.withTransaction(async () => {
+    let result: any;
+    try { result = await session.withTransaction(async () => {
       const orderQuery = RetailOrderModel.findOne({ _id: input.orderId, ...scope, status: "completed", paymentStatus: { $in: ["paid", "refunded"] } });
       const order: any = await (session ? orderQuery.session(session) : orderQuery);
       if (!order) throw fail("Chỉ xử lý được đơn đã hoàn tất và thanh toán đủ.", "ORDER_NOT_ELIGIBLE", 409);
@@ -104,6 +159,12 @@ export const RetailAfterSaleService = {
         order.refunds.push({ method: paymentMethod, amount: totalAmount, reference: doc.paymentReference, refundedAt: new Date(), refundedBy: actorId(actor), refundedByName: actorName(actor), shiftId: shift?._id ? String(shift._id) : undefined, businessDate: businessDate, reason });
         order.refundedAmount += totalAmount;
         order.paymentStatus = order.refundedAmount >= order.grandTotal ? "refunded" : "paid";
+        const returnedCost = items.reduce((s: number, i: any) => s + (Number(i.unitCost || 0) * Number(i.quantity || 1)), 0);
+        order.totalCost = Math.max(0, Number(order.totalCost || 0) - returnedCost);
+        if (order.customerId) {
+          await revertPointsOnReturn(scope, order, doc, totalAmount, actor, session);
+          await enqueueTierRefresh(scope, String(order.customerId), `retail-after-sale:${doc._id}:tier-return`, session);
+        }
       }
       order.afterSaleStatus = summarizeAfterSales(order, [...prior, doc]).status;
       order.version += 1;
@@ -111,5 +172,10 @@ export const RetailAfterSaleService = {
       if (input.type === "return" && order.commissionSnapshot) await reconcileCommission("retail", String(order._id), scope.companyCode, session);
       return doc;
     }); } finally { await session.endSession(); }
+    if (input.type === "return" && result?.customerId) {
+      const sourceKey = `retail-after-sale:${result._id}:tier-return`;
+      setImmediate(() => void processTierRefreshBySourceKey(scope.companyCode, sourceKey).catch((error) => console.error("[retail-tier-refresh]", error)));
+    }
+    return result;
   },
 };

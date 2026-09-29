@@ -29,6 +29,10 @@ import { enqueueTierRefresh, processTierRefreshBySourceKey } from "./retail-cust
 import { publishRetailOrderEvent } from "./retail-order-events";
 import { claimSerialsForOrder, releaseSerialsForOrder } from "./retail-serial-order.service";
 import { ensureDefaultWarehouse } from "../../inventory/warehouse/warehouse.service";
+import { CustomerModel } from "../../customer-management/models/customer.model";
+import { CustomerPointLedgerModel } from "../../customer-management/models/customer-point-ledger.model";
+import { CustomerPointService } from "../../customer-management/services/customer-point.service";
+import { CustomerSettingsService } from "../../customer-management/services/customer-settings.service";
 
 export function receivableEntriesForOrderChange(action: "confirm" | "collect" | "cancel", order: any, collectedAmount: number): PostReceivableEntryInput[] {
   const orderId = String(order._id);
@@ -73,6 +77,76 @@ export function scheduleOrderTierRefreshAfterCommit(
   if (!refresh) return false;
   setImmediate(() => void processor(scope.companyCode, refresh.sourceKey).catch((error) => console.error("[retail-tier-refresh]", error)));
   return true;
+}
+
+async function awardOrderPoints(scope: RetailBranchScope, order: any, session: mongoose.ClientSession) {
+  if (!order.customerId) return;
+  try {
+    const settings = await CustomerSettingsService.getSettings(scope.companyCode).catch(() => null);
+    if (settings?.pointsPolicy && !settings.pointsPolicy.enabled) return;
+
+    const grossProfitPerPoint = settings?.pointsPolicy?.grossProfitPerPoint || 10000;
+    const grossProfit = Math.max(0, Number(order.grandTotal || 0) - Number(order.totalCost || 0));
+    if (grossProfit <= 0) return;
+
+    const customer = await CustomerModel.findOne({ _id: order.customerId, companyCode: scope.companyCode }).session(session).lean();
+    const multiplier = Number(customer?.tier?.pointMultiplier || 1);
+    const basePoints = Math.floor(grossProfit / grossProfitPerPoint);
+    const points = Math.floor(basePoints * (multiplier > 0 ? multiplier : 1));
+
+    if (points > 0) {
+      await CustomerPointService.earnPoints({
+        companyCode: scope.companyCode,
+        branchId: scope.branchId,
+        customerId: String(order.customerId),
+        points,
+        sourceType: "retail_order",
+        sourceId: String(order._id),
+        sourceCode: order.orderCode,
+        reason: `Tích điểm đơn hàng ${order.orderCode}`,
+        session,
+      });
+    }
+  } catch (err) {
+    console.error("[awardOrderPoints] error:", err);
+  }
+}
+
+async function revertOrderPointsOnCancel(scope: RetailBranchScope, order: any, actor: any, session: mongoose.ClientSession) {
+  if (!order.customerId) return;
+  try {
+    const earnLedger = await CustomerPointLedgerModel.findOne({
+      companyCode: scope.companyCode,
+      sourceId: String(order._id),
+      type: "EARN_ORDER",
+    }).session(session);
+
+    if (earnLedger && earnLedger.points > 0) {
+      const priorReverts = await CustomerPointLedgerModel.find({
+        companyCode: scope.companyCode,
+        sourceId: String(order._id),
+        type: "REFUND_REVERT",
+      }).session(session);
+      const alreadyReverted = priorReverts.reduce((sum: number, r: any) => sum + Math.abs(r.points), 0);
+      const toRevert = Math.max(0, earnLedger.points - alreadyReverted);
+      if (toRevert > 0) {
+        await CustomerPointService.revertRefundPoints({
+          companyCode: scope.companyCode,
+          branchId: scope.branchId,
+          customerId: String(order.customerId),
+          points: toRevert,
+          sourceType: "retail_order",
+          sourceId: String(order._id),
+          sourceCode: order.orderCode,
+          reason: `Thu hồi điểm do hủy đơn hàng ${order.orderCode}`,
+          actor: { id: actorId(actor), name: actorName(actor) },
+          session,
+        });
+      }
+    }
+  } catch (err) {
+    console.error("[revertOrderPointsOnCancel] error:", err);
+  }
 }
 
 type PaymentInput = { method: unknown; amount: unknown; tenderedAmount?: unknown; reference?: unknown };
@@ -293,6 +367,7 @@ export const RetailOrderService = {
       Object.assign(draft, { orderCode, shiftId: shift?._id ? String(shift._id) : undefined, businessDate: shift?.businessDate || businessDateInVietnam(new Date()), items: pricing.lines, ...pricing, ...(customerSnapshots || {}), customerName: customer?.name || draft.customerName, customerPhone: customer?.phone || draft.customerPhone, payments: normalized.payments.map((payment) => snapshotPayment(payment, shift, actor)), paidAmount: normalized.total, dueAmount, paymentStatus: paymentStatusFor(normalized.total, pricing.grandTotal, 0), status: dueAmount === 0 ? "completed" : "confirmed", stockApplied: true, confirmedAt: new Date(), completedAt: dueAmount === 0 ? new Date() : undefined, version: draft.version + 1 });
       await claimSerialsForOrder(scope, draft.items as any, String(draft._id), String(draft.customerId), actorId(actor), session, actorName(actor), { businessDate: draft.businessDate, orderCode }); await draft.save({ session });
       await enqueueOrderTierRefresh(scope, "confirm", draft, session);
+      await awardOrderPoints(scope, draft, session);
       const invoice = await issueRetailInvoice(draft, settings.invoicePrefix, branch.code, scopeKey, actor, session);
       draft.commissionSnapshot = await snapshotRetail(draft, session);
       await draft.save({ session });
@@ -337,6 +412,7 @@ export const RetailOrderService = {
         if (order.stockApplied && !order.stockRevertedAt) { const receipt = await revertOrderStock(scope, String(order._id), order.orderCode, order.items, actorName(actor), session, { order, actorId: actorId(actor), reason }); order.restockReceiptId = String(receipt._id); order.restockReceiptCode = receipt.receiptCode; await releaseSerialsForOrder(scope, String(order._id), actorId(actor), actorName(actor), session, { id: String(receipt._id), warehouseId: receipt.warehouseId }); order.stockRevertedAt = new Date(); }
         if (order.couponSnapshot && order.status !== "draft") await releaseCoupon(scope, order.couponSnapshot.id, session);
         await enqueueOrderTierRefresh(scope, "cancel", order, session);
+        await revertOrderPointsOnCancel(scope, order, actor, session);
         order.refunds.push(...refunds.payments.map((item: any) => ({ method: item.method, amount: item.amount, reference: item.reference, refundedAt: new Date(), refundedBy: actorId(actor), refundedByName: actorName(actor), shiftId: shift?._id ? String(shift._id) : undefined, businessDate: shift?.businessDate || businessDateInVietnam(new Date()), reason })));
         order.refundedAmount += refunds.total; order.paymentStatus = paymentStatusFor(order.paidAmount, order.grandTotal, order.refundedAmount); order.status = "cancelled"; order.cancelReason = reason; order.cancelledAt = new Date(); order.version += 1;
         await order.save({ session });

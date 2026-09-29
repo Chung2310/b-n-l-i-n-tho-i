@@ -99,6 +99,7 @@ export async function applyCustomerTier(
   totalSales: number,
   now = new Date()
 ): Promise<void> {
+  if (!Types.ObjectId.isValid(customerId)) return;
   await CustomerModel.updateOne(
     { _id: customerId, companyCode: companyCode.toUpperCase() },
     {

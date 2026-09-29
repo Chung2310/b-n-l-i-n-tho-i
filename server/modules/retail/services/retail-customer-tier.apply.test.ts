@@ -9,11 +9,19 @@ const mocks = vi.hoisted(() => ({
   orderFind: vi.fn(),
   historyFindOne: vi.fn(),
   historyUpdateOne: vi.fn(),
+  repairFind: vi.fn(),
+  customerSettingsGet: vi.fn(),
 }));
 
 vi.mock("../../customer-management/contracts", () => ({
   applyCustomerTier: mocks.applyCustomerTier,
   getCustomerTiers: mocks.getCustomerTiers,
+}));
+vi.mock("../../customer-management/services/customer-settings.service", () => ({
+  CustomerSettingsService: { getSettings: mocks.customerSettingsGet },
+}));
+vi.mock("../../repair/repair-ticket.model", () => ({
+  RepairTicketModel: { find: mocks.repairFind },
 }));
 vi.mock("./retail-settings.service", () => ({ getResolvedRetailSettings: mocks.getResolvedRetailSettings }));
 vi.mock("../models/retail-customer-tier-job.model", () => ({
@@ -38,10 +46,12 @@ describe("processTierRefreshJob", () => {
     vi.clearAllMocks();
     mocks.jobFindOneAndUpdate.mockReturnValue({ _id: JOB_ID, companyCode: "ACME", branchId: "B1", customerId: "C1", sourceKey: "k1" });
     mocks.getResolvedRetailSettings.mockResolvedValue({ tierEvaluationWindow: { type: "lifetime" } });
+    mocks.customerSettingsGet.mockResolvedValue({ tierEvaluationMetric: "sales" });
     mocks.getCustomerTiers.mockResolvedValue(tiers);
     mocks.historyFindOne.mockReturnValue({ sort: () => ({ lean: async () => null }) });
     mocks.historyUpdateOne.mockResolvedValue({});
     mocks.jobUpdateOne.mockResolvedValue({});
+    mocks.repairFind.mockReturnValue({ select: () => ({ lean: async () => [] }) });
   });
 
   const withOrders = (orders: any[]) => mocks.orderFind.mockReturnValue({ select: () => ({ lean: async () => orders }) });
@@ -49,7 +59,7 @@ describe("processTierRefreshJob", () => {
   it("writes the earned tier and net spend onto the customer profile", async () => {
     withOrders([{ status: "completed", grandTotal: 21_000_000, refundedAmount: 0 }]);
     await processTierRefreshJob(JOB_ID);
-    expect(mocks.applyCustomerTier).toHaveBeenCalledWith("ACME", "C1", tiers[2], 21_000_000);
+    expect(mocks.applyCustomerTier).toHaveBeenCalledWith("ACME", "C1", tiers[2], 21_000_000, 21_000_000);
   });
 
   it("takes tier bands from customer settings, not retail settings", async () => {
@@ -64,7 +74,7 @@ describe("processTierRefreshJob", () => {
     withOrders([{ status: "completed", grandTotal: 7_000_000, refundedAmount: 0 }]);
     await processTierRefreshJob(JOB_ID);
     expect(mocks.historyUpdateOne).not.toHaveBeenCalled();
-    expect(mocks.applyCustomerTier).toHaveBeenCalledWith("ACME", "C1", tiers[1], 7_000_000);
+    expect(mocks.applyCustomerTier).toHaveBeenCalledWith("ACME", "C1", tiers[1], 7_000_000, 7_000_000);
   });
 
   it("subtracts refunds so a refunded customer drops back down", async () => {

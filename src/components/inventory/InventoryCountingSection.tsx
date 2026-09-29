@@ -65,7 +65,9 @@ export function InventoryCountingModal({
   }, [warehouseId]);
 
   useEffect(() => {
-    const sync = () => void inventoryCountService.syncPending();
+    const sync = () => void inventoryCountService.syncPending().then(({ remaining }) => {
+      if (remaining) toast.error("Có số lượng kiểm kê chưa đồng bộ. Hãy mở phiếu, tải lại và đối chiếu trước khi lưu.");
+    }).catch(() => toast.error("Không thể đồng bộ số lượng kiểm kê."));
     window.addEventListener("online", sync);
     sync();
     return () => window.removeEventListener("online", sync);
@@ -207,12 +209,23 @@ export function InventoryCountingModal({
     if (!count) return;
     const safeQty = Math.max(0, newQuantity);
     try {
-      const next = await inventoryCountService.updateItem(count._id, itemId, safeQty);
+      const next = await inventoryCountService.updateItem(count._id, itemId, safeQty, count.version);
       setCount(next);
       setCounts((curr) => curr.map((c) => (c._id === next._id ? next : c)));
     } catch (error: any) {
       toast.error(error?.message || "Không thể lưu số lượng.");
     }
+  };
+
+  const handleReload = async () => {
+    if (!count || !window.confirm("Tải lại sẽ bỏ các số lượng chưa lưu và bản chờ đồng bộ của phiếu này. Bạn đã ghi lại số cần đối chiếu chưa?")) return;
+    setProcessingAction("reload");
+    try {
+      const latest = await inventoryCountService.reload(count._id);
+      setCount(latest);
+      setCounts((current) => current.map((item) => item._id === latest._id ? latest : item));
+    } catch (error: any) { toast.error(error?.message || "Không thể tải lại phiếu kiểm kê."); }
+    finally { setProcessingAction(null); }
   };
 
   // Copy helper
@@ -287,6 +300,7 @@ export function InventoryCountingModal({
           </div>
 
           <div className="flex items-center gap-2">
+            {count && <button type="button" disabled={Boolean(processingAction) || scanning} onClick={() => void handleReload()} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold">Tải lại phiếu</button>}
             {count && (
               <button
                 type="button"

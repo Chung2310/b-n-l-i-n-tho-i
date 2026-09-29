@@ -771,7 +771,7 @@ export function ProductCommissions() {
                       required
                       type="number"
                       aria-label="Mức riêng"
-                      className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-3.5 pr-14 text-sm font-bold text-slate-900 shadow-2xs focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                      className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-3.5 pr-20 text-sm font-bold text-slate-900 shadow-2xs focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       step="any"
                       value={value}
                       onChange={(e) => setValue(e.target.value)}

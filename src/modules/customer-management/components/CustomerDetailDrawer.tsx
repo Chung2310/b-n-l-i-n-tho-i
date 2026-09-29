@@ -15,6 +15,7 @@ import {
   MapPin,
   Edit,
   Power,
+  ArrowLeftRight,
 } from "lucide-react";
 import type { Customer } from "../types";
 import BillingProfilesPanel from "./BillingProfilesPanel";
@@ -217,8 +218,8 @@ export default function CustomerDetailDrawer({
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
           >
-            <ShoppingBag className="h-3.5 w-3.5" />
-            <span>Lịch sử mua</span>
+            <ArrowLeftRight className="h-3.5 w-3.5" />
+            <span>Lịch sử mua bán</span>
           </button>
 
           <button

@@ -1,5 +1,7 @@
+import { createManualStockLog, updateManualStockLog, deleteManualStockLog } from "../modules/inventory/manual-stock-log.service";
+import type mongoose from "mongoose";
 import { ProductModel } from "../model/product.model";
-import { ProductCatalogModel } from "../model/product-catalog.model";
+
 import { CategoryModel } from "../model/category.model";
 import { StockLogModel } from "../model/stock-log.model";
 import { ProjectModel } from "../model/project.model";
@@ -13,13 +15,13 @@ import { HRLeaveTemplateModel } from "../model/hr-leave-template.model";
 import { HRLeaveApplicationModel } from "../model/hr-leave-application.model";
 import { TimekeepingLogModel } from "../model/timekeeping.model";
 import { SupportedModelName, ICRUDQueryOptions } from "../interface/crud.interface";
-import mongoose from "mongoose";
+
 import { notificationService } from "./notification.service";
 import { assertNoLegacyInventoryMutation } from "./crud-inventory-guard";
-import { writeStockMovement } from "../integrations/shared/stock-movement.service";
-import { ProductVariantModel } from "../model/product-variant.model";
-import { SerialUnitModel } from "../modules/inventory/serials/serial-unit.model";
-import { SerialEventModel } from "../modules/inventory/serials/serial-event.model";
+
+
+
+
 
 function sanitizeInventoryPayload(modelName: string, payload: any) {
   if (!payload || typeof payload !== "object") {
@@ -65,123 +67,6 @@ function sanitizeInventoryPayload(modelName: string, payload: any) {
   }
 
   return payload;
-}
-
-const STOCK_LOG_PURPOSES = new Set(["bán", "nội bộ", "hủy", "chuyển kho"]);
-
-async function prepareStockLogPayload(
-  data: any,
-  companyCode: string,
-  branchId: string,
-  existingItems: any[] = [],
-) {
-  const type = data?.type;
-  if (type === "xuất" && !STOCK_LOG_PURPOSES.has(data?.purpose)) {
-    const error: Error & { statusCode?: number } = new Error("Phiếu xuất kho phải chọn mục đích xuất.");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const rawItems = Array.isArray(data?.items) ? data.items : [];
-  if (rawItems.length === 0) return { ...data, purpose: type === "xuất" ? data.purpose : undefined };
-
-  const productIds = rawItems.map((item: any) => item?.productId).filter(Boolean);
-  const products = await ProductModel.find({
-    _id: { $in: productIds },
-    companyCode,
-    branchId,
-  }).select("sku name price costPrice category").lean();
-  const productsById = new Map(products.map((product: any) => [String(product._id), product]));
-
-  // SKU biến thể là thứ duy nhất định danh đúng dòng tồn kho. Nếu client không gửi
-  // variantId thì tự resolve từ SKU (ProductVariant có unique index companyCode+sku),
-  // nếu không writeStockMovement sẽ tra nhầm dòng InventoryBalance của biến thể khác.
-  const variantSkus = rawItems
-    .filter((item: any) => !(typeof item?.variantId === "string" && item.variantId.trim()))
-    .map((item: any) => String(item?.sku || "").trim().toUpperCase())
-    .filter(Boolean);
-  const variantIdBySku = new Map<string, string>();
-  if (variantSkus.length > 0) {
-    const variants = await ProductVariantModel.find({ companyCode, sku: { $in: [...new Set<string>(variantSkus)] } }).select("sku").lean();
-    for (const variant of variants) variantIdBySku.set(String(variant.sku).toUpperCase(), String(variant._id));
-  }
-
-  const missingProductIds = productIds.filter(id => !productsById.has(String(id)));
-  if (missingProductIds.length > 0) {
-    const catalogProducts = await ProductCatalogModel.find({
-      _id: { $in: missingProductIds },
-      companyCode,
-    }).select("productCode name categoryCode").lean();
-    for (const catalogProduct of catalogProducts) {
-      productsById.set(String(catalogProduct._id), {
-        _id: catalogProduct._id,
-        sku: catalogProduct.productCode || "",
-        name: catalogProduct.name,
-        price: 0,
-        costPrice: 0,
-        category: catalogProduct.categoryCode || "Chưa phân loại",
-      });
-    }
-  }
-
-  const items = rawItems.map((item: any) => {
-    let product = productsById.get(String(item?.productId));
-    if (!product && item?.sku) {
-      product = {
-        _id: item.productId,
-        sku: item.sku,
-        name: item.productName || item.sku,
-        price: item.unitPrice || 0,
-        costPrice: item.unitCost || 0,
-        category: item.category || "Chưa phân loại",
-      };
-    }
-
-    if (!product) {
-      const error: Error & { statusCode?: number } = new Error("Sản phẩm trong phiếu không thuộc chi nhánh hiện tại.");
-      error.statusCode = 400;
-      throw error;
-    }
-    const quantity = Number(item.quantity);
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      const error: Error & { statusCode?: number } = new Error("Số lượng sản phẩm phải lớn hơn 0.");
-      error.statusCode = 400;
-      throw error;
-    }
-
-    const previous = existingItems.find((entry: any) =>
-      String(entry?.productId) === String(item.productId) && Number(entry?.quantity) === quantity
-    );
-    const unitPrice = Number.isFinite(previous?.unitPrice) ? previous.unitPrice : Number(product.price || item.unitPrice || 0);
-    const unitCost = Number.isFinite(previous?.unitCost)
-      ? previous.unitCost
-      : Number.isFinite(product.costPrice) ? Number(product.costPrice) : (Number.isFinite(item.unitCost) ? Number(item.unitCost) : undefined);
-
-    return {
-      productId: String(product._id),
-      ...(() => {
-        const explicit = typeof item.variantId === "string" && item.variantId.trim() ? item.variantId.trim() : "";
-        const resolved = explicit || variantIdBySku.get(String(item?.sku || "").trim().toUpperCase()) || "";
-        return resolved ? { variantId: resolved } : {};
-      })(),
-      // SKU biến thể do người dùng chọn mới là nguồn đúng; product.sku chỉ là mã sản phẩm cha dùng chung cho mọi biến thể.
-      sku: (typeof item.sku === "string" && item.sku.trim()) || product.sku,
-      productName: product.name || item.productName,
-      category: product.category || item.category || "Chưa phân loại",
-      quantity,
-      ...(Array.isArray(item.unitIdentifiers) && item.unitIdentifiers.length > 0
-        ? { unitIdentifiers: [...new Set(item.unitIdentifiers.map((value: unknown) => String(value).trim()).filter(Boolean))] }
-        : {}),
-      ...(Array.isArray(item.serialNumbers) && item.serialNumbers.length > 0
-        ? { serialNumbers: [...new Set(item.serialNumbers.map((value: unknown) => String(value).trim()).filter(Boolean))] }
-        : {}),
-      unitPrice,
-      lineTotal: unitPrice * quantity,
-      ...(unitCost === undefined ? {} : { unitCost }),
-    };
-  });
-
-  return { ...data, purpose: type === "xuất" ? data.purpose : undefined, items };
 }
 
 function sanitizeInventoryResult(modelName: string, item: any) {
@@ -427,6 +312,7 @@ export const crudService = {
     data: any,
     companyCode: string,
     branchId?: string,
+    actor?: { id: string; name: string },
   ) {
     const model = MODEL_MAPPING[modelName];
     if (!model) {
@@ -437,98 +323,8 @@ export const crudService = {
 
     // Ép buộc gán companyCode để bảo mật dữ liệu doanh nghiệp
     const inventoryBranch = requireInventoryBranch(modelName, branchId);
-    const preparedData = modelName === "stock-logs"
-      ? await prepareStockLogPayload(data, companyCode, inventoryBranch!)
-      : data;
-
-    if (modelName === "stock-logs") {
-      const isCompleted = preparedData.status === "Hoàn thành" || preparedData.status === "Thành công";
-      if (isCompleted) {
-        const sourceId = new mongoose.Types.ObjectId().toString();
-        preparedData._id = sourceId;
-        preparedData.idempotencyKey = preparedData.idempotencyKey || new mongoose.Types.ObjectId().toString();
-
-        await writeStockMovement({
-          companyCode,
-          branchId: inventoryBranch!,
-          direction: preparedData.type === "nhập" ? "in" : "out",
-          purpose: preparedData.type === "xuất"
-            ? (preparedData.purpose === "bán" ? "sale" : preparedData.purpose === "hủy" ? "cancel" : preparedData.purpose === "chuyển kho" ? "transfer" : "other")
-            : "other",
-          sourceType: "manual-stock-log",
-          sourceId,
-          sourceCode: preparedData.title,
-          idempotencyKey: preparedData.idempotencyKey,
-          operatorName: preparedData.operatorName,
-          items: preparedData.items.map((item: any) => ({
-            productId: item.productId,
-            variantId: item.variantId,
-            sku: item.sku,
-            productName: item.productName,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            lineTotal: item.lineTotal,
-            unitCost: item.unitCost,
-            category: item.category,
-          })),
-          warehouseId: preparedData.warehouseId || data.warehouseId,
-          reason: preparedData.notes,
-          writeLegacyStockLog: false,
-        });
-
-        // Cập nhật trạng thái IMEI/Serial và tạo sự kiện lịch sử tương ứng
-        const direction = preparedData.type === "nhập" ? "in" : "out";
-        const toStatus = direction === "out" ? "sold" : "in_stock";
-        const eventType = direction === "out" ? "sold" : "received";
-
-        const allIdentifiers = (preparedData.items || [])
-          .flatMap((item: any) => Array.isArray(item.unitIdentifiers) ? item.unitIdentifiers : [])
-          .map((value: any) => String(value).trim())
-          .filter(Boolean);
-
-        if (allIdentifiers.length > 0) {
-          const upperIdentifiers = allIdentifiers.map((value: string) => value.toUpperCase());
-          const units = await SerialUnitModel.find({
-            companyCode,
-            branchId: inventoryBranch,
-            $or: [
-              { serialNumber: { $in: allIdentifiers } },
-              { normalizedInternalBarcode: { $in: upperIdentifiers } },
-            ],
-          });
-
-          if (units.length > 0) {
-            const unitIds = units.map((u: any) => u._id);
-            const events = units.map((unit: any) => ({
-              companyCode,
-              branchId: inventoryBranch,
-              serialUnitId: String(unit._id),
-              serialNumber: unit.serialNumber,
-              eventType,
-              fromStatus: unit.status,
-              toStatus,
-              documentType: "manual-stock-log",
-              documentId: sourceId,
-              actorId: "SYSTEM",
-              actorName: preparedData.operatorName || "Hệ thống",
-            }));
-
-            await Promise.all([
-              SerialUnitModel.updateMany(
-                { _id: { $in: unitIds } },
-                {
-                  $set: {
-                    status: toStatus,
-                    updatedBy: preparedData.operatorName || "SYSTEM",
-                  },
-                }
-              ),
-              SerialEventModel.insertMany(events),
-            ]);
-          }
-        }
-      }
-    }
+    if (modelName === "stock-logs") return sanitizeCrudResult(modelName, await createManualStockLog({ companyCode, branchId: inventoryBranch! }, data, actor));
+    const preparedData = data;
 
     const payload = {
       ...sanitizeInventoryPayload(modelName, preparedData),
@@ -586,6 +382,7 @@ export const crudService = {
     companyCode: string,
     userRole: string,
     branchId?: string,
+    actor?: { id: string; name: string },
   ) {
     const model = MODEL_MAPPING[modelName];
     if (!model) {
@@ -606,102 +403,7 @@ export const crudService = {
     // Loại bỏ các trường nhạy cảm không cho phép đè trực tiếp
     const { companyCode: _cCode, branchId: _branchId, ownerId: _ownerId, _id: _itemId, id: _plainId, ...rawUpdatePayload } = data;
     let preparedUpdatePayload = rawUpdatePayload;
-    if (modelName === "stock-logs") {
-      const existingLog = await StockLogModel.findOne(query).select("items type purpose status title operatorName notes idempotencyKey").lean();
-      preparedUpdatePayload = await prepareStockLogPayload(
-        { ...rawUpdatePayload, type: rawUpdatePayload.type ?? existingLog?.type, purpose: rawUpdatePayload.purpose ?? existingLog?.purpose },
-        companyCode,
-        inventoryBranch!,
-        existingLog?.items || [],
-      );
-
-      const wasCompleted = existingLog && (existingLog.status === "Hoàn thành" || existingLog.status === "Thành công");
-      const isCompleted = preparedUpdatePayload.status === "Hoàn thành" || preparedUpdatePayload.status === "Thành công";
-      if (isCompleted && !wasCompleted && existingLog) {
-        preparedUpdatePayload.idempotencyKey = existingLog.idempotencyKey || new mongoose.Types.ObjectId().toString();
-
-        await writeStockMovement({
-          companyCode,
-          branchId: inventoryBranch!,
-          direction: (preparedUpdatePayload.type || existingLog.type) === "nhập" ? "in" : "out",
-          purpose: (preparedUpdatePayload.type || existingLog.type) === "xuất"
-            ? ((preparedUpdatePayload.purpose || existingLog.purpose) === "bán" ? "sale" : (preparedUpdatePayload.purpose || existingLog.purpose) === "hủy" ? "cancel" : (preparedUpdatePayload.purpose || existingLog.purpose) === "chuyển kho" ? "transfer" : "other")
-            : "other",
-          sourceType: "manual-stock-log",
-          sourceId: existingLog._id.toString(),
-          sourceCode: preparedUpdatePayload.title || existingLog.title,
-          idempotencyKey: preparedUpdatePayload.idempotencyKey,
-          operatorName: preparedUpdatePayload.operatorName || existingLog.operatorName,
-          items: (preparedUpdatePayload.items || existingLog.items || []).map((item: any) => ({
-            productId: item.productId,
-            variantId: item.variantId,
-            sku: item.sku,
-            productName: item.productName,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            lineTotal: item.lineTotal,
-            unitCost: item.unitCost,
-            category: item.category,
-          })),
-          warehouseId: preparedUpdatePayload.warehouseId || data.warehouseId,
-          reason: preparedUpdatePayload.notes || existingLog.notes,
-          writeLegacyStockLog: false,
-        });
-
-        // Cập nhật trạng thái IMEI/Serial và tạo sự kiện lịch sử tương ứng
-        const direction = (preparedUpdatePayload.type || existingLog.type) === "nhập" ? "in" : "out";
-        const toStatus = direction === "out" ? "sold" : "in_stock";
-        const eventType = direction === "out" ? "sold" : "received";
-
-        const items = preparedUpdatePayload.items || existingLog.items || [];
-        const allIdentifiers = items
-          .flatMap((item: any) => Array.isArray(item.unitIdentifiers) ? item.unitIdentifiers : [])
-          .map((value: any) => String(value).trim())
-          .filter(Boolean);
-
-        if (allIdentifiers.length > 0) {
-          const upperIdentifiers = allIdentifiers.map((value: string) => value.toUpperCase());
-          const units = await SerialUnitModel.find({
-            companyCode,
-            branchId: inventoryBranch,
-            $or: [
-              { serialNumber: { $in: allIdentifiers } },
-              { normalizedInternalBarcode: { $in: upperIdentifiers } },
-            ],
-          });
-
-          if (units.length > 0) {
-            const unitIds = units.map((u: any) => u._id);
-            const events = units.map((unit: any) => ({
-              companyCode,
-              branchId: inventoryBranch,
-              serialUnitId: String(unit._id),
-              serialNumber: unit.serialNumber,
-              eventType,
-              fromStatus: unit.status,
-              toStatus,
-              documentType: "manual-stock-log",
-              documentId: existingLog._id.toString(),
-              actorId: "SYSTEM",
-              actorName: preparedUpdatePayload.operatorName || existingLog.operatorName || "Hệ thống",
-            }));
-
-            await Promise.all([
-              SerialUnitModel.updateMany(
-                { _id: { $in: unitIds } },
-                {
-                  $set: {
-                    status: toStatus,
-                    updatedBy: preparedUpdatePayload.operatorName || existingLog.operatorName || "SYSTEM",
-                  },
-                }
-              ),
-              SerialEventModel.insertMany(events),
-            ]);
-          }
-        }
-      }
-    }
+    if (modelName === "stock-logs") return sanitizeCrudResult(modelName, await updateManualStockLog({ companyCode, branchId: inventoryBranch! }, id, rawUpdatePayload, actor));
     const updatePayload = sanitizeInventoryPayload(modelName, preparedUpdatePayload);
     if ((modelName === "timekeeping-logs" || BRANCH_SCOPED_MODELS.has(modelName)) && data.branchId) {
       updatePayload.branchId = data.branchId;
@@ -760,6 +462,8 @@ export const crudService = {
     const inventoryBranch = requireInventoryBranch(modelName, branchId);
     if (inventoryBranch) query.branchId = inventoryBranch;
     if (BRANCH_SCOPED_MODELS.has(modelName) && branchId) query.branchId = branchId;
+
+    if (modelName === "stock-logs") return deleteManualStockLog({ companyCode, branchId: inventoryBranch! }, id);
 
     const deletedItem = await model.findOneAndDelete(query);
     if (!deletedItem) {

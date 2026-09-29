@@ -38,7 +38,7 @@ const InventoryCountSchema = new Schema<IInventoryCount>(
     cancelledAt: Date,
     version: { type: Number, required: true, min: 0, default: 0 },
   },
-  { timestamps: true },
+  { timestamps: true, optimisticConcurrency: true, versionKey: "version" },
 );
 
 InventoryCountSchema.index({ companyCode: 1, countCode: 1 }, { unique: true });

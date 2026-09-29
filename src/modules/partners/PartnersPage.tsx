@@ -1101,7 +1101,7 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
                       min="150000"
                       max="300000"
                       step="1000"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 pr-20 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       value={config.phoneAmount}
                       onChange={(e) =>
                         setConfig({ ...config, phoneAmount: Number(e.target.value) })
@@ -1125,7 +1125,7 @@ function PolicyForm({ partners, initial, onClose, onSaved }: { partners: Partner
                         min="10"
                         max="15"
                         step="0.01"
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 pr-10 text-sm font-medium text-slate-900 outline-none focus:border-cyan-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         value={config[key] / 100}
                         onChange={(e) =>
                           setConfig({

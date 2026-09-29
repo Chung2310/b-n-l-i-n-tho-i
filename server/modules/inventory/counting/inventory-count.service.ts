@@ -9,6 +9,7 @@ import { SerialUnitModel } from "../serials/serial-unit.model";
 import { SerialEventModel } from "../serials/serial-event.model";
 import { normalizeSerialNumber } from "../serials/serial-state";
 import { normalizeInternalBarcode } from "../serials/unit-barcode-validation";
+import { getWarehouse } from "../warehouse/warehouse.service";
 
 const isUnitTracked = (trackingMode?: string) => trackingMode === "serial" || trackingMode === "unit_barcode";
 
@@ -18,6 +19,15 @@ const code = (value: unknown) => String(value || "").trim();
 const normalizedCompany = (value: string) => code(value).toUpperCase();
 const nameOf = (actor: Actor) => code(actor.email || actor.id) || "system";
 function fail(message: string, statusCode = 400): never { throw Object.assign(new Error(message), { statusCode }); }
+
+async function saveCount(count: any, session?: mongoose.ClientSession) {
+  try {
+    await count.save(session ? { session } : undefined);
+  } catch (error: any) {
+    if (error?.name === "VersionError") throw Object.assign(new Error("Phiếu kiểm kê vừa thay đổi. Hãy tải lại trước khi tiếp tục."), { statusCode: 409, code: "COUNT_VERSION_CONFLICT" });
+    throw error;
+  }
+}
 
 async function countItems(scope: Scope, warehouseId: string) {
   const balances = await InventoryBalanceModel.find({ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId }).sort({ sku: 1 }).lean();
@@ -67,14 +77,18 @@ export async function getCount(scope: Scope, countId: string) {
 
 export async function createCount(scope: Scope, warehouseId: string, actor: Actor, notes?: string) {
   if (!code(warehouseId)) fail("Kho kiểm kê là bắt buộc.");
+  const warehouse = await getWarehouse(normalizedCompany(scope.companyCode), scope.branchId, warehouseId);
+  if (!warehouse?.isActive) fail("Kho kiểm kê không còn hoạt động.", 409);
   const items = await countItems(scope, warehouseId);
   const countCode = "KK-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
   return InventoryCountModel.create({ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId, countCode, status: "draft", items, notes: code(notes) || undefined, createdBy: nameOf(actor), version: 0 });
 }
 
-export async function updateCountItem(scope: Scope, countId: string, itemId: string, input: { countedQuantity?: unknown; note?: unknown }) {
+export async function updateCountItem(scope: Scope, countId: string, itemId: string, input: { countedQuantity?: unknown; note?: unknown; expectedVersion?: unknown }) {
+  if (typeof input.expectedVersion !== "number" || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0) fail("Cần phiên bản phiếu kiểm kê hợp lệ. Hãy tải lại phiếu trước khi lưu.");
   const count = await InventoryCountModel.findOne({ _id: countId, companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId });
   if (!count) fail("Không tìm thấy phiếu kiểm kê.", 404);
+  if (count.version !== input.expectedVersion) throw Object.assign(new Error("Phiếu kiểm kê đã thay đổi. Hãy tải lại phiếu và đối chiếu số lượng trước khi lưu."), { statusCode: 409, code: "COUNT_VERSION_CONFLICT" });
   assertEditableStatus(count.status as InventoryCountStatus);
   const item: any = count.items.find((entry: any) => String(entry._id) === itemId);
   if (!item) fail("Không tìm thấy dòng kiểm kê.", 404);
@@ -83,7 +97,7 @@ export async function updateCountItem(scope: Scope, countId: string, itemId: str
   if (input.countedQuantity === undefined) {
     if (input.note !== undefined) item.note = code(input.note) || undefined;
     count.markModified("items");
-    await count.save();
+    await saveCount(count);
     return count.toObject();
   }
   const counted = Number(input.countedQuantity);
@@ -91,12 +105,24 @@ export async function updateCountItem(scope: Scope, countId: string, itemId: str
   item.quantityDelta = calculateQuantityDelta(Number(item.systemQuantity), counted);
   if (input.note !== undefined) item.note = code(input.note) || undefined;
   count.markModified("items");
-  await count.save();
+  await saveCount(count);
   return count.toObject();
 }
 
 /** Quét một mã nội bộ/IMEI trong lúc kiểm kê: đánh dấu đã thấy, hoặc xếp vào danh sách ngoài dự kiến. */
 export async function scanCountUnit(scope: Scope, countId: string, rawCode: unknown) {
+  // Re-read the latest list/status after a competing scan; retry only a known
+  // version conflict, never persistence errors with an uncertain result.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try { return await scanCountUnitOnce(scope, countId, rawCode); }
+    catch (error: any) {
+      if (error?.code !== "COUNT_VERSION_CONFLICT" || attempt === 4) throw error;
+    }
+  }
+  throw new Error("Unreachable scan retry state");
+}
+
+async function scanCountUnitOnce(scope: Scope, countId: string, rawCode: unknown) {
   const value = code(rawCode);
   if (!value) fail("Thiếu mã cần quét.");
   const count = await InventoryCountModel.findOne({ _id: countId, companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId });
@@ -115,7 +141,7 @@ export async function scanCountUnit(scope: Scope, countId: string, rawCode: unkn
       scans.push({ code: value, reason, serialUnitId: unit ? String(unit._id) : undefined, sku: unit?.sku, productName: unit?.productName, warehouseId: unit?.warehouseId, status: unit?.status, scannedAt: new Date() });
       count.unexpectedScans = scans as any;
       count.markModified("unexpectedScans");
-      await count.save();
+      await saveCount(count);
     }
     return { outcome: "unexpected" as const, reason, count: count.toObject() };
   };
@@ -138,7 +164,7 @@ export async function scanCountUnit(scope: Scope, countId: string, rawCode: unkn
   item.countedQuantity = item.scannedUnitIds.length;
   item.quantityDelta = calculateQuantityDelta(Number(item.systemQuantity), item.countedQuantity);
   count.markModified("items");
-  await count.save();
+  await saveCount(count);
   return { outcome: "counted" as const, sku: item.sku, productName: item.productName, count: count.toObject() };
 }
 
@@ -149,7 +175,7 @@ async function transition(scope: Scope, countId: string, status: InventoryCountS
   count.status = status;
   if (status === "pending_approval") { count.submittedBy = nameOf(actor); count.submittedAt = new Date(); }
   if (status === "cancelled") count.cancelledAt = new Date();
-  await count.save();
+  await saveCount(count);
   return count.toObject();
 }
 export const startCount = (scope: Scope, id: string, actor: Actor) => transition(scope, id, "counting", actor);
@@ -158,6 +184,7 @@ export const cancelCount = (scope: Scope, id: string, actor: Actor) => transitio
 
 export async function approveCount(scope: Scope, countId: string, actor: Actor) {
   const session = await mongoose.startSession();
+  let conflictVersion: number | undefined;
   try {
     await session.withTransaction(async () => {
       const count: any = await InventoryCountModel.findOne({ _id: countId, companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId }).session(session);
@@ -169,9 +196,8 @@ export async function approveCount(scope: Scope, countId: string, actor: Actor) 
       for (const item of count.items as any[]) {
         const balance: any = balanceMap.get(String(item.productId) + ":" + String(item.variantId || ""));
         if (!balance || Number(balance.version) !== Number(item.sourceBalanceVersion)) {
-          count.status = "conflict";
-          await count.save({ session });
-          fail("Tồn kho đã thay đổi sau khi bắt đầu kiểm kê.", 409);
+          conflictVersion = count.version;
+          throw Object.assign(new Error("Tồn kho đã thay đổi sau khi bắt đầu kiểm kê."), { statusCode: 409, code: "COUNT_STOCK_CONFLICT" });
         }
       }
       const items = count.items.filter((item: any) => Number(item.quantityDelta) !== 0);
@@ -203,11 +229,11 @@ export async function approveCount(scope: Scope, countId: string, actor: Actor) 
       count.status = "completed";
       count.approvedBy = nameOf(actor);
       count.approvedAt = new Date();
-      await count.save({ session });
+      await saveCount(count, session);
     });
     return getCount(scope, countId);
   } catch (error: any) {
-    if (Number(error?.statusCode) === 409) await InventoryCountModel.updateOne({ _id: countId, companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId }, { $set: { status: "conflict" } });
+    if (error?.code === "COUNT_STOCK_CONFLICT") await InventoryCountModel.updateOne({ _id: countId, companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, status: "pending_approval", version: conflictVersion }, { $set: { status: "conflict" }, $inc: { version: 1 } });
     throw error;
   } finally {
     await session.endSession();
