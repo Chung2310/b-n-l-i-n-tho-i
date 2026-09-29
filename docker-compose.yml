@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  igen-erp:
+  igen-retail:
     image: ghcr.io/${IMAGE_NAME:-chung2310/b-n-l-i-n-tho-i}:${IMAGE_TAG:-develop}
-    container_name: ${CONTAINER_NAME:-igen-erp}
+    container_name: ${CONTAINER_NAME:-igen-retail}
     restart: always
     ports:
       - "${PORT:-3011}:${PORT:-3011}"
