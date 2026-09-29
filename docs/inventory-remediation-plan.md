@@ -37,7 +37,9 @@ Chỉ đánh dấu `[x]` cho phạm vi đã có mã và kiểm chứng; không c
 - [x] Nghiệm thu kiểm kê đồng thời: 226 test kho đạt (34 Node + 192 Vitest), build frontend/backend đạt; bổ sung 8 ca tích hợp. Typecheck không có lỗi phần kho nhưng còn 5 lỗi module khách hàng: 3 lỗi kiểu `deviceInfo/statusLabel/warrantyInfo` trong `customer-purchase-history.service.test.ts` (172/179/180), và 2 lỗi `CustomerTransactionDetailModal.tsx` (252/538) đã ghi ở đợt trước. Build còn cảnh báo bundle lớn.
 - [x] Phiên bản từ giao diện khi sửa số lượng/ghi chú kiểm kê; đồng bộ ngoại tuyến giữ phiên bản gốc, không tự ghi đè khi xung đột; tải lại phiếu có xác nhận.
 - [x] Nghiệm thu sửa từ màn hình cũ: 236 test kho đạt (34 Node + 202 Vitest), build frontend/backend đạt, còn cảnh báo bundle lớn. Bổ sung 2 ca backend, 6 ca service ngoại tuyến và 2 ca UI. Typecheck không có lỗi phần kho, còn 5 lỗi module khách hàng như đợt trước (dòng UI hiện là 261/617 do mã ngoài phạm vi tiếp tục thay đổi).
-- [ ] Quyền duyệt kiểm kê độc lập/cấm tự duyệt, snapshot lúc tạo phiếu và UX tạo lại phiếu conflict; rà cách cấp mã các loại phiếu còn lại.
+- [x] Snapshot kiểm kê nhất quán trong transaction; lưu mốc bắt đầu chốt, kiểm tra đầy đủ tập SKU khi duyệt và xử lý phiếu kho trống.
+- [x] Nghiệm thu snapshot: 242 test kho đạt (34 Node + 208 Vitest), typecheck toàn dự án và build frontend/backend đạt. Bổ sung 6 ca tích hợp; các lỗi typecheck module khách hàng ghi ở các đợt trước không còn xuất hiện trong lần chạy này. Build còn cảnh báo bundle lớn hơn 500 kB.
+- [ ] Quyền duyệt kiểm kê độc lập/cấm tự duyệt và UX tạo lại phiếu conflict; rà cách cấp mã các loại phiếu còn lại.
 - [ ] Làm mới theo chi nhánh, phân trang/aggregate, dự báo và nghiệm thu staging/phát hành.
 
 Đợt 4 đã hoàn thành phạm vi mã và kiểm thử cục bộ. Đợt 0–3, 5 và 8 hiện mới hoàn thành một phần. Danh sách bên dưới giữ nguyên phạm vi mục tiêu để tiếp tục triển khai; chưa mở PR hoặc triển khai production.
@@ -179,14 +181,17 @@ Tệp chính: inventory-count.service.ts/model/rules/router, permission-catalog,
 
 - Tách quyền duyệt/điều chỉnh khỏi quản lý thông thường theo quy ước permission hiện tại; cập nhật catalog, route coverage và UI.
 - Người lập không tự duyệt theo chính sách mặc định; nếu cần ngoại lệ quản trị, phải là quyền riêng có audit, không tự cấp cho mọi inventory:manage.
-- Xác thực kho khi tạo kiểm kê; chốt mốc snapshot rõ ràng; tồn thay đổi sau snapshot phải xử lý conflict trước khi duyệt.
+- [x] Xác thực kho trong cùng transaction tạo kiểm kê; đọc balance/catalog/variant/serial theo readConcern snapshot, lưu phiếu trong transaction. Lưu `snapshotStartedAt` là giờ máy chủ bắt đầu lượt transaction thành công, không phải timestamp chính xác của MongoDB snapshot. Phiếu cũ không được gán mốc giả.
+- [x] Khi duyệt, đối chiếu toàn bộ tập balance của kho cùng version từng dòng; phát hiện thêm/mất SKU ngoài danh sách phiếu, kể cả phiếu chốt lúc kho trống. Kho không đổi và phiếu trống vẫn duyệt được, không sinh ledger.
 - [x] Kiểm thử cập nhật/quét đồng thời; dùng version và optimistic concurrency để tránh mất lượt quét hoặc lưu bản đã đọc trước khi gửi duyệt.
 
 Phạm vi đã nghiệm thu cục bộ: schema InventoryCount dùng optimistic concurrency trên trường `version` hiện có. Cập nhật dòng, quét mã, gửi/hủy/bắt đầu và hoàn thành phiếu đều lưu có kiểm tra phiên bản; bản cũ trả 409 với yêu cầu tải lại. Quét mã tự đọc lại và thử tối đa 5 lần chỉ khi có lỗi version, kiểm tra lại trạng thái phiếu mỗi lần; lỗi lưu khác không tự thử lại. Quét hai mã cùng máy không tăng số đếm hai lần, các mã ngoài dự kiến đồng thời không ghi đè nhau. Chỉ đánh dấu `conflict` sau lỗi tồn kho thay đổi, với điều kiện phiếu vẫn chờ duyệt và cùng version; lỗi 409 khác không được đổi trạng thái phiếu.
 
 Đợt tiếp theo bổ sung `expectedVersion` bắt buộc cho API sửa số lượng/ghi chú. Thiếu/sai định dạng trả 400; phiên bản cũ trả 409 trước khi ghi. Giao diện gửi version đã tải, không tự đổi sang version mới khi gặp conflict. Hàng đợi ngoại tuyến giữ version gốc; bản cũ thiếu version hoặc bị conflict được giữ lại để người dùng đối chiếu, không tự áp lên snapshot mới. Các lần đồng bộ trong cùng tab dùng chung một lượt chạy; không xóa bản chờ mới hơn được thêm trong khi đang gửi bản cũ. Nút “Tải lại phiếu” yêu cầu xác nhận, chờ lượt đồng bộ đang chạy và tải thành công trước khi bỏ bản chờ của đúng phiếu. Mã API cũ không gửi expectedVersion phải cập nhật cùng frontend.
 
-Giới hạn: chưa yêu cầu version từ client cho các thao tác bắt đầu/gửi/hủy/duyệt (vẫn có optimistic concurrency phía server); chưa thay quy trình quyền duyệt/tự duyệt, snapshot tạo kiểm kê, xử lý máy ngoài dự kiến hoặc UX tạo lại phiếu conflict. Hàng đợi localStorage chưa được thiết kế lại để đồng bộ giữa nhiều tab hoặc phân vùng theo tài khoản; phạm vi truy cập vẫn do backend kiểm tra.
+Snapshot tạo phiếu hiện đã dùng transaction với `readConcern: snapshot` và commit majority; các truy vấn cùng session chạy tuần tự. Từ chối kho khác phạm vi, kho ngừng hoạt động hoặc transit trong snapshot. Hạ tầng không hỗ trợ transaction trả lỗi, không fallback sang đọc rời. Sáu ca mới gồm xuất hàng chen giữa hai lần đọc, thêm SKU sau khi chốt, kho trống, phạm vi/transit, tắt transaction và lỗi lưu phiếu. Việc chốt không thay đổi tồn hoặc version balance, không khóa kho suốt thời gian kiểm đếm.
+
+Giới hạn: chưa yêu cầu version từ client cho các thao tác bắt đầu/gửi/hủy/duyệt (vẫn có optimistic concurrency phía server); chưa thay quy trình quyền duyệt/tự duyệt, xử lý máy ngoài dự kiến hoặc UX tạo lại phiếu conflict. Hàng đợi localStorage chưa được thiết kế lại để đồng bộ giữa nhiều tab hoặc phân vùng theo tài khoản; phạm vi truy cập vẫn do backend kiểm tra.
 - Giải thích và cung cấp thao tác tạo lại phiếu khi conflict; không tự bỏ qua serial ngoài dự kiến hay ghi nhận tất cả máy chưa quét là mất mà thiếu xác nhận chênh lệch.
 - Migration quyền có danh sách thay đổi cụ thể để không khóa nhầm quản trị viên hoặc cấp rộng quyền mới.
 

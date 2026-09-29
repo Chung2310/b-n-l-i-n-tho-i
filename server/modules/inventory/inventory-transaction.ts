@@ -1,7 +1,7 @@
 import mongoose, { type ClientSession } from "mongoose";
 
 /** Inventory writes must never silently fall back to non-transactional writes. */
-export async function inInventoryTransaction<T>(work: (session: ClientSession) => Promise<T>, existing?: ClientSession): Promise<T> {
+export async function inInventoryTransaction<T>(work: (session: ClientSession) => Promise<T>, existing?: ClientSession, options?: mongoose.mongo.TransactionOptions): Promise<T> {
   if (existing) {
     if (!existing.inTransaction()) throw Object.assign(new Error("Thao tác kho yêu cầu transaction đang hoạt động."), { statusCode: 503 });
     return work(existing);
@@ -15,7 +15,7 @@ export async function inInventoryTransaction<T>(work: (session: ClientSession) =
   }
   const session = await mongoose.startSession();
   try {
-    return await session.withTransaction(() => work(session));
+    return await session.withTransaction(() => work(session), options);
   } finally {
     await session.endSession();
   }

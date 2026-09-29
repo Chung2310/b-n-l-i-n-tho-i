@@ -4,6 +4,8 @@
 
 Implemented:
 
+- Count creation reads warehouse/balances/catalog/variants/units sequentially in one snapshot transaction and saves the count with majority commit. `snapshotStartedAt` records the successful transaction attempt's server start time, not MongoDB's exact snapshot timestamp; old counts are not backfilled. Creation does not mutate balances. Approval compares the entire warehouse balance set, detecting added/removed SKU rows as well as changed versions; empty snapshots no longer generate an invalid empty `$or` query.
+
 - Count quantity/note edits require the client's numeric `expectedVersion`; stale screens fail with 409 before any save. Offline quantity edits retain their original version; unversioned legacy entries and conflicts are retained for reconciliation, never silently rebased. Same-tab queue replay is coalesced and preserves newer queued changes. The UI sends the displayed version and offers a confirmed reload that waits for active replay and fetches successfully before discarding that count's pending edits.
 
 - Count saves now use optimistic concurrency on the existing `version` field. Scan retries re-read status and identifiers, at most five times, only for version conflicts; edits and transitions return 409 on stale writes. Concurrent scans preserve both machines and deduplicate aliases for the same unit. Stock-conflict marking is restricted to the original pending count/version and no longer runs for unrelated 409 errors.
@@ -47,11 +49,13 @@ Remaining from the plan:
 - Unified general serial-state transitions. Registration against existing balances is complete; other lifecycle endpoints still require review. Registration increments balance version so old count snapshots must handle a conflict when their machine list changes.
 - Inbound/business-document reversal, partial correction and linked replacement documents; extended internal-use handling and remaining non-manual writer actor audit.
 - Remaining retail/repair cost consumers and document-level atomicity; return/reversal cost policy and negative-stock valuation.
-- Review numbering for other document types; independent count approval/self-approval policy, consistent creation snapshot and conflict recreation UX. Client versions for quantity/note edits are implemented; lifecycle commands still use server-side optimistic concurrency without client versions. Cross-tab/account queue redesign remains open. Receipt creation request idempotency remains separate from unique numbering.
+- Review numbering for other document types; independent count approval/self-approval policy and conflict recreation UX. Consistent count creation snapshots and client versions for quantity/note edits are implemented; lifecycle commands still use server-side optimistic concurrency without client versions. Cross-tab/account queue redesign remains open. Receipt creation request idempotency remains separate from unique numbering.
 - Branch-scoped UI refresh, server pagination/aggregates and sales-only forecasting.
 - Staging migration rehearsal and deployment/rollback verification.
 
 Verification commands:
+
+Latest count-snapshot verification: 34 Node + 208 Vitest tests passed (242 total), repository-wide typecheck and frontend/backend production build passed. Six new replica-set tests cover stock changes between snapshot reads, added SKU rows, empty snapshots, warehouse scope/transit, disabled transactions and document persistence failure. Previously recorded customer-module typecheck errors no longer appear in this run; this batch did not modify customer code. The bundle-size warning remains. No production deployment or historical data repair was performed.
 
 Latest stale-screen/offline verification: 34 Node + 202 Vitest tests passed (236 total), frontend/backend build passed with the existing bundle warning. Added two backend, six offline service and two UI tests. Typecheck reports no inventory errors; the same five customer-module errors remain (purchase-history tests 172/179/180; detail modal currently 261/617). The edit API now requires `expectedVersion`, so deploy frontend/backend together. No production deployment or data repair was performed.
 

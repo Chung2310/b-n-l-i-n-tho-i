@@ -26,6 +26,7 @@ const InventoryCountSchema = new Schema<IInventoryCount>(
     branchId: { type: String, required: true, trim: true, index: true },
     warehouseId: { type: String, required: true, trim: true, index: true },
     countCode: { type: String, required: true, trim: true },
+    snapshotStartedAt: { type: Date },
     unexpectedScans: { type: [{ _id: false, code: String, reason: { type: String, enum: ["other_warehouse", "sold", "unknown", "wrong_status"] }, serialUnitId: String, sku: String, productName: String, warehouseId: String, status: String, scannedAt: Date }], default: undefined },
     status: { type: String, enum: ["draft", "counting", "pending_approval", "completed", "cancelled", "conflict"], required: true, default: "draft", index: true },
     items: { type: [InventoryCountItemSchema], required: true, default: [] },
