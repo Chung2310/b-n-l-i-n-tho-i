@@ -10,4 +10,4 @@ inventoryCountRouter.post("/:id/scan", requirePermission("inventory:manage") as 
 inventoryCountRouter.post("/:id/start", requirePermission("inventory:manage") as any, inventoryCountController.start as any);
 inventoryCountRouter.post("/:id/submit", requirePermission("inventory:manage") as any, inventoryCountController.submit as any);
 inventoryCountRouter.post("/:id/cancel", requirePermission("inventory:manage") as any, inventoryCountController.cancel as any);
-inventoryCountRouter.post("/:id/approve", requirePermission("inventory:manage") as any, inventoryCountController.approve as any);
+inventoryCountRouter.post("/:id/approve", requirePermission("inventory-count-approval:manage") as any, inventoryCountController.approve as any);

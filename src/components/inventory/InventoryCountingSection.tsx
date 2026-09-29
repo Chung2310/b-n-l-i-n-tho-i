@@ -7,6 +7,7 @@ import {
 import { toast } from "../../pages/Toast";
 import { Dropdown } from "../common/Dropdown";
 import { printInventoryCountVoucher } from "./printInventoryCountVoucher";
+import { useAuth } from "../../context/AuthContext";
 
 const BarcodeScannerDialog = React.lazy(() => import("./InventoryBarcodeScannerDialog"));
 
@@ -35,6 +36,8 @@ export function InventoryCountingModal({
   onClose: () => void;
   onApplied?: () => void;
 }) {
+  const { user, hasPermission } = useAuth();
+  const actorId = String((user as any)?.id || (user as any)?._id || user?.uid || "");
   const [count, setCount] = useState<InventoryCount | null>(null);
   const [counts, setCounts] = useState<InventoryCount[]>([]);
   const [camera, setCamera] = useState(false);
@@ -43,6 +46,7 @@ export function InventoryCountingModal({
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
   const [processingAction, setProcessingAction] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const canApprove = Boolean(actorId && count?.createdById && (!count.submittedBy || count.submittedById) && actorId !== count.createdById && actorId !== count.submittedById && hasPermission("inventory-count-approval:manage"));
 
   // Load existing counts for this warehouse
   const loadCounts = async () => {
@@ -171,6 +175,7 @@ export function InventoryCountingModal({
     if (!count) return;
 
     if (action === "approve") {
+      if (!canApprove) { toast.error("Cần người duyệt độc lập có quyền duyệt kiểm kê."); return; }
       const confirmApprove = window.confirm(
         `XÁC NHẬN CÂN BẰNG TỒN KHO:\n\nPhiếu ${count.countCode} sẽ được duyệt.\nTồn kho thực tế trong hệ thống sẽ được tự động điều chỉnh theo số lượng đã đếm.\nCác máy IMEI không tìm thấy sẽ được ghi nhận thất lạc.\n\nBạn có chắc chắn muốn duyệt?`
       );
@@ -880,7 +885,8 @@ export function InventoryCountingModal({
             {count?.status === "pending_approval" && (
               <button
                 type="button"
-                disabled={processingAction === "approve"}
+                disabled={processingAction === "approve" || !canApprove}
+                title={!canApprove ? "Cần người duyệt độc lập có quyền duyệt kiểm kê; phiếu phải có định danh người lập/gửi." : undefined}
                 onClick={() => void handleTransition("approve")}
                 className="rounded-lg bg-emerald-700 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-800 transition-colors disabled:opacity-50"
               >
