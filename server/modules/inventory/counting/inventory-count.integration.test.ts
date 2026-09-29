@@ -24,7 +24,7 @@ async function seedCount(quantityDelta = 2, sourceBalanceVersion = 0) {
   await ProductCatalogModel.create({ _id: productId, companyCode, productCode: "P-1", name: "Test product", normalizedName: "test product", productType: "physical", categoryCode: "GENERAL", baseUnitCode: "PCS", status: "active", createdBy: "test", updatedBy: "test" });
   await ProductVariantModel.create({ _id: variantId, companyCode, productId, sku: "SKU-1", barcode: "8930000000001", unitCode: "PCS", trackingMode: "quantity", status: "active", createdBy: "test", updatedBy: "test" });
   const balance = await InventoryBalanceModel.create({ companyCode, branchId, warehouseId, productId, variantId, sku: "SKU-1", quantity: 10, reservedQuantity: 0, averageCost: 5, version: 0 });
-  return InventoryCountModel.create({ companyCode, branchId, warehouseId, countCode: "KK-1", status: "pending_approval", createdBy: "test", items: [{ productId, variantId, sku: "SKU-1", barcode: "8930000000001", productName: "Test product", systemQuantity: 10, countedQuantity: 10 + quantityDelta, quantityDelta, sourceBalanceVersion, note: "" }] });
+  return InventoryCountModel.create({ companyCode, branchId, warehouseId, countCode: "KK-1", status: "pending_approval", createdBy: "test", createdById: "creator", items: [{ productId, variantId, sku: "SKU-1", barcode: "8930000000001", productName: "Test product", systemQuantity: 10, countedQuantity: 10 + quantityDelta, quantityDelta, sourceBalanceVersion, note: "" }] });
 }
 
 describe("inventory count approval integration", () => {
@@ -234,5 +234,38 @@ describe("inventory count approval integration", () => {
     await expect(createCount(scope, warehouseId, { id: "counter" })).rejects.toThrow("snapshot save failed");
     expect(await InventoryCountModel.countDocuments()).toBe(1);
     expect((await InventoryBalanceModel.findOne().lean())?.version).toBe(0);
+  });
+  it("rejects both the creator and submitter as approvers before stock changes", async () => {
+    const count = await seedCount();
+    await InventoryCountModel.updateOne({ _id: count._id }, { submittedBy: "changed-email", submittedById: "submitter" });
+    for (const id of ["creator", "submitter"]) {
+      await expect(approveCount(scope, String(count._id), { id, email: "new-name" })).rejects.toMatchObject({ statusCode: 403 });
+    }
+    expect((await InventoryCountModel.findById(count._id).lean())?.status).toBe("pending_approval");
+    expect((await InventoryBalanceModel.findOne().lean())?.quantity).toBe(10);
+    expect(await InventoryLedgerEntryModel.countDocuments()).toBe(0);
+    const approved = await approveCount(scope, String(count._id), { id: "independent", email: "test" });
+    expect(approved.approvedById).toBe("independent");
+  });
+  it("requires authenticated actor IDs and blocks legacy counts without verifiable authors", async () => {
+    const count = await seedCount();
+    await expect(approveCount(scope, String(count._id), {})).rejects.toMatchObject({ statusCode: 401 });
+    await expect(createCount(scope, warehouseId, {})).rejects.toMatchObject({ statusCode: 401 });
+    await InventoryCountModel.updateOne({ _id: count._id }, { $unset: { createdById: 1 } });
+    await expect(approveCount(scope, String(count._id), { id: "independent" })).rejects.toMatchObject({ statusCode: 409 });
+    await InventoryCountModel.updateOne({ _id: count._id }, { createdById: "creator", submittedBy: "legacy-email" });
+    await expect(approveCount(scope, String(count._id), { id: "independent" })).rejects.toMatchObject({ statusCode: 409 });
+    expect((await InventoryCountModel.findById(count._id).lean())?.status).toBe("pending_approval");
+    expect(await InventoryLedgerEntryModel.countDocuments()).toBe(0);
+  });
+  it("records stable creator and submitter IDs independently of display names", async () => {
+    await seedCount();
+    const count: any = await createCount(scope, warehouseId, { id: "author-id", email: "same@example.test" });
+    expect(count.createdById).toBe("author-id");
+    count.status = "counting"; await count.save();
+    const submitted = await submitCount(scope, String(count._id), { id: "submit-id", email: "same@example.test" });
+    expect(submitted.submittedById).toBe("submit-id");
+    const approved = await approveCount(scope, String(count._id), { id: "approve-id", email: "same@example.test" });
+    expect(approved.approvedById).toBe("approve-id");
   });
 });

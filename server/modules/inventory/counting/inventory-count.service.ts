@@ -76,6 +76,7 @@ export async function getCount(scope: Scope, countId: string) {
 }
 
 export async function createCount(scope: Scope, warehouseId: string, actor: Actor, notes?: string) {
+  if (!code(actor.id)) fail("Thiếu định danh người lập kiểm kê.", 401);
   if (!code(warehouseId)) fail("Kho kiểm kê là bắt buộc.");
   return inInventoryTransaction(async (session) => {
     const snapshotStartedAt = new Date();
@@ -83,7 +84,7 @@ export async function createCount(scope: Scope, warehouseId: string, actor: Acto
     if (!warehouse) fail("Kho kiểm kê không còn hoạt động hoặc không thuộc phạm vi.", 409);
     const items = await countItems(scope, warehouseId, session);
     const countCode = "KK-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
-    const [count] = await InventoryCountModel.create([{ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId, countCode, snapshotStartedAt, status: "draft", items, notes: code(notes) || undefined, createdBy: nameOf(actor), version: 0 }], { session });
+    const [count] = await InventoryCountModel.create([{ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId, countCode, snapshotStartedAt, status: "draft", items, notes: code(notes) || undefined, createdBy: nameOf(actor), createdById: code(actor.id), version: 0 }], { session });
     return count;
   }, undefined, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" } });
 }
@@ -177,7 +178,10 @@ async function transition(scope: Scope, countId: string, status: InventoryCountS
   if (!count) fail("Không tìm thấy phiếu kiểm kê.", 404);
   assertCountTransition(count.status as InventoryCountStatus, status);
   count.status = status;
-  if (status === "pending_approval") { count.submittedBy = nameOf(actor); count.submittedAt = new Date(); }
+  if (status === "pending_approval") {
+    if (!code(actor.id)) fail("Thiếu định danh người gửi duyệt.", 401);
+    count.submittedBy = nameOf(actor); count.submittedById = code(actor.id); count.submittedAt = new Date();
+  }
   if (status === "cancelled") count.cancelledAt = new Date();
   await saveCount(count);
   return count.toObject();
@@ -187,6 +191,7 @@ export const submitCount = (scope: Scope, id: string, actor: Actor) => transitio
 export const cancelCount = (scope: Scope, id: string, actor: Actor) => transition(scope, id, "cancelled", actor);
 
 export async function approveCount(scope: Scope, countId: string, actor: Actor) {
+  if (!code(actor.id)) fail("Thiếu định danh người duyệt kiểm kê.", 401);
   const session = await mongoose.startSession();
   let conflictVersion: number | undefined;
   try {
@@ -194,6 +199,9 @@ export async function approveCount(scope: Scope, countId: string, actor: Actor) 
       const count: any = await InventoryCountModel.findOne({ _id: countId, companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId }).session(session);
       if (!count) fail("Không tìm thấy phiếu kiểm kê.", 404);
       assertCountTransition(count.status as InventoryCountStatus, "completed");
+      if (!count.createdById) fail("Phiếu cũ thiếu định danh người lập. Hãy lập phiếu kiểm kê mới để duyệt độc lập.", 409);
+      if (count.submittedBy && !count.submittedById) fail("Phiếu cũ thiếu định danh người gửi duyệt. Hãy lập phiếu kiểm kê mới.", 409);
+      if (code(actor.id) === count.createdById || code(actor.id) === count.submittedById) fail("Người lập hoặc gửi duyệt không được tự duyệt phiếu kiểm kê.", 403);
       const balances = await InventoryBalanceModel.find({ companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, warehouseId: count.warehouseId }).session(session).lean();
       const balanceMap = new Map(balances.map((balance: any) => [String(balance.productId) + ":" + String(balance.variantId || ""), balance]));
       if (balances.length !== count.items.length) {
@@ -235,6 +243,7 @@ export async function approveCount(scope: Scope, countId: string, actor: Actor) 
       }
       count.status = "completed";
       count.approvedBy = nameOf(actor);
+      count.approvedById = code(actor.id);
       count.approvedAt = new Date();
       await saveCount(count, session);
     });

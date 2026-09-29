@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { approveCount, cancelCount, createCount, getCount, listCounts, scanCountUnit, startCount, submitCount, updateCountItem } from "./inventory-count.service";
 const scope = (req: Request) => ({ companyCode: String((req as any).user?.companyCode || "").trim().toUpperCase(), branchId: String((req as any).user?.branchId || "").trim() });
-const actor = (req: Request) => ({ id: (req as any).user?.id, email: (req as any).user?.email });
+const actor = (req: Request) => ({ id: (req as any).user?.id || (req as any).user?._id, email: (req as any).user?.email });
 const sendError = (res: Response, error: any) => res.status(Number(error?.statusCode) || 400).json({ status: "error", message: error?.message || "Không thể xử lý phiếu kiểm kê." });
 export const inventoryCountController = {
   list: async (req: Request, res: Response) => { try { return res.json({ status: "success", data: await listCounts(scope(req), req.query) }); } catch (error) { return sendError(res, error); } },
