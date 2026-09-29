@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { toast } from "../../../pages/Toast";
+import { OutboundReversalControl } from "./OutboundReversalControl";
 import type { Warehouse } from "../../../services/inventoryReceivingService";
 import {
   printOutboundVoucher,
@@ -8,6 +9,7 @@ import {
 } from "./printOutboundVoucher";
 
 export interface OutboundDetailModalProps {
+  onReverse?: (id: string, reason: string) => Promise<{ _id: string }>;
   ticket: OutboundTicket;
   onClose: () => void;
   warehouses: Warehouse[];
@@ -19,6 +21,7 @@ export interface OutboundDetailModalProps {
 }
 
 export function OutboundDetailModal({
+  onReverse,
   ticket,
   onClose,
   warehouses,
@@ -115,7 +118,7 @@ export function OutboundDetailModal({
                 {ticket.title || "Chi tiết phiếu xuất kho"}
               </h3>
               <span className={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${statusBadgeClass}`}>
-                {currentStatus}
+                {ticket.reversalId ? "Đã đảo toàn bộ" : currentStatus}
               </span>
             </div>
             <p className="mt-1 text-xs text-slate-500">
@@ -317,6 +320,7 @@ export function OutboundDetailModal({
         </div>
 
         {/* Footer & Actions */}
+        <div className="border-t border-slate-200 px-6 py-3"><OutboundReversalControl key={ticket.id} ticket={ticket} onReverse={onReverse} /></div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
           <div className="flex items-center gap-3">
             {allSerials.length > 0 && (

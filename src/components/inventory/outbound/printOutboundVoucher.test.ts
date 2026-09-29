@@ -43,6 +43,10 @@ describe("printOutboundVoucher", () => {
   });
 
   describe("printOutboundVoucher execution", () => {
+    it("marks a reversed voucher as historical rather than an active issue", () => {
+      printOutboundVoucher({ ticket: { id: "s1", reversalId: "r1", createdAt: "2026-09-29", items: [] } });
+      expect(document.querySelector("iframe")?.contentWindow?.document.body.textContent).toContain("ĐÃ ĐẢO TOÀN BỘ");
+    });
     it("tạo iframe ẩn và nạp nội dung phiếu xuất kho hoàn chỉnh", () => {
       const ticket: OutboundTicket = {
         id: "XK-2026-001",

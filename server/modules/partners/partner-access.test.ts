@@ -58,6 +58,15 @@ describe('partner route isolation', () => {
     const res = await request('/suppliers', { 'x-test-user': 'ctv', 'x-test-permission': 'partner-self:read' });
     expect(res.status).toBe(403);
   });
+  it('allows retail staff with retail:manage permission to create collaborator partner directly', async () => {
+    const create = vi.spyOn(PartnerModel, 'create').mockResolvedValue({ _id: 'partner-new', code: 'CTV-001', name: 'New CTV', roles: ['collaborator'], status: 'active' } as any);
+    const res = await request('/', { 'x-test-user': 'cashier', 'x-test-permission': 'retail:manage', 'Content-Type': 'application/json' }, {
+      method: 'POST',
+      body: JSON.stringify({ code: 'CTV-001', name: 'New CTV', roles: ['collaborator'], phone: '0987654321' }),
+    });
+    expect(res.status).toBe(200);
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ code: 'CTV-001', name: 'New CTV', roles: ['collaborator'] }));
+  });
   it('returns complete inventory supplier fields in partner profiles', async () => {
     const supplierId = '507f1f77bcf86cd799439012';
     vi.spyOn(PartnerModel, 'find').mockReturnValue({ sort: () => ({ limit: () => ({ lean: async () => [{ supplierId, roles: ['supplier'], name: 'Old name' }] }) }) } as any);

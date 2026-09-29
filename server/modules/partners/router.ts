@@ -19,6 +19,7 @@ export const partnerRouter = Router();
 partnerRouter.use(requireAuth as any);
 const read = requirePermission(["partner:read", "partner:manage"]) as any;
 const manage = requirePermission("partner:manage") as any;
+const createPartner = requirePermission(["partner:manage", "retail:manage", "repair:manage"]) as any;
 const policies = requirePermission("commission-policy:manage") as any;
 const finance = requirePermission("commission-payment:manage") as any;
 const own = requirePermission(["partner-self:read", "partner-self:manage"]) as any;
@@ -186,7 +187,7 @@ async function provisionPartnerAccount(req: any, partner: any, password: string,
   return { partnerId, userId: String(user._id), email, displayName, permissions: ["partner-self:read"] };
 }
 
-partnerRouter.post("/", manage, route(async req => {
+partnerRouter.post("/", createPartner, route(async req => {
   const input = await partnerInput(req);
   const partner = input.roles.includes("supplier")
     ? await saveSupplierPartner(input, req.body)

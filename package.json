@@ -5,6 +5,8 @@
   "license": "UNLICENSED",
   "type": "module",
   "scripts": {
+    "audit:inventory": "tsx tools/reconcile-inventory.ts",
+    "test:inventory": "node tools/test-inventory.mjs",
     "dev": "tsx watch server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --outfile=dist-server/server.cjs",
     "start": "node dist-server/server.cjs",

@@ -265,6 +265,7 @@ export class CustomerPointService {
     const balanceAfter = Math.max(0, balanceBefore - points);
 
     customer.pointsBalance = balanceAfter;
+    customer.totalPointsEarned = Math.max(0, Number(customer.totalPointsEarned || 0) - points);
     await customer.save({ session: input.session });
 
     const ledger = new CustomerPointLedgerModel({

@@ -1,4 +1,5 @@
-﻿import type { ClientSession } from "mongoose";
+import type { ClientSession } from "mongoose";
+import { inInventoryTransaction } from "../../modules/inventory/inventory-transaction";
 import { InventoryBalanceModel } from "../../model/inventory-balance.model";
 import { InventoryLedgerEntryModel } from "../../model/inventory-ledger-entry.model";
 import { ProductModel } from "../../model/product.model";
@@ -38,10 +39,6 @@ export interface WriteStockMovementInput {
   warehouseId?: string;
 }
 
-function duplicate(error: unknown) {
-  return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === 11000);
-}
-
 function normalizeCode(value: string) {
   return String(value || "").trim().toUpperCase();
 }
@@ -59,12 +56,12 @@ function validateInput(input: WriteStockMovementInput) {
 }
 
 async function ensureBalance(input: { companyCode: string; branchId: string; warehouseId: string; item: StockMovementItem; session: ClientSession }) {
-  const variantFilter = input.item.variantId ? { variantId: input.item.variantId } : {};
+  const variantFilter = input.item.variantId ? { variantId: input.item.variantId } : { variantId: { $exists: false }, sku: normalizeCode(input.item.sku) };
   // Thiếu variantId thì filter theo productId là chưa đủ: nó khớp bừa một dòng biến
   // thể bất kỳ của cùng sản phẩm (thường là dòng tồn 0), nên phải ưu tiên tra theo
   // SKU — SKU chính là mã biến thể.
   if (!input.item.variantId) {
-    const bySku = await InventoryBalanceModel.findOne({ companyCode: input.companyCode, warehouseId: input.warehouseId, sku: normalizeCode(input.item.sku) }).session(input.session);
+    const bySku = await InventoryBalanceModel.findOne({ companyCode: input.companyCode, warehouseId: input.warehouseId, productId: input.item.productId, sku: normalizeCode(input.item.sku) }).session(input.session);
     if (bySku) return bySku;
   }
   const existing = await InventoryBalanceModel.findOne({ companyCode: input.companyCode, warehouseId: input.warehouseId, productId: input.item.productId, ...variantFilter }).session(input.session);
@@ -73,34 +70,50 @@ async function ensureBalance(input: { companyCode: string; branchId: string; war
   const legacyProduct = input.item.legacyProductId
     ? await ProductModel.findOne({ _id: input.item.legacyProductId, companyCode: input.companyCode, branchId: input.branchId }).session(input.session).lean()
     : null;
-  try {
     return await InventoryBalanceModel.findOneAndUpdate(
-      { companyCode: input.companyCode, warehouseId: input.warehouseId, productId: input.item.productId, ...(input.item.variantId ? { variantId: input.item.variantId } : {}) },
+      { companyCode: input.companyCode, warehouseId: input.warehouseId, productId: input.item.productId, ...variantFilter },
       { $setOnInsert: { companyCode: input.companyCode, branchId: input.branchId, warehouseId: input.warehouseId, productId: input.item.productId, ...(input.item.variantId ? { variantId: input.item.variantId } : {}), sku: input.item.sku, quantity: Number(legacyProduct?.stock || 0), reservedQuantity: 0, averageCost: Number(legacyProduct?.costPrice || input.item.unitCost || 0), version: 0 } },
       { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true, session: input.session },
     );
-  } catch (error) {
-    if (!duplicate(error)) throw error;
-    return InventoryBalanceModel.findOne({ companyCode: input.companyCode, warehouseId: input.warehouseId, productId: input.item.productId, ...(input.item.variantId ? { variantId: input.item.variantId } : {}) }).session(input.session);
-  }
 }
 
-export async function writeStockMovement(input: WriteStockMovementInput) {
+export async function writeStockMovement(input: WriteStockMovementInput): Promise<{ warehouseId: string; entries: any[]; replayed: boolean }> {
+  return inInventoryTransaction((session) => writeStockMovementInTransaction({ ...input, session }), input.session);
+}
+
+async function writeStockMovementInTransaction(input: WriteStockMovementInput & { session: ClientSession }) {
   validateInput(input);
   const companyCode = normalizeCode(input.companyCode);
   const branchId = String(input.branchId).trim();
   const existing = await InventoryLedgerEntryModel.find({ companyCode, idempotencyKey: input.idempotencyKey }).session(input.session).lean();
-  if (existing.length) return { warehouseId: existing[0].warehouseId, entries: existing, replayed: true };
+  if (existing.length) {
+    const sorted = [...existing].sort((a, b) => a.sourceLine - b.sourceLine);
+    const matches = sorted.length === input.items.length && sorted.every((entry, index) => {
+      const item = input.items[index];
+      return entry.branchId === branchId && (!input.warehouseId || entry.warehouseId === input.warehouseId)
+        && entry.sourceType === input.sourceType && entry.sourceId === input.sourceId
+        && entry.direction === input.direction && entry.purpose === input.purpose
+        && entry.productId === item.productId && String(entry.variantId || "") === String(item.variantId || "")
+        && entry.sku === normalizeCode(item.sku) && entry.quantity === item.quantity
+        && (input.direction === "out" || entry.unitCost === Number(item.unitCost || 0))
+        && entry.unitPrice === item.unitPrice;
+    });
+    if (!matches) throw Object.assign(new Error("Khóa ghi kho đã được dùng cho nội dung khác."), { statusCode: 409, code: "IDEMPOTENCY_CONFLICT" });
+    return { warehouseId: sorted[0].warehouseId, entries: sorted, replayed: true };
+  }
 
   const warehouse = input.warehouseId
     ? await WarehouseModel.findOne({ _id: input.warehouseId, companyCode, branchId, isActive: true }).session(input.session).lean()
     : await ensureDefaultWarehouse(companyCode, branchId, input.session);
   if (!warehouse) throw new Error("Không thể xác định kho mặc định của chi nhánh.");
+  if (warehouse.kind === "transit" && (input.sourceType !== "inventory-transfer" || input.purpose !== "transfer")) {
+    throw Object.assign(new Error("Không được nhập/xuất trực tiếp hàng đang vận chuyển."), { statusCode: 409 });
+  }
   const entries: Array<Record<string, unknown>> = [];
   for (const [sourceLine, item] of input.items.entries()) {
     const quantity = Number(item.quantity);
-    const unitCost = Number(item.unitCost || 0);
     const balance = await ensureBalance({ companyCode, branchId, warehouseId: String(warehouse._id), item, session: input.session });
+    const unitCost = input.direction === "out" ? Number(balance.averageCost || 0) : Number(item.unitCost || 0);
     const currentQuantity = Number(balance.quantity || 0);
     const reservedQuantity = Number(balance.reservedQuantity || 0);
     const delta = input.direction === "out" ? -quantity : quantity;
@@ -109,7 +122,7 @@ export async function writeStockMovement(input: WriteStockMovementInput) {
     }
     const nextQuantity = currentQuantity + delta;
     const nextAverageCost = input.direction === "in" && nextQuantity > 0
-      ? ((currentQuantity * Number(balance.averageCost || 0)) + quantity * unitCost) / nextQuantity
+      ? (currentQuantity === 0 ? unitCost : ((currentQuantity * Number(balance.averageCost || 0)) + quantity * unitCost) / nextQuantity)
       : Number(balance.averageCost || unitCost || 0);
     const balanceUpdate = await InventoryBalanceModel.findOneAndUpdate(
       { _id: balance._id, version: Number(balance.version || 0), ...(input.direction === "out" && !input.allowNegativeStock ? { $expr: { $gte: [{ $subtract: ["$quantity", "$reservedQuantity"] }, quantity] } } : {}) },
@@ -128,15 +141,9 @@ export async function writeStockMovement(input: WriteStockMovementInput) {
     entries.push({ companyCode, branchId, warehouseId: String(warehouse._id), productId: item.productId, ...(item.variantId ? { variantId: item.variantId } : {}), sku: item.sku, productName: item.productName, direction: input.direction, purpose: input.purpose, quantity, quantityDelta: delta, unitCost, unitPrice: item.unitPrice, sourceType: input.sourceType, sourceId: input.sourceId, sourceCode: input.sourceCode, sourceLine, idempotencyKey: input.idempotencyKey, operatorName: input.operatorName, reason: input.reason });
   }
 
-  try {
     const created = await InventoryLedgerEntryModel.create(entries, { session: input.session, ordered: true });
     if (input.writeLegacyStockLog !== false) {
-      await StockLogModel.create([{ type: input.direction === "out" ? "xuất" : "nhập", title: input.sourceCode ? `${input.sourceCode} - ${input.purpose}` : input.sourceType, items: input.items.map((item) => ({ productId: item.productId, sku: item.sku, productName: item.productName, quantity: item.quantity, unitPrice: item.unitPrice, lineTotal: item.lineTotal, unitCost: item.unitCost, category: item.category })), purpose: input.direction === "out" ? (input.purpose === "sale" ? "bán" : input.purpose === "cancel" ? "hủy" : input.purpose === "transfer" ? "chuyển kho" : "nội bộ") : undefined, operatorName: input.operatorName, status: "Thành công", companyCode, branchId, refType: input.sourceType === "retail-order" ? "retail-order" : input.sourceType === "goods-receipt" ? "goods-receipt" : undefined, refId: input.sourceId, idempotencyKey: input.idempotencyKey, notes: input.reason }], { session: input.session });
+      await StockLogModel.create([{ type: input.direction === "out" ? "xuất" : "nhập", title: input.sourceCode ? `${input.sourceCode} - ${input.purpose}` : input.sourceType, items: input.items.map((item, index) => ({ productId: item.productId, variantId: item.variantId, sku: item.sku, productName: item.productName, quantity: item.quantity, unitPrice: item.unitPrice, lineTotal: item.lineTotal, unitCost: Number(entries[index].unitCost), category: item.category })), purpose: input.direction === "out" ? (input.purpose === "sale" ? "bán" : input.purpose === "cancel" ? "hủy" : input.purpose === "transfer" ? "chuyển kho" : "nội bộ") : undefined, operatorName: input.operatorName, status: "Thành công", companyCode, branchId, warehouseId: String(warehouse._id), refType: input.sourceType === "retail-order" ? "retail-order" : input.sourceType === "goods-receipt" ? "goods-receipt" : undefined, refId: input.sourceId, idempotencyKey: input.idempotencyKey, notes: input.reason }], { session: input.session });
     }
     return { warehouseId: String(warehouse._id), entries: created, replayed: false };
-  } catch (error) {
-    if (!duplicate(error)) throw error;
-    const replayed = await InventoryLedgerEntryModel.find({ companyCode, idempotencyKey: input.idempotencyKey }).session(input.session).lean();
-    return { warehouseId: String(warehouse._id), entries: replayed, replayed: true };
-  }
 }

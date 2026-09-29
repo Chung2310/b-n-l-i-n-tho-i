@@ -3,6 +3,7 @@ import { GoodsReceiptModel } from "../../../model/goods-receipt.model";
 import { SerialUnitModel } from "../../inventory/serials/serial-unit.model";
 import { ensureDefaultWarehouse } from "../../inventory/warehouse/warehouse.service";
 import { writeStockMovement } from "../../../integrations/shared/stock-movement.service";
+import { InventoryLedgerEntryModel } from "../../../model/inventory-ledger-entry.model";
 import type { RetailBranchScope } from "../contracts";
 
 /** The receipt is the stock source; never post a second after-sale movement. */
@@ -11,10 +12,22 @@ export async function createRetailRestockReceipt(scope: RetailBranchScope, input
   sourceId: string; sourceCode: string; order: any; items: any[];
   reason: string; actorId: string; actorName: string; idempotencyKey: string;
   warehouseId?: string; receivedAt?: Date;
+  existingLedgerSource?: { sourceType: "retail-after-sale"; sourceId: string };
 }, session: ClientSession) {
   const existing = await GoodsReceiptModel.findOne({ ...scope, idempotencyKey: input.idempotencyKey }).session(session);
   if (existing) return existing;
   const warehouse = input.warehouseId ? { _id: input.warehouseId } : await ensureDefaultWarehouse(scope.companyCode, scope.branchId, session);
+  if (input.existingLedgerSource) {
+    const entries = await InventoryLedgerEntryModel.find({ ...scope, idempotencyKey: input.idempotencyKey }).sort({ sourceLine: 1 }).session(session).lean();
+    const matches = entries.length === input.items.length && entries.length > 0 && entries.every((entry, index) => {
+      const item = input.items[index];
+      return entry.sourceType === input.existingLedgerSource!.sourceType && entry.sourceId === input.existingLedgerSource!.sourceId
+        && entry.sourceLine === index && entry.direction === "in" && entry.warehouseId === String(warehouse._id)
+        && entry.productId === item.productId && String(entry.variantId || "") === String(item.variantId || "")
+        && entry.sku === item.sku && entry.quantity === item.quantity && entry.unitCost === item.unitCost;
+    });
+    if (!matches) throw Object.assign(new Error("Sổ kho lịch sử không khớp chứng từ cần bổ sung."), { statusCode: 409 });
+  }
   const items = [];
   for (const item of input.items) {
     const units = item.trackingMode === "serial" || item.trackingMode === "unit_barcode"
@@ -39,7 +52,7 @@ export async function createRetailRestockReceipt(scope: RetailBranchScope, input
     notes: `${input.kind === "buyback" ? "Thu mua lại" : input.kind === "sales_cancel" ? "Hủy đơn" : "Trả hàng"} từ đơn ${input.order.orderCode}. ${input.reason}`,
     idempotencyKey: input.idempotencyKey, version: 0,
   }], { session });
-  await writeStockMovement({ ...scope, warehouseId: String(warehouse._id), direction: "in",
+  if (!input.existingLedgerSource) await writeStockMovement({ ...scope, warehouseId: String(warehouse._id), direction: "in",
     purpose: input.kind === "buyback" ? "purchase" : input.kind === "sales_cancel" ? "cancel" : "sales-return",
     sourceType: "goods-receipt", sourceId: String(receipt._id), sourceCode: receipt.receiptCode,
     idempotencyKey: input.idempotencyKey, operatorName: input.actorName,

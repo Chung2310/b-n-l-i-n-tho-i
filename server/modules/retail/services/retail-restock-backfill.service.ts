@@ -21,7 +21,9 @@ export async function backfillRetailRestockReceipts(scope: RetailBranchScope, ap
         const entries = await InventoryLedgerEntryModel.find({ ...scope, idempotencyKey: key }).sort({ sourceLine: 1 }).session(session).lean();
         const order = await RetailOrderModel.findOne({ _id: doc.orderId, ...scope }).session(session);
         const matches = order && entries.length === doc.items.length && entries.every((entry, index) =>
-          entry.sourceLine === index && entry.direction === "in" && entry.quantity === doc.items[index].quantity
+          entry.sourceType === "retail-after-sale" && entry.sourceId === String(doc._id)
+          && entry.sourceLine === index && entry.direction === "in" && entry.quantity === doc.items[index].quantity
+          && entry.unitCost === doc.items[index].unitCost
           && entry.sku === doc.items[index].sku && entry.warehouseId === entries[0].warehouseId);
         if (!matches) { results.push({ code: doc.code, status: "needs_review" }); return; }
         if (!apply) { results.push({ code: doc.code, status: "ready" }); return; }
@@ -31,8 +33,9 @@ export async function backfillRetailRestockReceipts(scope: RetailBranchScope, ap
             ...(entries[index].variantId ? { variantId: entries[index].variantId } : { legacyProductId: entries[index].productId }),
           })), reason: doc.reason, actorId: doc.createdBy, actorName: doc.createdByName,
           idempotencyKey: key, warehouseId: entries[0].warehouseId, receivedAt: doc.createdAt,
+          existingLedgerSource: { sourceType: "retail-after-sale", sourceId: String(doc._id) },
         }, session);
-        // createRetailRestockReceipt reuses the original ledger key, so the stock writer only replays it.
+        // The historical source is verified explicitly; no new stock movement is written.
         await InventoryLedgerEntryModel.updateMany({ ...scope, idempotencyKey: key }, { $set: { sourceType: "goods-receipt", sourceId: String(receipt._id), sourceCode: receipt.receiptCode } }, { session });
         await StockLogModel.updateMany({ ...scope, idempotencyKey: key }, { $set: { refType: "goods-receipt", refId: String(receipt._id) } }, { session });
         doc.receiptId = String(receipt._id);

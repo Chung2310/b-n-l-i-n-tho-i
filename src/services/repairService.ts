@@ -6,6 +6,7 @@ type Envelope<T> = { success: boolean; data: T };
 const root = "/repair/tickets";
 export const repairService = {
   async list(params: Record<string, string | number | undefined> = {}) { return (await apiFetch<Envelope<{ items: RepairTicket[]; total: number; page: number; limit: number }>>(root, { params })).data; },
+  async get(id: string, params: { companyCode?: string; branchId?: string } = {}) { return (await apiFetch<Envelope<RepairTicket>>(`${root}/${id}`, { params })).data; },
   async board(params: { ticketType?: string } = {}) { return (await apiFetch<Envelope<Record<RepairStatus, RepairTicket[]>>>(`${root}/board`, { params })).data; },
   async lookupDevice(serialNumber: string) { return (await apiFetch<Envelope<any>>(`${root}/lookup-device`, { method: "POST", body: JSON.stringify({ serialNumber }) })).data; },
   async create(input: Record<string, unknown>) { return (await apiFetch<Envelope<RepairTicket>>(root, { method: "POST", body: JSON.stringify(input) })).data; },
