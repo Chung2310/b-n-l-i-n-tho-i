@@ -129,7 +129,17 @@ export default function TicketModal({
   const [payment, setPayment] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [errorAlert, setErrorAlert] = useState<string | null>(null);
   const quoteSavePending = useRef(false);
+
+  useEffect(() => {
+    if (!errorAlert) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setErrorAlert(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [errorAlert]);
 
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true);
@@ -138,7 +148,7 @@ export default function TicketModal({
       onChanged();
       onClose();
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Không thể cập nhật phiếu.");
+      setErrorAlert(e instanceof Error ? e.message : "Không thể cập nhật phiếu.");
     } finally {
       setBusy(false);
     }
@@ -606,7 +616,14 @@ export default function TicketModal({
             </div>
             <button
               disabled={busy || !payment || parseDigits(payment) <= 0}
-              onClick={() => void run(() => repairService.pay(ticket._id, parseDigits(payment)))}
+              onClick={() => {
+                const amount = parseDigits(payment);
+                if (amount > ticket.dueAmount) {
+                  setErrorAlert("Số tiền thanh toán vượt quá công nợ.");
+                  return;
+                }
+                void run(() => repairService.pay(ticket._id, amount));
+              }}
               className="min-h-11 w-full rounded-xl bg-emerald-600 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50 sm:w-auto cursor-pointer"
             >
               Ghi nhận thanh toán
@@ -665,6 +682,36 @@ export default function TicketModal({
             ))}
           </div>
         </div>
+
+        {errorAlert && (
+          <div
+            className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-xs animate-in fade-in duration-150"
+            role="presentation"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setErrorAlert(null);
+            }}
+          >
+            <div
+              role="alertdialog"
+              aria-modal="true"
+              className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-center animate-in zoom-in-95 duration-150"
+            >
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 text-rose-600 mb-3 ring-8 ring-rose-50">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 mb-1.5">Thông báo</h3>
+              <p className="text-sm text-slate-600 mb-5 leading-relaxed">{errorAlert}</p>
+              <button
+                type="button"
+                onClick={() => setErrorAlert(null)}
+                autoFocus
+                className="w-full rounded-xl bg-slate-900 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Đã hiểu
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

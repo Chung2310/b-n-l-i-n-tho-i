@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { Dropdown, type DropdownOption } from "../../components/common/Dropdown";
 import { toast } from "../../pages/Toast";
-import { authService } from "../../services/authService";
 import { apiFetch } from "../shared/lib/apiFetch";
 import {
   repairExtras,
@@ -107,8 +106,8 @@ function TechnicianPicker({ ticket, onChanged }: { ticket: RepairTicket; onChang
   }, [ticket.technicianId, ticket.technicianName, ticket.assignedAt]);
 
   useEffect(() => {
-    void authService
-      .getColleagues()
+    void repairExtras
+      .listTechnicians()
       .then((items) => setPeople(items as any))
       .catch(() => setPeople([]));
   }, []);
@@ -159,7 +158,9 @@ function TechnicianPicker({ ticket, onChanged }: { ticket: RepairTicket; onChang
     ...people.map((person) => ({
       value: String(person.uid || (person as any)._id || ""),
       label: person.displayName || person.email || person.uid,
-      sublabel: person.displayName && person.email ? person.email : undefined,
+      sublabel: (person as any).department
+        ? `${(person as any).department}${(person as any).jobTitle ? ` • ${(person as any).jobTitle}` : ""}`
+        : (person as any).jobTitle || (person.displayName && person.email ? person.email : undefined),
     })),
   ], [people]);
 
