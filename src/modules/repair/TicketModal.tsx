@@ -595,7 +595,7 @@ export default function TicketModal({
                 <button
                   type="button"
                   onClick={() => setPayment(ticket.dueAmount.toLocaleString("vi-VN"))}
-                  className="text-xs font-bold text-emerald-700 underline hover:text-emerald-900 cursor-pointer"
+                  className="text-xs font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer"
                 >
                   Thu đủ số nợ
                 </button>
@@ -607,11 +607,8 @@ export default function TicketModal({
                   value={payment}
                   onChange={(e) => handleCurrencyChange(e, setPayment)}
                   placeholder={`VD: ${ticket.dueAmount.toLocaleString("vi-VN")}`}
-                  className="w-full rounded-xl border border-slate-300 bg-white pl-3.5 pr-8 py-2 text-sm font-bold text-slate-900 sm:w-auto focus:border-emerald-500 focus:outline-none"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm font-bold text-slate-900 sm:w-auto focus:border-emerald-500 focus:outline-none"
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
-                  đ
-                </span>
               </div>
             </div>
             <button
