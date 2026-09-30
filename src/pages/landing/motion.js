@@ -22,7 +22,7 @@ export function initMotion(container, life) {
   heroCopy?.classList.remove('reveal');stage.classList.remove('reveal');
   const title=container.querySelector('.hero h1');
   if (title) {
-    title.innerHTML='<span class="hero-line"><span>Hiểu từng máy.</span></span><span class="hero-line"><span class="gradient-text">Bứt phá doanh số.</span></span>';
+    title.innerHTML='<span class="hero-line"><span>Hiểu từng sản phẩm.</span></span><span class="hero-line"><span class="gradient-text">Bứt phá doanh số.</span></span>';
   }
   stage.querySelectorAll('.screen').forEach(screen=>{
     const glint=document.createElement('span');glint.className='device-glint';glint.setAttribute('aria-hidden','true');screen.append(glint);
