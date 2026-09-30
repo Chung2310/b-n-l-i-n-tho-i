@@ -20,6 +20,11 @@ import {
   Search,
   CheckCircle2,
   Wand2,
+  Palette,
+  HardDrive,
+  Globe,
+  Zap,
+  Plug,
 } from "lucide-react";
 import { toast } from "../../../pages/Toast";
 import { getApiErrorMessage } from "../../../utils/errorMessage";
@@ -73,7 +78,7 @@ export function CatalogSetupModal({
       : kind === "brands"
         ? "Quản lý Thương hiệu / Hãng"
         : kind === "attributes"
-          ? "Quản lý Thuộc tính Biến thể"
+          ? "Quản lý Thuộc tính Sản phẩm"
           : "Quản lý dữ liệu dùng chung";
 
   const resetForm = () => {
@@ -360,7 +365,7 @@ export function CatalogSetupModal({
   const attributeTypeOptions = useMemo<DropdownOption<string>[]>(() => [
     {
       value: "select",
-      label: "Chọn một (Select) - Chuẩn tạo ma trận biến thể SKU",
+      label: "Chọn một (Select) - Dùng tạo các phiên bản SKU",
       sublabel: "Màu sắc, Dung lượng, Tình trạng máy...",
       icon: <Check className="h-4 w-4 text-cyan-600" />,
     },
@@ -854,7 +859,7 @@ export function CatalogSetupModal({
                     onClick={() => applyAttributePreset("COLOR")}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:border-cyan-600 hover:text-cyan-700 shadow-2xs transition-all"
                   >
-                    <span>🎨</span>
+                    <Palette className="h-3.5 w-3.5 text-pink-500 shrink-0" />
                     <span>Màu sắc (10 màu)</span>
                   </button>
                   <button
@@ -862,7 +867,7 @@ export function CatalogSetupModal({
                     onClick={() => applyAttributePreset("STORAGE")}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:border-cyan-600 hover:text-cyan-700 shadow-2xs transition-all"
                   >
-                    <span>💾</span>
+                    <HardDrive className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                     <span>Dung lượng (5 mức)</span>
                   </button>
                   <button
@@ -870,7 +875,7 @@ export function CatalogSetupModal({
                     onClick={() => applyAttributePreset("CONDITION")}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:border-cyan-600 hover:text-cyan-700 shadow-2xs transition-all"
                   >
-                    <span>📱</span>
+                    <Smartphone className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                     <span>Tình trạng máy (4 cấp)</span>
                   </button>
                   <button
@@ -878,7 +883,7 @@ export function CatalogSetupModal({
                     onClick={() => applyAttributePreset("ORIGIN")}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:border-cyan-600 hover:text-cyan-700 shadow-2xs transition-all"
                   >
-                    <span>🌐</span>
+                    <Globe className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
                     <span>Thị trường (VN/A, LL/A...)</span>
                   </button>
                   <button
@@ -886,7 +891,7 @@ export function CatalogSetupModal({
                     onClick={() => applyAttributePreset("RAM")}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:border-cyan-600 hover:text-cyan-700 shadow-2xs transition-all"
                   >
-                    <span>⚡</span>
+                    <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                     <span>RAM (4GB - 24GB)</span>
                   </button>
                   <button
@@ -894,7 +899,7 @@ export function CatalogSetupModal({
                     onClick={() => applyAttributePreset("WATTAGE")}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:border-cyan-600 hover:text-cyan-700 shadow-2xs transition-all"
                   >
-                    <span>🔌</span>
+                    <Plug className="h-3.5 w-3.5 text-violet-500 shrink-0" />
                     <span>Công suất sạc</span>
                   </button>
                 </div>
@@ -1022,10 +1027,10 @@ export function CatalogSetupModal({
                     <Sparkles className="h-6 w-6" />
                   </div>
                   <h5 className="font-semibold text-slate-800 text-sm mb-1">
-                    Chưa có thuộc tính biến thể nào được khai báo
+                    Chưa có thuộc tính sản phẩm nào
                   </h5>
                   <p className="text-xs text-slate-500 max-w-md mx-auto mb-4">
-                    Khai báo thuộc tính (Màu sắc, Dung lượng, Tình trạng máy, Xuất xứ...) là nền tảng để tự động nhân ma trận SKU và phân loại hàng hóa trong shop điện thoại.
+                    Tạo thuộc tính (Màu sắc, Dung lượng, Kích cỡ...) giúp phân loại và tự động tạo nhanh các phiên bản sản phẩm.
                   </p>
                   <button
                     type="button"
@@ -1034,7 +1039,7 @@ export function CatalogSetupModal({
                     className="inline-flex items-center gap-2 rounded-xl bg-cyan-700 px-4 py-2.5 text-xs font-semibold text-white hover:bg-cyan-800 shadow-md shadow-cyan-900/10 transition-all disabled:opacity-60 cursor-pointer"
                   >
                     <Sparkles className="h-4 w-4" />
-                    <span>✨ Khởi tạo nhanh bộ thuộc tính chuẩn (Màu sắc, Dung lượng, Tình trạng, Thị trường)</span>
+                    <span>Khởi tạo nhanh bộ thuộc tính mẫu (Màu sắc, Dung lượng, Tình trạng, Thị trường)</span>
                   </button>
                 </div>
               ) : (

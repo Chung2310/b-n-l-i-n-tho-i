@@ -82,6 +82,59 @@ repairRouter.post("/tickets/:id/parts/:partId/return", partIssue, async (req, re
 repairRouter.get("/history", read, async (req, res, next) => { try { return res.json({ success: true, data: await lookupRepairHistory({ companyCode: reportScope(req).companyCode }, { imei: req.query.imei ? String(req.query.imei) : undefined, phone: req.query.phone ? String(req.query.phone) : undefined }) }); } catch (error) { next(error); } });
 
 // --- Kỹ thuật viên & đánh giá ---
+repairRouter.get("/technicians", read, async (req, res, next) => {
+  try {
+    const companyCode = reportScope(req).companyCode;
+    const { PartnerModel } = await import("../partners/partner.models");
+    const partnerUsers = await PartnerModel.find(
+      { companyCode, userId: { $type: "string", $ne: "" } },
+      { userId: 1 }
+    ).lean();
+    const partnerUserIdSet = new Set(partnerUsers.map((p: any) => String(p.userId)));
+
+    const { UserModel } = await import("../../model/user.model");
+    const { isPartnerAccount } = await import("../../../shared/partner-account");
+
+    const users = await UserModel.find(
+      {
+        companyCode,
+        isDeleted: { $ne: true },
+        isActive: { $ne: false },
+        accountType: { $ne: "partner" },
+      },
+      { _id: 1, displayName: 1, email: 1, jobTitle: 1, department: 1, role: 1, photoURL: 1, permissions: 1, accountType: 1 }
+    ).lean();
+
+    const technicians = users
+      .filter((u: any) => {
+        const uid = String(u._id);
+        if (partnerUserIdSet.has(uid)) return false;
+        if (u.accountType === "partner") return false;
+        if (isPartnerAccount(u)) return false;
+        return true;
+      })
+      .map((u: any) => ({
+        uid: String(u._id),
+        displayName: u.displayName || u.email || "Kỹ thuật viên",
+        email: u.email,
+        jobTitle: u.jobTitle,
+        department: u.department,
+        photoURL: u.photoURL,
+        role: u.role,
+      }))
+      .sort((a, b) => {
+        const isTechA = /kỹ thuật|ky thuat|sửa chữa|sua chua|thợ|tho/i.test(`${a.jobTitle || ""} ${a.department || ""}`);
+        const isTechB = /kỹ thuật|ky thuat|sửa chữa|sua chua|thợ|tho/i.test(`${b.jobTitle || ""} ${b.department || ""}`);
+        if (isTechA && !isTechB) return -1;
+        if (!isTechA && isTechB) return 1;
+        return a.displayName.localeCompare(b.displayName, "vi");
+      });
+
+    return res.json({ success: true, data: technicians });
+  } catch (error) {
+    next(error);
+  }
+});
 repairRouter.post("/tickets/:id/assign", assign, async (req, res, next) => { try { return res.json({ success: true, data: await assignRepairTechnician(scope(req), req.params.id, String(req.body?.technicianId || ""), actor(req)) }); } catch (error) { next(error); } });
 repairRouter.post("/tickets/:id/feedback", manage, async (req, res, next) => { try { return res.status(201).json({ success: true, data: await submitStaffFeedback(scope(req), req.params.id, req.body || {}, actor(req)) }); } catch (error) { next(error); } });
 repairRouter.get("/feedback", read, async (req, res, next) => { try { return res.json({ success: true, data: await listRepairFeedback(reportScope(req), { technicianId: req.query.technicianId ? String(req.query.technicianId) : undefined, limit: Number(req.query.limit) }) }); } catch (error) { next(error); } });

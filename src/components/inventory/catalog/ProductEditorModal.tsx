@@ -613,7 +613,7 @@ export function ProductEditorModal({
 
   return (
     <>
-      <Modal title={isEditing ? `Sản phẩm: ${product!.name}` : "Tạo sản phẩm & Ma trận Biến thể"} onClose={onClose} wide>
+      <Modal title={isEditing ? `Sản phẩm: ${product!.name}` : "Tạo sản phẩm & Các phiên bản"} onClose={onClose} wide>
         <form noValidate onSubmit={submit} className="bg-slate-50/50 -m-5 p-5 space-y-5">
           {/* Khối 1: Thông tin cơ bản */}
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
@@ -724,7 +724,7 @@ export function ProductEditorModal({
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-100 text-xs font-bold text-cyan-700">2</span>
-                <span className="text-sm font-semibold text-slate-900">Thiết lập Biến thể &amp; Ma trận</span>
+                <span className="text-sm font-semibold text-slate-900">Thiết lập thuộc tính sản phẩm</span>
               </div>
               <VariantMatrixBuilder
                 options={options}
@@ -746,7 +746,7 @@ export function ProductEditorModal({
                 <div className="flex items-center gap-2.5">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-100 text-xs font-bold text-cyan-700">2</span>
                   <span className="text-sm font-semibold text-slate-900">
-                    {variantTab === "matrix" ? "Tạo biến thể bằng Ma trận" : `Danh sách biến thể SKU (${currentProduct!.variants.length})`}
+                    {variantTab === "matrix" ? "Tạo phiên bản hàng loạt" : `Danh sách phiên bản SKU (${currentProduct!.variants.length})`}
                   </span>
                 </div>
 
@@ -769,7 +769,7 @@ export function ProductEditorModal({
                         className="inline-flex items-center gap-1.5 rounded-md bg-cyan-700 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-cyan-800 transition-colors whitespace-nowrap"
                       >
                         <Sparkles className="h-3.5 w-3.5" />
-                        Tạo bằng Ma trận
+                        Tạo nhanh phiên bản
                         {newMatrixVariants.length > 0 && (
                           <span className="rounded-full bg-cyan-500 px-1.5 py-0.2 text-[10px] font-bold text-white">
                             +{newMatrixVariants.length}
@@ -893,7 +893,7 @@ export function ProductEditorModal({
                       onClick={() => setVariantTab("matrix")}
                       className="font-semibold text-cyan-700 hover:text-cyan-800 hover:underline"
                     >
-                      Mở Ma trận Biến thể tự động &rarr;
+                      Tạo thêm phiên bản tự động &rarr;
                     </button>
                   </div>
                 </>

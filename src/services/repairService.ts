@@ -29,6 +29,7 @@ export interface RepairTechnicianRow { technicianId: string; technicianName: str
 export type RepairRatingCriteria = { skill?: number; attitude?: number; speed?: number };
 
 export const repairExtras = {
+  async listTechnicians() { return (await apiFetch<Envelope<Array<{ uid: string; displayName: string; email?: string; jobTitle?: string; department?: string; photoURL?: string }>>>("/repair/technicians")).data; },
   async assignTechnician(id: string, technicianId: string) { return (await apiFetch<Envelope<RepairTicket>>(`${root}/${id}/assign`, { method: "POST", body: JSON.stringify({ technicianId }) })).data; },
   async rate(id: string, input: { rating: number; comment?: string; criteria?: RepairRatingCriteria }) { return (await apiFetch<Envelope<unknown>>(`${root}/${id}/feedback`, { method: "POST", body: JSON.stringify(input) })).data; },
   async notifications(id: string) { return (await apiFetch<Envelope<RepairNotification[]>>(`${root}/${id}/notifications`)).data; },
