@@ -18,8 +18,8 @@ const markup = content
   .replaceAll("{{termsUrl}}", escapeAttribute(TERMS_OF_SERVICE_URL))
   .replaceAll("{{deletionUrl}}", escapeAttribute(USER_DATA_DELETION_URL));
 const meta = {
-  title: "iGEN Retail — Đồng hành cùng cửa hàng điện thoại",
-  description: "iGen kết nối hành trình bán hàng, chăm sóc khách hàng và bảo hành dành cho cửa hàng điện thoại, phụ kiện và sửa chữa.",
+  title: "iGEN Retail — Nền tảng Quản trị Bán lẻ & Doanh nghiệp Toàn diện",
+  description: "iGEN Retail kết nối hành trình bán hàng, quản lý kho, chăm sóc khách hàng và vận hành doanh nghiệp toàn diện dành cho các chuỗi bán lẻ và dịch vụ.",
   keywords: "igen, cửa hàng điện thoại, bán hàng điện thoại, chăm sóc khách hàng, bảo hành",
   path: "/",
 };
