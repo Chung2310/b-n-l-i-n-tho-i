@@ -154,6 +154,7 @@
   border-bottom: 1px solid rgba(216, 234, 245, 0.7);
   transition: box-shadow 0.25s, background 0.25s;
 }
+.igen-landing .header .brand-icon { width: 44px; height: 44px; }
 .igen-landing .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
 .igen-landing .brand-text strong { font-size: 24px; font-weight: 700; color: #0f273d; letter-spacing: -0.04em; }
 .igen-landing .brand-sub { font-size: 10px; color: #0284c7; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
@@ -1156,3 +1157,58 @@
 /* Only while the landing exists: hidden overflow creates a non-scrolling
    ancestor that breaks sticky. Clip prevents overflow without that container. */
 html:has(.igen-landing),body:has(.igen-landing){overflow-x:clip;overflow-y:visible}
+
+/* Sales screenshots: the selected image is sharp; adjacent images recede. */
+.igen-landing .sales-carousel { min-width: 0; }
+.igen-landing .sales-carousel-track { --sales-gutter: max(60px, 7%); position: relative; aspect-ratio: 16 / 9; overflow: hidden; }
+.igen-landing .sales-slide { position: absolute; inset: 0 var(--sales-gutter); margin: 0; display: flex; align-items: center; opacity: .38; filter: blur(2px); transform: translateX(92%) scale(.86); transition: transform 650ms cubic-bezier(.22,.68,0,1), opacity 650ms ease, filter 650ms ease; pointer-events: none; }
+.igen-landing .sales-slide[data-position="previous"] { transform: translateX(-92%) scale(.86); }
+.igen-landing .sales-slide[data-position="active"] { transform: translateX(0) scale(1); opacity: 1; filter: none; z-index: 2; }
+.igen-landing .sales-slide img { display: block; width: 100%; height: auto; max-height: 100%; object-fit: contain; border: 1px solid #d8eaf5; border-radius: 16px; box-shadow: 0 12px 30px #0f273d12; background: #fff; }
+@media (max-width: 600px) {
+  .igen-landing .sales-carousel-track { --sales-gutter: 50px; }
+  .igen-landing .sales-slide img { border-radius: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .igen-landing .sales-slide { transition: none; }
+}
+
+.igen-landing .sales-carousel-arrow { position: absolute; top: 50%; transform: translateY(-50%); z-index: 3; display: grid; place-items: center; width: 48px; height: 48px; padding: 10px; border: 1px solid #d8eaf5; border-radius: 50%; background: rgba(255,255,255,.94); color: #0369a1; box-shadow: 0 4px 16px #0f273d24; }
+.igen-landing .sales-carousel-arrow[data-carousel-prev] { left: calc((var(--sales-gutter) - 48px) / 2); }
+.igen-landing .sales-carousel-arrow[data-carousel-next] { right: calc((var(--sales-gutter) - 48px) / 2); }
+.igen-landing .sales-carousel-arrow svg { width: 24px; height: 24px; }
+.igen-landing .sales-carousel-arrow:hover { background: #0284c7; color: white; }
+@media (max-width: 600px) {
+  .igen-landing .sales-carousel-arrow { width: 44px; height: 44px; }
+  .igen-landing .sales-carousel-arrow[data-carousel-prev] { left: 3px; }
+  .igen-landing .sales-carousel-arrow[data-carousel-next] { right: 3px; }
+}
+
+/* Compact brand heading above the sales gallery. */
+.igen-landing #trai-nghiem .section-head { display: block; text-align: center; margin-bottom: 20px; }
+.igen-landing #trai-nghiem .eyebrow { display: inline-flex; gap: 8px; margin-bottom: 16px; padding: 7px 14px; border: 1px solid #bae6fd; border-radius: 999px; background: linear-gradient(110deg, #f0f9ff, #ecfeff); color: #0369a1; font-size: 12px; }
+.igen-landing #trai-nghiem .eyebrow:before { display: none; }
+.igen-landing #trai-nghiem .eyebrow .icon { width: 18px; height: 18px; }
+.igen-landing #trai-nghiem .sales-showcase-title { max-width: 900px; margin: 0 auto; font-size: clamp(27px, 3vw, 40px); line-height: 1.2; letter-spacing: -.035em; color: #15354b; }
+.igen-landing #trai-nghiem .sales-showcase-title > span { display: block; }
+.igen-landing #trai-nghiem .sales-showcase-accent { margin-top: 6px; color: #0284c7; background: linear-gradient(100deg, #007ab8 20%, #00aeca 80%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+@media (max-width: 600px) {
+  .igen-landing #trai-nghiem .section-head { margin-bottom: 16px; }
+  .igen-landing #trai-nghiem .sales-showcase-title { font-size: clamp(24px, 6.2vw, 30px); }
+}
+
+.igen-landing .hero .phone-brand-screen { background: #fff; display: flex; align-items: center; justify-content: center; }
+.igen-landing .hero .phone-screen-logo { display: block; width: 76%; height: auto; object-fit: contain; }
+
+/* Brand colors for business overview and cross-industry features. */
+.igen-landing :is(#tong-quan, #tinh-nang) .section-head { display: block; text-align: center; margin-bottom: 32px; }
+.igen-landing :is(#tong-quan, #tinh-nang) .eyebrow { display: inline-flex; gap: 8px; margin-bottom: 16px; padding: 7px 14px; border: 1px solid #bae6fd; border-radius: 999px; background: linear-gradient(110deg, #f0f9ff, #ecfeff); color: #0369a1; font-size: 12px; }
+.igen-landing :is(#tong-quan, #tinh-nang) .eyebrow:before { display: none; }
+.igen-landing :is(#tong-quan, #tinh-nang) .eyebrow .icon { width: 18px; height: 18px; }
+.igen-landing :is(#tong-quan, #tinh-nang) .retail-section-title { max-width: 900px; margin: 0 auto; font-size: clamp(27px, 3vw, 40px); line-height: 1.2; letter-spacing: -.035em; color: #15354b; }
+.igen-landing .retail-section-title > span { display: block; }
+.igen-landing .retail-section-accent { margin-top: 6px; color: #0284c7; background: linear-gradient(100deg, #007ab8 20%, #00aeca 80%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.igen-landing #tinh-nang .section-head > p { max-width: 680px; margin: 18px auto 0; }
+@media (max-width: 600px) {
+  .igen-landing :is(#tong-quan, #tinh-nang) .retail-section-title { font-size: clamp(24px, 6.2vw, 30px); }
+}

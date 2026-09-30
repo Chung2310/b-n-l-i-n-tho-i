@@ -6,6 +6,7 @@ import { createLandingLifetime } from "./landing/lifetime";
 import { initPresentation } from "./landing/presentation.js";
 import { initMotion } from "./landing/motion.js";
 import "./landing/landing.css";
+import { initSalesCarousel } from "./landing/sales-carousel.js";
 import { initInteractions } from "./landing/interactions.js";
 import "./landing/interactions.css";
 
@@ -33,26 +34,7 @@ export default function LandingPage() {
     initPresentation(container, life);
     initMotion(container, life);
     initInteractions(container, life);
-    const section = container.querySelector<HTMLElement>(".phone-story")!;
-    const loadPhone = async () => {
-      try {
-        const { initPhoneStory } = await import("./landing/phone.js");
-        if (!life.disposed) initPhoneStory(section, life);
-      } catch {
-        if (life.disposed) return;
-        section.dataset.renderer = "fallback";
-        section.classList.add("spin-static");
-        section.querySelectorAll<HTMLButtonElement>("button").forEach(button => { button.disabled = true; });
-        section.querySelector(".phone-spin-caption")!.textContent = "Không thể tải mô hình 3D. Bạn vẫn có thể khám phá iGen bên dưới.";
-      }
-    };
-    // Fetch the large 3D module only when approaching its section.
-    const observer = life.observe(new IntersectionObserver(entries => {
-      if (!entries.some(entry => entry.isIntersecting)) return;
-      observer.disconnect();
-      void loadPhone();
-    }, { rootMargin: "600px" }));
-    observer.observe(section);
+    initSalesCarousel(container, life);
     const hash = window.location.hash.slice(1);
     if (hash) container.querySelector<HTMLElement>(`#${CSS.escape(hash)}`)?.scrollIntoView();
     return () => life.dispose();

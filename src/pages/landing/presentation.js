@@ -33,41 +33,9 @@ export function initPresentation(container, life) {
       el.innerHTML = '<div class="camera-bump"><i class="lens"></i><i class="lens"></i><i class="lens"></i><i class="flash"></i></div><span class="back-brand">iGen</span>';
     } else {
       el.innerHTML = `
-        <div class="screen">
+        <div class="screen phone-brand-screen">
           <div class="island"></div>
-          <div class="phone-status"><span>09:41</span><span>5G ▮▮▮</span></div>
-          <div class="phone-app-mock">
-            <div class="app-mock-header">
-              <span class="app-mock-brand">iGen POS</span>
-              <span class="app-mock-status">● Live</span>
-            </div>
-            <div class="app-mock-card">
-              <div class="app-mock-scanner-row">
-                <span class="app-mock-scan-pill"><i data-icon="scan"></i> QUÉT IMEI</span>
-                <span class="app-mock-badge green">Khớp 100%</span>
-              </div>
-              <div class="app-mock-imei">354890 • 11 • 8274921</div>
-              <div class="app-mock-title">iPhone 16 Pro Max 256GB</div>
-              <div class="app-mock-meta">Titan Sa Mạc • VN/A • Pin 100%</div>
-              <div class="app-mock-price-row">
-                <span class="app-mock-price">31.990.000₫</span>
-                <span class="app-mock-warranty">BH 12T Care+</span>
-              </div>
-            </div>
-            <div class="app-mock-sepay-alert">
-              <i data-icon="zap"></i>
-              <div>
-                <strong>SePay QR Tự Động Khớp</strong>
-                <span>Khách đã chuyển +31.990.000₫</span>
-              </div>
-            </div>
-            <div class="app-mock-bottom-bar">
-              <span class="active"><i data-icon="phone"></i>POS</span>
-              <span><i data-icon="box"></i>Kho</span>
-              <span><i data-icon="tool"></i>Sửa chữa</span>
-            </div>
-          </div>
-          <div class="phone-home"></div>
+          <img class="phone-screen-logo" src="/brand-icon.png" alt="iGen Retail" />
         </div>`;
       renderIcons(el);
     }
