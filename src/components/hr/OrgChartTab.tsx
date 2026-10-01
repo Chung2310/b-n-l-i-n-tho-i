@@ -30,7 +30,7 @@ import { departmentService } from "../../services/departmentService";
 import { toast } from "../../pages/Toast";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { getApiErrorMessage } from "../../utils/errorMessage";
-import { filterOrgChartEmployees, getManagerForEmployee } from "./orgChartUtils";
+import { filterOrgChartEmployees, getManagerForEmployee, getRootEmployees, getRootDirectReports } from "./orgChartUtils";
 import { useIsMobile } from "../../hooks/useMediaQuery";
 
 interface OrgChartTabProps {
@@ -1104,7 +1104,8 @@ export default function OrgChartTab({
           return ROLE_LEVEL[pRole] === targetLevel && p.id !== emp.id;
         });
         if (candidates.length > 0) {
-          bestParent = candidates[0];
+          const sortedCandidates = [...candidates].sort((a, b) => (b.isLeader ? 1 : 0) - (a.isLeader ? 1 : 0));
+          bestParent = sortedCandidates[0];
           break;
         }
       }
@@ -1121,34 +1122,26 @@ export default function OrgChartTab({
   })();
 
   // Identify root employees (nodes with no parent in the arranged tree)
-  const rootEmployees = arrangedEmployees.filter(e => !e.parentId || !arrangedEmployees.some(p => p.id === e.parentId))
-    .sort((a, b) => (a.level ?? 99) - (b.level ?? 99));
+  const rootEmployees = getRootEmployees(arrangedEmployees);
   const visibleEmployees = filterOrgChartEmployees(employees, searchQuery, filterDepartment);
   const paginatedEmployees = visibleEmployees.slice((listPage - 1) * listLimit, listPage * listLimit);
   const missingValue = "Chưa cập nhật";
 
-  // Recursive Branch rendering component helper
-  const renderBranch = (node: EmployeeNode) => {
-    const children = arrangedEmployees.filter(e => e.parentId === node.id);
+  // Render a single employee card
+  const renderCard = (
+    node: EmployeeNode,
+    customDirectReportsCount?: number,
+    onToggleCollapseOverride?: () => void
+  ) => {
     const isSelected = selectedEmp?.id === node.id;
     const isMatch = isMatchingFilter(node);
     const isFilteredOut = (searchQuery.trim() !== "" || filterDepartment !== "Tất cả") && !isMatch;
     const isCollapsed = collapsedNodes.has(node.id);
-    const directReportsCount = employees.filter(e => e.parentId === node.id).length;
+    const directReportsCount = customDirectReportsCount !== undefined
+      ? customDirectReportsCount
+      : employees.filter(e => e.parentId === node.id).length;
 
     const category = getCategoryByDivision(node.division);
-
-    const getCategoryBadgeStyles = (key: string) => {
-      switch (key) {
-        case "governance": return "bg-slate-100 text-slate-800 border-slate-200";
-        case "finance": return "bg-emerald-50 text-emerald-700 border-emerald-200";
-        case "tech": return "bg-indigo-50 text-indigo-700 border-indigo-200";
-        case "operations": return "bg-cyan-50 text-cyan-700 border-cyan-200";
-        case "sales": return "bg-amber-50 text-amber-700 border-amber-200";
-        case "hr": return "bg-rose-50 text-rose-700 border-rose-200";
-        default: return "bg-slate-50 text-slate-655 border-slate-200";
-      }
-    };
 
     const renderCardIcon = (role: string) => {
       const rLower = (role || "").toLowerCase();
@@ -1162,72 +1155,86 @@ export default function OrgChartTab({
     };
 
     return (
-      <div className="flex flex-col items-center" key={node.id}>
-        {/* Smart Employee Card */}
-        <div
-          draggable={isManager ? "true" : "false"}
-          onDragStart={(e) => handleDragStart(e, node.id)}
-          onDragOver={handleDragOver}
-          onDrop={(e) => handleDrop(e, node.id)}
-          onClick={() => setSelectedEmp(node)}
-          onMouseLeave={() => setActiveDropdownCardId(null)}
-          className={`p-3 bg-white text-gray-800 rounded-2xl shadow-xs text-left cursor-pointer relative hover:scale-104 active:scale-95 transition-all duration-300 border border-gray-200 ${category.border} ${isSelected
-            ? "ring-4 ring-indigo-500 shadow-indigo-100 border-transparent z-10"
-            : "hover:border-indigo-300 hover:shadow-md"
-            } ${isFilteredOut ? "opacity-30 blur-[0.5px] scale-98" : "opacity-100"} w-48 sm:w-56`}
-          id={`org_node_${node.id}`}
-        >
-          {/* Online/Offline Dot */}
-          <div className="absolute top-2 right-2 z-10 flex items-center justify-center">
-            {node.status === "online" ? (
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 block border border-white animate-pulse" title="Đang hoạt động" />
-            ) : (
-              <span className="w-1.5 h-1.5 rounded-full bg-gray-300 block border border-white" title="Ngoại tuyến" />
+      <div
+        draggable={isManager ? "true" : "false"}
+        onDragStart={(e) => handleDragStart(e, node.id)}
+        onDragOver={handleDragOver}
+        onDrop={(e) => handleDrop(e, node.id)}
+        onClick={() => setSelectedEmp(node)}
+        onMouseLeave={() => setActiveDropdownCardId(null)}
+        className={`p-3 bg-white text-gray-800 rounded-2xl shadow-xs text-left cursor-pointer relative hover:scale-104 active:scale-95 transition-all duration-300 border border-gray-200 ${category.border} ${isSelected
+          ? "ring-4 ring-indigo-500 shadow-indigo-100 border-transparent z-10"
+          : "hover:border-indigo-300 hover:shadow-md"
+          } ${isFilteredOut ? "opacity-30 blur-[0.5px] scale-98" : "opacity-100"} w-48 sm:w-56`}
+        id={`org_node_${node.id}`}
+      >
+        {/* Online/Offline Dot */}
+        <div className="absolute top-2 right-2 z-10 flex items-center justify-center">
+          {node.status === "online" ? (
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 block border border-white animate-pulse" title="Đang hoạt động" />
+          ) : (
+            <span className="w-1.5 h-1.5 rounded-full bg-gray-300 block border border-white" title="Ngoại tuyến" />
+          )}
+        </div>
+
+        <div className="space-y-2">
+          {/* Middle row: Department (Main Title) */}
+          <div className="min-h-[32px] flex items-center flex-wrap gap-1.5">
+            <h4 className="font-bold text-xs text-slate-800 leading-snug font-sans line-clamp-2">
+              {node.department}
+            </h4>
+            {node.isLeader && (
+              <span className="bg-amber-500 text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded-md uppercase tracking-wider font-mono shadow-sm flex items-center gap-0.5 shrink-0">
+                👑 Leader
+              </span>
             )}
           </div>
 
-          <div className="space-y-2">
-
-
-            {/* Middle row: Department (Main Title) */}
-            <div className="min-h-[32px] flex items-center flex-wrap gap-1.5">
-              <h4 className="font-bold text-xs text-slate-800 leading-snug font-sans line-clamp-2">
-                {node.department}
-              </h4>
-              {node.isLeader && (
-                <span className="bg-amber-500 text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded-md uppercase tracking-wider font-mono shadow-sm flex items-center gap-0.5 shrink-0">
-                  👑 Leader
-                </span>
-              )}
-            </div>
-
-            {/* Bottom row: Manager Info */}
-            <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
-              {renderAvatar(node.avatar, "w-6 h-6", "text-xs")}
-              <div className="min-w-0 flex-1">
-                <span className="block text-[8px] font-bold text-gray-400 uppercase tracking-wider truncate font-mono">
-                  {renderCardIcon(node.role)} {node.role}
-                </span>
-                <span className="block text-[10px] font-bold text-indigo-950 truncate">
-                  {node.name}
-                </span>
-              </div>
+          {/* Bottom row: Manager Info */}
+          <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
+            {renderAvatar(node.avatar, "w-6 h-6", "text-xs")}
+            <div className="min-w-0 flex-1">
+              <span className="block text-[8px] font-bold text-gray-400 uppercase tracking-wider truncate font-mono">
+                {renderCardIcon(node.role)} {node.role}
+              </span>
+              <span className="block text-[10px] font-bold text-indigo-950 truncate">
+                {node.name}
+              </span>
             </div>
           </div>
-
-          {/* Collapse/Expand toggle badge */}
-          {directReportsCount > 0 && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); toggleCollapse(node.id); }}
-              title={isCollapsed ? `Mở rộng ${directReportsCount} nhân viên cấp dưới` : `Thu gọn ${directReportsCount} nhân viên cấp dưới`}
-              className={`absolute -bottom-2.5 left-1/2 -translate-x-1/2 text-white text-[9px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center shadow-xs border-2 border-white select-none transition-all cursor-pointer ${isCollapsed ? "bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white" : "bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white"
-                }`}
-            >
-              {isCollapsed ? `+${directReportsCount}` : "^"}
-            </button>
-          )}
         </div>
+
+        {/* Collapse/Expand toggle badge */}
+        {directReportsCount > 0 && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onToggleCollapseOverride) {
+                onToggleCollapseOverride();
+              } else {
+                toggleCollapse(node.id);
+              }
+            }}
+            title={isCollapsed ? `Mở rộng ${directReportsCount} nhân viên cấp dưới` : `Thu gọn ${directReportsCount} nhân viên cấp dưới`}
+            className={`absolute -bottom-2.5 left-1/2 -translate-x-1/2 text-white text-[9px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center shadow-xs border-2 border-white select-none transition-all cursor-pointer ${isCollapsed ? "bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white" : "bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white"
+              }`}
+          >
+            {isCollapsed ? `+${directReportsCount}` : "^"}
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  // Recursive Branch rendering component helper
+  const renderBranch = (node: EmployeeNode) => {
+    const children = arrangedEmployees.filter(e => e.parentId === node.id);
+    const isCollapsed = collapsedNodes.has(node.id);
+
+    return (
+      <div className="flex flex-col items-center" key={node.id}>
+        {renderCard(node)}
 
         {/* Children Render recursive block */}
         {children.length > 0 && !isCollapsed && (
@@ -1566,6 +1573,61 @@ export default function OrgChartTab({
                     <p className="text-sm font-bold">Chưa có cơ cấu nhân sự</p>
                     <p className="text-xs mt-1">Vui lòng thêm thành viên mới đầu tiên</p>
                   </div>
+                ) : rootEmployees.length > 1 ? (
+                  (() => {
+                    const allRootChildren = getRootDirectReports(arrangedEmployees, rootEmployees);
+                    const isAnyRootCollapsed = rootEmployees.some(r => collapsedNodes.has(r.id));
+                    const toggleRootCollapse = () => {
+                      const firstRoot = rootEmployees[0];
+                      if (firstRoot) toggleCollapse(firstRoot.id);
+                    };
+
+                    return (
+                      <div className="flex flex-col items-center">
+                        {/* Executive Tier: Co-leaders rendered side-by-side */}
+                        <div className="relative flex items-center justify-center gap-8 px-4">
+                          {/* Co-leadership horizontal connection line */}
+                          <div className="absolute top-1/2 left-10 right-10 h-0.5 border-t-2 border-dashed border-slate-300 -z-0" />
+                          {rootEmployees.map((root, index) => (
+                            <div key={root.id} className="relative z-10">
+                              {renderCard(
+                                root,
+                                index === 0 ? allRootChildren.length : undefined,
+                                index === 0 ? toggleRootCollapse : undefined
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Downward connector to children */}
+                        {allRootChildren.length > 0 && !isAnyRootCollapsed && (
+                          <>
+                            <div className="w-0.5 h-6 bg-slate-300" />
+                            <div className="flex relative items-start">
+                              {allRootChildren.map((child, index) => {
+                                const isFirst = index === 0;
+                                const isLast = index === allRootChildren.length - 1;
+                                const hasSiblings = allRootChildren.length > 1;
+
+                                return (
+                                  <div key={child.id} className="flex flex-col items-center px-4 relative">
+                                    {hasSiblings && (
+                                      <div className="absolute top-0 left-0 right-0 h-0.5 flex">
+                                        <div className={`w-1/2 ${isFirst ? '' : 'border-t-2 border-slate-300'}`} />
+                                        <div className={`w-1/2 ${isLast ? '' : 'border-t-2 border-slate-300'}`} />
+                                      </div>
+                                    )}
+                                    <div className="w-0.5 h-6 border-l-2 border-slate-300" />
+                                    {renderBranch(child)}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()
                 ) : (
                   rootEmployees.map(root => renderBranch(root))
                 )}

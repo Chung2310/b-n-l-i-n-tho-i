@@ -1,3 +1,6 @@
+vi.mock("./repair-creation-request.model", () => ({ RepairCreationRequestModel: { findOneAndUpdate: async (_query: any, update: any) => ({ ...update.$setOnInsert, revoked: false }) } }));
+vi.mock("../inventory/inventory-transaction", () => ({ inInventoryTransaction: async (work: any) => work({ inTransaction: () => true }) }));
+vi.mock("./services/repair-serial-lifecycle", () => ({ recordRepairSerialLifecycle: async () => undefined }));
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 const mockSave = vi.fn();
@@ -12,6 +15,7 @@ const mockFindOneSettings = vi.fn();
 const mockFindOneSerial = vi.fn();
 
 class MockRepairTicket {
+  static findOne() { return { session: () => ({ lean: async () => null }) }; }
   constructor(doc: any) {
     Object.assign(this, doc);
   }
@@ -30,6 +34,7 @@ vi.mock("./repair-ticket.model", () => ({
 vi.mock("./repair-settings.model", () => ({
   RepairSettingsModel: {
     findOne: (...args: any[]) => ({
+      session() { return this; },
       lean: async () => mockFindOneSettings(...args),
     }),
   },
@@ -38,6 +43,7 @@ vi.mock("./repair-settings.model", () => ({
 vi.mock("../inventory/serials/serial-unit.model", () => ({
   SerialUnitModel: {
     findOne: (...args: any[]) => ({
+      session() { return this; },
       lean: async () => mockFindOneSerial(...args),
     }),
     findOneAndUpdate: async () => null,
@@ -127,6 +133,7 @@ describe("createRepairTicket - Warranty vs Service split", () => {
         ticketType: "service",
         ticketCode: "REP-02",
         customerId: "GUEST-1",
+        refundRequestRevocations: [{ key: "client-forged" }],
         customerName: "Khách Vãng Lai",
         customerPhone: "0987654321",
         device: { name: "Samsung S21", condition: "Vỡ màn hình", accessories: [], imeiVerified: false },
@@ -137,6 +144,7 @@ describe("createRepairTicket - Warranty vs Service split", () => {
 
     expect(saved.ticketType).toBe("service");
     expect(saved.coverage.costBearer).toBe("customer");
+    expect(saved.refundRequestRevocations).toEqual([]);
   });
 
   test("tạo phiếu sửa chữa dịch vụ có IMEI của máy hệ thống -> tự áp dụng ưu đãi khách quen", async () => {

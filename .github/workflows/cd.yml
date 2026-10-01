@@ -169,6 +169,7 @@ jobs:
             # Tải (pull) image mới trước khi tắt container cũ để giảm tối đa downtime
             export COMPOSE_PROJECT_NAME="$CONTAINER_NAME"
             export IMAGE_NAME
+            export HOST_PORT="${HOST_PORT:-${PORT:-3012}}"
             IMAGE_TAG="$IMAGE_TAG" CONTAINER_NAME="$CONTAINER_NAME" docker compose -f docker-compose.yml pull
 
             # Khởi động lại container mới (Docker compose tự động recreate và restart với downtime tối thiểu)

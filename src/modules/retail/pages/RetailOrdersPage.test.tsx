@@ -53,6 +53,7 @@ describe("RetailOrdersPage", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     await waitFor(() => expect(retailOrdersApi.collect).toHaveBeenCalledWith(
       { companyCode: "ACME", branchId: "B1" }, "o1", [{ method: "cash", amount: 500_000, tenderedAmount: 500_000 }],
+      { idempotencyKey: expect.any(String), expectedVersion: 1 },
     ));
   });
 

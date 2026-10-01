@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import CollaboratorPicker from "../partners/CollaboratorPicker";
 import { customerApi } from "../customer-management/customerApi";
-import { repairService } from "../../services/repairService";
+import { useRepairCreationRequest } from "./useRepairCreationRequest";
 import type { RepairCreatePrefill } from "./repairBoardTypes";
 
 export interface CreateRepairModalProps {
@@ -74,8 +74,10 @@ export default function CreateRepairModal({
     symptom: "",
     condition: "Ngoại hình bình thường",
   });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const recovery = useRepairCreationRequest(onCreated);
+  const { busy, blocked } = recovery;
+  const [localError, setError] = useState("");
+  const error = recovery.error || localError;
 
   useEffect(() => {
     setForm((current) => ({
@@ -99,6 +101,7 @@ export default function CreateRepairModal({
 
   // Tự động tìm kiếm thông tin khách hàng khi nhập số điện thoại (từ 9 số trở lên)
   useEffect(() => {
+    if (recovery.pending || busy || blocked) return;
     const phone = form.customerPhone.trim().replace(/\D/g, "");
     if (phone.length < 9) return;
     let active = true;
@@ -124,7 +127,7 @@ export default function CreateRepairModal({
       active = false;
       clearTimeout(timer);
     };
-  }, [form.customerPhone]);
+  }, [form.customerPhone, recovery.pending, busy, blocked]);
 
   const addPresetToCondition = (preset: string) => {
     setForm((curr) => {
@@ -148,6 +151,7 @@ export default function CreateRepairModal({
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (busy || blocked) return;
     if (form.ticketType === "warranty" && !form.serialNumber.trim()) {
       setError("Phiếu bảo hành bắt buộc phải có IMEI / Serial để kiểm tra điều kiện.");
       return;
@@ -156,19 +160,22 @@ export default function CreateRepairModal({
       setError("Tên thiết bị là bắt buộc.");
       return;
     }
-    setBusy(true);
+    if (![form.customerName, form.customerPhone, form.symptom].every(value => value.trim())) {
+      setError("Tên khách hàng, số điện thoại và mô tả lỗi là bắt buộc.");
+      return;
+    }
     setError("");
-    try {
+    await recovery.run(() => {
       const isService = form.ticketType === "service";
       const finalCustomerCode =
         form.customerId.trim() && !isHexObjectId(form.customerId.trim())
           ? form.customerId.trim()
           : `KH-${form.customerPhone.trim() || Date.now().toString().slice(-6)}`;
 
-      await repairService.create({
+      return {
         ticketType: form.ticketType,
         collaboratorId: form.collaboratorId,
-        ticketCode: `${isService ? "SRV" : "WAR"}-${Date.now().toString().slice(-8)}`,
+        ticketCode: `${isService ? "SRV" : "WAR"}-${crypto.randomUUID()}`,
         customerId: finalCustomerCode,
         customerCode: finalCustomerCode,
         customerName: form.customerName,
@@ -198,14 +205,27 @@ export default function CreateRepairModal({
         dueAmount: 0,
         paymentStatus: "unpaid",
         receivedAt: new Date().toISOString(),
-      });
-      onCreated();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Không thể tạo phiếu.");
-    } finally {
-      setBusy(false);
-    }
+      };
+    });
   };
+
+  if (recovery.pending) return <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/50 p-4">
+    <section className="w-full max-w-xl rounded-2xl bg-white p-6" aria-label="Yêu cầu tạo phiếu đang chờ">
+      <h2 className="font-bold">Yêu cầu tạo phiếu đang chờ: {recovery.pending.ticketCode}</h2>
+      <p className="mt-2">{recovery.pending.customerName} · {recovery.pending.customerPhone}</p>
+      <p>{recovery.pending.device.name} · {recovery.pending.device.serialNumber || "Không có serial"}</p>
+      <p>{recovery.pending.symptom}</p>
+      <p className="mt-3 text-sm">Nội dung và mã phiếu đã được giữ nguyên. Đối chiếu hoặc thử lại yêu cầu cũ trước khi tạo phiếu khác. Đóng cửa sổ không hủy yêu cầu.</p>
+      {recovery.error && <p role="alert" className="mt-2 text-red-600">{recovery.error}</p>}
+      {recovery.message && <p role="status" className="mt-2">{recovery.message}</p>}
+      <div className="mt-4 flex flex-wrap gap-3">
+        <button type="button" disabled={busy || blocked} onClick={() => void recovery.run(undefined, true)}>Đối chiếu phiếu đã tạo</button>
+        <button type="button" disabled={busy || blocked} onClick={() => void recovery.run()}>Thử lại yêu cầu tạo phiếu</button>
+        <button type="button" disabled={busy || blocked} onClick={() => void recovery.run(undefined, "revoke")}>Hủy yêu cầu tạo phiếu</button>
+        <button type="button" onClick={onClose}>Đóng</button>
+      </div>
+    </section>
+  </div>;
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/50 p-3 sm:p-4 backdrop-blur-xs overflow-y-auto">
@@ -250,7 +270,7 @@ export default function CreateRepairModal({
         </div>
 
         {/* Modal Scrollable Body */}
-        <div className="space-y-4.5 overflow-y-auto p-6 flex-1 text-xs sm:text-sm">
+        <fieldset disabled={busy || blocked} className="space-y-4.5 overflow-y-auto p-6 flex-1 text-xs sm:text-sm">
           {/* 2-Card Flow Selection */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {/* Warranty Flow Card */}
@@ -328,9 +348,10 @@ export default function CreateRepairModal({
             </button>
           </div>
 
+          {recovery.message && <p role="status">{recovery.message}</p>}
           {/* Error Notice */}
           {error && (
-            <div className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs font-semibold text-red-700">
+            <div role="alert" className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs font-semibold text-red-700">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -487,7 +508,7 @@ export default function CreateRepairModal({
               className="w-full resize-y rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition shadow-2xs"
             />
           </div>
-        </div>
+        </fieldset>
 
         {/* Modal Footer */}
         <div className="flex items-center justify-end gap-2.5 border-t border-slate-100 px-6 py-4 bg-slate-50/50">
@@ -500,7 +521,7 @@ export default function CreateRepairModal({
           </button>
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || blocked}
             className={`inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-xs sm:text-sm font-bold text-white shadow-md transition disabled:opacity-50 cursor-pointer active:scale-[0.99] ${
               form.ticketType === "service"
                 ? "bg-orange-600 hover:bg-orange-700 shadow-orange-600/20"

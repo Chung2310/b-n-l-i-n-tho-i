@@ -43,7 +43,15 @@ const invoice = { _id: "i1", invoiceNo: "HD-1", orderId: "o1", orderCode: "DH-1"
 
 afterEach(cleanup);
 
+vi.mock("../offline/retailOfflineQueue", async importOriginal => {
+  const actual = await importOriginal<typeof import("../offline/retailOfflineQueue")>();
+  return { ...actual, createIndexedDbRetailOfflineQueue: () => actual.createMemoryRetailOfflineQueue() };
+});
+
 beforeEach(() => {
+  vi.stubGlobal("indexedDB", {});
+  localStorage.clear(); sessionStorage.clear();
+  Object.defineProperty(navigator, "locks", { configurable: true, value: { request: vi.fn(async (_key, _options, work) => work({})) } });
   vi.clearAllMocks();
   vi.mocked(retailCouponsApi.list).mockResolvedValue({ items: [], total: 0 });
   vi.mocked(customerApi.billingProfiles).mockResolvedValue([{ _id: "bp1", customerId: "c1", legalName: "Cong ty A", taxId: "0312345678", address: "1 Nguyen Hue", invoiceEmail: "a@example.com", isDefault: true, status: "active", version: 1 }] as any);
@@ -225,8 +233,8 @@ describe("RetailPosPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Thanh toán" }));
     await userEvent.click(screen.getByRole("button", { name: "Gửi ghi nợ toàn bộ" }));
 
-    await waitFor(() => expect(retailOrdersApi.createDraft).toHaveBeenCalledWith({ companyCode: "ACME", branchId: "B1" }, expect.objectContaining({ customerId: "c1", billingProfileId: "bp1", dueDate: "2026-09-30" })));
-    expect(retailOrdersApi.confirm).toHaveBeenCalledWith({ companyCode: "ACME", branchId: "B1" }, "o1", expect.objectContaining({ payments: [] }));
+    await waitFor(() => expect(retailOrdersApi.createDraft).toHaveBeenCalledWith({ companyCode: "ACME", branchId: "B1", userId: "u1" }, expect.objectContaining({ customerId: "c1", billingProfileId: "bp1", dueDate: "2026-09-30" })));
+    expect(retailOrdersApi.confirm).toHaveBeenCalledWith({ companyCode: "ACME", branchId: "B1", userId: "u1" }, "o1", expect.objectContaining({ payments: [], expectedVersion: 1 }));
   });
 
   it("displays zero-stock products and warns when attempting to add to cart", async () => {
@@ -267,4 +275,32 @@ describe("RetailPosPage", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(await screen.findByLabelText("Số lượng iPhone 15")).toBeTruthy();
   });
+});
+
+it.each([new TypeError("network"), Object.assign(new Error("Sai giá"), { status: 409 })])("retains a failed checkout without auto-cancel or deleting its intent: %s", async error => {
+  vi.mocked(retailOrdersApi.confirm).mockRejectedValueOnce(error);
+  render(<RetailPosPage />);
+  await userEvent.click(await screen.findByRole("button", { name: "A" }));
+  await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
+  await userEvent.click(screen.getByRole("button", { name: "Chọn khách An" }));
+  await waitFor(() => expect((screen.getByRole("button", { name: "Thanh toán" }) as HTMLButtonElement).disabled).toBe(false));
+  await userEvent.click(screen.getByRole("button", { name: "Thanh toán" }));
+  await userEvent.click(screen.getByRole("button", { name: "Gửi thanh toán" }));
+  await screen.findByText("Đồng bộ lỗi");
+  expect(retailOrdersApi.cancel).not.toHaveBeenCalled();
+  expect(screen.queryByLabelText("Số lượng Áo")).toBeNull();
+  expect(screen.queryByRole("button", { name: /^Xóa / })).toBeNull();
+  expect(screen.queryByRole("dialog", { name: "Thanh toán thành công" })).toBeNull();
+});
+it("blocks payment when durable browser storage is unavailable", async () => {
+  vi.stubGlobal("indexedDB", undefined);
+  render(<RetailPosPage />);
+  await userEvent.click(await screen.findByRole("button", { name: "A" }));
+  await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
+  await userEvent.click(screen.getByRole("button", { name: "Chọn khách An" }));
+  await waitFor(() => expect((screen.getByRole("button", { name: "Thanh toán" }) as HTMLButtonElement).disabled).toBe(false));
+  await userEvent.click(screen.getByRole("button", { name: "Thanh toán" }));
+  await userEvent.click(screen.getByRole("button", { name: "Gửi thanh toán" }));
+  await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  expect(retailOrdersApi.createDraft).not.toHaveBeenCalled(); expect(retailOrdersApi.confirm).not.toHaveBeenCalled();
 });

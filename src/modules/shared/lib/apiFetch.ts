@@ -6,7 +6,7 @@ export function setAccessToken(token: string | null) {
   else localStorage.removeItem("accessToken");
 }
 
-export type ApiFetchOptions = RequestInit & { params?: Record<string, string | number | boolean | null | undefined> };
+export type ApiFetchOptions = RequestInit & { refreshSession?: boolean; params?: Record<string, string | number | boolean | null | undefined> };
 
 export async function apiFetch<T>(endpoint: string, options: ApiFetchOptions = {}): Promise<T> {
   const url = new URL(`/api/v1${endpoint}`, window.location.origin);
@@ -17,9 +17,10 @@ export async function apiFetch<T>(endpoint: string, options: ApiFetchOptions = {
   const token = getAccessToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
   if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-  const send = () => fetch(url.toString(), { ...options, headers });
+  const { refreshSession = true, params: _params, ...requestOptions } = options;
+  const send = () => fetch(url.toString(), { ...requestOptions, headers });
   let response = await send();
-  if (response.status === 401 && endpoint !== "/auth/refresh-token" && endpoint !== "/auth/login") {
+  if (refreshSession && response.status === 401 && endpoint !== "/auth/refresh-token" && endpoint !== "/auth/login") {
     try {
       const refresh = await fetch("/api/v1/auth/refresh-token", { method: "POST" });
       if (refresh.ok) {

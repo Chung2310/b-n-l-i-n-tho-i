@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import { CompanyModel } from "../model/company.model";
 import { UserModel } from "../model/user.model";
 import { ModuleKey } from "../config/module-keys";
@@ -13,6 +14,27 @@ const next:Record<TenantLifecycleStatus,TenantLifecycleStatus[]>={active:["suspe
 const code=(v:string)=>{const c=String(v||"").trim().toUpperCase();if(!c)throw Error("Tenant code is required");return c}; const needed=(t:TenantRecord|null,c:string)=>{if(!t)throw Error(`Tenant ${c} not found`);return t};
 
 export interface TenantCreateInput { code:string; name:string; ownerEmail:string; ownerName:string; ownerPassword:string; enabledModules?:unknown; businessType?:string; entityPreset?:string; }
+
+export interface TenantCreateUserInput {
+  displayName: string;
+  email: string;
+  password: string;
+  role?: string;
+  phone?: string;
+  department?: string;
+  jobTitle?: string;
+}
+
+export interface TenantUpdateUserInput {
+  displayName?: string;
+  email?: string;
+  role?: string;
+  phone?: string;
+  department?: string;
+  jobTitle?: string;
+  password?: string;
+  disabledAt?: Date | string | null;
+}
 
 export class TenantManagementService {
   constructor(private readonly tenants:TenantRepository=db) {}
@@ -81,6 +103,118 @@ export class TenantManagementService {
   async listUsers(v:string){
     const c=code(v);
     await needed(await this.tenants.get(c),c);
-    return UserModel.find({ companyCode: c }).select("displayName email role status disabledAt createdAt").sort({ createdAt: -1 }).lean();
+    return UserModel.find({ companyCode: c }).select("displayName email role status disabledAt createdAt phone department jobTitle").sort({ createdAt: -1 }).lean();
+  }
+
+  async createUser(v: string, input: TenantCreateUserInput) {
+    const c = code(v);
+    const tenant = needed(await this.tenants.get(c), c);
+    const displayName = String(input.displayName || "").trim();
+    const email = String(input.email || "").trim().toLowerCase();
+    const password = String(input.password || "");
+    const role = String(input.role || "admin").trim();
+
+    if (!displayName) throw new Error("Họ và tên là bắt buộc");
+    if (!email) throw new Error("Email là bắt buộc");
+    if (!password || password.length < 6) throw new Error("Mật khẩu phải có ít nhất 6 ký tự");
+
+    const existingUser = await UserModel.findOne({ email });
+    if (existingUser) {
+      throw new Error(`Email "${email}" đã được sử dụng`);
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await UserModel.create({
+      email,
+      password: hashedPassword,
+      displayName,
+      role,
+      companyCode: c,
+      companyName: tenant.name,
+      phone: input.phone?.trim() || "",
+      department: input.department?.trim() || (role === "admin" ? "Ban Giám Đốc" : "Nhân sự"),
+      jobTitle: input.jobTitle?.trim() || (role === "admin" ? "Quản trị viên" : (role === "manager" ? "Quản lý" : "Nhân viên")),
+      level: role === "admin" ? 1 : (role === "branch_owner" ? 2 : (role === "manager" ? 3 : 4)),
+      status: "offline",
+      createdAt: new Date(),
+      photoURL: `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random&color=fff`,
+    });
+
+    const userObj = user.toObject();
+    delete (userObj as any).password;
+    return userObj;
+  }
+
+  async updateUser(v: string, userId: string, input: TenantUpdateUserInput) {
+    const c = code(v);
+    await needed(await this.tenants.get(c), c);
+    const user = await UserModel.findOne({ _id: userId, companyCode: c });
+    if (!user) throw new Error("Không tìm thấy người dùng trong doanh nghiệp này");
+    if (user.role === "superadmin") throw new Error("Không thể chỉnh sửa tài khoản Superadmin");
+
+    const update: any = {};
+    if (input.displayName !== undefined) {
+      const name = String(input.displayName).trim();
+      if (!name) throw new Error("Họ và tên không được để trống");
+      update.displayName = name;
+    }
+    if (input.email !== undefined) {
+      const email = String(input.email).trim().toLowerCase();
+      if (!email) throw new Error("Email không được để trống");
+      if (email !== user.email) {
+        const existing = await UserModel.findOne({ email, _id: { $ne: userId } });
+        if (existing) throw new Error(`Email "${email}" đã được sử dụng`);
+        update.email = email;
+      }
+    }
+    if (input.role !== undefined) {
+      const role = String(input.role).trim();
+      if (!role) throw new Error("Vai trò không được để trống");
+      update.role = role;
+      if (role === "admin") update.level = 1;
+      else if (role === "branch_owner") update.level = 2;
+      else if (role === "manager") update.level = 3;
+      else update.level = 4;
+    }
+    if (input.phone !== undefined) update.phone = String(input.phone).trim();
+    if (input.department !== undefined) update.department = String(input.department).trim();
+    if (input.jobTitle !== undefined) update.jobTitle = String(input.jobTitle).trim();
+    if (input.disabledAt !== undefined) {
+      update.disabledAt = input.disabledAt ? new Date(input.disabledAt) : null;
+    }
+    if (input.password !== undefined && String(input.password).trim() !== "") {
+      const pw = String(input.password);
+      if (pw.length < 6) throw new Error("Mật khẩu mới phải có ít nhất 6 ký tự");
+      update.password = await bcrypt.hash(pw, 10);
+    }
+
+    const updatedUser = await UserModel.findByIdAndUpdate(userId, { $set: update }, { new: true }).select("-password").lean();
+    return updatedUser;
+  }
+
+  async deleteUser(v: string, userId: string) {
+    const c = code(v);
+    await needed(await this.tenants.get(c), c);
+    const user = await UserModel.findOne({ _id: userId, companyCode: c });
+    if (!user) throw new Error("Không tìm thấy người dùng trong doanh nghiệp này");
+    if (user.role === "superadmin") {
+      throw new Error("Không thể xóa tài khoản Superadmin");
+    }
+
+    const parentId = user.parentId || null;
+    let parentLevel = 1;
+    if (parentId) {
+      const parentUser = await UserModel.findById(parentId);
+      parentLevel = parentUser?.level || 1;
+    }
+    const children = await UserModel.find({ parentId: userId });
+    for (const child of children) {
+      child.parentId = parentId || undefined;
+      child.level = parentLevel + 1;
+      await child.save();
+    }
+
+    await UserModel.findByIdAndDelete(userId);
+    return { success: true };
   }
 }

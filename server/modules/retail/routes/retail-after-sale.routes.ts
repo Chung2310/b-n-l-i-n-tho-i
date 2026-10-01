@@ -6,3 +6,7 @@ export const retailAfterSaleRoutes = Router(); const operate = requirePermission
 retailAfterSaleRoutes.get("/:id", operate, retailAfterSaleController.detail as any);
 retailAfterSaleRoutes.get("/", operate, retailAfterSaleController.list as any);
 retailAfterSaleRoutes.post("/", operate, retailAfterSaleController.create as any);
+
+retailAfterSaleRoutes.post("/reconcile", operate, retailAfterSaleController.reconcile as any);
+
+retailAfterSaleRoutes.post("/revoke", operate, retailAfterSaleController.revoke as any);

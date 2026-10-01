@@ -476,6 +476,31 @@ describe("inventory posting invariants", () => {
     expect(await quantity()).toBe(1);
     expect(await SerialEventModel.countDocuments()).toBe(1);
   });
+  it.each([
+    ["in_stock", "sold"], ["in_stock", "lost"], ["in_stock", "in_transit"], ["in_stock", "internal_use"],
+    ["sold", "in_stock"], ["sold", "returned"], ["sold", "repairing"],
+    ["returned", "in_stock"], ["returned", "defective"], ["defective", "repairing"], ["defective", "scrapped"],
+    ["repairing", "in_stock"], ["repairing", "sold"], ["repairing", "defective"],
+    ["lost", "in_stock"], ["in_transit", "in_stock"], ["internal_use", "in_stock"],
+  ])("rejects direct %s -> %s even with a supplied document reference", async (fromStatus, toStatus) => {
+    const unit = await machine("IMEI-1", { status: fromStatus, currentDocumentType: "original", currentDocumentId: "original-id" });
+    const before = await SerialUnitModel.findById(unit._id).lean();
+    await expect(transitionSerialUnit(scope, String(unit._id), { toStatus: toStatus as any, eventType: "sold", documentType: "retail-order", documentId: id() }, actor)).rejects.toMatchObject({ statusCode: 409, code: "SERIAL_WORKFLOW_REQUIRED" });
+    expect(await SerialUnitModel.findById(unit._id).lean()).toEqual(before);
+    expect(await quantity()).toBe(2);
+    expect(await SerialEventModel.countDocuments()).toBe(0);
+    expect(await InventoryLedgerEntryModel.countDocuments()).toBe(0);
+  });
+
+  it("hides machines outside the direct-transition scope", async () => {
+    const unit = await machine();
+    for (const requestScope of [{ ...scope, companyCode: "OTHER" }, { ...scope, branchId: id() }, { ...scope, warehouseId: otherWarehouseId }]) {
+      await expect(transitionSerialUnit(requestScope, String(unit._id), { toStatus: "sold", eventType: "sold" }, actor)).rejects.toMatchObject({ statusCode: 404 });
+    }
+    expect(await SerialEventModel.countDocuments()).toBe(0);
+    expect((await SerialUnitModel.findById(unit._id).lean())?.status).toBe("in_stock");
+  });
+
   it("prevents selling, transferring or bypassing lifecycle for an internally allocated machine", async () => {
     const unit = await machine();
     await expect(transitionSerialUnit(scope, String(unit._id), { toStatus: "internal_use", eventType: "manual" }, actor)).rejects.toMatchObject({ statusCode: 409 });

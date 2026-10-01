@@ -1,7 +1,7 @@
 {
-  "name": "Anh Khoa Mobile",
-  "short_name": "Anh Khoa Mobile",
-  "description": "Nền tảng quản trị doanh nghiệp tích hợp AI cho vận hành, nhân sự, kho, marketing và CRM.",
+  "name": "Igen Retail ERP",
+  "short_name": "Igen Retail ERP",
+  "description": "Nền tảng Quản trị Bán lẻ & Bảo hành Điện thoại tích hợp AI.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f6f8fd",

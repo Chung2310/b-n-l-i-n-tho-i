@@ -1,13 +1,17 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   inventoryCountService,
   type InventoryCount,
+  type CountQueueScope,
   type CountItem,
 } from "../../services/inventoryCountService";
 import { toast } from "../../pages/Toast";
 import { Dropdown } from "../common/Dropdown";
 import { printInventoryCountVoucher } from "./printInventoryCountVoucher";
 import { useAuth } from "../../context/AuthContext";
+import { useBranchOptional } from "../../context/BranchContext";
+
+import { InventoryCountPendingPanel } from "./InventoryCountPendingPanel";
 
 const BarcodeScannerDialog = React.lazy(() => import("./InventoryBarcodeScannerDialog"));
 
@@ -25,18 +29,41 @@ const statusMap: Record<
   conflict: { label: "Xung đột tồn kho", className: "bg-rose-50 text-rose-700 border-rose-200" },
 };
 
-export function InventoryCountingModal({
+type CountingProps = { warehouseId: string; warehouseName?: string; onClose: () => void; onApplied?: () => void };
+export function InventoryCountingModal(props: CountingProps) {
+  const { user, userProfile } = useAuth();
+  const branch = useBranchOptional();
+  const companyCode = userProfile?.companyCode?.trim().toUpperCase() || "";
+  const branchId = branch?.activeBranchId || userProfile?.branchId || "";
+  const userId = String((user as any)?.id || (user as any)?._id || user?.uid || "");
+  const identity = JSON.stringify([companyCode, branchId, userId, props.warehouseId]);
+  const current = useRef(identity);
+  current.current = identity;
+  const scope = useMemo(() => {
+    const sessionToken = localStorage.getItem("accessToken");
+    return { companyCode, branchId, userId, isCurrent: () => current.current === identity && localStorage.getItem("accessToken") === sessionToken };
+  }, [identity]);
+  return <InventoryCountingContent key={identity} {...props} queueScope={scope} />;
+}
+
+function InventoryCountingContent({
   warehouseId,
   warehouseName,
   onClose,
   onApplied,
+  queueScope,
 }: {
+  queueScope: CountQueueScope;
   warehouseId: string;
   warehouseName?: string;
   onClose: () => void;
   onApplied?: () => void;
 }) {
   const { user, hasPermission } = useAuth();
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const isCurrent = () => alive.current && queueScope.isCurrent?.() !== false;
+  const scopedQueue = { ...queueScope, isCurrent };
   const actorId = String((user as any)?.id || (user as any)?._id || user?.uid || "");
   const [count, setCount] = useState<InventoryCount | null>(null);
   const [counts, setCounts] = useState<InventoryCount[]>([]);
@@ -46,19 +73,30 @@ export function InventoryCountingModal({
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
   const [processingAction, setProcessingAction] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [approvalReason, setApprovalReason] = useState("");
+  const [discrepancyConfirmed, setDiscrepancyConfirmed] = useState(false);
+  const [scanResolutions, setScanResolutions] = useState<Record<string, string>>({});
+  useEffect(() => { setApprovalReason(""); setDiscrepancyConfirmed(false); setScanResolutions({}); }, [count?._id, count?.version]);
+  const missingMachines = (count?.items || []).flatMap((item) => (item.expectedUnits || []).filter((unit) => !(item.scannedUnitIds || []).includes(unit.serialUnitId)));
+  const discrepancyItems = (count?.items || []).filter((item) => item.quantityDelta !== 0);
+  const needsConfirmation = missingMachines.length > 0 || discrepancyItems.length > 0;
+  const reviewReady = (!needsConfirmation || (discrepancyConfirmed && Boolean(approvalReason.trim()))) && (count?.unexpectedScans || []).every((scan) => Boolean(scanResolutions[scan.code]?.trim()));
   const canApprove = Boolean(actorId && count?.createdById && (!count.submittedBy || count.submittedById) && actorId !== count.createdById && actorId !== count.submittedById && hasPermission("inventory-count-approval:manage"));
 
+  const listRequest = useRef(0);
   // Load existing counts for this warehouse
   const loadCounts = async () => {
     if (!warehouseId) return;
+    const request = ++listRequest.current;
     try {
       const list = await inventoryCountService.list(warehouseId);
-      setCounts(list);
-      if (list.length > 0 && !count) {
-        // Pick the most recent draft or counting count, or first
-        const active = list.find((c) => c.status === "counting" || c.status === "draft") || list[0];
-        setCount(active);
-      }
+      if (!isCurrent() || request !== listRequest.current) return;
+      setCounts(current => list.map(item => { const existing = current.find(c => c._id === item._id); return existing && existing.version > item.version ? existing : item; }));
+      setCount(current => {
+        if (!current) return list.find(c => c.status === "counting" || c.status === "draft") || list[0] || null;
+        const latest = list.find(c => c._id === current._id);
+        return latest && latest.version > current.version ? latest : current;
+      });
     } catch {
       // Ignore initial list error
     }
@@ -69,12 +107,17 @@ export function InventoryCountingModal({
   }, [warehouseId]);
 
   useEffect(() => {
-    const sync = () => void inventoryCountService.syncPending().then(({ remaining }) => {
+    const sync = () => void inventoryCountService.syncPending(scopedQueue).then(({ remaining, legacy }) => {
+      if (!isCurrent()) return;
+      void loadCounts();
+      if (legacy) toast.error("Có dữ liệu kiểm kê cũ chưa rõ tài khoản/chi nhánh. Dữ liệu được giữ nguyên, cần đối chiếu riêng.");
       if (remaining) toast.error("Có số lượng kiểm kê chưa đồng bộ. Hãy mở phiếu, tải lại và đối chiếu trước khi lưu.");
-    }).catch(() => toast.error("Không thể đồng bộ số lượng kiểm kê."));
+    }).catch((error) => { if (isCurrent()) toast.error(error?.message || "Không thể đồng bộ số lượng kiểm kê."); });
+    const reconciled = () => { if (isCurrent()) void loadCounts(); };
+    window.addEventListener("inventory-count-reconciled", reconciled);
     window.addEventListener("online", sync);
     sync();
-    return () => window.removeEventListener("online", sync);
+    return () => { window.removeEventListener("online", sync); window.removeEventListener("inventory-count-reconciled", reconciled); };
   }, []);
 
   useEffect(() => {
@@ -90,10 +133,12 @@ export function InventoryCountingModal({
     try {
       setProcessingAction("create");
       const next = await inventoryCountService.create(warehouseId);
+      if (!isCurrent()) return;
       setCount(next);
       setCounts((current) => [next, ...current]);
       toast.success(`Đã tạo phiếu kiểm kê mới: ${next.countCode}`);
     } catch (error: any) {
+      if (!isCurrent()) return;
       toast.error(error?.message || "Không thể tạo phiếu kiểm kê.");
     } finally {
       setProcessingAction(null);
@@ -107,6 +152,7 @@ export function InventoryCountingModal({
     setScanning(true);
     try {
       const result = await inventoryCountService.scan(count._id, trimmed);
+      if (!isCurrent()) return;
       setCount(result.count);
       setCounts((curr) => curr.map((c) => (c._id === result.count._id ? result.count : c)));
 
@@ -127,6 +173,7 @@ export function InventoryCountingModal({
       }
       setBarcodeInput("");
     } catch (error: any) {
+      if (!isCurrent()) return;
       toast.error(error?.message || "Không thể quét mã kiểm kê.");
     } finally {
       setScanning(false);
@@ -155,6 +202,7 @@ export function InventoryCountingModal({
         const codeToScan = unit.serialNumber || unit.internalBarcode;
         if (codeToScan) {
           const result = await inventoryCountService.scan(count._id, codeToScan);
+          if (!isCurrent()) return;
           latestCount = result.count;
           countSuccess++;
         }
@@ -164,6 +212,7 @@ export function InventoryCountingModal({
       setCounts((curr) => curr.map((c) => (c._id === latestCount._id ? latestCount : c)));
       toast.success(`Đã tự động đếm đủ ${countSuccess} máy cho SKU ${item.sku}!`);
     } catch (error: any) {
+      if (!isCurrent()) return;
       toast.error(error?.message || "Lỗi khi đếm hàng loạt.");
     } finally {
       setProcessingAction(null);
@@ -176,6 +225,7 @@ export function InventoryCountingModal({
 
     if (action === "approve") {
       if (!canApprove) { toast.error("Cần người duyệt độc lập có quyền duyệt kiểm kê."); return; }
+      if (!reviewReady) { toast.error("Hãy xác nhận chênh lệch và đối chiếu đủ các mã ngoài dự kiến."); return; }
       const confirmApprove = window.confirm(
         `XÁC NHẬN CÂN BẰNG TỒN KHO:\n\nPhiếu ${count.countCode} sẽ được duyệt.\nTồn kho thực tế trong hệ thống sẽ được tự động điều chỉnh theo số lượng đã đếm.\nCác máy IMEI không tìm thấy sẽ được ghi nhận thất lạc.\n\nBạn có chắc chắn muốn duyệt?`
       );
@@ -187,7 +237,10 @@ export function InventoryCountingModal({
 
     setProcessingAction(action);
     try {
-      const next = await inventoryCountService[action](count._id);
+      const next = action === "approve"
+        ? await inventoryCountService.approve(count._id, { expectedVersion: count.version, discrepancyConfirmed, reason: approvalReason.trim(), unexpectedScanResolutions: (count.unexpectedScans || []).map((scan) => ({ code: scan.code, reason: scanResolutions[scan.code]?.trim() || "" })) })
+        : await inventoryCountService[action](count._id);
+      if (!isCurrent()) return;
       setCount(next);
       setCounts((current) => current.map((c) => (c._id === next._id ? next : c)));
 
@@ -203,10 +256,41 @@ export function InventoryCountingModal({
         onApplied?.();
       }
     } catch (error: any) {
+      if (!isCurrent()) return;
       toast.error(error?.message || "Không thể thực hiện thao tác kiểm kê.");
+      if (action === "approve" && (error?.status === 409 || error?.statusCode === 409)) {
+        try {
+          const latest = await inventoryCountService.get(count._id);
+          if (!isCurrent()) return;
+          setCount(latest);
+          setCounts((current) => current.map((item) => item._id === latest._id ? latest : item));
+        } catch { /* Keep the existing document visible if refresh fails. */ }
+      }
     } finally {
       setProcessingAction(null);
     }
+  };
+
+  // Update quantity for non-unit-tracked items
+  const openCountReference = async (id: string) => {
+    setProcessingAction("open-reference");
+    try { const latest = await inventoryCountService.get(id); if (isCurrent()) setCount(latest); }
+    catch (error: any) { if (!isCurrent()) return; toast.error(error?.message || "Không thể mở phiếu liên quan."); }
+    finally { setProcessingAction(null); }
+  };
+
+  const handleRecreate = async () => {
+    if (!count || count.status !== "conflict" || !hasPermission("inventory:manage")) return;
+    if (!window.confirm("Tạo phiếu kiểm kê mới theo tồn hiện tại? Bạn cần nhập lại số đếm và quét lại từng máy. Phiếu cũ được giữ nguyên để đối chiếu.")) return;
+    setProcessingAction("recreate");
+    try {
+      const next = await inventoryCountService.recreate(count._id);
+      if (!isCurrent()) return;
+      setCounts((current) => [next, ...current.filter((item) => item._id !== next._id).map((item) => item._id === count._id ? { ...item, replacementCountId: next._id } : item)]);
+      setCount(next);
+      toast.success("Đã mở phiếu thay thế. Hãy kiểm đếm lại theo tồn hiện tại.");
+    } catch (error: any) { if (!isCurrent()) return; toast.error(error?.message || "Không thể tạo lại phiếu kiểm kê."); }
+    finally { setProcessingAction(null); }
   };
 
   // Update quantity for non-unit-tracked items
@@ -214,10 +298,12 @@ export function InventoryCountingModal({
     if (!count) return;
     const safeQty = Math.max(0, newQuantity);
     try {
-      const next = await inventoryCountService.updateItem(count._id, itemId, safeQty, count.version);
+      const next = await inventoryCountService.updateItem(count._id, itemId, safeQty, count.version, scopedQueue);
+      if (!isCurrent()) return;
       setCount(next);
       setCounts((curr) => curr.map((c) => (c._id === next._id ? next : c)));
     } catch (error: any) {
+      if (!isCurrent()) return;
       toast.error(error?.message || "Không thể lưu số lượng.");
     }
   };
@@ -226,10 +312,11 @@ export function InventoryCountingModal({
     if (!count || !window.confirm("Tải lại sẽ bỏ các số lượng chưa lưu và bản chờ đồng bộ của phiếu này. Bạn đã ghi lại số cần đối chiếu chưa?")) return;
     setProcessingAction("reload");
     try {
-      const latest = await inventoryCountService.reload(count._id);
+      const latest = await inventoryCountService.reload(count._id, scopedQueue);
+      if (!isCurrent()) return;
       setCount(latest);
       setCounts((current) => current.map((item) => item._id === latest._id ? latest : item));
-    } catch (error: any) { toast.error(error?.message || "Không thể tải lại phiếu kiểm kê."); }
+    } catch (error: any) { if (!isCurrent()) return; toast.error(error?.message || "Không thể tải lại phiếu kiểm kê."); }
     finally { setProcessingAction(null); }
   };
 
@@ -382,6 +469,7 @@ export function InventoryCountingModal({
 
         {/* 3. Modal Body Container */}
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          <InventoryCountPendingPanel scope={scopedQueue} />
           {!count ? (
             <div className="rounded-xl border border-dashed border-slate-300 p-12 text-center text-slate-500 bg-slate-50/50">
               <p className="font-semibold text-slate-800 text-sm">Chưa có phiếu kiểm kê nào được chọn</p>
@@ -882,10 +970,35 @@ export function InventoryCountingModal({
             )}
 
             {/* Step 3 Actions */}
+            {count?.approvalReview && <div className="w-full rounded border p-3 text-xs">
+              <p className="font-semibold">Kết quả đối chiếu đã lưu khi duyệt</p>
+              {count.approvalReview.reason && <p>{count.approvalReview.reason}</p>}
+              {count.approvalReview.unexpectedScanResolutions.map((entry) => <p key={entry.code}>{entry.code}: {entry.reason}</p>)}
+            </div>}
+            {count?.status === "pending_approval" && <div className="w-full space-y-2 rounded border border-amber-300 p-3 text-xs">
+              <p className="font-semibold">Đối chiếu trước khi duyệt: {discrepancyItems.length} dòng chênh lệch; {missingMachines.length} máy chưa quét.</p>
+              {discrepancyItems.map((item) => <p key={item._id}>{item.sku}: sổ sách {number(item.systemQuantity)}, đã đếm {number(item.countedQuantity)}, chênh lệch {number(item.quantityDelta)}.</p>)}
+              {missingMachines.length > 0 && <p>Máy sẽ ghi nhận thất lạc: {missingMachines.map((unit) => unit.serialNumber || unit.internalBarcode || unit.serialUnitId).join(", ")}.</p>}
+              {needsConfirmation && <>
+                <label className="block">Lý do chênh lệch<textarea maxLength={2000} disabled={Boolean(processingAction)} value={approvalReason} onChange={(event) => setApprovalReason(event.target.value)} className="block w-full rounded border p-2" /></label>
+                <label className="block"><input type="checkbox" checked={discrepancyConfirmed} disabled={Boolean(processingAction)} onChange={(event) => setDiscrepancyConfirmed(event.target.checked)} /> Tôi đã đối chiếu số lượng và danh sách máy chưa quét, đồng ý điều chỉnh như trên.</label>
+              </>}
+              {(count.unexpectedScans || []).map((scan) => <label className="block" key={scan.code}>Kết quả đối chiếu mã ngoài dự kiến {scan.code}
+                <textarea maxLength={2000} disabled={Boolean(processingAction)} value={scanResolutions[scan.code] || ""} onChange={(event) => setScanResolutions((current) => ({ ...current, [scan.code]: event.target.value }))} className="block w-full rounded border p-2" />
+              </label>)}
+              {(count.unexpectedScans || []).length > 0 && <p>Các mã ngoài dự kiến không được cộng vào tồn qua phiếu này. Ghi rõ kết quả đối chiếu và chứng từ xử lý liên quan trước khi duyệt.</p>}
+            </div>}
+            {count?.recreatedFromId && <button type="button" disabled={Boolean(processingAction)} onClick={() => void openCountReference(count.recreatedFromId!)} className="rounded border px-3 py-2 text-xs">Xem phiếu xung đột gốc</button>}
+            {count?.status === "conflict" && <div className="space-y-2 text-xs text-rose-800">
+              <p>Tồn kho đã thay đổi so với lúc chốt phiếu. Cần tạo phiếu mới và kiểm đếm lại; phiếu này được giữ để đối chiếu.</p>
+              {count.replacementCountId
+                ? <button type="button" disabled={Boolean(processingAction)} onClick={() => void openCountReference(count.replacementCountId!)} className="rounded border px-3 py-2">Mở phiếu đã tạo lại</button>
+                : <button type="button" disabled={Boolean(processingAction) || !hasPermission("inventory:manage")} onClick={() => void handleRecreate()} className="rounded border px-3 py-2 disabled:opacity-50">Tạo lại phiếu kiểm kê</button>}
+            </div>}
             {count?.status === "pending_approval" && (
               <button
                 type="button"
-                disabled={processingAction === "approve" || !canApprove}
+                disabled={processingAction === "approve" || !canApprove || !reviewReady}
                 title={!canApprove ? "Cần người duyệt độc lập có quyền duyệt kiểm kê; phiếu phải có định danh người lập/gửi." : undefined}
                 onClick={() => void handleTransition("approve")}
                 className="rounded-lg bg-emerald-700 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-800 transition-colors disabled:opacity-50"

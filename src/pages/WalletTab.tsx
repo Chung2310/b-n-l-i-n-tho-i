@@ -356,7 +356,7 @@ export default function WalletTab() {
 
                 <div className="flex justify-between items-center text-[10px] text-white/75 font-mono">
                   <span>Ví hoạt động</span>
-                  <span>Anh Khoa Mobile</span>
+                  <span>iGEN Retail</span>
                 </div>
               </div>
             </div>

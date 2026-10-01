@@ -9,7 +9,7 @@ import { requireAuth } from "../middleware/auth";
 import { requirePrivilegedSession, requireRealSuperAdmin } from "../middleware/super-admin-auth";
 import { requirePermission } from "../middleware/auth";
 
-type Dependencies = { service?: TenantManagementService; execute?: typeof executeAdminAction; clearModuleCache?: (companyCode?: string) => void; emitToCompany?: (companyCode: string, eventName: string, data: any) => void | Promise<void>; };
+type Dependencies = { service?: TenantManagementService; execute?: typeof executeAdminAction; clearModuleCache?: (companyCode?: string) => void; emitToCompany?: (companyCode: string, eventName: string, data: any) => void | Promise<void>; skipAuthGuards?: boolean; };
 const required = (value: unknown, label: string) => { if (typeof value !== "string" || !value.trim()) throw new Error(`${label} is required`); return value.trim(); };
 const actionRequest = (req: any, definition: any, input: unknown) => ({ definition, input, idempotencyKey: required(req.header("idempotency-key"), "idempotency-key"), reason: req.body?.reason, password: req.body?.password, token: req.body?.token, step: req.body?.step });
 
@@ -17,7 +17,9 @@ export function createTenantRouter(deps: Dependencies = {}) {
   const router = Router(); const service = deps.service ?? new TenantManagementService(); const execute = deps.execute ?? executeAdminAction;
   // Keep this router safe when mounted independently as well as through the
   // super-admin router (defence in depth for tenant control-plane mutations).
-  router.use(requireAuth as any, requireRealSuperAdmin as any, requirePrivilegedSession as any, requirePermission("access:manage") as any);
+  if (!deps.skipAuthGuards) {
+    router.use(requireAuth as any, requireRealSuperAdmin as any, requirePrivilegedSession as any, requirePermission("access:manage") as any);
+  }
   const clearCache = deps.clearModuleCache ?? clearModuleCache; const emitCompany = deps.emitToCompany ?? (async (companyCode: string, eventName: string, data: any) => {
     const socket = await import("../socket");
     socket.emitToCompany(companyCode, eventName, data);
@@ -27,6 +29,9 @@ export function createTenantRouter(deps: Dependencies = {}) {
   router.post("/tenants", mutation(tenantActions.create, async (input) => service.create(input)));
   router.get("/tenants/:companyCode", async (req, res) => { try { const result = await service.get(req.params.companyCode); const [summary, audit] = await Promise.all([service.getSummary(req.params.companyCode), AuditEventModel.find({ companyCode: result.code }, undefined, { sort: { occurredAt: -1 }, limit: 20 })]); return res.json({ tenant: result, summary, audit }); } catch (error) { return res.status(404).json({ message: (error as Error).message, correlationId: (req as any).id }); } });
   router.get("/tenants/:companyCode/users", async (req, res) => { try { return res.json({ users: await service.listUsers(req.params.companyCode) }); } catch (error) { return res.status(404).json({ message: (error as Error).message, correlationId: (req as any).id }); } });
+  router.post("/tenants/:companyCode/users", async (req, res) => { try { const user = await service.createUser(req.params.companyCode, req.body); return res.status(201).json({ user, message: "Tạo tài khoản thành công" }); } catch (error) { return res.status(400).json({ message: (error as Error).message, correlationId: (req as any).id }); } });
+  router.patch("/tenants/:companyCode/users/:userId", async (req, res) => { try { const user = await service.updateUser(req.params.companyCode, req.params.userId, req.body); return res.json({ user, message: "Cập nhật tài khoản thành công" }); } catch (error) { return res.status(400).json({ message: (error as Error).message, correlationId: (req as any).id }); } });
+  router.delete("/tenants/:companyCode/users/:userId", async (req, res) => { try { await service.deleteUser(req.params.companyCode, req.params.userId); return res.json({ message: "Xóa tài khoản thành công" }); } catch (error) { return res.status(400).json({ message: (error as Error).message, correlationId: (req as any).id }); } });
   router.patch("/tenants/:companyCode", mutation(tenantActions.update, async (input) => service.update(input.companyCode, input)));
   router.patch("/tenants/:companyCode/modules", mutation(tenantActions.updateModules, async (input) => {
     const tenant = await service.updateModules(input.companyCode, { enabledModules: input.enabledModules, businessType: input.businessType });

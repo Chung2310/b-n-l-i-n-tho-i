@@ -125,7 +125,7 @@ export function UserDetailDialog({ tenantId, userId, onClose }: Props) {
               {user.role === "superadmin" ? (
                 <p className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-200">Role Super Admin duy nhất được hệ thống bảo vệ và không thể thay đổi.</p>
               ) : (
-                <RolePermissionEditor tenantId={tenantId} role={user.role} permissions={user.permissions || []} onSave={async (role, permissions, editReason) => { const stepUp = await requestStepUp(); if (!stepUp) return; await run(() => superAdminUserAccessService.assignRole(tenantId, userId, role, permissions, { reason: editReason, ...stepUp }), "Đã cập nhật vai trò và quyền.", true, true); }} />
+                <RolePermissionEditor tenantId={tenantId} role={user.role} permissions={user.permissions || []} onSave={async (role, permissions, editReason) => { await run(() => superAdminUserAccessService.assignRole(tenantId, userId, role, permissions, { reason: editReason }), "Đã cập nhật vai trò và quyền.", true, true); }} />
               )}
             </section>
             <UserActivityTimeline tenantId={tenantId} userId={userId} />

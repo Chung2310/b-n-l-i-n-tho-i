@@ -1,7 +1,13 @@
+vi.mock("./repair-payment-request.model", () => ({ RepairPaymentRequestModel: { findOneAndUpdate: async (_query: any, update: any) => ({ ...update.$setOnInsert, revoked: false }) } }));
+vi.mock("./repair-payment.model", () => ({ RepairPaymentModel: { findOne: () => ({ session: () => ({ lean: async () => null }) }), create: async () => [] } }));
+vi.mock("../inventory/inventory-transaction", () => ({ inInventoryTransaction: async (work: any) => work({ inTransaction: () => true }) }));
+vi.mock("./services/repair-serial-lifecycle", () => ({ recordRepairSerialLifecycle: async () => undefined }));
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 const ticket: any = {
   _id: "ticket-1",
+  session() { return this; },
+  $session() { return this; },
   status: "received",
   statusHistory: [],
   save: vi.fn(async () => undefined),
@@ -28,6 +34,8 @@ describe("transitionRepairTicket", () => {
     ticket.assignedBy = undefined;
     ticket.totalAmount = 0;
     ticket.quotedAmount = undefined;
+    ticket.quoteFingerprint = undefined;
+    ticket.customerApprovedAt = undefined;
     ticket.paidAmount = 0;
     ticket.dueAmount = 0;
     ticket.paymentStatus = "unpaid";
@@ -101,7 +109,7 @@ describe("transitionRepairTicket", () => {
     ticket.status = "approved";
     ticket.totalAmount = 250_000;
 
-    await expect(recordRepairPayment(scope, "ticket-1", 250_000, actor)).rejects.toMatchObject({ statusCode: 409, code: "REPAIR_PAYMENT_NOT_DUE" });
+    await expect(recordRepairPayment(scope, "ticket-1", 250_000, actor, { idempotencyKey: "pay-1", expectedPaidAmount: 0, expectedTotalAmount: 250_000 })).rejects.toMatchObject({ statusCode: 409, code: "REPAIR_PAYMENT_NOT_DUE" });
   });
 
   test("requires full payment before delivery", async () => {
@@ -109,11 +117,11 @@ describe("transitionRepairTicket", () => {
     ticket.totalAmount = 250_000;
     ticket.dueAmount = 250_000;
 
-    await recordRepairPayment(scope, "ticket-1", 100_000, actor);
+    await recordRepairPayment(scope, "ticket-1", 100_000, actor, { idempotencyKey: "pay-1", expectedPaidAmount: 0, expectedTotalAmount: 250_000 });
 
     await expect(deliverRepairTicket(scope, "ticket-1", actor, true)).rejects.toMatchObject({ statusCode: 403, code: "REPAIR_DEBT_BLOCKED" });
 
-    await recordRepairPayment(scope, "ticket-1", 150_000, actor);
+    await recordRepairPayment(scope, "ticket-1", 150_000, actor, { idempotencyKey: "pay-2", expectedPaidAmount: 100_000, expectedTotalAmount: 250_000 });
     const delivered = await deliverRepairTicket(scope, "ticket-1", actor);
 
     expect(delivered).toMatchObject({ status: "delivered", dueAmount: 0, paymentStatus: "paid" });

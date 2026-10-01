@@ -1,11 +1,24 @@
 // @vitest-environment jsdom
+vi.mock("../retail/hooks/useRetailScope", () => ({ useRetailScope: () => ({ scope: { companyCode: "company-a", branchId: "branch-a" }, userProfile: { uid: "user-1" } }) }));
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
 
 vi.mock("../../services/repairService", async () => {
   const actual = await vi.importActual<typeof import("../../services/repairService")>("../../services/repairService");
-  return { ...actual, repairService: { board: vi.fn(async () => ({ received: [ticket] })), quote: vi.fn(async () => ticket), transition: vi.fn(async () => ticket), cancel: vi.fn(async () => ticket) } };
+  return {
+    ...actual,
+    repairExtras: {
+      ...actual.repairExtras,
+      listTechnicians: vi.fn(async () => [{ uid: "tech-1", displayName: "Nguyễn Văn Kỹ Thuật" }]),
+    },
+    repairService: {
+      board: vi.fn(async () => ({ received: [ticket] })),
+      quote: vi.fn(async () => ticket),
+      transition: vi.fn(async () => ticket),
+      cancel: vi.fn(async () => ticket),
+    },
+  };
 });
 
 vi.mock("../../services/authService", () => ({

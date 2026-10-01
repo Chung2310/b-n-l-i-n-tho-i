@@ -115,20 +115,19 @@ export function ReceivingSection() {
       <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h3 className="text-base font-semibold text-slate-900">Nhập hàng</h3>
-          <p className="mt-1 text-sm text-slate-500">Khai báo sản phẩm mua từ nhà cung cấp để tăng tồn kho thực tế.</p>
         </div>
         <div className="flex gap-2">
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => { setEditingReceipt(null); setCreatorOpen(true); }} className="inline-flex items-center gap-1.5 rounded-md bg-cyan-700 px-3 py-2 text-sm font-semibold text-white hover:bg-cyan-800">
-            <PackagePlus className="h-4 w-4" />
-            Tạo phiếu nhập mới
-          </button>
-          {viewingReceipt?.status === "draft" && <button type="button" onClick={() => { setEditingReceipt(viewingReceipt); setViewingReceipt(null); setCreatorOpen(true); }} className="inline-flex items-center gap-1.5 rounded-md border border-cyan-200 px-3 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-50"><Pencil className="h-4 w-4" />Sửa phiếu đang xem</button>}
-          <button type="button" onClick={() => void load()} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50" title="Làm mới" aria-label="Làm mới">
-            <RefreshCw className="h-4 w-4" />
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => { setEditingReceipt(null); setCreatorOpen(true); }} className="inline-flex items-center gap-1.5 rounded-md bg-cyan-700 px-3 py-2 text-sm font-semibold text-white hover:bg-cyan-800">
+              <PackagePlus className="h-4 w-4" />
+              Tạo phiếu nhập mới
+            </button>
+            {viewingReceipt?.status === "draft" && <button type="button" onClick={() => { setEditingReceipt(viewingReceipt); setViewingReceipt(null); setCreatorOpen(true); }} className="inline-flex items-center gap-1.5 rounded-md border border-cyan-200 px-3 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-50"><Pencil className="h-4 w-4" />Sửa phiếu đang xem</button>}
+            <button type="button" onClick={() => void load()} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50" title="Làm mới" aria-label="Làm mới">
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          </div>
         </div>
-      </div>
 
       </div>
 
@@ -439,33 +438,33 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
       toast.error("Chọn nhà cung cấp và ít nhất một sản phẩm.");
       return;
     }
-      const invalidSerialLine = lines.filter((line) => line.trackingMode === "serial").find((line) => {
-        const serials = (line.serialNumbers || []).map((serial) => serial.trim());
-        return !Number.isInteger(line.quantity) || serials.length !== line.quantity || serials.some((serial) => !serial) || new Set(serials.map((serial) => serial.toUpperCase())).size !== serials.length;
-      });
-      if (invalidSerialLine) {
-        toast.error(`SKU ${invalidSerialLine.sku} phải có đủ serial duy nhất theo số lượng.`);
-        return;
-      }
-      // Hàng serial được phép bỏ trống mã nội bộ, nhưng đã cấp thì phải cấp đủ và không trùng.
-      const invalidSerialBarcodeLine = lines.filter((line) => line.trackingMode === "serial").find((line) => {
-        const barcodes = (line.unitDetails || []).map((detail) => (detail.internalBarcode || "").trim());
-        if (barcodes.every((barcode) => !barcode)) return false;
-        return barcodes.length !== line.quantity || barcodes.some((barcode) => !barcode) || new Set(barcodes.map((barcode) => barcode.toUpperCase())).size !== barcodes.length;
-      });
-      if (invalidSerialBarcodeLine) {
-        toast.error(`SKU ${invalidSerialBarcodeLine.sku} đã cấp mã vạch nội bộ thì phải cấp đủ cho mọi đơn vị và không trùng nhau.`);
-        return;
-      }
-      const invalidUnitLine = lines.filter((line) => line.trackingMode === "unit_barcode").find((line) => {
-        const details = (line.unitDetails || []).map((detail) => (detail.internalBarcode || "").trim());
-        return !Number.isInteger(line.quantity) || details.length !== line.quantity || details.some((barcode) => !barcode) || new Set(details.map((barcode) => barcode.toUpperCase())).size !== details.length;
-      });
-      if (invalidUnitLine) {
-        toast.error(`SKU ${invalidUnitLine.sku} phải có đủ mã vạch nội bộ duy nhất theo số lượng.`);
-        return;
-      }
-      setSaving(true);
+    const invalidSerialLine = lines.filter((line) => line.trackingMode === "serial").find((line) => {
+      const serials = (line.serialNumbers || []).map((serial) => serial.trim());
+      return !Number.isInteger(line.quantity) || serials.length !== line.quantity || serials.some((serial) => !serial) || new Set(serials.map((serial) => serial.toUpperCase())).size !== serials.length;
+    });
+    if (invalidSerialLine) {
+      toast.error(`SKU ${invalidSerialLine.sku} phải có đủ serial duy nhất theo số lượng.`);
+      return;
+    }
+    // Hàng serial được phép bỏ trống mã nội bộ, nhưng đã cấp thì phải cấp đủ và không trùng.
+    const invalidSerialBarcodeLine = lines.filter((line) => line.trackingMode === "serial").find((line) => {
+      const barcodes = (line.unitDetails || []).map((detail) => (detail.internalBarcode || "").trim());
+      if (barcodes.every((barcode) => !barcode)) return false;
+      return barcodes.length !== line.quantity || barcodes.some((barcode) => !barcode) || new Set(barcodes.map((barcode) => barcode.toUpperCase())).size !== barcodes.length;
+    });
+    if (invalidSerialBarcodeLine) {
+      toast.error(`SKU ${invalidSerialBarcodeLine.sku} đã cấp mã vạch nội bộ thì phải cấp đủ cho mọi đơn vị và không trùng nhau.`);
+      return;
+    }
+    const invalidUnitLine = lines.filter((line) => line.trackingMode === "unit_barcode").find((line) => {
+      const details = (line.unitDetails || []).map((detail) => (detail.internalBarcode || "").trim());
+      return !Number.isInteger(line.quantity) || details.length !== line.quantity || details.some((barcode) => !barcode) || new Set(details.map((barcode) => barcode.toUpperCase())).size !== details.length;
+    });
+    if (invalidUnitLine) {
+      toast.error(`SKU ${invalidUnitLine.sku} phải có đủ mã vạch nội bộ duy nhất theo số lượng.`);
+      return;
+    }
+    setSaving(true);
     try {
       const payload = {
         supplierId,
@@ -598,7 +597,7 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
                           <p className="text-xs text-slate-500">{line.displayName}</p>
                         </td>
                         <td className="px-4 py-3 font-mono text-xs text-slate-700">{line.sku}</td>
-                        
+
                         <td className="px-4 py-3 text-right">
                           <input
                             type="number"
@@ -618,13 +617,12 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
                                 const isEnough = filledCount === line.quantity;
                                 return (
                                   <span
-                                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                                      isEnough
+                                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${isEnough
                                         ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                         : filledCount > 0
-                                        ? "bg-amber-50 text-amber-700 border border-amber-200"
-                                        : "bg-rose-50 text-rose-700 border border-rose-200"
-                                    }`}
+                                          ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                          : "bg-rose-50 text-rose-700 border border-rose-200"
+                                      }`}
                                   >
                                     {isEnough && <Check className="h-3 w-3" />}
                                     {filledCount === 0

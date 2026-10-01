@@ -125,66 +125,69 @@ export default function CustomerDetailDrawer({
 
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {/* Top VIP & Points Highlight Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
           {/* Card 1: VIP Tier & Gross Profit */}
-          <div className={`rounded-2xl border p-4 shadow-xs ${tierStyle.bg} ${tierStyle.border}`}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Hạng VIP Thành Viên
-              </span>
-              <Award className={`h-5 w-5 ${tierStyle.text}`} />
+          <div className={`rounded-2xl border p-4 shadow-xs ${tierStyle.bg} ${tierStyle.border} min-w-0 flex flex-col justify-between overflow-hidden`}>
+            <div>
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate">
+                  Hạng VIP Thành Viên
+                </span>
+                <Award className={`h-5 w-5 shrink-0 ${tierStyle.text}`} />
+              </div>
+
+              <div className="flex items-baseline gap-2 min-w-0">
+                <span className={`text-xl font-black truncate ${tierStyle.text}`}>
+                  {customer.tier?.name || "Hạng Đồng"}
+                </span>
+              </div>
             </div>
 
-            <div className="flex items-baseline gap-2">
-              <span className={`text-xl font-black ${tierStyle.text}`}>
-                {customer.tier?.name || "Hạng Đồng"}
-              </span>
-            </div>
-
-            <div className="mt-2.5 border-t border-slate-200/60 pt-2 flex items-center justify-between text-xs">
-              <span className="text-slate-500">Lãi gộp mang lại:</span>
-              <span className="font-bold text-slate-900">
+            <div className="mt-2.5 border-t border-slate-200/60 pt-2 flex items-center justify-between gap-2 text-xs">
+              <span className="text-slate-500 shrink-0">Lãi gộp mang lại:</span>
+              <span className="font-bold text-slate-900 truncate tabular-nums">
                 {spend.format(customer.tierGrossProfit || 0)}
               </span>
             </div>
-            <div className="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
-              <span>Doanh số: {spend.format(customer.tierTotalSales || 0)}</span>
+            <div className="flex items-center justify-between gap-2 text-[11px] text-slate-400 pt-0.5">
+              <span className="shrink-0">Doanh số:</span>
+              <span className="truncate tabular-nums">{spend.format(customer.tierTotalSales || 0)}</span>
             </div>
           </div>
 
           {/* Card 2: Loyalty Points Balance */}
-          <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/60 to-white p-4 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800">
+          <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/60 to-white p-4 shadow-xs flex flex-col justify-between min-w-0 overflow-hidden">
+            <div className="min-w-0">
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 truncate">
                   Điểm Thưởng Khả Dụng
                 </span>
-                <Coins className="h-5 w-5 text-amber-600" />
+                <Coins className="h-5 w-5 text-amber-600 shrink-0" />
               </div>
 
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-black text-amber-900">
+              <div className="flex items-baseline flex-wrap gap-x-1.5 gap-y-0.5 min-w-0">
+                <span className="text-2xl font-black text-amber-900 tabular-nums break-all">
                   {(customer.pointsBalance || 0).toLocaleString("vi-VN")}
                 </span>
-                <span className="text-xs font-bold text-amber-700">điểm</span>
-                <span className="text-[11px] text-slate-400 ml-1">
+                <span className="text-xs font-bold text-amber-700 shrink-0">điểm</span>
+                <span className="text-[11px] text-slate-400 shrink-0">
                   (≈ {((customer.pointsBalance || 0) * 1000).toLocaleString("vi-VN")} đ)
                 </span>
               </div>
             </div>
 
-            <div className="mt-3 flex items-center justify-between gap-2 border-t border-amber-100 pt-2.5">
-              <div className="text-[11px] text-slate-500">
-                <span>Đã tích: <b>{customer.totalPointsEarned || 0}</b></span>
+            <div className="mt-3 flex items-center justify-between flex-wrap gap-2 border-t border-amber-100 pt-2.5">
+              <div className="text-[11px] text-slate-500 min-w-0 truncate">
+                <span>Đã tích: <b>{(customer.totalPointsEarned || 0).toLocaleString("vi-VN")}</b></span>
                 <span className="mx-1">·</span>
-                <span>Đã tiêu: <b>{customer.totalPointsRedeemed || 0}</b></span>
+                <span>Đã tiêu: <b>{(customer.totalPointsRedeemed || 0).toLocaleString("vi-VN")}</b></span>
               </div>
 
               {canManage && (
                 <button
                   type="button"
                   onClick={() => setAdjustModalOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-2.5 py-1 text-xs font-bold text-white shadow-2xs hover:bg-amber-700 transition cursor-pointer"
+                  className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-2.5 py-1 text-xs font-bold text-white shadow-2xs hover:bg-amber-700 transition cursor-pointer shrink-0"
                 >
                   <Gift className="h-3 w-3" />
                   <span>Cấp / Trừ điểm</span>

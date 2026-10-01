@@ -4,7 +4,7 @@ import { rejectScopeOverrides, resolveInventoryVariant, resolveInventoryWarehous
 import { SerialEventModel } from "./serial-event.model";
 import { SerialUnitModel } from "./serial-unit.model";
 import type { ISerialUnit, SerialUnitStatus } from "./serial-unit.interface";
-import { assertSerialTransition, normalizeSerialNumber } from "./serial-state";
+import { normalizeSerialNumber } from "./serial-state";
 import { generateInternalBarcode, normalizeInternalBarcode } from "./unit-barcode-validation";
 import { ProductVariantModel } from "../../../model/product-variant.model";
 import { InventoryBalanceModel } from "../../../model/inventory-balance.model";
@@ -113,20 +113,12 @@ export async function listSerialUnits(scope: SerialScope, filters: { serial?: st
 }
 
 export async function transitionSerialUnit(scope: SerialScope, id: string, input: TransitionSerialInput, actor: SerialActor, session?: ClientSession) {
-  const query = SerialUnitModel.findOne({ _id: id, ...scoped(scope) }); if (session) query.session(session);
-  const current = await query; if (!current) throw Object.assign(new Error("Không tìm thấy IMEI/serial."), { statusCode: 404 });
-  if (current.status === "in_transit" || input.toStatus === "in_transit") inventoryError("Hãy dùng chứng từ điều chuyển để đổi trạng thái hàng đang vận chuyển.", 409);
-  if (current.status === "internal_use" || input.toStatus === "internal_use") inventoryError("Máy sử dụng nội bộ phải cấp phát hoặc thu hồi qua phiếu kho.", 409);
-  assertSerialTransition(current.status, input.toStatus);
-  const fromStatus = current.status;
-  current.status = input.toStatus; current.updatedBy = actor.id;
-  current.currentDocumentType = input.documentType; current.currentDocumentId = input.documentId;
-  if (session) current.$session(session);
-  await current.save();
-  const event = new SerialEventModel({ ...scoped(scope), serialUnitId: String(current._id), serialNumber: current.serialNumber, eventType: input.eventType, fromStatus, toStatus: input.toStatus, documentType: input.documentType, documentId: input.documentId, reason: input.reason, actorId: actor.id, actorName: actor.name });
-  if (session) event.$session(session);
-  await event.save();
-  return current.toObject();
+  const query = SerialUnitModel.exists({ _id: id, ...scoped(scope) });
+  if (session) query.session(session);
+  if (!await query) throw Object.assign(new Error("Không tìm thấy IMEI/serial."), { statusCode: 404 });
+  // A caller-supplied document ID is not evidence of a posted stock or repair
+  // operation. Only the owning workflow may update units and its ledger/events.
+  throw Object.assign(new Error("Đổi trạng thái trực tiếp đã ngừng hỗ trợ. Hãy xử lý qua chứng từ bán hàng, phiếu kho, kiểm kê, điều chuyển hoặc phiếu sửa chữa tương ứng."), { statusCode: 409, code: "SERIAL_WORKFLOW_REQUIRED" });
 }
 
 export async function getSerialHistory(scope: SerialScope, id: string) {

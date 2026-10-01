@@ -304,9 +304,6 @@ export function WarehouseSection({
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Quản lý tồn kho thực tế, giá vốn bình quân gia quyền và danh sách IMEI/Serial.
-          </p>
         </div>
 
         {/* Right Action Bar */}
@@ -431,44 +428,40 @@ export function WarehouseSection({
           <button
             type="button"
             onClick={() => { setStockFilter("all"); setPage(1); }}
-            className={`rounded-md px-2.5 py-1 text-xs font-bold transition-colors ${
-              stockFilter === "all"
+            className={`rounded-md px-2.5 py-1 text-xs font-bold transition-colors ${stockFilter === "all"
                 ? "bg-slate-900 text-white"
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
+              }`}
           >
             Tất cả ({balances.length})
           </button>
           <button
             type="button"
             onClick={() => { setStockFilter("in_stock"); setPage(1); }}
-            className={`rounded-md px-2.5 py-1 text-xs font-bold transition-colors ${
-              stockFilter === "in_stock"
+            className={`rounded-md px-2.5 py-1 text-xs font-bold transition-colors ${stockFilter === "in_stock"
                 ? "bg-emerald-700 text-white"
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
+              }`}
           >
             Còn hàng ({balances.filter((b) => b.quantity > 0).length})
           </button>
           <button
             type="button"
             onClick={() => { setStockFilter("low_stock"); setPage(1); }}
-            className={`rounded-md px-2.5 py-1 text-xs font-bold transition-colors ${
-              stockFilter === "low_stock"
+            className={`rounded-md px-2.5 py-1 text-xs font-bold transition-colors ${stockFilter === "low_stock"
                 ? "bg-amber-600 text-white"
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
+              }`}
           >
             Sắp hết ({alertStats.lowCount})
           </button>
           <button
             type="button"
             onClick={() => { setStockFilter("out_of_stock"); setPage(1); }}
-            className={`rounded-md px-2.5 py-1 text-xs font-bold transition-colors ${
-              stockFilter === "out_of_stock"
+            className={`rounded-md px-2.5 py-1 text-xs font-bold transition-colors ${stockFilter === "out_of_stock"
                 ? "bg-rose-700 text-white"
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
+              }`}
           >
             Hết hàng ({alertStats.outCount})
           </button>

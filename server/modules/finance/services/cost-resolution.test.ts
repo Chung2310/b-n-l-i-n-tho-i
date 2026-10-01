@@ -1,11 +1,35 @@
 import { describe, it, expect } from "vitest";
-import { resolveSaleCost } from "./cost-resolution";
+import { resolveSaleCost, resolveReturnCost } from "./cost-resolution";
 import { saleLines, breakEven } from "./management-calculations";
 const order = { _id: "order-1", companyCode: "ACME", branchId: "A", confirmedAt: "2026-09-20", orderDiscount: 0 };
 const item = { sku: "PHONE", variantId: "variant-1", quantity: 1, unitCost: 0, lineTotal: 200, serialNumbers: ["IMEI-1"] };
 const receipt = { ...order, _id: "receipt-1", receiptCode: "PN-1", status: "confirmed", confirmedAt: "2026-09-01", items: [{ ...item, unitCost: 100 }] };
 const issue = { ...order, _id: "issue-1", sourceType: "retail-order", sourceId: order._id, sourceLine: 0, direction: "out", purpose: "sale", ...item, unitCost: 110 };
 describe("Finance cost evidence", () => {
+  it("preserves verified zero and fractional costs from linked sale postings", () => {
+    for (const unitCost of [0, 100.25]) {
+      const linkedItem = { ...item, unitCost, stockLedgerId: "issue-1", stockWarehouseId: "W" };
+      const entry = { ...issue, warehouseId: "W", quantityDelta: -1, unitCost };
+      expect(resolveSaleCost(order, linkedItem, 0, [entry], [receipt])).toMatchObject({ cost: unitCost, costBasis: "stock_issue" });
+    }
+  });
+  it("does not guess another cost when an explicit sale posting link is broken", () => {
+    const linkedItem = { ...item, unitCost: 110, stockLedgerId: "issue-1", stockWarehouseId: "W" };
+    const entry = { ...issue, warehouseId: "W", quantityDelta: -1 };
+    for (const patch of [{ _id: "different" }, { warehouseId: "OTHER" }, { unitCost: 109 }, { quantityDelta: 1 }, { branchId: "OTHER" }, { sourceLine: 1 }, { variantId: "OTHER" }]) {
+      expect(resolveSaleCost(order, linkedItem, 0, [{ ...entry, ...patch }], [receipt]).cost).toBeNull();
+    }
+    expect(resolveSaleCost(order, linkedItem, 0, [], [receipt]).cost).toBeNull();
+  });
+  it("resolves zero-cost partial returns against their source sale posting", () => {
+    const returnedItem = { ...item, orderLineIndex: 0, stockLedgerId: "issue-1", stockWarehouseId: "W" };
+    const entry = { ...issue, unitCost: 0, quantity: 2, quantityDelta: -2, warehouseId: "W" };
+    expect(resolveReturnCost({ ...order, orderId: order._id }, returnedItem, [entry])).toBe(0);
+    for (const patch of [{ unitCost: 10 }, { quantity: 3 }, { stockWarehouseId: "OTHER" }, { orderLineIndex: 1 }]) {
+      expect(resolveReturnCost({ ...order, orderId: order._id }, { ...returnedItem, ...patch }, [entry])).toBeNull();
+    }
+    expect(resolveReturnCost({ ...order, orderId: "OTHER" }, returnedItem, [entry])).toBeNull();
+  });
   it("preserves positive order snapshot even if current sources differ", () => expect(resolveSaleCost(order, { ...item, unitCost: 90 }, 0, [issue], [receipt]).cost).toBe(90));
   it("resolves the exact stock issue document", () => expect(resolveSaleCost(order, item, 0, [issue], []).cost).toBe(110));
   it("resolves a uniquely matched receipt identifier before the sale", () => expect(resolveSaleCost(order, item, 0, [], [receipt])).toMatchObject({ cost: 100, costBasis: "receipt_identifier", costReference: "PN-1" }));

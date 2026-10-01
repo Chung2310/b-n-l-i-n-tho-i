@@ -40,6 +40,9 @@ export interface IInventoryCountUnexpectedScan {
 }
 
 export interface IInventoryCount extends Document {
+  approvalReview?: { expectedVersion: number; reason?: string; confirmedById: string; confirmedAt: Date; unexpectedScanResolutions: Array<{ code: string; reason: string }> };
+  recreatedFromId?: string;
+  replacementCountId?: string;
   createdById?: string;
   submittedById?: string;
   approvedById?: string;

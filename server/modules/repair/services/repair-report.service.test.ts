@@ -17,7 +17,7 @@ test("nhóm theo ngày sử dụng timezone +07:00 để không bị lệch ngà
   expect(group.$group._id).toEqual({
     $dateToString: {
       format: "%Y-%m-%d",
-      date: "$completedAt",
+      date: { $ifNull: ["$completedAt", "$deliveredAt"] },
       timezone: "+07:00",
     },
   });
@@ -27,7 +27,7 @@ test("báo cáo doanh thu chỉ lấy phiếu đã xong trong kỳ và lọc the
   const [match]: any[] = buildRepairRevenuePipeline({ companyCode: "IGEN" }, range, "branch");
   expect(match.$match.companyCode).toBe("IGEN");
   expect(match.$match.status).toEqual({ $in: ["done", "delivered"] });
-  expect(match.$match.completedAt.$gte).toBeInstanceOf(Date);
+  expect(match.$match.$or[0].completedAt.$gte).toBeInstanceOf(Date);
   expect(match.$match.branchId, "không truyền branchId thì gộp toàn công ty").toBeUndefined();
 });
 
