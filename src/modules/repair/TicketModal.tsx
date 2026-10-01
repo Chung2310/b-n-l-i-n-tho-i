@@ -127,6 +127,7 @@ export default function TicketModal({
     ticket.laborFee ? ticket.laborFee.toLocaleString("vi-VN") : ""
   );
   const [quoteSaved, setQuoteSaved] = useState(false);
+  const [reason, setReason] = useState("");
   const [actionBusy, setBusy] = useState(false);
   const [paymentLocked, setPaymentLocked] = useState(false);
   const [errorAlert, setErrorAlert] = useState<string | null>(null);
