@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { authService } from "../../services/authService";
+import { repairExtras } from "../../services/repairService";
 import { Dropdown } from "../../components/common/Dropdown";
 import type { RepairTicket } from "../../services/repairService";
 
@@ -14,14 +14,14 @@ export default function ReceiveTechnicianModal({
   onClose,
   onSubmit,
 }: ReceiveTechnicianModalProps) {
-  const [people, setPeople] = useState<Array<{ uid: string; displayName?: string; email?: string }>>([]);
+  const [people, setPeople] = useState<Array<{ uid: string; displayName?: string; email?: string; jobTitle?: string; department?: string }>>([]);
   const [technicianId, setTechnicianId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    void authService
-      .getColleagues()
+    void repairExtras
+      .listTechnicians()
       .then((items) => setPeople(items))
       .catch((e) => setError(e instanceof Error ? e.message : "Không thể tải danh sách kỹ thuật viên."));
   }, []);
@@ -86,7 +86,9 @@ export default function ReceiveTechnicianModal({
               ...people.map((person) => ({
                 value: person.uid,
                 label: person.displayName || person.email || person.uid,
-                sublabel: person.displayName && person.email ? person.email : undefined,
+                sublabel: person.department
+                  ? `${person.department}${person.jobTitle ? ` • ${person.jobTitle}` : ""}`
+                  : person.jobTitle || (person.displayName && person.email ? person.email : undefined),
               })),
             ]}
             placeholder="— Chọn kỹ thuật viên —"

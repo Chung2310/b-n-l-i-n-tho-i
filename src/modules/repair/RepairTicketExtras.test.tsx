@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 vi.mock("../../services/repairService", () => ({
   repairService: { parts: vi.fn(async () => []), issuePart: vi.fn(), returnPart: vi.fn(), reconcilePart: vi.fn(), revokePartRequest: vi.fn() },
   repairExtras: {
+    listTechnicians: vi.fn(async () => []),
     assignTechnician: vi.fn(),
     notifications: vi.fn(async () => []),
     resendNotification: vi.fn(),

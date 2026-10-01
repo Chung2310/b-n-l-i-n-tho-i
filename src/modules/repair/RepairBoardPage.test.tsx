@@ -6,7 +6,19 @@ import { afterEach, expect, test, vi } from "vitest";
 
 vi.mock("../../services/repairService", async () => {
   const actual = await vi.importActual<typeof import("../../services/repairService")>("../../services/repairService");
-  return { ...actual, repairService: { board: vi.fn(async () => ({ received: [ticket] })), quote: vi.fn(async () => ticket), transition: vi.fn(async () => ticket), cancel: vi.fn(async () => ticket) } };
+  return {
+    ...actual,
+    repairExtras: {
+      ...actual.repairExtras,
+      listTechnicians: vi.fn(async () => [{ uid: "tech-1", displayName: "Nguyễn Văn Kỹ Thuật" }]),
+    },
+    repairService: {
+      board: vi.fn(async () => ({ received: [ticket] })),
+      quote: vi.fn(async () => ticket),
+      transition: vi.fn(async () => ticket),
+      cancel: vi.fn(async () => ticket),
+    },
+  };
 });
 
 vi.mock("../../services/authService", () => ({

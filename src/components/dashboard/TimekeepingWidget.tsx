@@ -253,7 +253,7 @@ export function TimekeepingWidget({
       {gpsPermission === "prompt" && (
         <div className="w-full p-3 bg-indigo-50 border border-indigo-100 text-indigo-800 rounded-2xl flex items-center gap-2 animate-pulse">
           <AlertTriangle className="h-4.5 w-4.5 shrink-0 text-indigo-600" />
-          <span className="text-[11px] font-semibold text-left">Igen Retail ERP cần quyền vị trí của bạn để chấm công. Vui lòng chọn "Cho phép" (Allow) khi trình duyệt yêu cầu.</span>
+          <span className="text-[11px] font-semibold text-left">iGEN Retail cần quyền vị trí của bạn để chấm công. Vui lòng chọn "Cho phép" (Allow) khi trình duyệt yêu cầu.</span>
         </div>
       )}
 

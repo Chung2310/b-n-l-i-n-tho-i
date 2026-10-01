@@ -127,11 +127,20 @@ export default function TicketModal({
     ticket.laborFee ? ticket.laborFee.toLocaleString("vi-VN") : ""
   );
   const [quoteSaved, setQuoteSaved] = useState(false);
-  const [reason, setReason] = useState("");
   const [actionBusy, setBusy] = useState(false);
   const [paymentLocked, setPaymentLocked] = useState(false);
+  const [errorAlert, setErrorAlert] = useState<string | null>(null);
   const busy = actionBusy || paymentLocked;
   const quoteSavePending = useRef(false);
+
+  useEffect(() => {
+    if (!errorAlert) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setErrorAlert(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [errorAlert]);
 
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true);
@@ -140,7 +149,7 @@ export default function TicketModal({
       onChanged();
       onClose();
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Không thể cập nhật phiếu.");
+      setErrorAlert(e instanceof Error ? e.message : "Không thể cập nhật phiếu.");
     } finally {
       setBusy(false);
     }
@@ -628,6 +637,36 @@ export default function TicketModal({
             ))}
           </div>
         </div>
+
+        {errorAlert && (
+          <div
+            className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-xs animate-in fade-in duration-150"
+            role="presentation"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setErrorAlert(null);
+            }}
+          >
+            <div
+              role="alertdialog"
+              aria-modal="true"
+              className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-center animate-in zoom-in-95 duration-150"
+            >
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 text-rose-600 mb-3 ring-8 ring-rose-50">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 mb-1.5">Thông báo</h3>
+              <p className="text-sm text-slate-600 mb-5 leading-relaxed">{errorAlert}</p>
+              <button
+                type="button"
+                onClick={() => setErrorAlert(null)}
+                autoFocus
+                className="w-full rounded-xl bg-slate-900 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Đã hiểu
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

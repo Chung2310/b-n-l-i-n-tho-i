@@ -262,9 +262,6 @@ export function ProductCatalogV2Section() {
         <div>
           <div className="flex items-center gap-2.5">
             <h2 className="text-lg font-bold tracking-tight text-slate-900">Danh mục sản phẩm</h2>
-            <span className="inline-flex items-center rounded-md bg-cyan-50 px-2 py-0.5 text-xs font-semibold text-cyan-700 border border-cyan-200">
-              Ma trận biến thể
-            </span>
           </div>
         </div>
 

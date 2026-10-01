@@ -78,8 +78,8 @@ export default function RepairTicketCard({
       {/* Customer & Technician */}
       <div className="flex items-center justify-between gap-2 text-xs text-slate-600 border-t border-slate-100 pt-2">
         <p className="font-semibold text-slate-800 truncate flex-1" title={ticket.customerName}>{ticket.customerName}</p>
-        <p className="text-[11px] text-slate-400 truncate max-w-[150px] text-right shrink-0" title={ticket.technicianName || "Chưa giao KT"}>
-          {ticket.technicianName ? `KT: ${ticket.technicianName}` : <span className="italic">Chưa giao KT</span>}
+        <p className="text-[11px] text-slate-400 truncate max-w-[150px] text-right shrink-0" title={ticket.technicianName || "Chưa giao KTV"}>
+          {ticket.technicianName ? `KTV: ${ticket.technicianName}` : <span className="italic">Chưa giao KTV</span>}
         </p>
       </div>
 
