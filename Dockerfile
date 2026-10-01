@@ -50,8 +50,13 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/dist-server ./dist-server
 COPY --from=builder /app/server/assets/fonts ./server/assets/fonts
 
+# Tạo thư mục logs và gán quyền cho user node
+RUN mkdir -p /app/logs && chown -R node:node /app
+
+USER node
+
 # Expose Express server port
 EXPOSE 3011
 
-# Run the bundled production server
-CMD ["node", "dist-server/server.cjs"]
+# Run the bundled production server với giới hạn heap để chống memory leak làm phình swap trên VPS
+CMD ["node", "--max-old-space-size=1536", "dist-server/server.cjs"]
