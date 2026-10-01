@@ -5,6 +5,8 @@ services:
     image: ghcr.io/${IMAGE_NAME:-chung2310/b-n-l-i-n-tho-i}:${IMAGE_TAG:-develop}
     container_name: ${CONTAINER_NAME:-igen-retail}
     restart: always
+    mem_limit: 1536m
+    mem_reservation: 512m
     ports:
       - "${HOST_PORT:-${PORT:-3011}}:${PORT:-3011}"
     environment:
@@ -13,6 +15,7 @@ services:
       - .env
     volumes:
       - .env:/app/.env
+      - ./logs:/app/logs
     networks:
       - default_network
     dns:
