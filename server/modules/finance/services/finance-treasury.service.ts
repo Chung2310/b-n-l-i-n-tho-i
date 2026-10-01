@@ -52,7 +52,12 @@ export const financeTreasuryService = {
     const values = { kind: kind as "receipt" | "payment" | "transfer", amount, occurredOn, description, accountId, destinationAccountId, debtId, reference: String(input.reference || "").slice(0, 240), sourceKey: source?.key || (debtId ? `debt:${debtId}:${key}` : undefined), sourceType: source?.sourceType || (debtId ? "debt" : undefined), sourceId: source?.sourceId || debtId };
     return financeTransaction(scope, async session => {
       const existing = await Voucher.findOne({ ...scope, key }).session(session);
-      if (existing) { if (Object.entries(values).some(([k, v]) => (existing as any)[k] !== v)) throw conflict(); return existing; }
+      if (existing) {
+        // Repair linkage is added after posting; preserve replay of the original manual voucher.
+        const linkedRepair = existing.status === "posted" && existing.sourceType === "repair-refund" && !input.sourceKey && !input.debtId;
+        if (Object.entries(values).some(([k, v]) => !(linkedRepair && ["sourceKey", "sourceType", "sourceId"].includes(k)) && (existing as any)[k] !== v)) throw conflict();
+        return existing;
+      }
       await assertCashPeriodOpen(scope, occurredOn, session);
       for (const id of [accountId, destinationAccountId].filter(Boolean)) { const a = await Account.findOne({ ...scope, _id: id }).session(session); if (!a || a.openingOn > occurredOn) throw invalid("Quỹ không tồn tại hoặc giao dịch trước ngày số dư đầu kỳ."); }
       if (debtId) { const debt = await FinanceDebtModel.findOne({ ...scope, _id: debtId }).session(session); if (!debt || debt.balance < amount || occurredOn < debt.occurredOn || kind !== (debt.direction === "payable" ? "payment" : "receipt")) throw invalid("Công nợ không phù hợp hoặc số tiền vượt dư nợ."); }

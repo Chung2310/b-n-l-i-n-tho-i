@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, expect, it, vi } from "vitest";
 import { confirmOfflineOrder } from "./confirmOfflineOrder";
 import { retailOrdersApi } from "../api/retailOrders.api";
@@ -6,7 +7,7 @@ import { syncRetailOfflineQueue } from "./retailOfflineSync";
 vi.mock("../api/retailOrders.api", () => ({ retailOrdersApi: { confirm: vi.fn(), createDraft: vi.fn(), updateDraft: vi.fn(), detail: vi.fn() } }));
 const scope = { companyCode: "A", branchId: "B", userId: "u1" };
 const payload = { draftId: "o1", draftVersion: 3, draftSaved: true, expectedGrandTotal: 400, payments: [{ method: "cash", amount: 400 }] };
-beforeEach(() => vi.resetAllMocks());
+beforeEach(() => { vi.resetAllMocks(); vi.mocked(retailOrdersApi.confirm).mockImplementation(async (_scope, id) => ({ order: { _id: id }, invoice: { _id: "i1", orderId: id } }) as any); localStorage.clear(); sessionStorage.clear(); Object.defineProperty(navigator, "locks", { configurable: true, value: { request: vi.fn(async (_key, _options, work) => work({})) } }); });
 
 it("sends the persisted version and key without loading a newer draft", async () => {
   const item = createRetailOfflineOrder(scope, payload, "key");
@@ -84,4 +85,32 @@ it("recovers an uncertain update using its original version/key and persists bef
   expect(retailOrdersApi.updateDraft).toHaveBeenCalledTimes(1);
   expect(retailOrdersApi.updateDraft).toHaveBeenCalledWith(scope, "o1", { ...draftUpdate.input, idempotencyKey: "update-key" });
   expect(retailOrdersApi.createDraft).not.toHaveBeenCalled();
+});
+
+it("preserves both queue and shared request when identities differ", async () => {
+  const queue = createMemoryRetailOfflineQueue();
+  const request = { idempotencyKey: "queued", input: { customerId: "c1" } };
+  const item = createRetailOfflineOrder(scope, { ...payload, draftId: undefined, draftSaved: false, draftCreation: request }, "confirm-key");
+  await queue.put(item);
+  const raw = JSON.stringify({ ...request, idempotencyKey: "other-tab" });
+  localStorage.setItem('retail-create-draft:v1:["A","B","u1"]', raw);
+  await expect(confirmOfflineOrder(scope, item, queue)).rejects.toThrow("khác bản nháp");
+  expect(retailOrdersApi.createDraft).not.toHaveBeenCalled();
+  expect(retailOrdersApi.confirm).not.toHaveBeenCalled();
+  expect((await queue.list(scope))[0].payload).toEqual(item.payload);
+  expect(localStorage.getItem('retail-create-draft:v1:["A","B","u1"]')).toBe(raw);
+});
+
+it.each(["create", "update"])("retains the queued %s request after a malformed response", async kind => {
+  const queue = createMemoryRetailOfflineQueue();
+  const request = { idempotencyKey: "draft-key", input: { version: 2 }, orderId: "o1" };
+  const pending = kind === "create" ? { draftId: undefined, draftCreation: request } : { draftId: "o1", draftUpdate: request };
+  const item = createRetailOfflineOrder(scope, { ...payload, ...pending, draftSaved: false }, "confirm-key");
+  await queue.put(item);
+  vi.mocked(retailOrdersApi.createDraft).mockResolvedValue({ _id: "o1" } as any);
+  vi.mocked(retailOrdersApi.updateDraft).mockResolvedValue({ _id: "wrong", version: 3 } as any);
+  await expect(confirmOfflineOrder(scope, item, queue)).rejects.toThrow("Phản hồi bản nháp không khớp");
+  expect((await queue.list(scope))[0].payload).toEqual(item.payload);
+  expect(retailOrdersApi.confirm).not.toHaveBeenCalled();
+  expect(localStorage.length).toBe(1);
 });

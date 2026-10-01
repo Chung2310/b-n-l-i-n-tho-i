@@ -1,3 +1,4 @@
+import { RetailAfterSaleRequestModel } from "../models/retail-after-sale-request.model";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose, { Types } from "mongoose";
@@ -18,7 +19,7 @@ import { backfillRetailRestockReceipts } from "./retail-restock-backfill.service
 
 const scope = { companyCode: "AFTER_SALE_TEST", branchId: new Types.ObjectId().toString() };
 const actor = { id: "cashier", displayName: "Thu ngân" };
-const models: mongoose.Model<any>[] = [RetailAfterSaleModel, RetailOrderModel, GoodsReceiptModel, ProductVariantModel, InventoryBalanceModel, InventoryLedgerEntryModel, WarehouseModel, SerialUnitModel, SerialEventModel, StockLogModel];
+const models: mongoose.Model<any>[] = [RetailAfterSaleRequestModel, RetailAfterSaleModel, RetailOrderModel, GoodsReceiptModel, ProductVariantModel, InventoryBalanceModel, InventoryLedgerEntryModel, WarehouseModel, SerialUnitModel, SerialEventModel, StockLogModel];
 let repl: MongoMemoryReplSet;
 let order: any;
 let variantId: string;

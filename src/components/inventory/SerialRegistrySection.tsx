@@ -310,9 +310,6 @@ export function SerialRegistrySection({ onTransfers }: { onTransfers?: () => voi
               {stats.total} máy
             </span>
           </div>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Phân loại danh sách IMEI theo từng dòng máy, tra cứu vòng đời và lịch sử điều phối.
-          </p>
         </div>
 
         {/* Right Action Bar */}
@@ -469,22 +466,20 @@ export function SerialRegistrySection({ onTransfers }: { onTransfers?: () => voi
             <button
               type="button"
               onClick={() => setViewMode("by_machine")}
-              className={`rounded-md px-2.5 py-1 font-bold transition-all ${
-                viewMode === "by_machine"
+              className={`rounded-md px-2.5 py-1 font-bold transition-all ${viewMode === "by_machine"
                   ? "bg-white text-slate-900 shadow-2xs"
                   : "text-slate-500 hover:text-slate-800"
-              }`}
+                }`}
             >
               Theo dòng máy
             </button>
             <button
               type="button"
               onClick={() => setViewMode("flat")}
-              className={`rounded-md px-2.5 py-1 font-bold transition-all ${
-                viewMode === "flat"
+              className={`rounded-md px-2.5 py-1 font-bold transition-all ${viewMode === "flat"
                   ? "bg-white text-slate-900 shadow-2xs"
                   : "text-slate-500 hover:text-slate-800"
-              }`}
+                }`}
             >
               Tất cả IMEI
             </button>
@@ -955,9 +950,8 @@ export function SerialRegistrySection({ onTransfers }: { onTransfers?: () => voi
                     Lịch sử {history.item.serialNumber}
                   </h3>
                   <span
-                    className={`rounded px-2 py-0.5 font-mono text-[10px] font-bold border ${
-                      statusBadgeStyles[history.item.status] || "bg-slate-100 text-slate-700"
-                    }`}
+                    className={`rounded px-2 py-0.5 font-mono text-[10px] font-bold border ${statusBadgeStyles[history.item.status] || "bg-slate-100 text-slate-700"
+                      }`}
                   >
                     {serialStatusLabel(history.item.status)}
                   </span>

@@ -8,6 +8,7 @@ import { PayrollPaymentModel } from "../../../model/payroll-payment.model";
 import { GoodsReceiptModel } from "../../../model/goods-receipt.model";
 import type { FinanceBranchScope } from "../contracts";
 import { financeToday } from "./financial-calculations";
+import { verifiedRepairRefunds } from "../../repair/services/repair-refunds";
 export type CashSource = { key: string; sourceType: string; sourceId: string; description: string; occurredOn: string; amount: number; method: string };
 export async function financeCashSources(scope: FinanceBranchScope): Promise<CashSource[]> {
   const [orders, buybacks, debts, receivablePayments, payroll, commissions, receipts] = await Promise.all([
@@ -36,6 +37,7 @@ export async function financeCashSources(scope: FinanceBranchScope): Promise<Cas
   for (const p of payroll) push(`payroll:${p._id}`, "payroll", p._id, p.note || "Thanh toán lương", p.paymentDate, -p.amount);
   for (const p of commissions) push(`commission:${p._id}`, "commission", p._id, p.reason, p.createdAt, p.amount);
   for (const receipt of receipts as any[]) push(`receipt-paid:${receipt._id}`, "goods-receipt", receipt._id, `Đã trả khi nhập ${receipt.receiptCode}`, receipt.confirmedAt, -receipt.financeTerms.paidAmount, receipt.financeTerms.paymentMethod);
+  for (const row of await verifiedRepairRefunds(scope)) push(`repair-refund:${row._id}:${row.refund.key}`, "repair-refund", row._id, `Hoàn sửa chữa ${row.ticketCode}`, row.refund.at, -row.refund.amount);
   return result;
 }
 export async function unassignedCashSources(scope: FinanceBranchScope) {

@@ -1,3 +1,4 @@
+import { GoodsReceiptModel } from "../../../model/goods-receipt.model";
 import { attachAfterSaleHistory } from "./retail-after-sale-history";
 import { RetailAfterSaleModel } from "../models/retail-after-sale.model";
 import { resolveCollaborator, snapshotRetail } from "../../partners/commission-snapshot";
@@ -315,7 +316,200 @@ async function resolveOrderCustomerSnapshots(scope: RetailBranchScope, customerI
   return buildRetailCustomerSnapshots(customer, billing);
 }
 
+function confirmationIdentity(scope: RetailBranchScope, id: string, input: any, actor: any, shift?: any) {
+    const key = String(input.idempotencyKey || "").trim(); if (!key) throw new Error("Idempotency key là bắt buộc.");
+    if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0) throw retailError("Phiên bản đơn xác nhận là bắt buộc.", "ORDER_VERSION_REQUIRED", 400);
+    const expectedGrandTotal = Number(input.expectedGrandTotal);
+    if (!Number.isSafeInteger(expectedGrandTotal) || expectedGrandTotal < 0) throw new Error("Tổng tiền xác nhận không hợp lệ.");
+    const requestPayments = normalizePayments(input.payments || [], expectedGrandTotal);
+    const requestFingerprint = createHash("sha256").update(JSON.stringify({ version: 1,
+      companyCode: scope.companyCode, branchId: scope.branchId, orderId: id,
+      operation: "confirm-order", actorId: actorId(actor), shiftId: String(shift?._id || ""),
+      expectedVersion: input.expectedVersion, expectedGrandTotal, payments: requestPayments.payments,
+    })).digest("hex");
+    return { key, requestFingerprint, requestPayments, expectedGrandTotal };
+}
+const checkoutCanonical = (value: any): any => Array.isArray(value) ? value.map(checkoutCanonical) : value && typeof value === "object" ? Object.fromEntries(Object.keys(value).sort().map(key => [key, checkoutCanonical(value[key])])) : value;
+function checkoutIdentity(scope: RetailBranchScope, input: any, actor: any) {
+  const key = input?.idempotencyKey, payload = input?.payload;
+  if (typeof key !== "string" || !key.trim() || key !== key.trim() || !payload || !actorId(actor)) throw replayConflict();
+  if (payload.draftCreation && payload.draftUpdate) throw replayConflict();
+  const request = payload.draftCreation || payload.draftUpdate;
+  const operation = payload.draftCreation ? "create-draft" : "update-draft";
+  let orderId = payload.draftUpdate?.orderId || payload.draftId;
+  let expectedVersion = payload.draftVersion;
+  if (request) {
+    if (typeof request.idempotencyKey !== "string" || !request.idempotencyKey.trim() || request.idempotencyKey !== request.idempotencyKey.trim() || request.idempotencyKey === key || !request.input || typeof request.input !== "object" || Array.isArray(request.input)) throw replayConflict();
+    expectedVersion = operation === "create-draft" ? 0 : request.input.version + 1;
+    if (operation === "update-draft" && (!Types.ObjectId.isValid(orderId) || !Number.isSafeInteger(request.input.version) || request.input.version < 0)) throw replayConflict();
+    if (payload.draftSaved === true && payload.draftVersion !== expectedVersion) throw replayConflict();
+    if (payload.draftUpdate && payload.draftId !== orderId) throw replayConflict();
+  } else if (payload.draftSaved !== true || !Types.ObjectId.isValid(orderId)) throw replayConflict();
+  // Keep the existing confirmation normalization and v1 fingerprint unchanged.
+  const confirmInput = { idempotencyKey: key, expectedVersion, expectedGrandTotal: payload.expectedGrandTotal, payments: payload.payments };
+  confirmationIdentity(scope, orderId || "", confirmInput, actor);
+  const requestFingerprint = createHash("sha256").update(JSON.stringify(checkoutCanonical({ version: 1, ...scope, actorId: actorId(actor),
+    draft: request ? { operation, request, ...(operation === "update-draft" ? { orderId } : {}) } : { orderId, expectedVersion },
+    expectedGrandTotal: payload.expectedGrandTotal, payments: payload.payments,
+  }))).digest("hex");
+  return { key, payload, request, operation, orderId, expectedVersion, confirmInput, requestFingerprint };
+}
+async function checkoutEvidence(scope: RetailBranchScope, input: any, actor: any, session: mongoose.ClientSession, revoke: boolean, canManage: boolean) {
+  const intent = checkoutIdentity(scope, input, actor);
+  const filter = { companyCode: scope.companyCode, key: intent.key };
+  const attempt = await RetailIdempotencyModel.findOne(filter).session(session).lean();
+  if (attempt?.operation === "revoke-checkout") {
+    if (attempt.branchId !== scope.branchId || attempt.requestFingerprint !== intent.requestFingerprint || attempt.status !== "revoked") throw replayConflict();
+    return { status: "revoked" as const, message: "Yêu cầu đã thu hồi. Khóa cũ không thể thanh toán." };
+  }
+  let orderId = intent.orderId;
+  let draftGate: any;
+  let draftFingerprint: string | undefined;
+  if (intent.request) {
+    draftFingerprint = draftRequestFingerprint(intent.operation, scope, actor, intent.request.input, intent.operation === "update-draft" ? orderId : undefined);
+    draftGate = await RetailIdempotencyModel.findOne({ companyCode: scope.companyCode, key: intent.request.idempotencyKey }).session(session).lean();
+    if (draftGate) {
+      if (draftGate.branchId !== scope.branchId || draftGate.operation !== intent.operation || draftGate.requestFingerprint !== draftFingerprint) throw replayConflict();
+      if (draftGate.status === "revoked" && !attempt) {
+        if (!revoke) return { status: "not_found" as const, message: "Khóa nháp đã thu hồi. Cần thu hồi cả yêu cầu thanh toán trước khi bỏ." };
+        await RetailIdempotencyModel.create([{ ...scope, key: intent.key, operation: "revoke-checkout", orderId, requestFingerprint: intent.requestFingerprint, status: "revoked" }], { session });
+        return { status: "revoked" as const, message: "Đã thu hồi yêu cầu thanh toán có khóa nháp đã thu hồi." };
+      }
+      if (draftGate.status !== "completed" || !Types.ObjectId.isValid(draftGate.orderId)) throw replayConflict();
+      if (orderId && orderId !== draftGate.orderId) throw replayConflict();
+      orderId = draftGate.orderId;
+    } else if (intent.payload.draftSaved === true || attempt) throw replayConflict();
+  }
+  if (attempt) {
+    const identity = confirmationIdentity(scope, orderId, intent.confirmInput, actor);
+    if (attempt.branchId !== scope.branchId || attempt.operation !== "confirm-order" || attempt.orderId !== orderId || attempt.requestFingerprint !== identity.requestFingerprint) throw replayConflict();
+    if (attempt.status !== "completed") {
+      if (revoke) throw replayConflict();
+      return { status: "processing" as const, message: "Yêu cầu đang xử lý. Giữ nguyên để đối chiếu." };
+    }
+    const { order, invoice } = await confirmedResult(scope, attempt, session);
+    assertHeldDraftAccess(String(order.createdBy), actorId(actor), canManage);
+    const expected = identity.requestPayments;
+    const snapshot: any = invoice.snapshot;
+    const fields = (row: any) => ({ method: row.method, amount: row.amount, tenderedAmount: row.tenderedAmount, changeAmount: row.changeAmount, reference: row.reference });
+    const same = (left: any, right: any) => JSON.stringify(checkoutCanonical(left)) === JSON.stringify(checkoutCanonical(right));
+    if (order.version < intent.expectedVersion + 1 || order.grandTotal !== identity.expectedGrandTotal || !snapshot || snapshot.grandTotal !== identity.expectedGrandTotal || snapshot.paidAmount !== expected.total || snapshot.dueAmount !== identity.expectedGrandTotal - expected.total || !same(snapshot.payments?.map(fields), expected.payments) || !same(order.payments.slice(0, expected.payments.length).map(fields), expected.payments) || order.payments.slice(0, expected.payments.length).some(p => p.receivedBy !== actorId(actor) || !!p.shiftId) || order.payments.reduce((sum, p) => sum + p.amount, 0) !== order.paidAmount) throw replayConflict();
+    return { status: "completed" as const, message: "Đã đối chiếu yêu cầu và hóa đơn gốc.", order, invoice };
+  }
+  if (!revoke) return { status: "not_found" as const, message: "Chưa ghi nhận xác nhận. Giữ nguyên yêu cầu; đây không phải quyền xóa." };
+  if (orderId) {
+    const order = await RetailOrderModel.findOne({ _id: orderId, ...scope }).session(session).lean();
+    const version = intent.request && !draftGate && intent.operation === "update-draft" ? intent.request.input.version : intent.expectedVersion;
+    if (!order || order.status !== "draft" || order.version !== version || order.stockApplied || order.paidAmount || order.refundedAmount || order.payments.length || order.refunds.length || await RetailInvoiceModel.exists({ ...scope, orderId }).session(session)) throw replayConflict();
+    assertHeldDraftAccess(String(order.createdBy), actorId(actor), canManage);
+  } else if (!intent.request || intent.operation !== "create-draft" || draftGate) throw replayConflict();
+  // Reserve both identities atomically when draft saving may still be in flight.
+  if (intent.request && !draftGate) await RetailIdempotencyModel.create([{ ...scope, key: intent.request.idempotencyKey, operation: intent.operation, orderId, requestFingerprint: draftFingerprint, status: "revoked" }], { session });
+  await RetailIdempotencyModel.create([{ ...scope, key: intent.key, operation: "revoke-checkout", orderId, requestFingerprint: intent.requestFingerprint, status: "revoked" }], { session });
+  return { status: "revoked" as const, message: "Đã thu hồi yêu cầu chưa thanh toán. Bản nháp đã lưu được giữ nguyên." };
+}
+
+function collectionIdentity(scope: RetailBranchScope, id: string, input: any, actor: any, shift?: any) {
+    const key = String(input.idempotencyKey || "").trim();
+    if (!key || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0) throw retailError("Khóa thao tác và phiên bản đơn là bắt buộc.", "COLLECTION_INVALID", 400);
+    let normalized: ReturnType<typeof normalizePayments>;
+    try {
+      normalized = normalizePayments(input.payments || [], Number.MAX_SAFE_INTEGER);
+      if (!normalized.total) throw new Error("Số tiền thu phải lớn hơn 0.");
+    } catch (error: any) { throw retailError(error.message, "COLLECTION_INVALID", 400); }
+    const requestFingerprint = createHash("sha256").update(JSON.stringify({ version: 1, operation: "collect-order",
+      companyCode: scope.companyCode, branchId: scope.branchId, orderId: id, actorId: actorId(actor),
+      shiftId: String(shift?._id || ""), expectedVersion: input.expectedVersion, payments: normalized.payments,
+    })).digest("hex");
+    return { key, normalized, requestFingerprint };
+}
+
+function cancellationIdentity(scope: RetailBranchScope, id: string, input: any, actor: any, shift?: any) {
+    const reason = String(input.reason || "").trim();
+    const key = String(input.idempotencyKey || "").trim();
+    if (!reason || !key || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0) throw retailError("Lý do, khóa thao tác và phiên bản đơn là bắt buộc.", "CANCELLATION_INVALID", 400);
+    let refunds: ReturnType<typeof normalizePayments>;
+    try { refunds = normalizePayments(input.refunds || [], Number.MAX_SAFE_INTEGER); }
+    catch (error: any) { throw retailError(error.message, "CANCELLATION_INVALID", 400); }
+    const requestFingerprint = createHash("sha256").update(JSON.stringify({ version: 1, operation: "cancel-order",
+      companyCode: scope.companyCode, branchId: scope.branchId, orderId: id, actorId: actorId(actor),
+      shiftId: String(shift?._id || ""), expectedVersion: input.expectedVersion, reason, refunds: refunds.payments,
+    })).digest("hex");
+    return { reason, key, refunds, requestFingerprint };
+}
+function cancellationDigest(order: any) {
+  return createHash("sha256").update(JSON.stringify({
+    id: String(order._id), companyCode: order.companyCode, branchId: order.branchId,
+    status: order.status, version: order.version, reason: order.cancelReason, cancelledAt: order.cancelledAt,
+    paidAmount: order.paidAmount, refundedAmount: order.refundedAmount, grandTotal: order.grandTotal,
+    stockApplied: order.stockApplied, stockRevertedAt: order.stockRevertedAt,
+    restockReceiptId: order.restockReceiptId, createdBy: order.createdBy,
+    refunds: order.refunds.map((p: any) => ({ method: p.method, amount: p.amount, reference: p.reference, refundedAt: p.refundedAt, refundedBy: p.refundedBy, shiftId: p.shiftId, reason: p.reason })),
+  })).digest("hex");
+}
+async function draftRequestEvidence(scope: RetailBranchScope, input: any, actor: any, session: mongoose.ClientSession, revoke: boolean, canManage: boolean) {
+  const { request, orderId } = input || {};
+  if (!request || typeof request.idempotencyKey !== "string" || !request.idempotencyKey.trim() || request.idempotencyKey !== request.idempotencyKey.trim() || !request.input || typeof request.input !== "object" || Array.isArray(request.input) || !actorId(actor)) throw replayConflict();
+  const updating = orderId !== undefined;
+  if (updating && (!Types.ObjectId.isValid(orderId) || !Number.isSafeInteger(request.input.version) || request.input.version < 0)) throw replayConflict();
+  const operation = updating ? "update-draft" : "create-draft";
+  const requestFingerprint = draftRequestFingerprint(operation, scope, actor, request.input, orderId);
+  const filter = { companyCode: scope.companyCode, key: request.idempotencyKey };
+  const attempt = await RetailIdempotencyModel.findOne(filter).session(session).lean();
+  if (attempt) {
+    if (attempt.branchId !== scope.branchId || attempt.operation !== operation || attempt.requestFingerprint !== requestFingerprint || (updating && attempt.orderId !== orderId)) throw replayConflict();
+    if (attempt.status === "revoked") return { status: "revoked" as const, message: "Yêu cầu nháp đã thu hồi. Khóa cũ không thể ghi lại." };
+    if (attempt.status !== "completed") {
+      if (revoke) throw replayConflict();
+      return { status: "processing" as const, message: "Yêu cầu đang xử lý. Giữ bản lưu để đối chiếu." };
+    }
+    if (!Types.ObjectId.isValid(attempt.orderId)) throw replayConflict();
+    const order = await RetailOrderModel.findOne({ _id: attempt.orderId, ...scope }).session(session).lean();
+    if (!order || !Number.isSafeInteger(order.version) || order.version < (updating ? request.input.version + 1 : 0) || (!updating && String(order.createdBy) !== actorId(actor))) throw replayConflict();
+    assertHeldDraftAccess(String(order.createdBy), actorId(actor), canManage);
+    // The completed gate proves the original write; never replay it over later edits.
+    return { status: "completed" as const, message: "Đã xác minh lần lưu nháp gốc. Đơn hiện tại được giữ nguyên.", order: { _id: String(order._id), version: order.version, status: order.status } };
+  }
+  if (updating) {
+    const order = await RetailOrderModel.findOne({ _id: orderId, ...scope }).session(session).lean();
+    if (!order) throw replayConflict();
+    assertHeldDraftAccess(String(order.createdBy), actorId(actor), canManage);
+    if (revoke && (order.status !== "draft" || order.version !== request.input.version || order.stockApplied || order.paidAmount || order.refundedAmount || order.payments.length || order.refunds.length || await RetailInvoiceModel.exists({ ...scope, orderId }).session(session))) throw replayConflict();
+  }
+  if (!revoke) return { status: "not_found" as const, message: "Chưa tìm thấy lần lưu. Giữ yêu cầu; kết quả này không cho phép xóa hoặc đổi khóa." };
+  await RetailIdempotencyModel.create([{ ...scope, key: request.idempotencyKey, operation, orderId, requestFingerprint, status: "revoked" }], { session });
+  return { status: "revoked" as const, message: "Đã thu hồi yêu cầu nháp chưa ghi nhận. Đơn đã lưu không bị xóa." };
+}
+
 export const RetailOrderService = {
+  async reconcileDraftRequest(scope: RetailBranchScope, input: any, actor: any, canManage = false) {
+    const session = await mongoose.startSession();
+    try { return await session.withTransaction(() => draftRequestEvidence(scope, input, actor, session, false, canManage), { readConcern: { level: "snapshot" } }); }
+    finally { await session.endSession(); }
+  },
+  async revokeDraftRequest(scope: RetailBranchScope, input: any, actor: any, canManage = false) {
+    for (let retry = 0; retry < 3; retry++) {
+      const session = await mongoose.startSession();
+      try { return await session.withTransaction(() => draftRequestEvidence(scope, input, actor, session, true, canManage), { readConcern: { level: "snapshot" } }); }
+      catch (error: any) { if (!(retry < 2 && error?.code === 11000 && error?.keyPattern?.companyCode && error?.keyPattern?.key)) throw error; }
+      finally { await session.endSession(); }
+    }
+    throw replayConflict();
+  },
+  async reconcileCheckout(scope: RetailBranchScope, input: any, actor: any, canManage = false) {
+    const session = await mongoose.startSession();
+    try { return await session.withTransaction(() => checkoutEvidence(scope, input, actor, session, false, canManage), { readConcern: { level: "snapshot" } }); }
+    finally { await session.endSession(); }
+  },
+  async revokeCheckout(scope: RetailBranchScope, input: any, actor: any, canManage = false) {
+    for (let retry = 0; retry < 3; retry++) {
+      const session = await mongoose.startSession();
+      try { return await session.withTransaction(() => checkoutEvidence(scope, input, actor, session, true, canManage), { readConcern: { level: "snapshot" } }); }
+      catch (error: any) { if (!(retry < 2 && error?.code === 11000 && error?.keyPattern?.companyCode && error?.keyPattern?.key)) throw error; }
+      finally { await session.endSession(); }
+    }
+    throw replayConflict();
+  },
   async quote(scope: RetailBranchScope, input: any) { return (await priceInput(scope, input)).pricing; },
   async list(scope: RetailBranchScope, query: any) {
     await expireHeldDrafts(scope, businessDateInVietnam(new Date()));
@@ -418,16 +612,7 @@ export const RetailOrderService = {
     } finally { await session.endSession(); }
   },
   async confirm(scope: RetailBranchScope, id: string, input: any, actor: any, shift: any = undefined, canManage = false) {
-    const key = String(input.idempotencyKey || "").trim(); if (!key) throw new Error("Idempotency key là bắt buộc.");
-    if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0) throw retailError("Phiên bản đơn xác nhận là bắt buộc.", "ORDER_VERSION_REQUIRED", 400);
-    const expectedGrandTotal = Number(input.expectedGrandTotal);
-    if (!Number.isSafeInteger(expectedGrandTotal) || expectedGrandTotal < 0) throw new Error("Tổng tiền xác nhận không hợp lệ.");
-    const requestPayments = normalizePayments(input.payments || [], expectedGrandTotal);
-    const requestFingerprint = createHash("sha256").update(JSON.stringify({ version: 1,
-      companyCode: scope.companyCode, branchId: scope.branchId, orderId: id,
-      operation: "confirm-order", actorId: actorId(actor), shiftId: String(shift?._id || ""),
-      expectedVersion: input.expectedVersion, expectedGrandTotal, payments: requestPayments.payments,
-    })).digest("hex");
+    const { key, requestFingerprint } = confirmationIdentity(scope, id, input, actor, shift);
     const replay = async (attempt: any, activeSession?: mongoose.ClientSession) => {
       if (attempt.branchId !== scope.branchId || attempt.orderId !== id || attempt.operation !== "confirm-order" || attempt.requestFingerprint !== requestFingerprint) throw replayConflict();
       if (attempt.status !== "completed") throw retailError("Yêu cầu xác nhận đang được xử lý. Vui lòng thử lại sau.", "ORDER_IDEMPOTENCY_PROCESSING");
@@ -479,21 +664,68 @@ export const RetailOrderService = {
     scheduleOrderTierRefreshAfterCommit(scope, "confirm", result.order);
     return result;
   },
-  async collect(scope: RetailBranchScope, id: string, input: any, actor: any, shift?: any) {
-    const key = String(input.idempotencyKey || "").trim();
-    if (!key || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0) throw retailError("Khóa thao tác và phiên bản đơn là bắt buộc.", "COLLECTION_INVALID", 400);
-    let normalized: ReturnType<typeof normalizePayments>;
+  async revokeCollection(scope: RetailBranchScope, id: string, input: any, actor: any, shift?: any) {
+    const { key, requestFingerprint } = collectionIdentity(scope, id, input, actor, shift);
+    const filter = { companyCode: scope.companyCode, key };
+    const replay = (attempt: any) => {
+      if (attempt.branchId !== scope.branchId || attempt.orderId !== id || attempt.operation !== "collect-order" || attempt.requestFingerprint !== requestFingerprint) throw replayConflict();
+      if (attempt.status !== "revoked") throw retailError("Yêu cầu đã được ghi nhận hoặc đang xử lý. Cần đối chiếu, không thể hủy khóa.", "COLLECTION_REVOKE_CONFLICT");
+      return { status: "revoked" as const, message: "Đã hủy yêu cầu chưa ghi nhận. Khóa cũ không thể thu tiền nữa." };
+    };
+    const session = await mongoose.startSession();
     try {
-      normalized = normalizePayments(input.payments || [], Number.MAX_SAFE_INTEGER);
-      if (!normalized.total) throw new Error("Số tiền thu phải lớn hơn 0.");
-    } catch (error: any) { throw retailError(error.message, "COLLECTION_INVALID", 400); }
-    const requestFingerprint = createHash("sha256").update(JSON.stringify({ version: 1, operation: "collect-order",
-      companyCode: scope.companyCode, branchId: scope.branchId, orderId: id, actorId: actorId(actor),
-      shiftId: String(shift?._id || ""), expectedVersion: input.expectedVersion, payments: normalized.payments,
-    })).digest("hex");
+      return await session.withTransaction(async () => {
+        const order = await RetailOrderModel.findOne({ _id: id, ...scope }).session(session).lean();
+        if (!order) throw replayConflict();
+        const attempt = await RetailIdempotencyModel.findOne(filter).session(session).lean();
+        if (attempt) return replay(attempt);
+        // An advanced order without its request record is ambiguous: never fabricate revocation evidence.
+        if (order.version !== input.expectedVersion || order.status !== "confirmed") throw retailError("Đơn đã thay đổi. Không đủ bằng chứng hủy yêu cầu cũ.", "COLLECTION_REVOKE_CONFLICT");
+        // The existing company/key unique index arbitrates with the collection writer's insert.
+        await RetailIdempotencyModel.create([{ ...scope, key, orderId: id, operation: "collect-order", requestFingerprint, status: "revoked" }], { session });
+        return { status: "revoked" as const, message: "Đã hủy yêu cầu chưa ghi nhận. Khóa cũ không thể thu tiền nữa." };
+      });
+    } catch (error: any) {
+      if (error?.code === 11000 && error?.keyPattern?.companyCode && error?.keyPattern?.key) {
+        const attempt = await RetailIdempotencyModel.findOne(filter).lean();
+        if (attempt) return replay(attempt);
+      }
+      throw error;
+    } finally { await session.endSession(); }
+  },
+  async reconcileCollection(scope: RetailBranchScope, id: string, input: any, actor: any, shift?: any) {
+    const { key, normalized, requestFingerprint } = collectionIdentity(scope, id, input, actor, shift);
+    const session = await mongoose.startSession();
+    try {
+      return await session.withTransaction(async () => {
+        const order = await RetailOrderModel.findOne({ _id: id, ...scope }).session(session).lean();
+        const conflict = { status: "conflict" as const, message: "Chưa đủ bằng chứng khớp khoản thu. Giữ yêu cầu để đối chiếu." };
+        if (!order) return conflict;
+        const attempt = await RetailIdempotencyModel.findOne({ companyCode: scope.companyCode, key }).session(session).lean();
+        if (!attempt) return { status: "not_found" as const, message: "Chưa tìm thấy yêu cầu đã ghi nhận. Giữ khóa cũ; kết quả này không hủy yêu cầu đang gửi." };
+        if (attempt.branchId !== scope.branchId || attempt.orderId !== id || attempt.operation !== "collect-order" || attempt.requestFingerprint !== requestFingerprint) return conflict;
+        if (attempt.status === "revoked") return { status: "revoked" as const, message: "Yêu cầu đã hủy; khóa này không thể thu tiền." };
+        if (attempt.status !== "completed") return { status: "processing" as const, message: "Yêu cầu đang xử lý. Giữ nguyên khoản thu và kiểm tra lại." };
+        const evidence = attempt.collectionEvidence;
+        if (!evidence || !Number.isSafeInteger(evidence.paymentOffset) || evidence.paymentOffset < 0 || !Number.isSafeInteger(evidence.paidBefore) || evidence.paidBefore < 0 || evidence.grandTotal !== order.grandTotal || order.version < input.expectedVersion + 1) return conflict;
+        const prefix = order.payments.slice(0, evidence.paymentOffset);
+        const segment = order.payments.slice(evidence.paymentOffset, evidence.paymentOffset + normalized.payments.length);
+        if (prefix.reduce((sum, p) => sum + p.amount, 0) !== evidence.paidBefore || segment.length !== normalized.payments.length) return conflict;
+        const matches = segment.every((p, i) => {
+          const expected = normalized.payments[i];
+          return p.method === expected.method && p.amount === expected.amount && p.tenderedAmount === expected.tenderedAmount && p.changeAmount === expected.changeAmount && p.reference === expected.reference && p.receivedBy === actorId(actor) && String(p.shiftId || "") === String(shift?._id || "");
+        });
+        if (!matches || order.payments.reduce((sum, p) => sum + p.amount, 0) !== order.paidAmount) return conflict;
+        return { status: "completed" as const, message: "Đã xác minh khoản thu trên đơn. Đây không phải đối soát tiền thực hoặc quỹ Finance.", order };
+      }, { readConcern: { level: "snapshot" } });
+    } finally { await session.endSession(); }
+  },
+  async collect(scope: RetailBranchScope, id: string, input: any, actor: any, shift?: any) {
+    const { key, normalized, requestFingerprint } = collectionIdentity(scope, id, input, actor, shift);
     const keyFilter = { companyCode: scope.companyCode, key };
     const replay = async (attempt: any, session?: mongoose.ClientSession) => {
       if (attempt.branchId !== scope.branchId || attempt.orderId !== id || attempt.operation !== "collect-order" || attempt.requestFingerprint !== requestFingerprint) throw replayConflict();
+      if (attempt.status === "revoked") throw retailError("Yêu cầu đã hủy. Không thể dùng lại khóa này.", "COLLECTION_REVOKED");
       if (attempt.status !== "completed") throw retailError("Yêu cầu thu tiền đang được xử lý.", "ORDER_IDEMPOTENCY_PROCESSING");
       const order = await RetailOrderModel.findOne({ _id: id, ...scope }).session(session || null).lean();
       if (!order) throw replayConflict();
@@ -510,6 +742,7 @@ export const RetailOrderService = {
         const order: any = await RetailOrderModel.findOne({ _id: id, ...scope, status: "confirmed", version: input.expectedVersion }).session(session);
         if (!order) throw retailError("Đơn đã thay đổi hoặc không thể thu thêm. Vui lòng đối chiếu công nợ.", "ORDER_VERSION_CONFLICT");
         if (normalized.total > order.dueAmount) throw retailError("Số tiền thu vượt công nợ còn lại.", "COLLECTION_INVALID", 400);
+        const collectionEvidence = { paymentOffset: order.payments.length, paidBefore: order.paidAmount, grandTotal: order.grandTotal };
         order.payments.push(...normalized.payments.map((payment) => snapshotPayment(payment, shift, actor)));
         order.paidAmount += normalized.total;
         order.dueAmount = order.grandTotal - order.paidAmount;
@@ -519,7 +752,7 @@ export const RetailOrderService = {
         await order.save({ session });
         if (order.commissionSnapshot) await reconcileCommission("retail", String(order._id), scope.companyCode, session);
         await publishRetailOrderEvent("paid", scope, order, actor, { session, amount: normalized.total, transactionKey: key });
-        await RetailIdempotencyModel.updateOne(keyFilter, { $set: { status: "completed" } }, { session });
+        await RetailIdempotencyModel.updateOne(keyFilter, { $set: { status: "completed", collectionEvidence } }, { session });
         return order;
       });
     } catch (error: any) {
@@ -530,20 +763,78 @@ export const RetailOrderService = {
       throw error;
     } finally { await session.endSession(); }
   },
+  async revokeCancellation(scope: RetailBranchScope, id: string, input: any, actor: any, canManage: boolean, shift?: any) {
+    const { key, requestFingerprint } = cancellationIdentity(scope, id, input, actor, shift);
+    const filter = { companyCode: scope.companyCode, key };
+    const replay = (attempt: any) => {
+      if (attempt.branchId !== scope.branchId || attempt.orderId !== id || attempt.operation !== "cancel-order" || attempt.requestFingerprint !== requestFingerprint) throw replayConflict();
+      if (attempt.cancelledFromStatus === "completed" && !canManage) throw retailError("Chỉ quản lý được xử lý yêu cầu hủy đơn hoàn tất.", "CANCELLATION_FORBIDDEN", 403);
+      if (attempt.status === "revoked" && attempt.cancelledFromStatus === "draft") assertHeldDraftAccess(String(attempt.cancellationOwnerId || ""), actorId(actor), canManage);
+      if (attempt.status !== "revoked") throw retailError("Yêu cầu đã được ghi nhận hoặc đang xử lý. Cần đối chiếu, không thể hủy khóa.", "CANCELLATION_REVOKE_CONFLICT");
+      return { status: "revoked" as const, message: "Đã hủy yêu cầu chưa ghi nhận. Khóa cũ không thể hủy đơn nữa." };
+    };
+    const session = await mongoose.startSession();
+    try {
+      return await session.withTransaction(async () => {
+        const order = await RetailOrderModel.findOne({ _id: id, ...scope }).session(session).lean();
+        if (!order) throw replayConflict();
+        const attempt = await RetailIdempotencyModel.findOne(filter).session(session).lean();
+        if (attempt) return replay(attempt);
+        // An advanced order without its request record is ambiguous: never fabricate revocation evidence.
+        if (order.version !== input.expectedVersion || !["draft", "confirmed", "completed"].includes(order.status)) throw retailError("Đơn đã thay đổi. Không đủ bằng chứng hủy yêu cầu cũ.", "CANCELLATION_REVOKE_CONFLICT");
+        if (order.status === "draft") assertHeldDraftAccess(String(order.createdBy), actorId(actor), canManage);
+        if (order.status === "completed" && !canManage) throw retailError("Chỉ quản lý được xử lý yêu cầu hủy đơn hoàn tất.", "CANCELLATION_FORBIDDEN", 403);
+        // The existing company/key unique index arbitrates with the cancellation writer's insert.
+        await RetailIdempotencyModel.create([{ ...scope, key, orderId: id, operation: "cancel-order", requestFingerprint, cancelledFromStatus: order.status, cancellationOwnerId: String(order.createdBy), status: "revoked" }], { session });
+        return { status: "revoked" as const, message: "Đã hủy yêu cầu chưa ghi nhận. Khóa cũ không thể hủy đơn nữa." };
+      });
+    } catch (error: any) {
+      if (error?.code === 11000 && error?.keyPattern?.companyCode && error?.keyPattern?.key) {
+        const attempt = await RetailIdempotencyModel.findOne(filter).lean();
+        if (attempt) return replay(attempt);
+      }
+      throw error;
+    } finally { await session.endSession(); }
+  },
+  async reconcileCancellation(scope: RetailBranchScope, id: string, input: any, actor: any, canManage: boolean, shift?: any) {
+    const { key, requestFingerprint } = cancellationIdentity(scope, id, input, actor, shift);
+    const session = await mongoose.startSession();
+    try {
+      return await session.withTransaction(async () => {
+        const conflict = { status: "conflict" as const, message: "Chưa đủ bằng chứng khớp yêu cầu hủy. Giữ bản lưu để đối chiếu." };
+        const attempt = await RetailIdempotencyModel.findOne({ companyCode: scope.companyCode, key }).session(session).lean();
+        const live = await RetailOrderModel.findOne({ _id: id, ...scope }).session(session).lean();
+        if (!attempt) return live ? { status: "not_found" as const, message: "Chưa tìm thấy yêu cầu. Kết quả này không hủy thao tác đang gửi." } : conflict;
+        if (attempt.branchId !== scope.branchId || attempt.orderId !== id || attempt.operation !== "cancel-order" || attempt.requestFingerprint !== requestFingerprint) return conflict;
+        if (attempt.status === "revoked") {
+          if (attempt.cancelledFromStatus === "draft") assertHeldDraftAccess(String(attempt.cancellationOwnerId || ""), actorId(actor), canManage);
+          if (attempt.cancelledFromStatus === "completed" && !canManage) throw retailError("Chỉ quản lý được xử lý yêu cầu hủy đơn hoàn tất.", "CANCELLATION_FORBIDDEN", 403);
+          return { status: "revoked" as const, message: "Yêu cầu đã được thu hồi. Khóa cũ không thể hủy đơn." };
+        }
+        if (attempt.status !== "completed") return { status: "processing" as const, message: "Yêu cầu chưa hoàn tất. Giữ nguyên bản lưu." };
+        if (attempt.cancelledFromStatus === "completed" && !canManage) throw retailError("Chỉ quản lý được đối chiếu hủy đơn hoàn tất.", "CANCELLATION_FORBIDDEN", 403);
+        if (!["draft", "confirmed", "completed"].includes(attempt.cancelledFromStatus || "")) return conflict;
+        const order = attempt.cancelledFromStatus === "draft" ? attempt.cancelledDraft : live;
+        if (!order || String(order._id) !== id || order.companyCode !== scope.companyCode || order.branchId !== scope.branchId || order.status !== "cancelled" || order.version !== input.expectedVersion + 1 || !attempt.cancellationDigest || cancellationDigest(order) !== attempt.cancellationDigest) return conflict;
+        if (attempt.cancelledFromStatus === "draft") {
+          assertHeldDraftAccess(String(order.createdBy), actorId(actor), canManage);
+          if (live || order.stockApplied || order.paidAmount || order.refundedAmount || order.refunds.length) return conflict;
+        } else {
+          if (order.refundedAmount !== order.paidAmount || order.refunds.reduce((sum: number, p: any) => sum + p.amount, 0) !== order.refundedAmount) return conflict;
+          const invoice = await RetailInvoiceModel.findOne({ orderId: id, ...scope }).session(session).lean();
+          if (!invoice || invoice.status !== "void") return conflict;
+          if (order.stockApplied && (!order.stockRevertedAt || !order.restockReceiptId || !await GoodsReceiptModel.exists({ _id: order.restockReceiptId, ...scope, status: "confirmed", sourceId: id }).session(session))) return conflict;
+        }
+        return { status: "completed" as const, message: "Đã xác minh hồ sơ hủy đơn. Chưa đối soát tiền thực/quỹ Finance.", order };
+      }, { readConcern: { level: "snapshot" } });
+    } finally { await session.endSession(); }
+  },
   async cancel(scope: RetailBranchScope, id: string, input: any, actor: any, shift: any | undefined, canManage: boolean) {
-    const reason = String(input.reason || "").trim();
-    const key = String(input.idempotencyKey || "").trim();
-    if (!reason || !key || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0) throw retailError("Lý do, khóa thao tác và phiên bản đơn là bắt buộc.", "CANCELLATION_INVALID", 400);
-    let refunds: ReturnType<typeof normalizePayments>;
-    try { refunds = normalizePayments(input.refunds || [], Number.MAX_SAFE_INTEGER); }
-    catch (error: any) { throw retailError(error.message, "CANCELLATION_INVALID", 400); }
-    const requestFingerprint = createHash("sha256").update(JSON.stringify({ version: 1, operation: "cancel-order",
-      companyCode: scope.companyCode, branchId: scope.branchId, orderId: id, actorId: actorId(actor),
-      shiftId: String(shift?._id || ""), expectedVersion: input.expectedVersion, reason, refunds: refunds.payments,
-    })).digest("hex");
+    const { reason, key, refunds, requestFingerprint } = cancellationIdentity(scope, id, input, actor, shift);
     const keyFilter = { companyCode: scope.companyCode, key };
     const replay = async (attempt: any, session?: mongoose.ClientSession) => {
       if (attempt.branchId !== scope.branchId || attempt.orderId !== id || attempt.operation !== "cancel-order" || attempt.requestFingerprint !== requestFingerprint) throw replayConflict();
+      if (attempt.status === "revoked") throw retailError("Yêu cầu đã được thu hồi. Không thể dùng lại khóa này.", "CANCELLATION_REVOKED");
       if (attempt.status !== "completed") throw retailError("Yêu cầu hủy đang được xử lý.", "ORDER_IDEMPOTENCY_PROCESSING");
       if (attempt.cancelledFromStatus === "completed" && !canManage) throw retailError("Chỉ quản lý được hủy đơn hoàn tất.", "CANCELLATION_FORBIDDEN", 403);
       const order = attempt.cancelledFromStatus === "draft" ? attempt.cancelledDraft : await RetailOrderModel.findOne({ _id: id, ...scope, status: "cancelled" }).session(session || null).lean();
@@ -571,7 +862,7 @@ export const RetailOrderService = {
           if (order.stockApplied || order.paidAmount || order.refundedAmount) throw replayConflict();
           result = { ...order.toObject(), status: "cancelled", cancelReason: reason, cancelledAt: new Date(), version: order.version + 1 };
           await RetailOrderModel.deleteOne({ _id: id, ...scope, status: "draft", version: input.expectedVersion }, { session });
-          await RetailIdempotencyModel.updateOne(keyFilter, { $set: { status: "completed", cancelledFromStatus, cancelledDraft: result } }, { session });
+          await RetailIdempotencyModel.updateOne(keyFilter, { $set: { status: "completed", cancelledFromStatus, cancelledDraft: result, cancellationDigest: cancellationDigest(result) } }, { session });
           return;
         }
         if (order.stockApplied && !order.stockRevertedAt) { const receipt = await revertOrderStock(scope, String(order._id), order.orderCode, order.items, actorName(actor), session, { order, actorId: actorId(actor), reason }); order.restockReceiptId = String(receipt._id); order.restockReceiptCode = receipt.receiptCode; await releaseSerialsForOrder(scope, String(order._id), actorId(actor), actorName(actor), session, { id: String(receipt._id), warehouseId: receipt.warehouseId }); order.stockRevertedAt = new Date(); }
@@ -584,7 +875,7 @@ export const RetailOrderService = {
         if (order.commissionSnapshot) await reconcileCommission("retail", String(order._id), scope.companyCode, session);
         await publishRetailOrderEvent("cancelled", scope, order, actor, { session });
         await RetailInvoiceModel.updateOne({ orderId: String(order._id), ...scope, status: "issued" }, { $set: { status: "void", voidedAt: new Date(), voidReason: reason } }, { session });
-        await RetailIdempotencyModel.updateOne(keyFilter, { $set: { status: "completed", cancelledFromStatus } }, { session });
+        await RetailIdempotencyModel.updateOne(keyFilter, { $set: { status: "completed", cancelledFromStatus, cancellationDigest: cancellationDigest(order) } }, { session });
         result = order;
       });
     } catch (error: any) {

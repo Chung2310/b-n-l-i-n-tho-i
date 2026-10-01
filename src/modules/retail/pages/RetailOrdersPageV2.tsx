@@ -22,6 +22,8 @@ import {
   X,
 } from "lucide-react";
 import { AfterSaleBadge, AfterSaleHistory } from "../components/orders/AfterSaleHistory";
+import { readCancellation, saveCancellation, clearCancellation, lockCancellation, sameCancellation, type PendingCancellation } from "../components/orders/cancellationRequest";
+import PendingCancellations from "../components/orders/PendingCancellations";
 import CollectionDialog from "../components/orders/CollectionDialog";
 import { retailOrdersApi } from "../api/retailOrders.api";
 import { useRetailScope } from "../hooks/useRetailScope";
@@ -398,6 +400,7 @@ export default function RetailOrdersPageV2() {
         </div>
       )}
 
+      <PendingCancellations key={JSON.stringify([scope.companyCode, scope.branchId, userProfile?.uid])} onResolved={() => void refresh()} />
       {/* Order Detail Modal */}
       {selected && (
         <OrderDialog
@@ -527,18 +530,18 @@ function OrderDialog({
 
         {/* Action Buttons */}
         <div className="mt-6 flex flex-wrap items-center gap-2.5 pt-4 border-t border-slate-100">
-          {order.status === "confirmed" && order.dueAmount > 0 && (
+          {(order.status === "confirmed" || order.status === "completed" || order.status === "cancelled") && (
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-cyan-700 active:scale-95"
               onClick={onCollect}
             >
               <Banknote className="h-4 w-4" />
-              Thu công nợ
+              {order.status === "confirmed" && order.dueAmount > 0 ? "Thu công nợ" : "Kiểm tra khoản thu đang chờ"}
             </button>
           )}
 
-          {isCompleted && hasRemaining && (
+          {isCompleted && (
             <>
               <button
                 type="button"
@@ -546,7 +549,7 @@ function OrderDialog({
                 onClick={() => setMode("return")}
               >
                 <RotateCcw className="h-4 w-4" />
-                Trả hàng
+                {hasRemaining ? "Trả hàng" : "Kiểm tra yêu cầu trả hàng"}
               </button>
 
               <button
@@ -555,19 +558,19 @@ function OrderDialog({
                 onClick={() => setMode("buyback")}
               >
                 <ShoppingBasket className="h-4 w-4" />
-                Thu mua lại
+                {hasRemaining ? "Thu mua lại" : "Kiểm tra yêu cầu thu mua lại"}
               </button>
             </>
           )}
 
-          {canCancel && (
+          {(canCancel || order.status === "cancelled") && (
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700 shadow-sm transition hover:bg-red-100 active:scale-95 ml-auto"
               onClick={onCancel}
             >
               <Ban className="h-4 w-4" />
-              Hủy/hoàn tiền
+              {order.status === "cancelled" ? "Kiểm tra yêu cầu hủy đang chờ" : "Hủy/hoàn tiền"}
             </button>
           )}
         </div>
@@ -621,11 +624,21 @@ export function AfterSalesForm({
       selected: Boolean(pending?.items.some((item) => item.orderLineIndex === index)),
       quantity: pending?.items.find((item) => item.orderLineIndex === index)?.quantity || 1,
       unitAmount: pending?.items.find((item) => item.orderLineIndex === index)?.unitAmount ?? Math.round(i.lineTotal / i.quantity),
-      condition: "good" as const,
+      condition: pending?.items.find((item) => item.orderLineIndex === index)?.condition || "good" as RetailAfterSaleInput["items"][number]["condition"],
       serialNumbers: pending?.items.find((item) => item.orderLineIndex === index)?.serialNumbers || [] as string[],
       internalBarcodes: pending?.items.find((item) => item.orderLineIndex === index)?.internalBarcodes || [] as string[],
     }))
   );
+
+  React.useEffect(() => {
+    if (!pending) return;
+    setReason(pending.reason); setMethod(pending.paymentMethod);
+    setRows(current => current.map((row, index) => {
+      const item = pending.items.find(item => item.orderLineIndex === index);
+      return item ? { ...row, ...item, selected: true, unitAmount: item.unitAmount ?? row.unitAmount, serialNumbers: item.serialNumbers || [], internalBarcodes: item.internalBarcodes || [] } : { ...row, selected: false };
+    }));
+  }, [pending]);
+  const exhausted = Boolean(order.afterSaleSummary && order.afterSaleSummary.processedQuantity >= order.afterSaleSummary.totalQuantity);
 
   const update = (n: number, patch: Partial<(typeof rows)[number]>) =>
     setRows((a) => a.map((r, i) => (i === n ? { ...r, ...patch } : r)));
@@ -660,10 +673,19 @@ export function AfterSalesForm({
     0
   );
 
+  const reconcileAfterSale = async (revoke = false) => {
+    try {
+      const result = await request.reconcile(revoke);
+      if (!result) return;
+      if ("revoked" in result) { toast.success("Đã thu hồi yêu cầu chưa ghi nhận."); close(); return; }
+      toast.success("Đã xác minh chứng từ " + result.code); done();
+    } catch (cause) { toast.error(getApiErrorMessage(cause, "Không đối chiếu được yêu cầu hậu mãi.")); }
+  };
   const submit = async () => {
-    if (!scope || blocked) return;
+    if (!scope || blocked || (!pending && exhausted)) return;
     try {
       const d = await request.send({
+        expectedVersion: order.version,
         type,
         orderId: order._id,
         items,
@@ -709,7 +731,12 @@ export function AfterSalesForm({
               ? "Đơn này có yêu cầu đang chờ thuộc nghiệp vụ khác. Vui lòng mở lại đúng thao tác để kiểm tra kết quả."
               : "Yêu cầu đã được lưu. Nếu chưa nhận được kết quả, hãy thử lại yêu cầu cũ; nội dung được giữ nguyên để tránh chi tiền và nhập kho trùng.")}
         </p>}
-        <fieldset disabled={busy || Boolean(pending) || blocked}>
+        {request.candidates.length > 1 && <div><p>Có hai bản lưu khác nhau. Chọn từng yêu cầu để đối chiếu hoặc thu hồi.</p>{request.candidates.map((row, index) => <button key={index} disabled={busy || request.scopeChanged} onClick={() => request.selectCandidate(index)}>Yêu cầu {index + 1}: {row.type === "return" ? "Trả hàng" : "Thu mua"}</button>)}</div>}
+        {pending && <button disabled={busy || request.scopeChanged || Boolean(request.storageError)} onClick={() => void reconcileAfterSale(true)}>Thu hồi yêu cầu hậu mãi chưa ghi nhận</button>}
+        {pending && <button disabled={busy || request.scopeChanged || Boolean(request.storageError)} onClick={() => void reconcileAfterSale()}>Đối chiếu yêu cầu hậu mãi</button>}
+        {exhausted && !pending && <p>Toàn bộ hàng đã được xử lý. Không có yêu cầu cũ để thử lại trên trình duyệt này.</p>}
+        {pending && <div className="mt-3 text-sm"><p>Yêu cầu đã lưu: {pending.reason} · {pending.paymentMethod}{pending.paymentReference ? " · " + pending.paymentReference : ""}</p>{pending.items.map((item, index) => <p key={index}>Dòng {item.orderLineIndex + 1} · {item.quantity} sản phẩm · {item.condition}{item.unitAmount !== undefined ? " · " + money(item.unitAmount) + "/sản phẩm" : ""}{item.note ? " · " + item.note : ""}</p>)}</div>}
+        <fieldset disabled={busy || Boolean(pending) || blocked || exhausted}>
         <div className="mt-4 space-y-3">
           <p className="text-xs font-semibold uppercase text-slate-400">Chọn mặt hàng áp dụng:</p>
           {order.items.map((item, i) => {
@@ -857,7 +884,7 @@ export function AfterSalesForm({
             </button>
             <button
               type="button"
-              disabled={busy || blocked || !items.length || !reason.trim()}
+              disabled={busy || blocked || request.candidates.length > 1 || (!pending && (exhausted || !items.length || !reason.trim()))}
               className="rounded-xl bg-cyan-600 px-6 py-2.5 font-bold text-white shadow-sm transition hover:bg-cyan-700 disabled:opacity-40"
               onClick={() => void submit()}
             >
@@ -885,14 +912,11 @@ export function CancelDialog({
   current.current = identity;
   React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const storageKey = `retail-cancellation-pending:v1:${identity}`;
-  type Pending = { reason: string; refunds: RetailPaymentInput[]; idempotencyKey: string; expectedVersion: number };
+
   const [initial] = React.useState(() => {
     try {
-      const raw = sessionStorage.getItem(storageKey);
-      const pending: Pending | null = raw ? JSON.parse(raw) : null;
-      if (pending && (!pending.idempotencyKey || typeof pending.reason !== "string" || !Array.isArray(pending.refunds) || !Number.isSafeInteger(pending.expectedVersion))) throw new Error();
-      return { pending, error: "" };
-    } catch { return { pending: null, error: "Không đọc được yêu cầu hủy đang chờ. Vui lòng đối chiếu đơn gốc." }; }
+      return { pending: readCancellation(storageKey), error: "" };
+    } catch { return { pending: null, error: "Không đọc được yêu cầu hủy đang chờ hoặc có bản lưu xung đột. Đóng cửa sổ và kiểm tra danh sách yêu cầu hủy đang chờ." }; }
   });
   const [pending, setPending] = React.useState(initial.pending);
   const pendingRef = React.useRef(initial.pending), inFlight = React.useRef(false), completed = React.useRef(false);
@@ -904,31 +928,73 @@ export function CancelDialog({
   const [method, setMethod] = React.useState<RetailPaymentInput["method"]>(initial.pending?.refunds[0]?.method || "cash");
   const [submitting, setSubmitting] = React.useState(false);
 
+  const reconcile = async (revoke = false) => {
+    if (blocked || inFlight.current || completed.current || !scope || !pendingRef.current) return;
+    const active = () => mounted.current && current.current === identity;
+    inFlight.current = true; setSubmitting(true); setError("");
+    try {
+      await lockCancellation(storageKey, async () => {
+        if (!active()) return;
+        const request = readCancellation(storageKey);
+        if (!request || !pendingRef.current || !sameCancellation(request, pendingRef.current)) throw new Error("Bản lưu đã thay đổi. Mở lại yêu cầu để kiểm tra.");
+        saveCancellation(storageKey, request);
+        const result = revoke ? await retailOrdersApi.revokeCancellation(scope, order._id, request) : await retailOrdersApi.reconcileCancellation(scope, order._id, request);
+        if (result.status === "completed") {
+          if (!result.order || result.order._id !== order._id) throw new Error("Kết quả không khớp đơn. Giữ yêu cầu cũ.");
+          clearCancellation(storageKey, request); completed.current = true;
+          if (active()) done(result.order);
+        } else if (result.status === "revoked") {
+          clearCancellation(storageKey, request); completed.current = true;
+          if (active()) onClose();
+        } else if (active()) setError(result.message);
+      });
+    } catch (cause) { if (active()) setError(getApiErrorMessage(cause, "Không đối chiếu được. Giữ yêu cầu cũ.")); }
+    finally { inFlight.current = false; if (active()) setSubmitting(false); }
+  };
+
+  const canCreate = ["draft", "confirmed", "completed"].includes(order.status);
   const handleCancel = async () => {
     if (!reason.trim() || inFlight.current || completed.current || blocked || !scope) return;
-    const retry = Boolean(pendingRef.current);
-    const request: Pending = pendingRef.current || { reason: reason.trim(), refunds: remaining ? [{ method, amount: remaining }] : [], idempotencyKey: crypto.randomUUID(), expectedVersion: order.version };
-    try { sessionStorage.setItem(storageKey, JSON.stringify(request)); }
-    catch { setError("Không lưu được yêu cầu để thử lại an toàn. Chưa gửi hủy đơn."); return; }
+    const active = () => mounted.current && current.current === identity;
     inFlight.current = true;
-    pendingRef.current = request;
-    setPending(request);
     setError("");
     setSubmitting(true);
     try {
-      const updated = await retailOrdersApi.cancel(scope, order._id, request);
-      completed.current = true;
-      try { sessionStorage.removeItem(storageKey); } catch { /* retain safe replay */ }
-      if (mounted.current && current.current === identity) done(updated);
+      await lockCancellation(storageKey, async () => {
+        if (!active()) return;
+        const saved = readCancellation(storageKey);
+        if (pendingRef.current && (!saved || !sameCancellation(saved, pendingRef.current))) throw new Error("Bản lưu đã thay đổi. Đóng và mở lại đơn để kiểm tra.");
+        if (saved && !pendingRef.current) {
+          pendingRef.current = saved;
+          setPending(saved);
+          setReason(saved.reason);
+          setMethod(saved.refunds[0]?.method || "cash");
+          setError("Đã tìm thấy yêu cầu hủy ở tab khác. Kiểm tra và thử lại đúng yêu cầu cũ.");
+          return;
+        }
+        if (!saved && !canCreate) throw new Error("Đơn không còn đủ điều kiện tạo yêu cầu hủy mới.");
+        const retry = Boolean(saved);
+        const request: PendingCancellation = saved || { reason: reason.trim(), refunds: remaining ? [{ method, amount: remaining }] : [], idempotencyKey: crypto.randomUUID(), expectedVersion: order.version };
+        saveCancellation(storageKey, request);
+        pendingRef.current = request;
+        setPending(request);
+        try {
+          const updated = await retailOrdersApi.cancel(scope, order._id, request);
+          completed.current = true;
+          clearCancellation(storageKey, request);
+          if (active()) done(updated);
+        } catch (cause) {
+          if (!retry && cause instanceof ApiClientError && cause.status === 400 && cause.code === "CANCELLATION_INVALID") {
+            clearCancellation(storageKey, request);
+            pendingRef.current = null;
+            if (active()) setPending(null);
+          }
+          throw cause;
+        }
+      });
     } catch (cause) {
-      if (!retry && cause instanceof ApiClientError && cause.status === 400 && cause.code === "CANCELLATION_INVALID") {
-        try { sessionStorage.removeItem(storageKey); pendingRef.current = null; setPending(null); } catch { /* retain original */ }
-      }
-      setError(getApiErrorMessage(cause, "Chưa rõ kết quả hủy. Hãy thử lại yêu cầu cũ."));
-    } finally {
-      inFlight.current = false;
-      setSubmitting(false);
-    }
+      if (active()) setError(getApiErrorMessage(cause, "Chưa rõ kết quả hủy. Hãy thử lại yêu cầu cũ."));
+    } finally { inFlight.current = false; if (active()) setSubmitting(false); }
   };
 
   return (
@@ -954,7 +1020,7 @@ export function CancelDialog({
           <label className="text-xs font-semibold text-slate-600">Lý do hủy (bắt buộc):</label>
           <textarea
             aria-label="Lý do hủy"
-            disabled={Boolean(pending) || blocked || submitting}
+            disabled={Boolean(pending) || blocked || submitting || !canCreate}
             className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-sm focus:border-rose-500 focus:outline-none focus:ring-4 focus:ring-rose-500/10"
             rows={3}
             placeholder="Nhập lý do hủy đơn hàng..."
@@ -968,7 +1034,7 @@ export function CancelDialog({
             <label className="text-xs font-semibold text-slate-600">Phương thức hoàn tiền:</label>
             <select
               aria-label="Phương thức hoàn tiền"
-              disabled={Boolean(pending) || blocked || submitting}
+              disabled={Boolean(pending) || blocked || submitting || !canCreate}
               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm bg-white"
               value={method}
               onChange={(e) => setMethod(e.target.value as any)}
@@ -983,12 +1049,16 @@ export function CancelDialog({
 
         <button
           type="button"
-          disabled={!reason.trim() || submitting || blocked}
+          disabled={!reason.trim() || submitting || blocked || completed.current || (!pending && !canCreate)}
           className="w-full rounded-xl bg-red-600 py-3 font-bold text-white shadow-md shadow-red-500/20 transition hover:bg-red-700 active:scale-95 disabled:opacity-40"
           onClick={() => void handleCancel()}
         >
           {submitting ? "Đang xử lý..." : pending ? "Thử lại yêu cầu hủy cũ" : "Xác nhận hủy đơn"}
         </button>
+        {pending && <button disabled={submitting || blocked || completed.current} onClick={() => void reconcile()}>Đối chiếu yêu cầu hủy</button>}
+        {pending && <button disabled={submitting || blocked || completed.current} onClick={() => void reconcile(true)}>Thu hồi yêu cầu chưa ghi nhận</button>}
+        {!pending && !canCreate && <p>Không có yêu cầu hủy đang chờ trên trình duyệt này. Không thể tạo yêu cầu hủy mới cho đơn.</p>}
+        {pending && <ul className="text-sm">{pending.refunds.map((refund, index) => <li key={index}>Hoàn {money(refund.amount)} · {refund.method}{refund.reference ? " · " + refund.reference : ""}</li>)}</ul>}
         {pending && <p className="text-sm">Giữ nguyên yêu cầu hủy và số tiền hoàn để tránh xử lý hai lần. Đóng cửa sổ không hủy thao tác đã gửi.</p>}
         {blocked && <p role="alert">Phạm vi đã thay đổi hoặc không đọc được yêu cầu. Vui lòng mở lại đúng đơn để đối chiếu.</p>}
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}

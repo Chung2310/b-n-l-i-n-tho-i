@@ -1,6 +1,8 @@
+import { resolveCheckoutIntent, resolveCheckoutIntentLocked } from "../offline/resolveCheckoutIntent";
+import { checkoutWithPersistedIntent, PendingCheckoutError } from "../offline/checkoutIntent";
 import React from "react";
-import { confirmOfflineOrder } from "../offline/confirmOfflineOrder";
-import { prepareDraftCreation, prepareDraftUpdate, clearDraftCreation, allowRejectedDraftEdit, type DraftCreationRequest, type DraftUpdateRequest } from "../offline/draftCreationRequest";
+import { confirmOfflineOrderLocked } from "../offline/confirmOfflineOrder";
+import { verifyDraftResult, withDraftRequestLock, prepareDraftCreation, prepareDraftUpdate, clearDraftCreation, allowRejectedDraftEdit, type DraftCreationRequest } from "../offline/draftCreationRequest";
 import CollaboratorPicker from "../../partners/CollaboratorPicker";
 import {
   Camera,
@@ -32,6 +34,7 @@ import CustomerCouponOffers from "../components/coupons/CustomerCouponOffers";
 import CartCouponPicker from "../components/coupons/CartCouponPicker";
 import CustomerPicker from "../components/pos/CustomerPicker";
 import DiscountInput from "../components/pos/DiscountInput";
+import PendingDraftRequests from "../components/pos/PendingDraftRequests";
 import HeldDraftsBar from "../components/pos/HeldDraftsBar";
 import OrderAdjustments from "../components/pos/OrderAdjustments";
 import { QuantityInput } from "../components/pos/QuantityInput";
@@ -60,11 +63,10 @@ import { retailWarrantyService } from "../../../services/retailWarrantyService";
 import {
   createIndexedDbRetailOfflineQueue,
   createMemoryRetailOfflineQueue,
-  createRetailOfflineOrder,
   type OfflineScope,
   type RetailOfflineOrder,
 } from "../offline/retailOfflineQueue";
-import { isRetailNetworkFailure, syncRetailOfflineQueue } from "../offline/retailOfflineSync";
+import { syncRetailOfflineQueue } from "../offline/retailOfflineSync";
 import type {
   RetailOrder,
   RetailOrderResult,
@@ -95,6 +97,14 @@ export default function RetailPosPage() {
   const [q, setQ] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const draftWriteBusy = React.useRef(false);
+  const requestScope = JSON.stringify([scope?.companyCode, scope?.branchId, userProfile?.uid]);
+  const scopeToken = React.useMemo(() => ({}), [requestScope]);
+  const liveRequestScope = React.useRef(scopeToken);
+  liveRequestScope.current = scopeToken;
+  React.useEffect(() => { setBusy(false); }, [scopeToken]);
+  const mounted = React.useRef(true);
+  React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+
   const [paying, setPaying] = React.useState(false);
   const [billingProfiles, setBillingProfiles] = React.useState<any[]>([]);
   const [scanning, setScanning] = React.useState(false);
@@ -132,7 +142,7 @@ export default function RetailPosPage() {
     if (offlineScope) {
       void queueRef.current
         .list(offlineScope)
-        .then((items) => setOfflineItems(items.filter((item) => item.status !== "synced")));
+        .then((items) => { if (mounted.current && liveRequestScope.current === scopeToken) setOfflineItems(items.filter((item) => item.status !== "synced" && item.status !== "revoked")); }).catch(() => undefined);
     }
   }, [offlineScope?.companyCode, offlineScope?.branchId, offlineScope?.userId]);
 
@@ -435,119 +445,66 @@ export default function RetailPosPage() {
       toast.error("Vui lòng chọn khách hàng trước khi lưu đơn.");
       return;
     }
+    const current = () => mounted.current && liveRequestScope.current === scopeToken;
     draftWriteBusy.current = true;
     setBusy(true);
     let request: DraftCreationRequest | undefined;
     try {
-      const input = buildRetailOrderInput(cart);
-      if (draft) {
-        request = prepareDraftUpdate(scope, userProfile?.uid || "", draft._id, { ...input, version: draft.version });
-        await retailOrdersApi.updateDraft(scope, draft._id, { ...request.input, idempotencyKey: request.idempotencyKey });
-        clearDraftCreation(scope, userProfile?.uid || "", request, draft._id);
-      }
-      else {
-        request = prepareDraftCreation(scope, userProfile?.uid || "", input);
-        await retailOrdersApi.createDraft(scope, { ...request.input, idempotencyKey: request.idempotencyKey });
-        clearDraftCreation(scope, userProfile?.uid || "", request);
-      }
-      dispatch({ type: "reset" });
-      setDraft(null);
-      refreshDrafts();
-      toast.success("Đã treo đơn. Đơn không giữ tồn kho.");
+      await withDraftRequestLock(scope, userProfile?.uid || "", async () => {
+        try {
+          const input = buildRetailOrderInput(cart);
+          if (draft) {
+            request = prepareDraftUpdate(scope, userProfile?.uid || "", draft._id, { ...input, version: draft.version });
+            const saved = await retailOrdersApi.updateDraft(scope, draft._id, { ...request.input, idempotencyKey: request.idempotencyKey });
+            verifyDraftResult(saved, draft._id);
+            clearDraftCreation(scope, userProfile?.uid || "", request, draft._id);
+          }
+          else {
+            request = prepareDraftCreation(scope, userProfile?.uid || "", input);
+            const saved = await retailOrdersApi.createDraft(scope, { ...request.input, idempotencyKey: request.idempotencyKey });
+            verifyDraftResult(saved);
+            clearDraftCreation(scope, userProfile?.uid || "", request);
+          }
+          if (!current()) return;
+          dispatch({ type: "reset" });
+          setDraft(null);
+          refreshDrafts();
+          toast.success("Đã treo đơn. Đơn không giữ tồn kho.");
+        } catch (error) {
+          if (request) allowRejectedDraftEdit(scope, userProfile?.uid || "", request, error, draft?._id);
+          if (current()) show(error);
+        } finally {
+          draftWriteBusy.current = false;
+          if (current()) setBusy(false);
+        }
+      });
     } catch (error) {
-      if (request) allowRejectedDraftEdit(scope, userProfile?.uid || "", request, error, draft?._id);
-      show(error);
-    } finally {
       draftWriteBusy.current = false;
-      setBusy(false);
+      if (current()) setBusy(false);
+      if (current()) show(error);
     }
   };
 
   const checkout = async (payments: RetailPaymentInput[], dueDate?: string) => {
     if (!cart.quote || cart.quoteDirty || draftWriteBusy.current) return;
+    const current = () => mounted.current && liveRequestScope.current === scopeToken;
     draftWriteBusy.current = true;
-    const customerId = cart.customer?._id;
     setBusy(true);
-    const key = crypto.randomUUID();
-    const input = { ...buildRetailOrderInput(cart), dueDate };
-    let savedId = draft?._id;
-    let savedVersion = draft?.version;
-    let draftSaved = false;
-    let draftCreation: DraftCreationRequest | undefined;
-    let draftUpdate: DraftUpdateRequest | undefined;
     try {
-      if (!draft) draftCreation = prepareDraftCreation(scope, userProfile?.uid || "", input);
-      else draftUpdate = prepareDraftUpdate(scope, userProfile?.uid || "", draft._id, { ...input, version: draft.version });
-      const saved = draft
-        ? await retailOrdersApi.updateDraft(scope, draft._id, {
-            ...draftUpdate!.input,
-            idempotencyKey: draftUpdate!.idempotencyKey,
-          })
-        : await retailOrdersApi.createDraft(scope, { ...draftCreation!.input, idempotencyKey: draftCreation!.idempotencyKey });
-      savedId = saved._id;
-      savedVersion = saved.version;
-      draftSaved = true;
-      if (draftCreation) clearDraftCreation(scope, userProfile?.uid || "", draftCreation);
-      if (draftUpdate) clearDraftCreation(scope, userProfile?.uid || "", draftUpdate, draftUpdate.orderId);
-      const result = await retailOrdersApi.confirm(scope, saved._id, {
-        expectedVersion: saved.version,
-        expectedGrandTotal: cart.quote.grandTotal,
-        payments,
-        idempotencyKey: key,
-      });
-      finish(result);
-      setPaying(false);
+      if (!offlineScope || typeof indexedDB === "undefined") throw new Error("Không có bộ nhớ bền để lưu yêu cầu thanh toán. Chưa gửi thanh toán.");
+      const result = await checkoutWithPersistedIntent(offlineScope, queueRef.current, { ...buildRetailOrderInput(cart), dueDate }, payments, cart.quote.grandTotal, draft);
+      if (current()) { finish(result); setPaying(false); }
     } catch (error) {
-      if (!draftSaved && draftCreation) allowRejectedDraftEdit(scope, userProfile?.uid || "", draftCreation, error);
-      if (!draftSaved && draftUpdate) allowRejectedDraftEdit(scope, userProfile?.uid || "", draftUpdate, error, draftUpdate.orderId);
-      const attempt = await retailOrdersApi
-        .idempotency(scope, key)
-        .catch(() => null);
-      if (attempt?.status === "completed" && attempt.order && attempt.invoice) {
-        finish({ order: attempt.order, invoice: attempt.invoice });
-        setPaying(false);
-      } else if (offlineScope && isRetailNetworkFailure(error)) {
-        await queueRef.current.put(
-          createRetailOfflineOrder(
-            offlineScope,
-            {
-              draftId: savedId,
-              draftVersion: savedVersion,
-              draftSaved,
-              draftCreation,
-              draftUpdate,
-              input,
-              expectedGrandTotal: cart.quote.grandTotal,
-              payments,
-            },
-            key,
-          ),
-        );
-        dispatch({ type: "reset" });
-        setDraft(null);
-        setPaying(false);
-        toast.info("Đơn đang chờ đồng bộ khi có mạng.");
-        refreshOffline();
-      } else {
-        if (error instanceof Error && /tồn|không đủ/i.test(error.message)) {
-          await retailProductsApi
-            .list(scope, { q, limit: 500 })
-            .then((data) => setProducts(data.items))
-            .catch(() => undefined);
+      if (current()) {
+        if (error instanceof PendingCheckoutError) {
+          dispatch({ type: "reset" }); setDraft(null); setPaying(false);
+          toast.info("Đã giữ yêu cầu thanh toán. Xử lý tại mục đồng bộ trước khi tạo giao dịch mới.");
         }
-        if (savedId && !draft)
-          await retailOrdersApi
-            .cancel(scope, savedId, {
-              reason: "Tự động hủy draft sau khi thanh toán thất bại.",
-              idempotencyKey: `cancel-failed:${key}`,
-              expectedVersion: savedVersion,
-            })
-            .catch(() => {});
         show(error);
       }
     } finally {
       draftWriteBusy.current = false;
-      setBusy(false);
+      if (current()) { setBusy(false); refreshOffline(); }
     }
   };
 
@@ -564,13 +521,33 @@ export default function RetailPosPage() {
     setDraft(null);
   };
 
-  const syncOffline = async (activeScope: OfflineScope) => {
-    const results = await syncRetailOfflineQueue(queueRef.current, activeScope, {
-      check: (key) => retailOrdersApi.idempotency(activeScope, key),
-      send: (item) => confirmOfflineOrder(activeScope, item, queueRef.current),
-    });
-    refreshOffline();
-    return results;
+  const resolvePendingCheckout = async (id: string, revoke: boolean) => {
+    if (!offlineScope) return;
+    if (revoke && !window.confirm("Thu hồi yêu cầu thanh toán cũ? Yêu cầu chưa ghi nhận sẽ bị khóa; đơn đã thanh toán không bị hủy hoặc hoàn tiền.")) return;
+    try {
+      const result = await resolveCheckoutIntent(offlineScope, queueRef.current, id, revoke);
+      if (mounted.current && liveRequestScope.current === scopeToken) {
+        toast.info(result?.message || "Chưa đủ bằng chứng. Giữ nguyên yêu cầu để đối chiếu.");
+        refreshOffline(); refreshDrafts();
+      }
+    } catch (error) { if (mounted.current && liveRequestScope.current === scopeToken) show(error); }
+  };
+
+  const syncOffline = async (activeScope: OfflineScope, retryId?: string) => {
+    try {
+      return await withDraftRequestLock(activeScope, activeScope.userId, async () => {
+        if (retryId) {
+          const item = (await queueRef.current.list(activeScope)).find(row => row.id === retryId);
+          if (!item || item.status === "synced" || item.status === "revoked") return [];
+          await queueRef.current.update(retryId, { status: "syncing", lastError: undefined });
+        }
+        return syncRetailOfflineQueue(queueRef.current, activeScope, {
+          check: (_key, item) => resolveCheckoutIntentLocked(activeScope, queueRef.current, item),
+          send: item => confirmOfflineOrderLocked(activeScope, item, queueRef.current),
+        });
+      });
+    } catch (error) { if (mounted.current && liveRequestScope.current === scopeToken) show(error); return []; }
+    finally { if (mounted.current && liveRequestScope.current === scopeToken) refreshOffline(); }
   };
 
   return (
@@ -650,6 +627,7 @@ export default function RetailPosPage() {
         </header>
 
         {/* Held Drafts Bar */}
+        {scope && userProfile?.uid && <PendingDraftRequests key={JSON.stringify([scope.companyCode, scope.branchId, userProfile.uid])} scope={scope} userId={userProfile.uid} busy={busy} onRecovered={refreshDrafts} />}
         <HeldDraftsBar
           drafts={drafts}
           activeId={draft?._id}
@@ -710,14 +688,10 @@ export default function RetailPosPage() {
 
       <RetailOfflineQueuePanel
         items={offlineItems}
-        onRetry={(id) =>
-          void queueRef.current
-            .update(id, { status: "pending", lastError: undefined })
-            .then(() => offlineScope && syncOffline(offlineScope))
-        }
-        onRemove={(id) =>
-          void queueRef.current.remove(id).then(refreshOffline)
-        }
+        onRetry={id => { if (offlineScope) void syncOffline(offlineScope, id); }}
+        onRemove={() => undefined}
+        onReconcile={id => void resolvePendingCheckout(id, false)}
+        onRevoke={id => void resolvePendingCheckout(id, true)}
       />
 
       {paying && cart.quote && (

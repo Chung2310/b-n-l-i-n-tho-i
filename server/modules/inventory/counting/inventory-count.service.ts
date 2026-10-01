@@ -1,3 +1,4 @@
+import { InventoryCountRequestModel } from "./inventory-count-request.model";
 ﻿import { InventoryBalanceModel } from "../../../model/inventory-balance.model";
 import { InventoryCountModel } from "../../../model/inventory-count.model";
 import { ProductCatalogModel } from "../../../model/product-catalog.model";
@@ -111,9 +112,85 @@ export async function recreateCount(scope: Scope, countId: string, actor: Actor)
   }, undefined, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" } });
 }
 
-export async function updateCountItem(scope: Scope, countId: string, itemId: string, input: { countedQuantity?: unknown; note?: unknown; expectedVersion?: unknown }) {
+type CountEditInput = { countedQuantity?: unknown; note?: unknown; expectedVersion?: unknown; requestId?: unknown };
+const countRequestPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function countRequestIdentity(scope: Scope, countId: string, itemId: string, input: CountEditInput, actor: Actor) {
+  if (!code(actor.id)) fail("Thiếu định danh người cập nhật kiểm kê.", 401);
+  if (!code(scope.companyCode) || !code(scope.branchId)) fail("Thiếu phạm vi kiểm kê.", 400);
+  if (typeof input.requestId !== "string" || !countRequestPattern.test(input.requestId)) fail("Mã yêu cầu kiểm kê không hợp lệ.");
+  if (typeof input.expectedVersion !== "number" || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0 || input.expectedVersion >= Number.MAX_SAFE_INTEGER) fail("Phiên bản kiểm kê không hợp lệ.");
+  if (typeof input.countedQuantity !== "number" || !Number.isFinite(input.countedQuantity) || input.countedQuantity < 0) fail("Số đếm kiểm kê không hợp lệ.");
+  if (input.note !== undefined && typeof input.note !== "string") fail("Ghi chú kiểm kê không hợp lệ.");
+  const identity = { companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId, actorId: code(actor.id), requestId: input.requestId, countId, itemId };
+  return { ...identity, fingerprint: JSON.stringify(["count-quantity-v1", identity.companyCode, identity.branchId, identity.actorId, countId, itemId, input.expectedVersion, input.countedQuantity, input.note === undefined ? null : code(input.note)]) };
+}
+async function countRequestEvidence(identity: ReturnType<typeof countRequestIdentity>, expectedVersion: number, session: mongoose.ClientSession) {
+  const gate = await InventoryCountRequestModel.findOne({ companyCode: identity.companyCode, requestId: identity.requestId }).session(session).lean();
+  if (!gate) return null;
+  if (gate.fingerprint !== identity.fingerprint || gate.branchId !== identity.branchId || gate.actorId !== identity.actorId || gate.countId !== identity.countId || gate.itemId !== identity.itemId) fail("Mã yêu cầu đã được dùng với nội dung hoặc người thao tác khác.", 409);
+  const count = await InventoryCountModel.findOne({ _id: identity.countId, companyCode: identity.companyCode, branchId: identity.branchId }).session(session).lean();
+  if (gate.status === "revoked") return { gate, status: "revoked" as const };
+  if (gate.status !== "completed" || gate.committedVersion !== expectedVersion + 1 || !count || !Number.isSafeInteger(count.version) || count.version < gate.committedVersion || !count.items.some(item => String(item._id) === identity.itemId)) fail("Bằng chứng lưu kiểm kê không đầy đủ. Cần đối chiếu riêng.", 409);
+  return { gate, count, status: "completed" as const };
+}
+export async function reconcileCountItem(scope: Scope, countId: string, itemId: string, input: CountEditInput, actor: Actor) {
+  const identity = countRequestIdentity(scope, countId, itemId, input, actor);
+  return inInventoryTransaction(async session => {
+    const evidence = await countRequestEvidence(identity, input.expectedVersion as number, session);
+    const base = { requestId: identity.requestId, countId, itemId };
+    if (evidence?.status === "revoked") return { ...base, status: "revoked" as const };
+    if (evidence?.status === "completed") return { ...base, status: "completed" as const, committedVersion: evidence.gate.committedVersion, currentVersion: evidence.count.version };
+    const count = await InventoryCountModel.findOne({ _id: countId, companyCode: identity.companyCode, branchId: identity.branchId }).session(session).lean();
+    if (!count) fail("Không tìm thấy phiếu kiểm kê.", 404);
+    return { ...base, status: "not_found" as const };
+  }, undefined, { readConcern: { level: "snapshot" } });
+}
+export async function revokeCountItemRequest(scope: Scope, countId: string, itemId: string, input: CountEditInput, actor: Actor) {
+  const identity = countRequestIdentity(scope, countId, itemId, input, actor);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await inInventoryTransaction(async session => {
+        const evidence = await countRequestEvidence(identity, input.expectedVersion as number, session);
+        const base = { requestId: identity.requestId, countId, itemId };
+        if (evidence?.status === "completed") return { ...base, status: "completed" as const, committedVersion: evidence.gate.committedVersion, currentVersion: evidence.count.version };
+        if (evidence?.status === "revoked") return { ...base, status: "revoked" as const };
+        const count = await InventoryCountModel.findOne({ _id: countId, companyCode: identity.companyCode, branchId: identity.branchId }).session(session).lean();
+        if (!count) fail("Không tìm thấy phiếu kiểm kê.", 404);
+        if (count.version !== input.expectedVersion) fail("Phiếu đã tiến phiên bản nhưng chưa có bằng chứng yêu cầu này. Cần đối chiếu riêng; chưa thu hồi.", 409);
+        assertEditableStatus(count.status as InventoryCountStatus);
+        await InventoryCountRequestModel.create([{ ...identity, status: "revoked" }], { session });
+        return { ...base, status: "revoked" as const };
+      }, undefined, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" } });
+    } catch (error: any) {
+      if (error?.code !== 11000 || !error?.keyPattern?.requestId || !error?.keyPattern?.companyCode || attempt === 2) throw error;
+    }
+  }
+  throw new Error("Unreachable count request revocation retry");
+}
+
+export async function updateCountItem(scope: Scope, countId: string, itemId: string, input: CountEditInput, actor: Actor = {}) {
+  // Existing clients retain optimistic version protection, but receive no fabricated evidence.
+  if (input.requestId === undefined) return updateCountItemOnce(scope, countId, itemId, input);
+  const identity = countRequestIdentity(scope, countId, itemId, input, actor);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await inInventoryTransaction(async session => {
+        const existing = await countRequestEvidence(identity, input.expectedVersion as number, session);
+        if (existing?.status === "revoked") fail("Yêu cầu đếm này đã được thu hồi; không thể gửi lại.", 409);
+        if (existing?.status === "completed") return existing.count;
+        const count = await updateCountItemOnce(scope, countId, itemId, input, session);
+        await InventoryCountRequestModel.create([{ ...identity, status: "completed", committedVersion: count.version }], { session });
+        return count;
+      }, undefined, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" } });
+    } catch (error: any) {
+      if (error?.code !== 11000 || !error?.keyPattern?.requestId || !error?.keyPattern?.companyCode || attempt === 2) throw error;
+    }
+  }
+  throw new Error("Unreachable count request retry");
+}
+async function updateCountItemOnce(scope: Scope, countId: string, itemId: string, input: CountEditInput, session?: mongoose.ClientSession) {
   if (typeof input.expectedVersion !== "number" || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0) fail("Cần phiên bản phiếu kiểm kê hợp lệ. Hãy tải lại phiếu trước khi lưu.");
-  const count = await InventoryCountModel.findOne({ _id: countId, companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId });
+  const count = await InventoryCountModel.findOne({ _id: countId, companyCode: normalizedCompany(scope.companyCode), branchId: scope.branchId }).session(session || null);
   if (!count) fail("Không tìm thấy phiếu kiểm kê.", 404);
   if (count.version !== input.expectedVersion) throw Object.assign(new Error("Phiếu kiểm kê đã thay đổi. Hãy tải lại phiếu và đối chiếu số lượng trước khi lưu."), { statusCode: 409, code: "COUNT_VERSION_CONFLICT" });
   assertEditableStatus(count.status as InventoryCountStatus);
@@ -124,7 +201,7 @@ export async function updateCountItem(scope: Scope, countId: string, itemId: str
   if (input.countedQuantity === undefined) {
     if (input.note !== undefined) item.note = code(input.note) || undefined;
     count.markModified("items");
-    await saveCount(count);
+    await saveCount(count, session);
     return count.toObject();
   }
   const counted = Number(input.countedQuantity);
@@ -132,7 +209,7 @@ export async function updateCountItem(scope: Scope, countId: string, itemId: str
   item.quantityDelta = calculateQuantityDelta(Number(item.systemQuantity), counted);
   if (input.note !== undefined) item.note = code(input.note) || undefined;
   count.markModified("items");
-  await saveCount(count);
+  await saveCount(count, session);
   return count.toObject();
 }
 

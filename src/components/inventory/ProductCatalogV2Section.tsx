@@ -266,9 +266,6 @@ export function ProductCatalogV2Section() {
               Ma trận biến thể
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Phân loại đa cấp (Ngành hàng &gt; Hãng &gt; Đời máy) &amp; Quản lý kho theo IMEI/Serial hoặc Số lượng
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -675,10 +672,10 @@ export function ProductCatalogV2Section() {
             setupKind === "categories"
               ? resources.categories
               : setupKind === "brands"
-              ? resources.brands
-              : setupKind === "attributes"
-              ? resources.attributes
-              : []
+                ? resources.brands
+                : setupKind === "attributes"
+                  ? resources.attributes
+                  : []
           }
           categories={resources.categories}
           onClose={() => {

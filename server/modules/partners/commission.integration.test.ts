@@ -1,3 +1,5 @@
+import { financeTreasuryService } from "../finance/services/finance-treasury.service";
+import { FinanceCashAccountModel, FinanceCashVoucherModel, FinancePostingGuardModel } from "../finance/models/finance-treasury.model";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose, { Types } from "mongoose";
 import { beforeAll, afterAll, beforeEach, describe, expect, it } from "vitest";
@@ -26,11 +28,11 @@ describe('commission ledger transactions', () => {
   beforeAll(async () => {
     repl = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
     await mongoose.connect(repl.getUri());
-    await Promise.all([PartnerModel.init(), CommissionLedgerModel.init(), CommissionPolicyModel.init()]);
+    await Promise.all([FinanceCashAccountModel.init(), FinanceCashVoucherModel.init(), FinancePostingGuardModel.init(), PartnerModel.init(), CommissionLedgerModel.init(), CommissionPolicyModel.init()]);
   }, 120000);
   afterAll(async () => { await mongoose.disconnect(); if (repl) await repl.stop(); });
   beforeEach(async () => {
-    await Promise.all([ProductCommissionModel.deleteMany({}), ProductVariantModel.deleteMany({})]);
+    await Promise.all([FinanceCashAccountModel.deleteMany({}), FinanceCashVoucherModel.deleteMany({}), FinancePostingGuardModel.deleteMany({}), ProductCommissionModel.deleteMany({}), ProductVariantModel.deleteMany({})]);
     await Promise.all([PartnerModel.deleteMany({}), CommissionLedgerModel.deleteMany({}), CommissionPolicyModel.deleteMany({}), RetailOrderModel.deleteMany({}), RetailAfterSaleModel.deleteMany({}), RepairTicketModel.deleteMany({})]);
     partnerId = String((await PartnerModel.create({ companyCode, code: 'CTV', name: 'CTV test', roles: ['collaborator'] }))._id);
   });
@@ -92,6 +94,10 @@ describe('commission ledger transactions', () => {
     const _id = new Types.ObjectId();
     await RepairTicketModel.collection.insertOne({_id,companyCode,branchId:'b1',ticketCode:'R1',status:'delivered',deliveredAt:new Date('2025-01-20'),laborFee:400000,partRevenue:600000,totalAmount:1000000,paidAmount:1000000,dueAmount:0,commissionSnapshot:{partnerId,policyId:'v1',policy},commissionRefunds:[],customerPhone:'0901234567',device:{name:'Phone',condition:'Good'},coverage:{costBearer:'customer',checkedAt:new Date()},customerId:'c1',customerName:'Customer',symptom:'Test',receivedAt:new Date(),createdBy:'a',createdByName:'A'} as any);
     await reconcileCommission('repair',String(_id),companyCode); expect(await balance()).toBe(40000);
+    const scope = { companyCode, branchId: 'b1' };
+    const account = await financeTreasuryService.createAccount(scope, { name: "Cash", kind: "cash", openingOn: "2025-01-01", openingBalance: 1000000 }, "maker");
+    const voucher = await financeTreasuryService.createVoucher(scope, { key: "REF1", kind: "payment", accountId: String(account._id), amount: 200000, occurredOn: "2025-01-20", reference: "R1", description: "Refund" }, "maker");
+    await financeTreasuryService.decide(scope, String(voucher._id), { action: "approve", version: 0 }, "approver");
     const input = {amount:200000,laborAmount:200000,reason:'Refund',reference:'REF1',idempotencyKey:'ref1'};
     await refundRepairCommission({companyCode,branchId:'b1'},String(_id),input,'admin');
     await refundRepairCommission({companyCode,branchId:'b1'},String(_id),input,'admin');

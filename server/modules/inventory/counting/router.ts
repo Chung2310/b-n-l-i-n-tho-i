@@ -12,3 +12,7 @@ inventoryCountRouter.post("/:id/submit", requirePermission("inventory:manage") a
 inventoryCountRouter.post("/:id/cancel", requirePermission("inventory:manage") as any, inventoryCountController.cancel as any);
 inventoryCountRouter.post("/:id/approve", requirePermission("inventory-count-approval:manage") as any, inventoryCountController.approve as any);
 inventoryCountRouter.post("/:id/recreate", requirePermission("inventory:manage") as any, inventoryCountController.recreate as any);
+
+inventoryCountRouter.post("/:id/items/:itemId/reconcile", requirePermission("inventory:manage") as any, inventoryCountController.reconcileItem as any);
+
+inventoryCountRouter.post("/:id/items/:itemId/revoke-request", requirePermission("inventory:manage") as any, inventoryCountController.revokeItemRequest as any);

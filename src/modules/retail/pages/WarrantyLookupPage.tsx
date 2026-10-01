@@ -77,7 +77,7 @@ export default function WarrantyLookupPage() {
       const next = [c, ...prev.filter((item) => item !== c)].slice(0, 5);
       try {
         sessionStorage.setItem("recent_warranty_lookups", JSON.stringify(next));
-      } catch {}
+      } catch { }
       return next;
     });
   };
@@ -255,13 +255,6 @@ export default function WarrantyLookupPage() {
 
         {/* Tip & Recent Lookups */}
         <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <p className="text-slate-500 flex items-center gap-1.5">
-            <span className="flex items-center gap-1 text-amber-600 font-bold">
-              <Lightbulb className="h-3.5 w-3.5" />
-              <span>Mẹo:</span>
-            </span>
-            <span>Quét mã vạch trên tem máy hoặc hóa đơn để tra cứu nhanh.</span>
-          </p>
 
           {recentLookups.length > 0 && (
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -386,11 +379,10 @@ export default function WarrantyLookupPage() {
 
             <div className="flex items-center gap-2">
               <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-bold ${
-                  isWarrantyCovered
+                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-bold ${isWarrantyCovered
                     ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
                     : "bg-rose-500/20 text-rose-300 border border-rose-500/40"
-                }`}
+                  }`}
               >
                 {isWarrantyCovered ? (
                   <>
@@ -488,11 +480,10 @@ export default function WarrantyLookupPage() {
 
               {/* Box 2: Tình trạng bảo hành */}
               <div
-                className={`rounded-2xl border p-5 space-y-3.5 ${
-                  isWarrantyCovered
+                className={`rounded-2xl border p-5 space-y-3.5 ${isWarrantyCovered
                     ? "bg-emerald-50/40 border-emerald-200"
                     : "bg-rose-50/40 border-rose-200"
-                }`}
+                  }`}
               >
                 <div className="flex items-center justify-between border-b border-slate-200/60 pb-2.5">
                   <div className="flex items-center gap-2">
@@ -503,11 +494,10 @@ export default function WarrantyLookupPage() {
                   </div>
 
                   <span
-                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
-                      isWarrantyCovered
+                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${isWarrantyCovered
                         ? "bg-emerald-100 text-emerald-800"
                         : "bg-rose-100 text-rose-800"
-                    }`}
+                      }`}
                   >
                     {isWarrantyCovered
                       ? `Còn ${result.customerWarranty?.daysLeft ?? 0} ngày`
@@ -524,9 +514,8 @@ export default function WarrantyLookupPage() {
                         <span>Bảo hành cửa hàng (Shop)</span>
                       </span>
                       <span
-                        className={`font-bold ${
-                          isCustomerCovered ? "text-emerald-700" : "text-slate-400"
-                        }`}
+                        className={`font-bold ${isCustomerCovered ? "text-emerald-700" : "text-slate-400"
+                          }`}
                       >
                         {isCustomerCovered
                           ? `Còn ${result.customerWarranty?.daysLeft ?? 0} ngày`
@@ -551,9 +540,8 @@ export default function WarrantyLookupPage() {
                           </span>
                         </span>
                         <span
-                          className={`font-bold ${
-                            isSupplierCovered ? "text-indigo-700" : "text-slate-400"
-                          }`}
+                          className={`font-bold ${isSupplierCovered ? "text-indigo-700" : "text-slate-400"
+                            }`}
                         >
                           {isSupplierCovered
                             ? `Còn ${result.supplierWarranty.daysLeft ?? 0} ngày`
@@ -600,11 +588,10 @@ export default function WarrantyLookupPage() {
                 <button
                   type="button"
                   onClick={() => openServiceTicket(false)}
-                  className={`inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition cursor-pointer ${
-                    isWarrantyCovered
+                  className={`inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition cursor-pointer ${isWarrantyCovered
                       ? "border border-orange-200 bg-orange-50 text-orange-900 hover:bg-orange-100"
                       : "bg-orange-600 text-white hover:bg-orange-700 shadow-md shadow-orange-600/20 active:scale-[0.99]"
-                  }`}
+                    }`}
                 >
                   <Wrench className="h-5 w-5" />
                   <span>

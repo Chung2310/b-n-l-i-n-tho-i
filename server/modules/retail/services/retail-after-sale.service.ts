@@ -1,3 +1,5 @@
+import { RetailAfterSaleRequestModel } from "../models/retail-after-sale-request.model";
+import { GoodsReceiptModel } from "../../../model/goods-receipt.model";
 import { createHash } from "node:crypto";
 import { reconcileCommission } from "../../partners/commission.service";
 import mongoose, { Types } from "mongoose";
@@ -133,15 +135,7 @@ async function revertPointsOnReturn(scope: RetailBranchScope, order: any, doc: a
   }
 }
 
-export const RetailAfterSaleService = {
-  async get(scope: RetailBranchScope, id: string) {
-    const doc = await RetailAfterSaleModel.findOne({ _id: id, ...scope }).lean();
-    if (!doc) throw fail("Không tìm thấy chứng từ đổi trả / thu mua.", "AFTER_SALE_NOT_FOUND", 404);
-    return doc;
-  },
-  async list(scope: RetailBranchScope, query: any) { const page = Math.max(1, Number(query.page) || 1), limit = Math.min(100, Math.max(1, Number(query.limit) || 20)), filter: any = { ...scope, ...(query.type ? { type: String(query.type) } : {}), ...(query.orderId ? { orderId: String(query.orderId) } : {}) }; const [items, total] = await Promise.all([RetailAfterSaleModel.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(), RetailAfterSaleModel.countDocuments(filter)]); return { items, total, page, limit }; },
-  async create(scope: RetailBranchScope, input: any, actor: any, shift?: any) {
-    const businessDate = shift?.businessDate || businessDateInVietnam(new Date());
+function afterSaleIdentity(scope: RetailBranchScope, input: any, actor: any, shift?: any) {
     if (!["return", "buyback"].includes(input.type)) throw fail("Loại chứng từ không hợp lệ."); const reason = String(input.reason || "").trim(); if (!reason) throw fail("Lý do là bắt buộc.");
     const paymentMethod = String(input.paymentMethod || "cash") as "cash" | "card" | "transfer" | "ewallet", idempotencyKey = String(input.idempotencyKey || "").trim(); if (!["cash", "card", "transfer", "ewallet"].includes(paymentMethod)) throw fail("Phương thức chi tiền không hợp lệ."); if (!idempotencyKey) throw fail("Thiếu khóa chống tạo trùng.");
     if (!Types.ObjectId.isValid(input.orderId)) throw fail("Mã đơn bán gốc không hợp lệ.");
@@ -151,10 +145,11 @@ export const RetailAfterSaleService = {
         (item.internalBarcodes != null && !Array.isArray(item.internalBarcodes)))) {
       throw fail("Dòng sản phẩm hoặc danh sách mã máy không hợp lệ.");
     }
+    if (input.expectedVersion !== undefined && (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0)) throw fail("Phiên bản đơn không hợp lệ.");
     // Hash only accepted request fields, with the same defaults as posting. Do not
     // include today's date: retrying a lost response tomorrow is still a replay.
     const requestFingerprint = createHash("sha256").update(JSON.stringify({
-      version: 1, companyCode: scope.companyCode, branchId: scope.branchId,
+      version: input.expectedVersion === undefined ? 1 : 2, ...(input.expectedVersion === undefined ? {} : { expectedVersion: input.expectedVersion }), companyCode: scope.companyCode, branchId: scope.branchId,
       actorId: actorId(actor), shiftId: String(shift?._id || ""),
       type: input.type, orderId: String(input.orderId), reason, paymentMethod,
       paymentReference: String(input.paymentReference || "").trim(),
@@ -166,6 +161,110 @@ export const RetailAfterSaleService = {
         condition: String(item.condition || "good"), note: String(item.note || "").trim(),
       })),
     })).digest("hex");
+    return { reason, paymentMethod, idempotencyKey, requestFingerprint };
+}
+function afterSaleDigest(doc: any) {
+  const fields = ["orderLineIndex", "productId", "variantId", "sku", "trackingMode", "quantity", "serialNumbers", "internalBarcodes", "unitAmount", "unitCost", "lineAmount", "condition", "note", "stockLedgerId", "stockWarehouseId"];
+  return createHash("sha256").update(JSON.stringify({ id: String(doc._id), companyCode: doc.companyCode, branchId: doc.branchId, orderId: doc.orderId, type: doc.type, status: doc.status, totalAmount: doc.totalAmount, paymentMethod: doc.paymentMethod, paymentReference: doc.paymentReference, reason: doc.reason, createdBy: doc.createdBy, shiftId: doc.shiftId, receiptId: doc.receiptId, items: doc.items.map((item: any) => Object.fromEntries(fields.map(key => [key, item[key]]))) })).digest("hex");
+}
+function checkAfterSaleGate(gate: any, scope: RetailBranchScope, input: any, fingerprint: string) {
+  if (gate.branchId !== scope.branchId || gate.orderId !== String(input.orderId) || gate.requestFingerprint !== fingerprint) throw fail("Khóa hậu mãi thuộc yêu cầu khác.", "AFTER_SALE_IDEMPOTENCY_CONFLICT", 409);
+}
+async function revocationBaseline(scope: RetailBranchScope, order: any, session: mongoose.ClientSession) {
+  const conflict = () => fail("Lịch sử hậu mãi chưa đủ bằng chứng. Giữ yêu cầu để đối chiếu.", "AFTER_SALE_REVOKE_CONFLICT", 409);
+  const history = await RetailAfterSaleModel.find({ ...scope, orderId: String(order._id) }).sort({ _id: 1 }).session(session).lean();
+  const receipts = await GoodsReceiptModel.find({ ...scope, orderId: String(order._id), receiptKind: { $in: ["sales_return", "buyback"] } }).session(session).lean();
+  const gates = await RetailAfterSaleRequestModel.find({ ...scope, orderId: String(order._id), status: { $ne: "revoked" } }).session(session).lean();
+  if (receipts.length !== history.length || gates.length !== history.length || (order.afterSaleStatus || "none") !== summarizeAfterSales(order, history).status) throw conflict();
+  const refundIndices = new Set<number>();
+  for (const doc of history) {
+    const evidence = doc.reconciliationEvidence;
+    const gate = gates.find(row => row.documentId === String(doc._id));
+    const receipt = receipts.find(row => String(row._id) === doc.receiptId);
+    if (!evidence || evidence.digest !== afterSaleDigest(doc) || !Number.isSafeInteger(evidence.orderVersion) || evidence.orderVersion > order.version || !gate || gate.status !== "completed" || gate.idempotencyKey !== doc.idempotencyKey || gate.requestFingerprint !== doc.requestFingerprint || !receipt || receipt.status !== "confirmed" || receipt.sourceId !== String(doc._id) || receipt.receiptKind !== (doc.type === "return" ? "sales_return" : "buyback") || doc.status !== "completed" || doc.items.reduce((sum, item) => sum + item.lineAmount, 0) !== doc.totalAmount) throw conflict();
+    if (receipt.items.length !== doc.items.length || !receipt.items.every((item, index) => item.sku === doc.items[index].sku && item.quantity === doc.items[index].quantity && item.unitCost === doc.items[index].unitCost)) throw conflict();
+    if (doc.type === "return") {
+      const index = evidence.refundIndex;
+      const refund = order.refunds[index];
+      if (!Number.isSafeInteger(index) || index < 0 || refundIndices.has(index) || !refund || refund.amount !== doc.totalAmount || refund.method !== doc.paymentMethod || refund.reference !== doc.paymentReference || refund.reason !== doc.reason || refund.refundedBy !== doc.createdBy || String(refund.shiftId || "") !== String(doc.shiftId || "")) throw conflict();
+      refundIndices.add(index);
+    }
+  }
+  if (order.refunds.length !== refundIndices.size || order.refunds.reduce((sum: number, refund: any) => sum + refund.amount, 0) !== order.refundedAmount) throw conflict();
+  return createHash("sha256").update(JSON.stringify({ version: order.version, orderId: String(order._id), history: history.map(doc => [String(doc._id), doc.reconciliationEvidence.digest]) })).digest("hex");
+}
+export const RetailAfterSaleService = {
+  async revoke(scope: RetailBranchScope, input: any, actor: any, shift?: any) {
+    const { idempotencyKey, requestFingerprint } = afterSaleIdentity(scope, input, actor, shift);
+    const filter = { companyCode: scope.companyCode, idempotencyKey };
+    const replay = (gate: any) => {
+      checkAfterSaleGate(gate, scope, input, requestFingerprint);
+      if (gate.status !== "revoked") throw fail("Yêu cầu đã ghi nhận hoặc đang xử lý. Không thể thu hồi.", "AFTER_SALE_REVOKE_CONFLICT", 409);
+      return { status: "revoked" as const, message: "Đã thu hồi yêu cầu chưa ghi nhận. Khóa cũ không thể tạo phiếu." };
+    };
+    const session = await mongoose.startSession();
+    try {
+      return await session.withTransaction(async () => {
+        if (await RetailAfterSaleModel.exists(filter).session(session)) throw fail("Đã có phiếu hậu mãi. Cần đối chiếu.", "AFTER_SALE_REVOKE_CONFLICT", 409);
+        const gate = await RetailAfterSaleRequestModel.findOne(filter).session(session).lean();
+        if (gate) return replay(gate);
+        const order = await RetailOrderModel.findOne({ _id: input.orderId, ...scope, status: "completed" }).session(session).lean();
+        let baselineDigest: string | undefined;
+        if (input.expectedVersion !== undefined) {
+          if (!order || order.version !== input.expectedVersion) throw fail("Đơn đã thay đổi. Giữ phiên bản cũ để đối chiếu.", "AFTER_SALE_REVOKE_CONFLICT", 409);
+          baselineDigest = await revocationBaseline(scope, order, session);
+        } else {
+        if (!order || order.refundedAmount || order.afterSaleStatus || await RetailAfterSaleModel.exists({ ...scope, orderId: String(input.orderId) }).session(session) || await GoodsReceiptModel.exists({ ...scope, orderId: String(input.orderId), receiptKind: { $in: ["sales_return", "buyback"] } }).session(session)) throw fail("Đơn có dấu vết hậu mãi hoặc thiếu bằng chứng. Giữ yêu cầu để đối chiếu.", "AFTER_SALE_REVOKE_CONFLICT", 409);
+        }
+        await RetailAfterSaleRequestModel.create([{ ...scope, idempotencyKey, orderId: String(input.orderId), requestFingerprint, expectedVersion: input.expectedVersion, baselineDigest, status: "revoked" }], { session });
+        return { status: "revoked" as const, message: "Đã thu hồi yêu cầu chưa ghi nhận. Khóa cũ không thể tạo phiếu." };
+      });
+    } catch (error: any) {
+      if (error?.code === 11000 && error?.keyPattern?.companyCode && error?.keyPattern?.idempotencyKey) {
+        const gate = await RetailAfterSaleRequestModel.findOne(filter).lean();
+        if (gate) return replay(gate);
+      }
+      throw error;
+    } finally { await session.endSession(); }
+  },
+  async reconcile(scope: RetailBranchScope, input: any, actor: any, shift?: any) {
+    const { idempotencyKey, requestFingerprint } = afterSaleIdentity(scope, input, actor, shift);
+    const session = await mongoose.startSession();
+    try {
+      return await session.withTransaction(async () => {
+        const conflict = { status: "conflict" as const, message: "Chưa đủ bằng chứng khớp phiếu hậu mãi. Giữ yêu cầu để đối chiếu." };
+        const order = await RetailOrderModel.findOne({ _id: input.orderId, ...scope }).session(session).lean();
+        if (!order) return conflict;
+        const doc = await RetailAfterSaleModel.findOne({ companyCode: scope.companyCode, idempotencyKey }).session(session).lean();
+        const gate = await RetailAfterSaleRequestModel.findOne({ companyCode: scope.companyCode, idempotencyKey }).session(session).lean();
+        if (gate) {
+          if (gate.branchId !== scope.branchId || gate.orderId !== String(input.orderId) || gate.requestFingerprint !== requestFingerprint) return conflict;
+          if (gate.status === "revoked") return doc ? conflict : { status: "revoked" as const, message: "Yêu cầu đã thu hồi; khóa cũ không thể tạo phiếu." };
+          if (!doc || gate.status !== "completed" || gate.documentId !== String(doc._id)) return conflict;
+        }
+        if (!doc) return { status: "not_found" as const, message: "Chưa tìm thấy phiếu. Giữ khóa cũ; kết quả này không hủy yêu cầu đang gửi." };
+        if (doc.branchId !== scope.branchId || doc.orderId !== String(input.orderId) || doc.requestFingerprint !== requestFingerprint || doc.status !== "completed") return conflict;
+        const evidence = doc.reconciliationEvidence;
+        if (!evidence || evidence.digest !== afterSaleDigest(doc) || !Number.isSafeInteger(evidence.orderVersion) || order.version < evidence.orderVersion || doc.items.reduce((sum, item) => sum + item.lineAmount, 0) !== doc.totalAmount) return conflict;
+        if (!doc.receiptId || !await GoodsReceiptModel.exists({ _id: doc.receiptId, ...scope, status: "confirmed", sourceId: String(doc._id) }).session(session)) return conflict;
+        if (doc.type === "return") {
+          if (!Number.isSafeInteger(evidence.refundIndex) || evidence.refundIndex < 0) return conflict;
+          const refund = order.refunds[evidence.refundIndex];
+          if (!refund || refund.amount !== doc.totalAmount || refund.method !== doc.paymentMethod || refund.reference !== doc.paymentReference || refund.reason !== doc.reason || refund.refundedBy !== doc.createdBy || String(refund.shiftId || "") !== String(doc.shiftId || "") || order.refunds.reduce((sum, row) => sum + row.amount, 0) !== order.refundedAmount) return conflict;
+        }
+        return { status: "completed" as const, message: doc.type === "buyback" ? "Đã xác minh phiếu thu mua và nhập hàng; chưa xác minh chi tiền thực/quỹ Finance." : "Đã xác minh phiếu trả hàng, dòng hoàn tiền và nhập hàng; chưa đối soát tiền thực/quỹ Finance.", document: { _id: String(doc._id), code: doc.code, orderId: doc.orderId, type: doc.type, receiptId: doc.receiptId, receiptCode: doc.receiptCode } };
+      }, { readConcern: { level: "snapshot" } });
+    } finally { await session.endSession(); }
+  },
+  async get(scope: RetailBranchScope, id: string) {
+    const doc = await RetailAfterSaleModel.findOne({ _id: id, ...scope }).lean();
+    if (!doc) throw fail("Không tìm thấy chứng từ đổi trả / thu mua.", "AFTER_SALE_NOT_FOUND", 404);
+    return doc;
+  },
+  async list(scope: RetailBranchScope, query: any) { const page = Math.max(1, Number(query.page) || 1), limit = Math.min(100, Math.max(1, Number(query.limit) || 20)), filter: any = { ...scope, ...(query.type ? { type: String(query.type) } : {}), ...(query.orderId ? { orderId: String(query.orderId) } : {}) }; const [items, total] = await Promise.all([RetailAfterSaleModel.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(), RetailAfterSaleModel.countDocuments(filter)]); return { items, total, page, limit }; },
+  async create(scope: RetailBranchScope, input: any, actor: any, shift?: any) {
+    const businessDate = shift?.businessDate || businessDateInVietnam(new Date());
+    const { reason, paymentMethod, idempotencyKey, requestFingerprint } = afterSaleIdentity(scope, input, actor, shift);
     const checkedReplay = (doc: any) => {
       if (doc.branchId !== scope.branchId || doc.orderId !== String(input.orderId) ||
           doc.requestFingerprint !== requestFingerprint) {
@@ -174,16 +273,32 @@ export const RetailAfterSaleService = {
       return doc;
     };
     const replayFilter = { companyCode: scope.companyCode, idempotencyKey };
+    const existingGate = await RetailAfterSaleRequestModel.findOne(replayFilter).lean();
+    if (existingGate) {
+      checkAfterSaleGate(existingGate, scope, input, requestFingerprint);
+      if (existingGate.status === "revoked") throw fail("Yêu cầu đã thu hồi.", "AFTER_SALE_REVOKED", 409);
+    }
     const replay = await RetailAfterSaleModel.findOne(replayFilter).lean();
-    if (replay) return checkedReplay(replay);
+    if (replay) {
+      if (existingGate && (existingGate.status !== "completed" || existingGate.documentId !== String(replay._id))) throw fail("Hồ sơ khóa không khớp phiếu.", "AFTER_SALE_IDEMPOTENCY_CONFLICT", 409);
+      return checkedReplay(replay);
+    }
     const session = await mongoose.startSession();
     let result: any;
     try { result = await session.withTransaction(async () => {
       const committed = await RetailAfterSaleModel.findOne(replayFilter).session(session).lean();
+      const gate = await RetailAfterSaleRequestModel.findOne(replayFilter).session(session).lean();
+      if (gate) {
+        checkAfterSaleGate(gate, scope, input, requestFingerprint);
+        if (gate.status === "revoked") throw fail("Yêu cầu đã thu hồi.", "AFTER_SALE_REVOKED", 409);
+        if (!committed || gate.status !== "completed" || gate.documentId !== String(committed._id)) throw fail("Thiếu phiếu của yêu cầu đã ghi nhận.", "AFTER_SALE_IDEMPOTENCY_CONFLICT", 409);
+      }
       if (committed) return checkedReplay(committed);
+      await RetailAfterSaleRequestModel.create([{ ...scope, idempotencyKey, orderId: String(input.orderId), requestFingerprint, expectedVersion: input.expectedVersion, status: "processing" }], { session });
       const orderQuery = RetailOrderModel.findOne({ _id: input.orderId, ...scope, status: "completed", paymentStatus: { $in: ["paid", "refunded"] } });
       const order: any = await (session ? orderQuery.session(session) : orderQuery);
       if (!order) throw fail("Chỉ xử lý được đơn đã hoàn tất và thanh toán đủ.", "ORDER_NOT_ELIGIBLE", 409);
+      if (input.expectedVersion !== undefined && order.version !== input.expectedVersion) throw fail("Đơn đã thay đổi. Giữ nguyên yêu cầu để đối chiếu.", "AFTER_SALE_VERSION_CONFLICT", 409);
       const priorQuery = RetailAfterSaleModel.find({ ...scope, orderId: String(order._id) }).lean();
       const prior: any[] = await (session ? priorQuery.session(session) : priorQuery);
       const used = new Map<number, number>(); for (const d of prior) for (const i of d.items || []) used.set(i.orderLineIndex, (used.get(i.orderLineIndex) || 0) + i.quantity);
@@ -215,6 +330,7 @@ export const RetailAfterSaleService = {
       doc.receiptCode = receipt.receiptCode;
       await doc.save({ session });
       await restoreSerials(scope, order, doc, actor, receipt.warehouseId, session);
+      const refundIndex = order.refunds.length;
       if (input.type === "return") {
         order.refunds.push({ method: paymentMethod, amount: totalAmount, reference: doc.paymentReference, refundedAt: new Date(), refundedBy: actorId(actor), refundedByName: actorName(actor), shiftId: shift?._id ? String(shift._id) : undefined, businessDate: businessDate, reason });
         order.refundedAmount += totalAmount;
@@ -228,11 +344,16 @@ export const RetailAfterSaleService = {
       order.afterSaleStatus = summarizeAfterSales(order, [...prior, doc]).status;
       order.version += 1;
       await order.save({ session });
+      doc.reconciliationEvidence = { digest: afterSaleDigest(doc), orderVersion: order.version, refundIndex: input.type === "return" ? refundIndex : undefined };
+      await doc.save({ session });
       if (input.type === "return" && order.commissionSnapshot) await reconcileCommission("retail", String(order._id), scope.companyCode, session);
+      await RetailAfterSaleRequestModel.updateOne(replayFilter, { $set: { status: "completed", documentId: String(doc._id) } }, { session });
       return doc;
     }); } catch (error: any) {
       // Only the request-key unique index establishes a concurrent replay.
       if (error?.code !== 11000 || !error?.keyPattern?.companyCode || !error?.keyPattern?.idempotencyKey) throw error;
+      const gate = await RetailAfterSaleRequestModel.findOne(replayFilter).lean();
+      if (gate) { checkAfterSaleGate(gate, scope, input, requestFingerprint); if (gate.status === "revoked") throw fail("Yêu cầu đã thu hồi.", "AFTER_SALE_REVOKED", 409); }
       const committed = await RetailAfterSaleModel.findOne(replayFilter).lean();
       if (!committed) throw error;
       result = checkedReplay(committed);

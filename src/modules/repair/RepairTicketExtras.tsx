@@ -1,3 +1,4 @@
+import { useRepairPartRequest, type PartRequest } from "./useRepairPartRequest";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Package,
@@ -277,7 +278,7 @@ const handleCurrencyChange = (
   }
 };
 
-function IssuePartForm({ ticket, onIssued }: { ticket: RepairTicket; onIssued: () => void }) {
+function IssuePartForm({ ticket, onRequest }: { ticket: RepairTicket; onRequest: (factory: () => PartRequest) => Promise<void> }) {
   const [manual, setManual] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PartSearchHit[]>([]);
@@ -304,7 +305,7 @@ function IssuePartForm({ ticket, onIssued }: { ticket: RepairTicket; onIssued: (
   };
 
   const searchTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingIssueRef = React.useRef<{ fingerprint: string; key: string } | null>(null);
+
 
   const search = (value: string) => {
     setQuery(value);
@@ -348,26 +349,15 @@ function IssuePartForm({ ticket, onIssued }: { ticket: RepairTicket; onIssued: (
     setBusy(true);
     setError("");
     try {
-      const fingerprint = JSON.stringify({ ticketId: ticket._id, manual, productId: selected?._id, manualName, manualSku, quantity, unitCost, unitPrice, billing });
-      if (pendingIssueRef.current?.fingerprint !== fingerprint) {
-        pendingIssueRef.current = { fingerprint, key: `repair:${ticket._id}:part:${crypto.randomUUID()}` };
-      }
-      const key = pendingIssueRef.current.key;
-      await repairService.issuePart(ticket._id, {
-        productId: manual ? key : selected!._id,
-        sku: manual ? manualSku.trim() || "MANUAL" : selected!.sku,
-        productName: manual ? manualName.trim() : selected!.name,
-        quantity,
-        unitCost: parseDigits(unitCost),
-        unitPrice: parseDigits(unitPrice),
-        billing,
-        manual,
-        idempotencyKey: key,
+      await onRequest(() => {
+        const key = "repair:" + ticket._id + ":part:" + crypto.randomUUID();
+        return { kind: "issue", input: {
+          productId: manual ? key : selected!._id,
+          sku: manual ? manualSku.trim() || "MANUAL" : selected!.sku,
+          productName: manual ? manualName.trim() : selected!.name,
+          quantity, unitCost: parseDigits(unitCost), unitPrice: parseDigits(unitPrice), billing, manual, idempotencyKey: key,
+        } };
       });
-      pendingIssueRef.current = null;
-      toggleManual(manual);
-      setQuantity(1);
-      onIssued();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không xuất được linh kiện.");
     } finally {
@@ -586,30 +576,25 @@ function IssuePartForm({ ticket, onIssued }: { ticket: RepairTicket; onIssued: (
 
 function PartsSection({ ticket, onChanged }: { ticket: RepairTicket; onChanged: () => void }) {
   const [parts, setParts] = useState<RepairPart[]>([]);
-  const [busyId, setBusyId] = useState("");
-  const load = () =>
-    repairService
-      .parts(ticket._id)
-      .then((items) => setParts(items as RepairPart[]))
-      .catch(() => setParts([]));
-  useEffect(() => {
-    void load();
-  }, [ticket._id]);
+  const recovery = useRepairPartRequest(ticket._id, () => { void load(); onChanged(); });
+  const activeIdentity = React.useRef(recovery.identity);
+  activeIdentity.current = recovery.identity;
+  const alive = React.useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const load = async () => {
+    const identity = recovery.identity;
+    if (!recovery.scope || recovery.scopeBlocked) return;
+    try { const items = await repairService.parts(ticket._id, recovery.scope); if (alive.current && activeIdentity.current === identity) setParts(items as RepairPart[]); }
+    catch { if (alive.current && activeIdentity.current === identity) setParts([]); }
+  };
+  useEffect(() => { setParts([]); void load(); }, [recovery.identity]);
   const canIssue = ["approved", "repairing"].includes(ticket.status);
-
+  const canReturn = ["approved", "repairing", "waiting_parts", "waiting_supplier"].includes(ticket.status);
   const returnPart = async (part: RepairPart) => {
+    if (recovery.pending || recovery.busy || recovery.blocked) return;
     const reason = window.prompt("Lý do hoàn linh kiện?", "");
-    if (reason === null) return;
-    setBusyId(part._id);
-    try {
-      await repairService.returnPart(ticket._id, part._id, reason);
-      await load();
-      onChanged();
-    } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Không hoàn được linh kiện.");
-    } finally {
-      setBusyId("");
-    }
+    if (!reason?.trim()) return;
+    await recovery.run(() => ({ kind: "return", partId: part._id, reason: reason.trim(), idempotencyKey: crypto.randomUUID() }));
   };
 
   const issuedParts = parts.filter((p) => p.status === "issued");
@@ -632,6 +617,15 @@ function PartsSection({ ticket, onChanged }: { ticket: RepairTicket; onChanged: 
         </div>
       }
     >
+      {recovery.error && <p role="alert">{recovery.error}</p>}
+      {recovery.message && <p role="status">{recovery.message}</p>}
+      {recovery.pending && <div className="my-3 rounded-xl border border-amber-300 p-3">
+        <p>Yêu cầu {recovery.pending.kind === "issue" ? "xuất" : "hoàn"} linh kiện đang chờ. Giữ nguyên nội dung khi thử lại; chưa thực hiện thêm yêu cầu mới.</p>
+        <p>{recovery.pending.kind === "issue" ? recovery.pending.input.productName + " · SL: " + recovery.pending.input.quantity : recovery.pending.reason}</p>
+        <button type="button" disabled={recovery.busy || recovery.blocked} onClick={() => void recovery.run(undefined, true)}>Đối chiếu linh kiện</button>
+        <button type="button" className="ml-3" disabled={recovery.busy || recovery.blocked} onClick={() => void recovery.run()}>Thử lại yêu cầu linh kiện</button>
+        <button type="button" className="ml-3" disabled={recovery.busy || recovery.blocked} onClick={() => void recovery.run(undefined, "revoke")}>Hủy yêu cầu linh kiện</button>
+      </div>}
       {parts.length ? (
         <div className="space-y-3">
           <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -685,10 +679,10 @@ function PartsSection({ ticket, onChanged }: { ticket: RepairTicket; onChanged: 
                       )}
                     </td>
                     <td className="py-2 px-3 text-right">
-                      {part.status === "issued" && (
+                      {part.status === "issued" && canReturn && (
                         <button
                           type="button"
-                          disabled={busyId === part._id}
+                          disabled={recovery.busy || recovery.blocked || Boolean(recovery.pending)}
                           onClick={() => void returnPart(part)}
                           className="rounded-lg border border-rose-200 px-2.5 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50 transition cursor-pointer"
                         >
@@ -745,13 +739,10 @@ function PartsSection({ ticket, onChanged }: { ticket: RepairTicket; onChanged: 
         </div>
       )}
 
-      {canIssue ? (
+      {canIssue && !recovery.pending && !recovery.blocked && !recovery.busy ? (
         <IssuePartForm
           ticket={ticket}
-          onIssued={() => {
-            void load();
-            onChanged();
-          }}
+          onRequest={factory => recovery.run(factory)}
         />
       ) : (
         <p className="mt-2 text-[11px] text-slate-400 italic">

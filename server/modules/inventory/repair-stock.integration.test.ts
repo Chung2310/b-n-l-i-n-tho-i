@@ -1,3 +1,6 @@
+import { RepairPartRequestModel } from "../repair/repair-part-request.model";
+vi.mock("../repair/services/repair-notify.service", () => ({ dispatchRepairNotification: async () => undefined }));
+vi.mock("../repair/services/repair-events", () => ({ publishRepairTicketEvent: async () => undefined }));
 import mongoose from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,7 +14,7 @@ import { InventoryLedgerEntryModel } from "../../model/inventory-ledger-entry.mo
 import { StockLogModel } from "../../model/stock-log.model";
 import { RepairPartModel } from "../repair/repair-part.model";
 import { RepairTicketModel } from "../repair/repair-ticket.model";
-import { issueRepairPart, returnRepairPart } from "../repair/repair-part.service";
+import { revokeRepairPartRequest, reconcileRepairPart, issueRepairPart, returnRepairPart } from "../repair/repair-part.service";
 import { cancelRepairTicket, transitionRepairTicket } from "../repair/repair-ticket.service";
 
 const id = () => new mongoose.Types.ObjectId().toString();
@@ -19,7 +22,7 @@ const branchId = id(), warehouseId = id(), productId = id(), variantId = id(), t
 const scope = { companyCode: "REPAIRSTOCK", branchId };
 const actor = { id: "technician", name: "Technician" };
 const input = (extra: any = {}) => ({ productId, sku: "PART", productName: "Part", quantity: 1, unitCost: 999, unitPrice: 200, idempotencyKey: "part-1", ...extra });
-const models = [BranchModel, WarehouseModel, ProductCatalogModel, ProductVariantModel, ProductCatalogLegacyMappingModel, InventoryBalanceModel, InventoryLedgerEntryModel, StockLogModel, RepairPartModel, RepairTicketModel];
+const models = [RepairPartRequestModel, BranchModel, WarehouseModel, ProductCatalogModel, ProductVariantModel, ProductCatalogLegacyMappingModel, InventoryBalanceModel, InventoryLedgerEntryModel, StockLogModel, RepairPartModel, RepairTicketModel];
 let replica: MongoMemoryReplSet;
 const balance = () => InventoryBalanceModel.findOne({ warehouseId, variantId }).lean();
 const ticket = () => RepairTicketModel.findById(ticketId).lean();
@@ -208,5 +211,170 @@ describe("repair stock and source documents commit together", () => {
     expect(part.variantId).toBe(variantId);
     await ProductCatalogLegacyMappingModel.updateOne({ legacyProductId }, { legacyBranchId: id() });
     await expect(issue({ productId: legacyProductId, idempotencyKey: "another" })).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it.each(["done", "delivered", "returned", "cancelled"])("rejects direct part returns on %s tickets without changing stock or amounts", async status => {
+    const part: any = await issue();
+    await RepairTicketModel.updateOne({ _id: ticketId }, { $set: { status } });
+    const before = await ticket();
+    await expect(returnRepairPart(scope, ticketId, String(part._id), "Unused", actor)).rejects.toMatchObject({ code: "REPAIR_PART_RETURN_STATE" });
+    expect(await ticket()).toEqual(before); expect((await balance())?.quantity).toBe(9);
+    expect(await RepairPartModel.findById(part._id).lean()).toMatchObject({ status: "issued" });
+    expect(await InventoryLedgerEntryModel.countDocuments({ direction: "in" })).toBe(0);
+  });
+  it("rolls back a return that would lower the total below money already collected", async () => {
+    const part: any = await issue();
+    await RepairTicketModel.updateOne({ _id: ticketId }, { $set: { status: "repairing", paidAmount: 150, dueAmount: 50 } });
+    await expect(returnRepairPart(scope, ticketId, String(part._id), "Unused", actor)).rejects.toMatchObject({ code: "REPAIR_AMOUNT_CONFLICT" });
+    expect(await ticket()).toMatchObject({ totalAmount: 200, paidAmount: 150, dueAmount: 50, partCost: 100 });
+    expect((await balance())?.quantity).toBe(9);
+    expect(await RepairPartModel.findById(part._id).lean()).toMatchObject({ status: "issued" });
+    expect(await InventoryLedgerEntryModel.countDocuments({ direction: "in" })).toBe(0);
+  });
+  it("allows an earlier part-return replay after the ticket was completed", async () => {
+    const part: any = await issue(); await returnRepairPart(scope, ticketId, String(part._id), "Unused", actor);
+    await RepairTicketModel.updateOne({ _id: ticketId }, { $set: { status: "done" } });
+    await returnRepairPart(scope, ticketId, String(part._id), "Unused", actor);
+    expect((await balance())?.quantity).toBe(10); expect(await InventoryLedgerEntryModel.countDocuments({ direction: "in" })).toBe(1);
+  });
+  it("serializes a part return against repair completion", async () => {
+    const part: any = await issue(); await RepairTicketModel.updateOne({ _id: ticketId }, { $set: { status: "repairing" } });
+    const results = await Promise.allSettled([returnRepairPart(scope, ticketId, String(part._id), "Unused", actor), transitionRepairTicket(scope, ticketId, "done", actor)]);
+    expect(results[1].status).toBe("fulfilled"); const returned = results[0].status === "fulfilled";
+    expect(await ticket()).toMatchObject({ status: "done", totalAmount: returned ? 0 : 200, dueAmount: returned ? 0 : 200 });
+    expect((await balance())?.quantity).toBe(returned ? 10 : 9);
+  });
+
+  it("reconciles issue and return read-only after closure", async () => {
+    const req = { kind: "issue" as const, input: input() };
+    expect((await reconcileRepairPart(scope, ticketId, req, actor)).status).toBe("not_found");
+    const part: any = await issue();
+    expect((await reconcileRepairPart(scope, ticketId, req, actor)).status).toBe("completed");
+    const ret = { kind: "return" as const, partId: String(part._id), reason: "unused" };
+    expect((await reconcileRepairPart(scope, ticketId, ret, actor)).status).toBe("not_found");
+    await returnRepairPart(scope, ticketId, String(part._id), "unused", actor);
+    await RepairTicketModel.updateOne({ _id: ticketId }, { $set: { status: "done" } });
+    const before = { ticket: await ticket(), balance: await balance(), parts: await RepairPartModel.find().lean(), ledger: await InventoryLedgerEntryModel.find().lean() };
+    expect((await reconcileRepairPart(scope, ticketId, req, actor)).status).toBe("completed");
+    expect((await reconcileRepairPart(scope, ticketId, ret, actor)).status).toBe("completed");
+    expect({ ticket: await ticket(), balance: await balance(), parts: await RepairPartModel.find().lean(), ledger: await InventoryLedgerEntryModel.find().lean() }).toEqual(before);
+  });
+  it("binds issue and return retries to the recorded actor", async () => {
+    const part: any = await issue(); const other = { ...actor, id: "other" };
+    await expect(issueRepairPart(scope, ticketId, input(), other)).rejects.toMatchObject({ statusCode: 409 });
+    await expect(reconcileRepairPart(scope, ticketId, { kind: "issue", input: input() }, other)).rejects.toMatchObject({ statusCode: 409 });
+    await returnRepairPart(scope, ticketId, String(part._id), "unused", actor);
+    await expect(returnRepairPart(scope, ticketId, String(part._id), "unused", other)).rejects.toMatchObject({ statusCode: 409 });
+    await expect(reconcileRepairPart(scope, ticketId, { kind: "return", partId: String(part._id), reason: "unused" }, other)).rejects.toMatchObject({ statusCode: 409 });
+    expect((await balance())?.quantity).toBe(10);
+  });
+  it.each(["missing", "cost", "quantity", "price"])("does not confirm damaged %s issue evidence", async changed => {
+    await issue();
+    if (changed === "missing") await InventoryLedgerEntryModel.deleteMany({});
+    if (changed === "cost") await InventoryLedgerEntryModel.updateMany({}, { $set: { unitCost: 1 } });
+    if (changed === "quantity") await RepairPartModel.updateMany({}, { $set: { quantity: 2 } });
+    if (changed === "price") await RepairPartModel.updateMany({}, { $set: { unitPrice: 1 } });
+    expect((await reconcileRepairPart(scope, ticketId, { kind: "issue", input: input() }, actor)).status).toBe("conflict");
+  });
+  it("does not confirm missing return ledger or changed reason", async () => {
+    const part: any = await issue(); await returnRepairPart(scope, ticketId, String(part._id), "unused", actor);
+    const req = { kind: "return" as const, partId: String(part._id), reason: "unused" };
+    await expect(reconcileRepairPart(scope, ticketId, { ...req, reason: "different" }, actor)).rejects.toMatchObject({ statusCode: 409 });
+    await InventoryLedgerEntryModel.deleteMany({ direction: "in" });
+    expect((await reconcileRepairPart(scope, ticketId, req, actor)).status).toBe("conflict");
+  });
+  it("keeps reconciliation inside company and branch", async () => {
+    await issue();
+    for (const wrong of [{ ...scope, branchId: id() }, { ...scope, companyCode: "OTHER" }]) await expect(reconcileRepairPart(wrong, ticketId, { kind: "issue", input: input() }, actor)).rejects.toMatchObject({ statusCode: 404 });
+  });
+  it("reconciles manual parts without inventing warehouse entries", async () => {
+    const data = input({ manual: true }); const part: any = await issueRepairPart(scope, ticketId, data, actor);
+    expect((await reconcileRepairPart(scope, ticketId, { kind: "issue", input: data }, actor)).status).toBe("completed");
+    await returnRepairPart(scope, ticketId, String(part._id), "unused", actor);
+    expect((await reconcileRepairPart(scope, ticketId, { kind: "return", partId: String(part._id), reason: "unused" }, actor)).status).toBe("completed");
+    expect(await InventoryLedgerEntryModel.countDocuments()).toBe(0);
+  });
+
+  const revokeIssue = (extra: any = {}) => revokeRepairPartRequest(scope, ticketId, { kind: "issue", input: input(extra) }, actor);
+  it("revokes a missing issue without touching stock and permits a new key", async () => {
+    const before = { ticket: await ticket(), balance: await balance() };
+    expect((await revokeIssue()).status).toBe("revoked"); expect((await revokeIssue()).status).toBe("revoked");
+    expect((await reconcileRepairPart(scope, ticketId, { kind: "issue", input: input() }, actor)).status).toBe("revoked");
+    await expect(issue()).rejects.toMatchObject({ code: "REPAIR_PART_REQUEST_REVOKED" });
+    expect({ ticket: await ticket(), balance: await balance() }).toEqual(before);
+    expect(await InventoryLedgerEntryModel.countDocuments()).toBe(0); expect(await RepairPartModel.countDocuments()).toBe(0);
+    await issue({ idempotencyKey: "replacement" }); expect((await balance())?.quantity).toBe(9);
+  });
+  it("revokes legacy returns, then accepts a corrected keyed return exactly once", async () => {
+    const part: any = await issue(); const partId = String(part._id);
+    const request = { kind: "return" as const, partId, reason: "wrong" };
+    expect((await revokeRepairPartRequest(scope, ticketId, request, actor)).status).toBe("revoked");
+    await expect(returnRepairPart(scope, ticketId, partId, "wrong", actor)).rejects.toMatchObject({ code: "REPAIR_PART_REQUEST_REVOKED" });
+    expect((await balance())?.quantity).toBe(9);
+    await returnRepairPart(scope, ticketId, partId, "corrected", actor, undefined, "new-key");
+    await returnRepairPart(scope, ticketId, partId, "corrected", actor, undefined, "new-key");
+    expect((await reconcileRepairPart(scope, ticketId, { kind: "return", partId, reason: "corrected", idempotencyKey: "new-key" }, actor)).status).toBe("completed");
+    expect((await reconcileRepairPart(scope, ticketId, request, actor)).status).toBe("revoked");
+    expect((await balance())?.quantity).toBe(10); expect(await InventoryLedgerEntryModel.countDocuments({ direction: "in" })).toBe(1);
+  });
+  it("does not let revoking a user return block cancellation's own return", async () => {
+    const part: any = await issue();
+    await revokeRepairPartRequest(scope, ticketId, { kind: "return", partId: String(part._id), reason: "wrong" }, actor);
+    await cancelRepairTicket(scope, ticketId, "cancel", actor);
+    expect((await balance())?.quantity).toBe(10); expect((await ticket())?.status).toBe("cancelled");
+  });
+  it.each(["issue", "return"])("does not reverse an already completed %s", async kind => {
+    const part: any = await issue(); const partId = String(part._id);
+    if (kind === "return") await returnRepairPart(scope, ticketId, partId, "unused", actor, undefined, "r1");
+    const before = { ticket: await ticket(), balance: await balance(), parts: await RepairPartModel.find().lean(), ledger: await InventoryLedgerEntryModel.find().lean() };
+    const request: any = kind === "issue" ? { kind, input: input() } : { kind, partId, reason: "unused", idempotencyKey: "r1" };
+    expect((await revokeRepairPartRequest(scope, ticketId, request, actor)).status).toBe("completed");
+    expect({ ticket: await ticket(), balance: await balance(), parts: await RepairPartModel.find().lean(), ledger: await InventoryLedgerEntryModel.find().lean() }).toEqual(before);
+  });
+  it.each(["payload", "actor", "scope"])("keeps revocation bound to its original %s", async changed => {
+    await revokeIssue();
+    await expect(revokeRepairPartRequest(changed === "scope" ? { ...scope, branchId: id() } : scope, ticketId, { kind: "issue", input: input(changed === "payload" ? { quantity: 2 } : {}) }, changed === "actor" ? { ...actor, id: "other" } : actor)).rejects.toMatchObject({ statusCode: changed === "scope" ? 404 : 409 });
+    expect(await RepairPartRequestModel.countDocuments()).toBe(1);
+  });
+  it("rolls back a failed revocation and accepts the original issue", async () => {
+    vi.spyOn(RepairPartRequestModel.prototype, "save").mockRejectedValueOnce(new Error("injected"));
+    await expect(revokeIssue()).rejects.toThrow("injected"); expect(await RepairPartRequestModel.countDocuments()).toBe(0);
+    await issue(); expect((await balance())?.quantity).toBe(9);
+  });
+  it("does not poison a legacy issue key on mismatched revocation", async () => {
+    await issue(); await RepairPartRequestModel.deleteMany({});
+    await expect(revokeIssue({ quantity: 2 })).rejects.toMatchObject({ statusCode: 409 });
+    expect(await RepairPartRequestModel.countDocuments()).toBe(0); expect((await revokeIssue()).status).toBe("completed");
+  });
+  it.each(["issue", "return"])("refuses to revoke orphaned %s stock evidence", async kind => {
+    const part: any = await issue(); const partId = String(part._id);
+    if (kind === "issue") await RepairPartModel.deleteMany({});
+    else { await returnRepairPart(scope, ticketId, partId, "unused", actor); await RepairPartModel.updateOne({ _id: partId }, { $set: { status: "issued" } }); }
+    await RepairPartRequestModel.deleteMany({});
+    await expect(revokeRepairPartRequest(scope, ticketId, kind === "issue" ? { kind, input: input() } : { kind: "return", partId, reason: "unused" }, actor)).rejects.toMatchObject({ code: "REPAIR_PART_REQUEST_CONFLICT" });
+    expect(await RepairPartRequestModel.countDocuments()).toBe(0);
+  });
+  it("requires an active caller transaction", async () => {
+    const session = await mongoose.startSession();
+    try { await expect(revokeRepairPartRequest(scope, ticketId, { kind: "issue", input: input() }, actor, session)).rejects.toMatchObject({ statusCode: 503 }); }
+    finally { await session.endSession(); }
+    expect(await RepairPartRequestModel.countDocuments()).toBe(0);
+  });
+  it.each([ ["issue", "post"], ["issue", "revoke"], ["return", "post"], ["return", "revoke"] ])("serializes %s with delayed %s", async (kind, delayed) => {
+    const partId = kind === "return" ? String((await issue() as any)._id) : "";
+    const request: any = kind === "issue" ? { kind, input: input() } : { kind, partId, reason: "unused", idempotencyKey: "r1" };
+    const post = () => kind === "issue" ? issue() : returnRepairPart(scope, ticketId, partId, "unused", actor, undefined, "r1");
+    const revoke = () => revokeRepairPartRequest(scope, ticketId, request, actor);
+    const original = RepairPartRequestModel.findOneAndUpdate.bind(RepairPartRequestModel);
+    let entered!: () => void, release!: () => void;
+    const reached = new Promise<void>(resolve => { entered = resolve; }), pause = new Promise<void>(resolve => { release = resolve; });
+    vi.spyOn(RepairPartRequestModel, "findOneAndUpdate").mockImplementationOnce((async (...args: any[]) => { entered(); await pause; return (original as any)(...args); }) as any);
+    const pending = (delayed === "post" ? post() : revoke()).then(value => ({ value, error: null as any }), error => ({ value: null, error }));
+    await reached; try { await (delayed === "post" ? revoke() : post()); } finally { release(); }
+    const result = await pending;
+    if (delayed === "post") expect(result.error).toMatchObject({ code: "REPAIR_PART_REQUEST_REVOKED" });
+    else { expect(result.error).toBeNull(); expect(result.value).toMatchObject({ status: "completed" }); }
+    expect((await balance())?.quantity).toBe(kind === "issue" ? delayed === "post" ? 10 : 9 : delayed === "post" ? 9 : 10);
+    expect(await InventoryLedgerEntryModel.countDocuments()).toBe(kind === "issue" ? delayed === "post" ? 0 : 1 : delayed === "post" ? 1 : 2);
   });
 });

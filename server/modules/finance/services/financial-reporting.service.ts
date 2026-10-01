@@ -1,3 +1,4 @@
+import { FinanceCashVoucherModel } from "../models/finance-treasury.model";
 ﻿import { Types } from "mongoose";
 import type { FinanceBranchScope } from "../contracts";
 import { FinanceDebtModel, FinanceMonthlyPlanModel, FinanceVatInvoiceModel, FinanceVatPeriodModel } from "../models/financial-reporting.model";
@@ -5,6 +6,8 @@ import { ReceivableModel } from "../models/receivable.model";
 import { RetailOrderModel } from "../../retail/models/retail-order.model";
 import { RetailAfterSaleModel } from "../../retail/models/retail-after-sale.model";
 import { RepairTicketModel } from "../../repair/repair-ticket.model";
+import { repairCompletionFilter } from "../../repair/services/repair-completion";
+import { verifiedRepairRefunds, repairRefundReportingNote } from "../../repair/services/repair-refunds";
 import { PartnerModel, CommissionLedgerModel } from "../../partners/partner.models";
 import { GoodsReceiptModel } from "../../../model/goods-receipt.model";
 import { OperatingExpenseModel } from "../../../model/operating-expense.model";
@@ -21,9 +24,13 @@ const inside = (date: string, range: { from: string; to: string }) => date >= ra
 
 export const financialReportingService = {
   async document(scope: FinanceBranchScope, source: string, sourceId: string) {
-    const models: Record<string, any> = { retail: RetailOrderModel, shipping: RetailOrderModel, cancellation: RetailOrderModel, return: RetailAfterSaleModel, repair: RepairTicketModel, inventory: StockLogModel, expense: OperatingExpenseModel, payroll: PayrollRunModel, commission: CommissionLedgerModel, depreciation: AssetDepreciationModel };
+    const models: Record<string, any> = { retail: RetailOrderModel, shipping: RetailOrderModel, cancellation: RetailOrderModel, return: RetailAfterSaleModel, repair: RepairTicketModel, "repair-refund": FinanceCashVoucherModel, inventory: StockLogModel, expense: OperatingExpenseModel, payroll: PayrollRunModel, commission: CommissionLedgerModel, depreciation: AssetDepreciationModel };
     const model = Object.hasOwn(models, source) ? models[source] : undefined; if (!model) throw invalid("Nguồn chứng từ không hợp lệ.");
     const row = await model.findOne({ ...scope, _id: id(sourceId) }).lean(); if (!row) throw invalid("Không tìm thấy chứng từ trong chi nhánh.", 404);
+    if (source === "repair-refund") {
+      if (row.sourceType !== "repair-refund" || row.status !== "posted" || row.kind !== "payment") throw invalid("Không tìm thấy phiếu chi hoàn sửa chữa.", 404);
+      return { source, id: sourceId, code: row.key, status: row.status, description: row.description, partyName: "", date: row.occurredOn, amount: -row.amount, items: [] };
+    }
     return { source, id: sourceId, code: row.orderCode || row.code || row.ticketCode || row.sourceCode || row.periodKey || row.period || sourceId, status: row.status || row.kind || "", description: row.description || row.reason || "", partyName: row.customerName || "", date: row.incurredOn || row.confirmedAt || row.completedAt || row.createdAt, amount: row.grandTotal ?? row.totalAmount ?? row.amount ?? row.totals?.grossPay, items: (row.items || []).map((i: any) => ({ name: i.productName || i.sku || "", quantity: i.quantity, unitCost: i.unitCost, lineTotal: i.lineTotal })) };
   },
   async debts(scope: FinanceBranchScope, query: any = {}) {
@@ -131,7 +138,7 @@ export const financialReportingService = {
     const [orders, returns, repairs, legacy, expenses, payrolls, commissions, depreciation] = await Promise.all([
       RetailOrderModel.find({ ...scope, confirmedAt: { $exists: true }, $or: [{ confirmedAt: dateFilter }, { cancelledAt: dateFilter }] }).lean(),
       RetailAfterSaleModel.find({ ...scope, type: "return", createdAt: dateFilter }).lean(),
-      RepairTicketModel.find({ ...scope, status: { $in: ["done", "delivered"] }, completedAt: dateFilter }).lean(),
+      RepairTicketModel.find({ ...scope, ...repairCompletionFilter(range.start, range.end) }).lean(),
       StockLogModel.find({ ...scope, type: "xuất", purpose: "bán", refType: { $ne: "retail-order" }, createdAt: dateFilter }).lean(),
       OperatingExpenseModel.find({ ...scope, status: "confirmed", incurredOn: dateFilter }).lean(),
       PayrollRunModel.find({ ...scope, status: { $in: ["closed", "paid"] }, periodKey: { $gte: range.from.slice(0, 7), $lte: range.to.slice(0, 7) } }).lean(),
@@ -149,8 +156,11 @@ export const financialReportingService = {
     const priorReturns = await RetailAfterSaleModel.find({ ...scope, type: "return", orderId: { $in: orders.filter(order => order.cancelledAt && inside(financeToday(order.cancelledAt), range)).map(order => String(order._id)) }, createdAt: { $lt: range.start } }).lean();
     movements.push(...retailFinancialMovements(allOrders, [...returns, ...priorReturns], range));
     for (const row of returns) if (!allOrders.some(order => String(order._id) === row.orderId)) warnings.push(`Thiếu đơn gốc cho trả hàng ${row.code}.`);
-    for (const repair of repairs) { if (![repair.totalAmount, repair.partCost].every(Number.isFinite)) { warnings.push(`Phiếu sửa ${repair.ticketCode}: thiếu doanh thu/giá vốn, chưa tính vào báo cáo.`); continue; } push(repair.completedAt!, "repair", repair.ticketCode, repair.totalAmount, repair.partCost, 0, String(repair._id), [{ segment: "repair", quantity: 1 }]); }
+    for (const repair of repairs) { if (![repair.totalAmount, repair.partCost].every(Number.isFinite)) { warnings.push(`Phiếu sửa ${repair.ticketCode}: thiếu doanh thu/giá vốn, chưa tính vào báo cáo.`); continue; } push(repair.completedAt ?? repair.deliveredAt!, "repair", repair.ticketCode, repair.totalAmount, repair.partCost, 0, String(repair._id), [{ segment: "repair", quantity: 1 }]); }
     if (repairs.length) warnings.push("Doanh thu sửa chữa dùng tổng tiền phiếu; phiếu hiện chưa tách VAT riêng.");
+    const refunds = await verifiedRepairRefunds(scope, range.start, range.end);
+    for (const row of refunds) push(row.refund.at, "repair-refund", `${row.ticketCode} / ${row.refund.reference}`, -row.refund.amount, 0, 0, row.refund.financeVoucherId, [{ segment: "repair", quantity: 0 }]);
+    if (repairs.length || refunds.length) warnings.push(repairRefundReportingNote);
     for (const log of legacy) for (const item of log.items || []) {
       if (![item.lineTotal, item.unitCost, item.quantity].every(Number.isFinite)) { warnings.push(`Phiếu kho ${log._id}: thiếu giá bán/giá vốn, chưa tính vào báo cáo.`); continue; }
       push(log.createdAt!, "inventory", String(log._id), item.lineTotal, item.unitCost * item.quantity, 0, String(log._id));
@@ -173,7 +183,7 @@ export const financialReportingService = {
     const issues = warnings.filter(w => !w.startsWith("Lương đã chốt và khấu hao"));
     if (!expenseRows.some(e => e.category === "rent")) issues.push("Chưa ghi nhận chi phí mặt bằng trong kỳ; cần xác nhận nếu không phát sinh.");
     const completeness = { status: issues.length ? "incomplete" : "provisional", label: issues.length ? "Chưa đủ dữ liệu để kết luận lợi nhuận" : "Số liệu tạm tính — cần đối soát chứng từ", issues };
-    return { range, completeness, expenseDetails: expenseRows, totals: profitTotals(movements, expenseRows), movements: movements.sort((a, b) => a.date.localeCompare(b.date)), expenses, commissions, lossSales: movements.filter(row => row.source !== "return" && row.source !== "cancellation" && row.revenue - row.cost < 0), warnings: [...new Set(warnings)] };
+    return { range, completeness, expenseDetails: expenseRows, totals: profitTotals(movements, expenseRows), movements: movements.sort((a, b) => a.date.localeCompare(b.date)), expenses, commissions, lossSales: movements.filter(row => row.source !== "return" && row.source !== "cancellation" && row.source !== "repair-refund" && row.revenue - row.cost < 0), warnings: [...new Set(warnings)] };
   },
   async breakeven(scope: FinanceBranchScope, month: string) {
     const plan = await this.plan(scope, month), report = await this.profit(scope, { period: month });

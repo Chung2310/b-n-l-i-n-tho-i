@@ -1,3 +1,4 @@
+import { RetailAfterSaleRequestModel } from "../models/retail-after-sale-request.model";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose, { Types } from "mongoose";
@@ -21,7 +22,7 @@ import { RepairTicketModel } from "../../repair/repair-ticket.model";
 
 const scope = { companyCode: "TIER_PTS_TEST", branchId: new Types.ObjectId().toString() };
 const actor = { id: "cashier", displayName: "Thu ngân" };
-const models: mongoose.Model<any>[] = [
+const models: mongoose.Model<any>[] = [RetailAfterSaleRequestModel,
   RetailAfterSaleModel,
   RetailOrderModel,
   GoodsReceiptModel,

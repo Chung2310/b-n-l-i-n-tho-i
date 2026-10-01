@@ -1,5 +1,9 @@
 import mongoose, { type ClientSession } from "mongoose";
 import { runInTransaction } from "../../config/database";
+import { inInventoryTransaction } from "../inventory/inventory-transaction";
+import { FinanceCashVoucherModel, FinancePostingGuardModel } from "../finance/models/finance-treasury.model";
+import { assertCashPeriodOpen } from "../finance/services/finance-posting.service";
+import { financeToday, validDay } from "../finance/services/financial-calculations";
 import { RetailOrderModel } from "../retail/models/retail-order.model";
 import { RetailAfterSaleModel } from "../retail/models/retail-after-sale.model";
 import { RepairTicketModel } from "../repair/repair-ticket.model";
@@ -106,6 +110,52 @@ export async function recordPartnerPayout(companyCode: string, partnerId: string
   return runInTransaction((session) => run(session));
 }
 
+/** Read-only recovery: absence is not permission to discard an in-flight request. */
+export async function reconcileRepairRefund(scope: { companyCode: string; branchId: string }, id: string, input: any, actorId: string, session?: ClientSession) {
+  const amount = integer(input.amount, 1), laborAmount = integer(input.laborAmount, 0, amount);
+  const key = String(input.idempotencyKey || "").trim(), reason = String(input.reason || "").trim(), reference = String(input.reference || "").trim();
+  if (!key || key.length > 100 || !reason || !reference) throw invalid("Thiếu nội dung yêu cầu hoàn tiền.");
+  const ticket = await RepairTicketModel.findOne({ ...scope, _id: id }).select("commissionRefunds refundRequestRevocations ticketCode").session(session ?? null).lean();
+  if (!ticket) throw invalid("Không tìm thấy phiếu sửa chữa trong chi nhánh.", 404);
+  const revoked = (ticket.refundRequestRevocations || []).find((r: any) => r.key === key);
+  if (revoked) {
+    if (revoked.amount !== amount || revoked.laborAmount !== laborAmount || revoked.reason !== reason || revoked.reference !== reference || revoked.by !== actorId) return { status: "conflict", message: "Khóa đã bị vô hiệu hóa cho nội dung hoặc người thao tác khác." };
+    return { status: "revoked", message: "Yêu cầu cũ đã bị vô hiệu hóa ở máy chủ và không thể ghi nhận muộn. Không đảo phiếu chi hoặc khoản hoàn đã ghi sổ." };
+  }
+  const rows = ticket.commissionRefunds || [];
+  let row = rows.find((r: any) => r.key === key);
+  if (!row) {
+    // A second tab may have missed the first tab's success. A uniquely bound
+    // voucher and an identical payload prove the same intent without posting again.
+    const matches = rows.filter((r: any) => r.reference === reference || r.financeVoucherId === reference);
+    if (matches.length > 1) return { status: "conflict", message: "Có nhiều khoản hoàn cùng tham chiếu. Cần đối soát chứng từ." };
+    row = matches[0];
+  }
+  if (!row) return { status: "not_found", message: "Chưa thấy khoản hoàn này. Yêu cầu có thể đang xử lý; chỉ thử lại nguyên yêu cầu cũ." };
+  if (row.amount !== amount || row.laborAmount !== laborAmount || row.reason !== reason || row.reference !== reference || row.by !== actorId || !mongoose.isObjectIdOrHexString(row.financeVoucherId)) return { status: "conflict", message: "Nội dung hoặc người thao tác không khớp khoản hoàn đã ghi nhận. Giữ yêu cầu để đối soát." };
+  const proof = await FinanceCashVoucherModel.findOne({ ...scope, _id: row.financeVoucherId, status: "posted", kind: "payment", amount, reference: ticket.ticketCode, sourceKey: `repair-refund:${id}:${row.key}`, sourceId: id, sourceType: "repair-refund" }).select("occurredOn approvedBy approvedAt").session(session ?? null).lean();
+  if (!proof?.approvedBy || !proof.approvedAt || !row.at || financeToday(new Date(row.at)) !== proof.occurredOn) return { status: "conflict", message: "Chứng từ Finance không khớp khoản hoàn. Giữ yêu cầu để đối soát." };
+  return { status: "completed", message: "Khoản hoàn và phiếu chi Finance đã khớp. Không cần gửi lại.", voucherId: row.financeVoucherId, occurredOn: proof.occurredOn };
+}
+
+export async function revokeRepairRefundRequest(scope: { companyCode: string; branchId: string }, id: string, input: any, actorId: string, existingSession?: ClientSession) {
+  const amount = integer(input.amount, 1), laborAmount = integer(input.laborAmount, 0, amount);
+  const key = String(input.idempotencyKey || "").trim(), reason = String(input.reason || "").trim(), reference = String(input.reference || "").trim();
+  if (!key || key.length > 100 || !reason || !reference || !actorId) throw invalid("Thiếu nội dung yêu cầu cần vô hiệu hóa.");
+  return inInventoryTransaction(async session => {
+    const ticket = await RepairTicketModel.findOne({ ...scope, _id: id }).session(session);
+    if (!ticket) throw invalid("Không tìm thấy phiếu sửa chữa trong chi nhánh.", 404);
+    if ((ticket.commissionRefunds || []).some((r: any) => r.key === key) || (ticket.refundRequestRevocations || []).some((r: any) => r.key === key)) {
+      return reconcileRepairRefund(scope, id, input, actorId, session);
+    }
+    // Both posting and revocation write the same ticket in a transaction. The
+    // loser retries and sees either the posted row or this durable tombstone.
+    ticket.refundRequestRevocations = [...(ticket.refundRequestRevocations || []), { key, amount, laborAmount, reason, reference, by: actorId, revokedAt: new Date() }];
+    await ticket.save({ session });
+    return { status: "revoked", message: "Yêu cầu cũ đã bị vô hiệu hóa ở máy chủ. Phiếu chi và khoản hoàn đã ghi sổ không bị đảo." };
+  }, existingSession);
+}
+
 export async function refundRepairCommission(scope: { companyCode: string; branchId: string }, id: string, input: any, actorId: string, existingSession?: ClientSession) {
   const amount = integer(input.amount, 1), laborAmount = integer(input.laborAmount, 0, amount);
   const reason = String(input.reason || "").trim(), key = String(input.idempotencyKey || "").trim(), reference = String(input.reference || "").trim();
@@ -114,20 +164,36 @@ export async function refundRepairCommission(scope: { companyCode: string; branc
     const ticketQuery = RepairTicketModel.findOne({ _id: id, ...scope, status: "delivered" });
     const ticket: any = await (session ? ticketQuery.session(session) : ticketQuery);
     if (!ticket) throw invalid("Chỉ hoàn tiền phiếu đã giao.", 409);
+    if ((ticket.refundRequestRevocations || []).some((r: any) => r.key === key)) throw invalid("Yêu cầu hoàn tiền này đã bị vô hiệu hóa. Không thể gửi lại khóa cũ.", 409);
     const rows = ticket.commissionRefunds || [];
     const replay = rows.find((r: any) => r.key === key);
-    if (replay) { if (replay.amount !== amount || replay.laborAmount !== laborAmount || replay.reference !== reference) throw invalid("Khóa hoàn tiền đã dùng.", 409); return ticket; }
+    if (replay) {
+      if (!replay.financeVoucherId || replay.amount !== amount || replay.laborAmount !== laborAmount || replay.reference !== reference || replay.reason !== reason || replay.by !== actorId) throw invalid("Khóa hoàn tiền đã dùng hoặc khoản hoàn cũ chưa đối soát Finance.", 409);
+      const proof = await FinanceCashVoucherModel.exists({ ...scope, _id: replay.financeVoucherId, status: "posted", kind: "payment", amount, sourceKey: `repair-refund:${id}:${key}`, sourceId: id, sourceType: "repair-refund" }).session(session ?? null);
+      if (!proof) throw invalid("Liên kết chứng từ hoàn tiền không còn khớp. Cần đối soát.", 409);
+      return ticket;
+    }
     const totalRefund = rows.reduce((s: number, r: any) => s + r.amount, 0) + amount;
     const laborRefund = rows.reduce((s: number, r: any) => s + r.laborAmount, 0) + laborAmount;
     const base = (ticket.commissionSnapshot?.lines || repairLines(ticket, ticket.commissionSnapshot?.policy || { repairBps: 1000 } as any))[0].base;
     if (totalRefund > ticket.paidAmount || laborRefund > base || totalRefund - laborRefund > ticket.totalAmount - base) throw invalid("Hoàn tiền vượt giá trị tiền công/linh kiện còn lại.");
-    ticket.commissionRefunds = [...rows, { key, amount, laborAmount, reason, reference, at: new Date(), by: actorId }];
+    const candidates = await FinanceCashVoucherModel.find({ ...scope, $or: [{ key: reference }, ...(mongoose.isObjectIdOrHexString(reference) ? [{ _id: reference }] : [])] }).limit(2).session(session ?? null);
+    const voucher = candidates.length === 1 ? candidates[0] : null;
+    if (!voucher || voucher.status !== "posted" || voucher.kind !== "payment" || voucher.amount !== amount || voucher.reference !== ticket.ticketCode || !voucher.approvedBy || !voucher.approvedAt || voucher.sourceKey != null || voucher.sourceType != null || voucher.sourceId != null || voucher.debtId != null) throw invalid("Cần phiếu chi Finance đã ghi sổ, đúng số tiền, tham chiếu mã phiếu sửa chữa và chưa liên kết nghiệp vụ khác.", 409);
+    const day = validDay(voucher.occurredOn);
+    const completion = ticket.completedAt ?? ticket.deliveredAt;
+    if (!completion || day < financeToday(new Date(completion)) || day > financeToday()) throw invalid("Ngày phiếu chi không phù hợp với phiếu sửa chữa.", 409);
+    // Serialize with treasury period closing; linking never debits the account again.
+    await FinancePostingGuardModel.updateOne(scope, { $inc: { revision: 1 } }, { upsert: true, session });
+    await assertCashPeriodOpen(scope, day, session);
+    const claimed = await FinanceCashVoucherModel.updateOne({ ...scope, _id: voucher._id, status: "posted", version: voucher.version, sourceKey: null, sourceType: null, sourceId: null, debtId: null }, { $set: { sourceKey: `repair-refund:${id}:${key}`, sourceType: "repair-refund", sourceId: id }, $inc: { version: 1 } }, { session });
+    if (claimed.modifiedCount !== 1) throw invalid("Phiếu chi đã được sử dụng. Vui lòng đối soát.", 409);
+    ticket.commissionRefunds = [...rows, { key, amount, laborAmount, reason, reference, financeVoucherId: String(voucher._id), at: new Date(`${day}T00:00:00+07:00`), recordedAt: new Date(), by: actorId }];
     await ticket.save(session ? { session } : {});
     await reconcileCommission("repair", id, scope.companyCode, session);
     return ticket;
   };
-  if (existingSession !== undefined) return run(existingSession);
-  return runInTransaction((session) => run(session));
+  return inInventoryTransaction((session) => run(session), existingSession);
 }
 
 /** Durable source snapshots are the recovery queue, including repairs whose legacy events are best-effort. */

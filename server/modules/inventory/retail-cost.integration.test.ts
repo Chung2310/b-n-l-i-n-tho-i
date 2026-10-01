@@ -1,3 +1,4 @@
+import { RetailAfterSaleRequestModel } from "../retail/models/retail-after-sale-request.model";
 import mongoose from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -40,7 +41,7 @@ const id = () => new mongoose.Types.ObjectId().toString();
 const branchId = id(), warehouseId = id(), productId = id(), variantId = id(), orderId = id();
 const scope = { companyCode: "RETAILCOST", branchId };
 const actor = { id: "cashier", displayName: "Cashier" };
-const models = [BranchModel, CompanyModel, WarehouseModel, ProductCatalogModel, ProductVariantModel, ProductPriceModel, InventoryBalanceModel, InventoryLedgerEntryModel, StockLogModel, GoodsReceiptModel, RetailOrderModel, RetailOrderCounterModel, RetailInvoiceModel, RetailInvoiceCounterModel, RetailIdempotencyModel, RetailSettingsModel, RetailAfterSaleModel, CustomerPointLedgerModel, SerialUnitModel, SerialEventModel];
+const models = [RetailAfterSaleRequestModel, BranchModel, CompanyModel, WarehouseModel, ProductCatalogModel, ProductVariantModel, ProductPriceModel, InventoryBalanceModel, InventoryLedgerEntryModel, StockLogModel, GoodsReceiptModel, RetailOrderModel, RetailOrderCounterModel, RetailInvoiceModel, RetailInvoiceCounterModel, RetailIdempotencyModel, RetailSettingsModel, RetailAfterSaleModel, CustomerPointLedgerModel, SerialUnitModel, SerialEventModel];
 let replica: MongoMemoryReplSet;
 const balance = () => InventoryBalanceModel.findOne({ warehouseId, variantId }).lean();
 const order = () => RetailOrderModel.findById(orderId).lean();
@@ -96,6 +97,175 @@ describe("retail cost follows the committed stock ledger", () => {
   });
   afterAll(async () => { vi.restoreAllMocks(); await mongoose.disconnect(); await replica?.stop(); });
 
+
+  const checkout = (extra: any = {}) => ({ idempotencyKey: "confirm-1", payload: { draftSaved: true, draftId: orderId, draftVersion: 0, expectedGrandTotal: 400, payments: confirmInput().payments, ...extra } });
+  const creationCheckout = () => { const { idempotencyKey, ...input } = createInput(); return checkout({ draftSaved: false, draftId: undefined, draftVersion: undefined, draftCreation: { idempotencyKey, input } }); };
+  const updateCheckout = () => { const { idempotencyKey, ...input } = updateInput(); return checkout({ draftSaved: false, draftUpdate: { idempotencyKey, input, orderId } }); };
+  it("reconciles the full original confirmation without rewriting order or invoice", async () => {
+    await confirm(); const before = await order();
+    expect(await RetailOrderService.reconcileCheckout(scope, checkout(), actor)).toMatchObject({ status: "completed", order: { _id: before?._id } });
+    expect(await order()).toEqual(before);
+    expect(await RetailOrderService.revokeCheckout(scope, checkout(), actor)).toMatchObject({ status: "completed" });
+    expect(await RetailIdempotencyModel.countDocuments({ operation: "revoke-checkout" })).toBe(0);
+  });
+  it.each([
+    { expectedGrandTotal: 401 }, { payments: [{ method: "card", amount: 400, reference: "other" }] }, { draftVersion: 1 },
+  ])("rejects changed confirmation identity during reconciliation/revocation: %j", async extra => {
+    await confirm();
+    await expect(RetailOrderService.reconcileCheckout(scope, checkout(extra), actor)).rejects.toMatchObject({ code: "ORDER_IDEMPOTENCY_CONFLICT" });
+    await expect(RetailOrderService.revokeCheckout(scope, checkout(extra), actor)).rejects.toMatchObject({ code: "ORDER_IDEMPOTENCY_CONFLICT" });
+  });
+  it("rejects another actor or branch even with a known confirmation key", async () => {
+    await confirm();
+    await expect(RetailOrderService.reconcileCheckout(scope, checkout(), { id: "other" }, true)).rejects.toMatchObject({ code: "ORDER_IDEMPOTENCY_CONFLICT" });
+    await expect(RetailOrderService.revokeCheckout({ ...scope, branchId: id() }, checkout(), actor, true)).rejects.toMatchObject({ code: "ORDER_IDEMPOTENCY_CONFLICT" });
+  });
+  it("does not accept a tampered invoice payment as completed evidence", async () => {
+    await confirm(); await RetailInvoiceModel.updateOne({ orderId }, { $set: { "snapshot.payments.0.amount": 399 } });
+    await expect(RetailOrderService.reconcileCheckout(scope, checkout(), actor)).rejects.toMatchObject({ code: "ORDER_IDEMPOTENCY_CONFLICT" });
+  });
+  it("revokes an unused confirmation without changing draft, stock or money", async () => {
+    const before = await order(), stock = await balance();
+    expect(await RetailOrderService.reconcileCheckout(scope, checkout(), actor)).toMatchObject({ status: "not_found" });
+    expect(await RetailIdempotencyModel.countDocuments()).toBe(0);
+    expect(await RetailOrderService.revokeCheckout(scope, checkout(), actor)).toMatchObject({ status: "revoked" });
+    expect(await RetailOrderService.revokeCheckout(scope, checkout(), actor)).toMatchObject({ status: "revoked" });
+    expect(await RetailOrderService.reconcileCheckout(scope, checkout(), actor)).toMatchObject({ status: "revoked" });
+    await expect(confirm()).rejects.toMatchObject({ code: "ORDER_IDEMPOTENCY_CONFLICT" });
+    await expect(RetailOrderService.revokeCheckout(scope, checkout({ expectedGrandTotal: 401 }), actor)).rejects.toThrow();
+    expect(await order()).toEqual(before); expect(await balance()).toEqual(stock); expect(await RetailInvoiceModel.countDocuments()).toBe(0);
+  });
+  it("can revoke a price-mismatch rejection with its exact quoted total", async () => {
+    await expect(confirm({ expectedGrandTotal: 401 })).rejects.toMatchObject({ code: "ORDER_TOTAL_MISMATCH" });
+    expect(await RetailOrderService.revokeCheckout(scope, checkout({ expectedGrandTotal: 401 }), actor)).toMatchObject({ status: "revoked" });
+    await expect(confirm({ expectedGrandTotal: 401 })).rejects.toThrow();
+  });
+  it("refuses stale drafts and orphan invoice evidence", async () => {
+    await RetailOrderModel.updateOne({ _id: orderId }, { $inc: { version: 1 } });
+    await expect(RetailOrderService.revokeCheckout(scope, checkout(), actor)).rejects.toThrow();
+    await RetailOrderModel.updateOne({ _id: orderId }, { $set: { version: 0 } });
+    await RetailInvoiceModel.collection.insertOne({ ...scope, orderId, invoiceNo: "orphan" } as any);
+    await expect(RetailOrderService.revokeCheckout(scope, checkout(), actor)).rejects.toThrow();
+    expect(await RetailIdempotencyModel.countDocuments()).toBe(0);
+  });
+  it("atomically revokes a checkout before an uncertain creation reaches the server", async () => {
+    const input = creationCheckout();
+    expect(await RetailOrderService.revokeCheckout(scope, input, actor)).toMatchObject({ status: "revoked" });
+    await expect(createDraft()).rejects.toThrow(); await expect(confirm()).rejects.toThrow();
+    expect(await RetailOrderModel.countDocuments()).toBe(1);
+    expect(await RetailIdempotencyModel.countDocuments({ status: "revoked" })).toBe(2);
+  });
+  it("resolves a lost draft creation response read-only and retains the saved draft on revoke", async () => {
+    const saved = await createDraft(); const before = await RetailOrderModel.findById(saved._id).lean();
+    const input = creationCheckout();
+    expect(await RetailOrderService.reconcileCheckout(scope, input, actor)).toMatchObject({ status: "not_found" });
+    expect(await RetailOrderService.revokeCheckout(scope, input, actor)).toMatchObject({ status: "revoked" });
+    expect(await RetailOrderModel.findById(saved._id).lean()).toEqual(before);
+    await expect(RetailOrderService.confirm(scope, String(saved._id), confirmInput(), actor)).rejects.toThrow();
+  });
+  it.each([false, true])("revokes an uncertain draft update, saved=%s", async saved => {
+    const input = updateCheckout(); if (saved) await updateDraft();
+    const before = await order();
+    expect(await RetailOrderService.revokeCheckout(scope, input, actor)).toMatchObject({ status: "revoked" });
+    expect(await order()).toEqual(before);
+    if (!saved) await expect(updateDraft()).rejects.toThrow();
+    await expect(confirm({ expectedVersion: saved ? 1 : 0 })).rejects.toThrow();
+  });
+  it("reconciles a completed checkout using the original draft request proof", async () => {
+    const saved = await createDraft();
+    await RetailOrderService.confirm(scope, String(saved._id), confirmInput(), actor);
+    expect(await RetailOrderService.reconcileCheckout(scope, creationCheckout(), actor)).toMatchObject({ status: "completed" });
+    const changed = creationCheckout(); changed.payload.draftCreation.input.shippingFee = 1;
+    await expect(RetailOrderService.reconcileCheckout(scope, changed, actor)).rejects.toThrow();
+  });
+  it("rolls back both reservations if the confirmation tombstone cannot commit", async () => {
+    const create = RetailIdempotencyModel.create.bind(RetailIdempotencyModel);
+    vi.spyOn(RetailIdempotencyModel, "create").mockImplementation((async (rows: any, options: any) => {
+      if (rows[0].operation === "revoke-checkout") throw new Error("tombstone failed");
+      return create(rows, options);
+    }) as any);
+    await expect(RetailOrderService.revokeCheckout(scope, creationCheckout(), actor)).rejects.toThrow("tombstone failed");
+    expect(await RetailIdempotencyModel.countDocuments()).toBe(0);
+  });
+  it("arbitrates confirmation and revocation on the same unique key", async () => {
+    const results = await Promise.allSettled([confirm(), RetailOrderService.revokeCheckout(scope, checkout(), actor)]);
+    const gate = await RetailIdempotencyModel.findOne({ key: "confirm-1" }).lean();
+    if (gate?.status === "revoked") { expect(results[0].status).toBe("rejected"); expect((await order())?.status).toBe("draft"); expect(await RetailInvoiceModel.countDocuments()).toBe(0); }
+    else { expect(gate?.status).toBe("completed"); expect(results[0].status).toBe("fulfilled"); expect(await RetailInvoiceModel.countDocuments()).toBe(1); }
+    expect(results[1].status).toBe("fulfilled");
+  });
+  it("arbitrates revocation with a delayed draft creation without confirming a sale", async () => {
+    const results = await Promise.allSettled([createDraft(), RetailOrderService.revokeCheckout(scope, creationCheckout(), actor)]);
+    expect(results[1].status).toBe("fulfilled");
+    expect(await RetailIdempotencyModel.findOne({ key: "confirm-1" }).lean()).toMatchObject({ status: "revoked" });
+    expect(await RetailInvoiceModel.countDocuments()).toBe(0);
+    expect((await balance())?.quantity).toBe(10);
+  });
+
+  const standaloneCreate = () => { const { idempotencyKey, ...input } = createInput(); return { request: { idempotencyKey, input } }; };
+  const standaloneUpdate = () => { const { idempotencyKey, ...input } = updateInput(); return { orderId, request: { idempotencyKey, input } }; };
+  it("reads an unused draft request without reserving or creating anything", async () => {
+    expect(await RetailOrderService.reconcileDraftRequest(scope, standaloneCreate(), actor)).toMatchObject({ status: "not_found" });
+    expect(await RetailIdempotencyModel.countDocuments()).toBe(0); expect(await RetailOrderModel.countDocuments()).toBe(1);
+  });
+  it("revokes an unused standalone creation and rejects its delayed writer", async () => {
+    const input = standaloneCreate();
+    expect(await RetailOrderService.revokeDraftRequest(scope, input, actor)).toMatchObject({ status: "revoked" });
+    expect(await RetailOrderService.reconcileDraftRequest(scope, input, actor)).toMatchObject({ status: "revoked" });
+    expect(await RetailOrderService.revokeDraftRequest(scope, input, actor)).toMatchObject({ status: "revoked" });
+    await expect(createDraft()).rejects.toThrow(); expect(await RetailOrderModel.countDocuments()).toBe(1);
+  });
+  it("revokes an unused update without modifying the saved draft", async () => {
+    const before = await order();
+    expect(await RetailOrderService.revokeDraftRequest(scope, standaloneUpdate(), actor)).toMatchObject({ status: "revoked" });
+    await expect(updateDraft()).rejects.toThrow(); expect(await order()).toEqual(before);
+  });
+  it("reconciles original creation after later confirmation without replaying the writer", async () => {
+    const saved = await createDraft();
+    await RetailOrderService.confirm(scope, String(saved._id), confirmInput(), actor);
+    const before = await RetailOrderModel.findById(saved._id).lean();
+    expect(await RetailOrderService.reconcileDraftRequest(scope, standaloneCreate(), actor)).toMatchObject({ status: "completed", order: { _id: String(saved._id), version: 1, status: "completed" } });
+    expect(await RetailOrderService.revokeDraftRequest(scope, standaloneCreate(), actor)).toMatchObject({ status: "completed" });
+    expect(await RetailOrderModel.findById(saved._id).lean()).toEqual(before);
+    expect(await RetailIdempotencyModel.countDocuments({ status: "revoked" })).toBe(0);
+  });
+  it("reconciles an update after subsequent edits and preserves current contents", async () => {
+    await updateDraft(); await updateDraft({ idempotencyKey: "update-next", version: 1, shippingFee: 10 });
+    const before = await order();
+    expect(await RetailOrderService.reconcileDraftRequest(scope, standaloneUpdate(), actor)).toMatchObject({ status: "completed", order: { version: 2 } });
+    expect(await order()).toEqual(before);
+  });
+  it.each(["payload", "actor", "branch", "operation"])("refuses a mismatched standalone request: %s", async changed => {
+    await createDraft(); const input: any = standaloneCreate();
+    if (changed === "payload") input.request.input.shippingFee = 1;
+    if (changed === "operation") { input.orderId = orderId; input.request.input.version = 0; }
+    await expect(RetailOrderService.reconcileDraftRequest(changed === "branch" ? { ...scope, branchId: id() } : scope, input, changed === "actor" ? { id: "other" } : actor, true)).rejects.toThrow();
+    await expect(RetailOrderService.revokeDraftRequest(changed === "branch" ? { ...scope, branchId: id() } : scope, input, changed === "actor" ? { id: "other" } : actor, true)).rejects.toThrow();
+    expect(await RetailIdempotencyModel.countDocuments({ status: "revoked" })).toBe(0);
+  });
+  it("refuses completed draft gates whose documents were removed", async () => {
+    const saved = await createDraft(); await RetailOrderModel.deleteOne({ _id: saved._id });
+    await expect(RetailOrderService.reconcileDraftRequest(scope, standaloneCreate(), actor)).rejects.toThrow();
+    await expect(RetailOrderService.revokeDraftRequest(scope, standaloneCreate(), actor)).rejects.toThrow();
+  });
+  it("refuses an unused update if the original order version advanced", async () => {
+    await updateDraft({ idempotencyKey: "other-edit" });
+    await expect(RetailOrderService.revokeDraftRequest(scope, standaloneUpdate(), actor)).rejects.toThrow();
+    expect(await RetailIdempotencyModel.countDocuments({ key: "update-1" })).toBe(0);
+  });
+  it.each(["create", "update"])("can close a checkout after standalone %s revocation", async kind => {
+    await RetailOrderService.revokeDraftRequest(scope, kind === "create" ? standaloneCreate() : standaloneUpdate(), actor);
+    expect(await RetailOrderService.revokeCheckout(scope, kind === "create" ? creationCheckout() : updateCheckout(), actor)).toMatchObject({ status: "revoked" });
+    await expect(confirm()).rejects.toThrow(); expect(await RetailInvoiceModel.countDocuments()).toBe(0);
+  });
+  it.each(["create", "update"])("arbitrates standalone %s posting against revocation", async kind => {
+    const outcomes = await Promise.allSettled([kind === "create" ? createDraft() : updateDraft(), RetailOrderService.revokeDraftRequest(scope, kind === "create" ? standaloneCreate() : standaloneUpdate(), actor)]);
+    expect(outcomes[1].status).toBe("fulfilled");
+    const gate = await RetailIdempotencyModel.findOne({ key: kind === "create" ? "create-1" : "update-1" }).lean();
+    expect(["completed", "revoked"]).toContain(gate?.status);
+    expect(outcomes[0].status).toBe(gate?.status === "completed" ? "fulfilled" : "rejected");
+    expect(await RetailInvoiceModel.countDocuments()).toBe(0); expect((await balance())?.quantity).toBe(10);
+  });
   it("confirmation freezes fractional stock cost before invoice and downstream consumers", async () => {
     await confirm();
     const saved = await order();
@@ -933,5 +1103,336 @@ describe("retail cost follows the committed stock ledger", () => {
     expect(await GoodsReceiptModel.countDocuments()).toBe(0);
     await cancel();
     expect(await GoodsReceiptModel.countDocuments()).toBe(1);
+  });
+
+  it('reconciles missing and completed collections without any writes or events', async () => {
+    await debtSale();
+    const check = () => RetailOrderService.reconcileCollection(scope, orderId, collectInput(), actor);
+    const beforeMissing = JSON.stringify(await order());
+    expect(await check()).toMatchObject({ status: 'not_found' });
+    expect(JSON.stringify(await order())).toBe(beforeMissing);
+    expect(await RetailIdempotencyModel.countDocuments({ operation: 'collect-order' })).toBe(0);
+    await collect();
+    await collect({ idempotencyKey: 'collect-2', expectedVersion: 2, payments: [{ method: 'transfer', amount: 300 }] });
+    const before = JSON.stringify(await order());
+    const attempts = JSON.stringify(await RetailIdempotencyModel.find().sort({ key: 1 }).lean());
+    const events = vi.mocked(publishRetailOrderEvent).mock.calls.length;
+    expect(await check()).toMatchObject({ status: 'completed', order: { paidAmount: 400 } });
+    expect(await check()).toMatchObject({ status: 'completed' });
+    expect(JSON.stringify(await order())).toBe(before);
+    expect(JSON.stringify(await RetailIdempotencyModel.find().sort({ key: 1 }).lean())).toBe(attempts);
+    expect(publishRetailOrderEvent).toHaveBeenCalledTimes(events);
+  });
+  it('does not expose collections across actor, order, branch, company or payload boundaries', async () => {
+    await debtSale(); await collect();
+    for (const [s, oid, input, who] of [
+      [scope, orderId, collectInput(), { ...actor, id: 'other' }],
+      [scope, id(), collectInput(), actor],
+      [{ ...scope, branchId: id() }, orderId, collectInput(), actor],
+      [{ ...scope, companyCode: 'OTHER' }, orderId, collectInput(), actor],
+      [scope, orderId, collectInput({ expectedVersion: 2 }), actor],
+      [scope, orderId, collectInput({ payments: [{ method: 'cash', amount: 101 }] }), actor],
+    ] as const) {
+      const result = await RetailOrderService.reconcileCollection(s, oid, input, who);
+      expect(result).toMatchObject({ status: 'conflict' });
+      expect(result).not.toHaveProperty('order');
+    }
+  });
+  it.each(['legacy', 'offset', 'payment', 'balance', 'version', 'total', 'actor'])('fails closed for missing or damaged %s evidence', async damage => {
+    await debtSale(); await collect();
+    if (damage === 'legacy') await RetailIdempotencyModel.updateOne({ key: 'collect-1' }, { $unset: { collectionEvidence: 1 } });
+    if (damage === 'offset') await RetailIdempotencyModel.updateOne({ key: 'collect-1' }, { $set: { 'collectionEvidence.paymentOffset': 1 } });
+    if (damage === 'payment') await RetailOrderModel.updateOne({ _id: orderId }, { $set: { 'payments.0.amount': 99 } });
+    if (damage === 'balance') await RetailOrderModel.updateOne({ _id: orderId }, { $set: { paidAmount: 99 } });
+    if (damage === 'version') await RetailOrderModel.updateOne({ _id: orderId }, { $set: { version: 1 } });
+    if (damage === 'total') await RetailOrderModel.updateOne({ _id: orderId }, { $set: { grandTotal: 401 } });
+    if (damage === 'actor') await RetailOrderModel.updateOne({ _id: orderId }, { $set: { 'payments.0.receivedBy': 'other' } });
+    expect(await RetailOrderService.reconcileCollection(scope, orderId, collectInput(), actor)).toMatchObject({ status: 'conflict' });
+  });
+  it('reports a matching processing collection without changing its state', async () => {
+    await debtSale(); await collect();
+    await RetailIdempotencyModel.updateOne({ key: 'collect-1' }, { $set: { status: 'processing' } });
+    expect(await RetailOrderService.reconcileCollection(scope, orderId, collectInput(), actor)).toMatchObject({ status: 'processing' });
+    expect(await RetailIdempotencyModel.findOne({ key: 'collect-1' }).lean()).toMatchObject({ status: 'processing' });
+  });
+
+  it('revokes an unused collection durably, replays revocation and blocks later collection', async () => {
+    await debtSale();
+    const before = JSON.stringify(await order());
+    const events = vi.mocked(publishRetailOrderEvent).mock.calls.length;
+    for (let i = 0; i < 2; i++) expect(await RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor)).toMatchObject({ status: 'revoked' });
+    expect(await RetailOrderService.reconcileCollection(scope, orderId, collectInput(), actor)).toMatchObject({ status: 'revoked' });
+    await expect(collect()).rejects.toMatchObject({ code: 'COLLECTION_REVOKED' });
+    expect(JSON.stringify(await order())).toBe(before);
+    expect(publishRetailOrderEvent).toHaveBeenCalledTimes(events);
+    expect(await RetailIdempotencyModel.countDocuments({ key: 'collect-1' })).toBe(1);
+  });
+  it('never revokes a completed or processing collection', async () => {
+    await debtSale(); await collect();
+    await expect(RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor)).rejects.toMatchObject({ code: 'COLLECTION_REVOKE_CONFLICT' });
+    await RetailIdempotencyModel.updateOne({ key: 'collect-1' }, { $set: { status: 'processing' } });
+    await expect(RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor)).rejects.toMatchObject({ code: 'COLLECTION_REVOKE_CONFLICT' });
+    expect((await order())?.paidAmount).toBe(100);
+  });
+  it('does not revoke stale requests with missing attempt evidence', async () => {
+    await debtSale(); await collect();
+    await RetailIdempotencyModel.deleteOne({ key: 'collect-1' });
+    await expect(RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor)).rejects.toMatchObject({ code: 'COLLECTION_REVOKE_CONFLICT' });
+    expect(await RetailIdempotencyModel.countDocuments({ key: 'collect-1' })).toBe(0);
+  });
+  it('binds revoked keys to the exact actor, payload, branch, order and shift', async () => {
+    await debtSale();
+    await RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor);
+    for (const [s, oid, input, who, shift] of [
+      [scope, orderId, collectInput(), { ...actor, id: 'other' }, undefined],
+      [scope, orderId, collectInput({ expectedVersion: 2 }), actor, undefined],
+      [scope, orderId, collectInput({ payments: [{ method: 'cash', amount: 101 }] }), actor, undefined],
+      [{ ...scope, branchId: id() }, orderId, collectInput(), actor, undefined],
+      [scope, id(), collectInput(), actor, undefined],
+      [scope, orderId, collectInput(), actor, { _id: id() }],
+    ] as const) await expect(RetailOrderService.revokeCollection(s, oid, input, who, shift)).rejects.toMatchObject({ code: 'ORDER_IDEMPOTENCY_CONFLICT' });
+  });
+  it.each([1, 2, 3])('serializes competing collection and revocation (%s)', async () => {
+    await debtSale();
+    const results = await Promise.allSettled([collect(), RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor)]);
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    const attempt = await RetailIdempotencyModel.findOne({ key: 'collect-1' }).lean();
+    expect(['completed', 'revoked']).toContain(attempt?.status);
+    expect((await order())?.paidAmount).toBe(attempt?.status === 'completed' ? 100 : 0);
+    if (attempt?.status === 'revoked') await expect(collect()).rejects.toMatchObject({ code: 'COLLECTION_REVOKED' });
+    else await expect(RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor)).rejects.toMatchObject({ code: 'COLLECTION_REVOKE_CONFLICT' });
+  });
+  it('concurrent identical revocations leave a single durable marker', async () => {
+    await debtSale();
+    const results = await Promise.all([1, 2, 3].map(() => RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor)));
+    expect(results.every(result => result?.status === 'revoked')).toBe(true);
+    expect(await RetailIdempotencyModel.countDocuments({ key: 'collect-1' })).toBe(1);
+  });
+
+  it('reconciles cancelled sale evidence without writing order, stock, refund or attempts', async () => {
+    await confirm(); await cancel();
+    const before = JSON.stringify([await order(), await balance(), await RetailIdempotencyModel.find().lean()]);
+    const events = vi.mocked(publishRetailOrderEvent).mock.calls.length;
+    expect(await RetailOrderService.reconcileCancellation(scope, orderId, cancelInput(), actor, true)).toMatchObject({ status: 'completed' });
+    expect(JSON.stringify([await order(), await balance(), await RetailIdempotencyModel.find().lean()])).toBe(before);
+    expect(publishRetailOrderEvent).toHaveBeenCalledTimes(events);
+  });
+  it('reconciles a deleted draft from its committed snapshot', async () => {
+    const input = cancelInput({ expectedVersion: 0, refunds: [] });
+    await cancel(input);
+    expect(await order()).toBeNull();
+    expect(await RetailOrderService.reconcileCancellation(scope, orderId, input, actor, true)).toMatchObject({ status: 'completed', order: { status: 'cancelled' } });
+    expect(await order()).toBeNull();
+  });
+  it('reports missing cancellation without creating any attempt', async () => {
+    expect(await RetailOrderService.reconcileCancellation(scope, orderId, cancelInput(), actor, true)).toMatchObject({ status: 'not_found' });
+    expect(await RetailIdempotencyModel.countDocuments()).toBe(0);
+  });
+  it.each(['legacy', 'refund', 'invoice', 'receipt', 'reason'])('fails closed for damaged cancellation evidence: %s', async damage => {
+    await confirm(); await cancel();
+    if (damage === 'legacy') await RetailIdempotencyModel.updateOne({ key: 'cancel-1' }, { $unset: { cancellationDigest: 1 } });
+    if (damage === 'refund') await RetailOrderModel.updateOne({ _id: orderId }, { $set: { 'refunds.0.amount': 399 } });
+    if (damage === 'invoice') await RetailInvoiceModel.updateOne({ orderId }, { $set: { status: 'issued' } });
+    if (damage === 'receipt') await GoodsReceiptModel.deleteMany({});
+    if (damage === 'reason') await RetailOrderModel.updateOne({ _id: orderId }, { $set: { cancelReason: 'other' } });
+    expect(await RetailOrderService.reconcileCancellation(scope, orderId, cancelInput(), actor, true)).toMatchObject({ status: 'conflict' });
+  });
+  it('requires matching actor, scope, request and current manager permission', async () => {
+    await confirm(); await cancel();
+    await expect(RetailOrderService.reconcileCancellation(scope, orderId, cancelInput(), actor, false)).rejects.toMatchObject({ status: 403 });
+    for (const [s, input, who] of [
+      [{ ...scope, branchId: id() }, cancelInput(), actor],
+      [scope, cancelInput({ reason: 'other' }), actor],
+      [scope, cancelInput(), { ...actor, id: 'other' }],
+    ] as const) expect(await RetailOrderService.reconcileCancellation(s, orderId, input, who, true)).toMatchObject({ status: 'conflict' });
+  });
+
+  it('rejects altered deleted-draft snapshots', async () => {
+    const input = cancelInput({ expectedVersion: 0, refunds: [] });
+    await cancel(input);
+    await RetailIdempotencyModel.updateOne({ key: 'cancel-1' }, { $set: { 'cancelledDraft.cancelReason': 'tampered' } });
+    expect(await RetailOrderService.reconcileCancellation(scope, orderId, input, actor, true)).toMatchObject({ status: 'conflict' });
+  });
+  it('keeps processing cancellation evidence unchanged', async () => {
+    await confirm(); await cancel();
+    await RetailIdempotencyModel.updateOne({ key: 'cancel-1' }, { $set: { status: 'processing' } });
+    expect(await RetailOrderService.reconcileCancellation(scope, orderId, cancelInput(), actor, true)).toMatchObject({ status: 'processing' });
+    expect(await RetailIdempotencyModel.findOne({ key: 'cancel-1' }).lean()).toMatchObject({ status: 'processing' });
+  });
+
+  it('durably revokes an unused cancellation without changing the order and blocks its writer', async () => {
+    await confirm();
+    const before = JSON.stringify(await order());
+    const events = vi.mocked(publishRetailOrderEvent).mock.calls.length;
+    for (let i = 0; i < 2; i++) expect(await RetailOrderService.revokeCancellation(scope, orderId, cancelInput(), actor, true)).toMatchObject({ status: 'revoked' });
+    expect(await RetailOrderService.reconcileCancellation(scope, orderId, cancelInput(), actor, true)).toMatchObject({ status: 'revoked' });
+    await expect(cancel()).rejects.toMatchObject({ code: 'CANCELLATION_REVOKED' });
+    expect(JSON.stringify(await order())).toBe(before);
+    expect(publishRetailOrderEvent).toHaveBeenCalledTimes(events);
+  });
+  it('does not revoke completed cancellation or fabricate missing evidence', async () => {
+    await confirm(); await cancel();
+    await expect(RetailOrderService.revokeCancellation(scope, orderId, cancelInput(), actor, true)).rejects.toMatchObject({ code: 'CANCELLATION_REVOKE_CONFLICT' });
+    await RetailIdempotencyModel.deleteOne({ key: 'cancel-1' });
+    await expect(RetailOrderService.revokeCancellation(scope, orderId, cancelInput(), actor, true)).rejects.toMatchObject({ code: 'CANCELLATION_REVOKE_CONFLICT' });
+    expect(await RetailIdempotencyModel.countDocuments({ key: 'cancel-1' })).toBe(0);
+  });
+  it('enforces manager permission before creating and replaying cancellation revocation', async () => {
+    await confirm();
+    await expect(RetailOrderService.revokeCancellation(scope, orderId, cancelInput(), actor, false)).rejects.toMatchObject({ status: 403 });
+    await RetailOrderService.revokeCancellation(scope, orderId, cancelInput(), actor, true);
+    await expect(RetailOrderService.revokeCancellation(scope, orderId, cancelInput(), actor, false)).rejects.toMatchObject({ status: 403 });
+    await expect(RetailOrderService.reconcileCancellation(scope, orderId, cancelInput(), actor, false)).rejects.toMatchObject({ status: 403 });
+  });
+  it('binds revoked cancellation keys to actor, payload and branch', async () => {
+    await confirm();
+    await RetailOrderService.revokeCancellation(scope, orderId, cancelInput(), actor, true);
+    for (const [s, input, who] of [
+      [{ ...scope, branchId: id() }, cancelInput(), actor],
+      [scope, cancelInput({ reason: 'other' }), actor],
+      [scope, cancelInput(), { ...actor, id: 'other' }],
+    ] as const) await expect(RetailOrderService.revokeCancellation(s, orderId, input, who, true)).rejects.toMatchObject({ code: 'ORDER_IDEMPOTENCY_CONFLICT' });
+  });
+  it.each([1, 2, 3])('arbitrates concurrent cancellation and revocation (%s)', async () => {
+    await confirm();
+    const results = await Promise.allSettled([cancel(), RetailOrderService.revokeCancellation(scope, orderId, cancelInput(), actor, true)]);
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    const attempt = await RetailIdempotencyModel.findOne({ key: 'cancel-1' }).lean();
+    expect(['completed', 'revoked']).toContain(attempt?.status);
+    expect((await order())?.status).toBe(attempt?.status === 'completed' ? 'cancelled' : 'completed');
+    expect((await order())?.refundedAmount).toBe(attempt?.status === 'completed' ? 400 : 0);
+  });
+  it('concurrent identical revocations leave one marker', async () => {
+    await confirm();
+    const results = await Promise.all([1, 2, 3].map(() => RetailOrderService.revokeCancellation(scope, orderId, cancelInput(), actor, true)));
+    expect(results.every(result => result?.status === 'revoked')).toBe(true);
+    expect(await RetailIdempotencyModel.countDocuments({ key: 'cancel-1' })).toBe(1);
+  });
+
+  it('retains draft owner checks on revocation and later reconciliation', async () => {
+    await RetailOrderModel.updateOne({ _id: orderId }, { $set: { createdBy: 'owner' } });
+    const input = cancelInput({ expectedVersion: 0, refunds: [] });
+    await expect(RetailOrderService.revokeCancellation(scope, orderId, input, actor, false)).rejects.toMatchObject({ status: 403 });
+    await RetailOrderService.revokeCancellation(scope, orderId, input, actor, true);
+    await expect(RetailOrderService.revokeCancellation(scope, orderId, input, actor, false)).rejects.toMatchObject({ status: 403 });
+    await expect(RetailOrderService.reconcileCancellation(scope, orderId, input, actor, false)).rejects.toMatchObject({ status: 403 });
+  });
+
+  it.each(['return', 'buyback'])('reconciles %s without writes and omits internal cost fields', async type => {
+    await confirm();
+    const input = returnInput({ type, items: [{ orderLineIndex: 0, quantity: 1, condition: 'good', unitAmount: 100 }] });
+    expect(await RetailAfterSaleService.reconcile(scope, input, actor)).toMatchObject({ status: 'not_found' });
+    const doc = await RetailAfterSaleService.create(scope, input, actor);
+    const before = JSON.stringify([await order(), await balance(), await RetailAfterSaleModel.find().lean(), await GoodsReceiptModel.find().lean()]);
+    const result = await RetailAfterSaleService.reconcile(scope, input, actor);
+    expect(result).toMatchObject({ status: 'completed', document: { _id: String(doc._id), type } });
+    if (result?.status !== 'completed') throw new Error('Expected verified document');
+    expect(result.document).not.toHaveProperty('items');
+    expect(JSON.stringify([await order(), await balance(), await RetailAfterSaleModel.find().lean(), await GoodsReceiptModel.find().lean()])).toBe(before);
+  });
+  it.each(['legacy', 'amount', 'refund', 'receipt', 'actor'])('rejects damaged after-sale evidence: %s', async damage => {
+    await confirm(); await RetailAfterSaleService.create(scope, returnInput(), actor);
+    if (damage === 'legacy') await RetailAfterSaleModel.updateOne({ idempotencyKey: 'return-1' }, { $unset: { reconciliationEvidence: 1 } });
+    if (damage === 'amount') await RetailAfterSaleModel.updateOne({ idempotencyKey: 'return-1' }, { $set: { totalAmount: 999 } });
+    if (damage === 'refund') await RetailOrderModel.updateOne({ _id: orderId }, { $set: { 'refunds.0.amount': 999 } });
+    if (damage === 'receipt') await GoodsReceiptModel.deleteMany({});
+    if (damage === 'actor') await RetailOrderModel.updateOne({ _id: orderId }, { $set: { 'refunds.0.refundedBy': 'other' } });
+    expect(await RetailAfterSaleService.reconcile(scope, returnInput(), actor)).toMatchObject({ status: 'conflict' });
+  });
+  it('binds after-sale reconciliation to actor, branch and payload', async () => {
+    await confirm(); await RetailAfterSaleService.create(scope, returnInput(), actor);
+    for (const [s, input, who] of [[{ ...scope, branchId: id() }, returnInput(), actor], [scope, returnInput({ reason: 'other' }), actor], [scope, returnInput(), { ...actor, id: 'other' }]] as const) expect(await RetailAfterSaleService.reconcile(s, input, who)).toMatchObject({ status: 'conflict' });
+  });
+
+  it('still verifies the earlier return after another return updates the order', async () => {
+    await confirm(); await RetailAfterSaleService.create(scope, returnInput(), actor);
+    await RetailAfterSaleService.create(scope, returnInput({ idempotencyKey: 'return-2' }), actor);
+    expect(await RetailAfterSaleService.reconcile(scope, returnInput(), actor)).toMatchObject({ status: 'completed' });
+    expect((await order())?.refundedAmount).toBe(400);
+  });
+
+  it('revokes an unused after-sale key without creating a fake document', async () => {
+    await confirm();
+    const before = JSON.stringify([await order(), await balance()]);
+    for (let i = 0; i < 2; i++) expect(await RetailAfterSaleService.revoke(scope, returnInput(), actor)).toMatchObject({ status: 'revoked' });
+    expect(await RetailAfterSaleService.reconcile(scope, returnInput(), actor)).toMatchObject({ status: 'revoked' });
+    await expect(RetailAfterSaleService.create(scope, returnInput(), actor)).rejects.toMatchObject({ code: 'AFTER_SALE_REVOKED' });
+    expect(await RetailAfterSaleModel.countDocuments()).toBe(0);
+    expect(await GoodsReceiptModel.countDocuments()).toBe(0);
+    expect(JSON.stringify([await order(), await balance()])).toBe(before);
+  });
+  it('never revokes posted or orphaned after-sale evidence', async () => {
+    await confirm(); await RetailAfterSaleService.create(scope, returnInput(), actor);
+    await expect(RetailAfterSaleService.revoke(scope, returnInput(), actor)).rejects.toMatchObject({ code: 'AFTER_SALE_REVOKE_CONFLICT' });
+    await RetailAfterSaleModel.deleteMany({});
+    await expect(RetailAfterSaleService.revoke(scope, returnInput(), actor)).rejects.toMatchObject({ code: 'AFTER_SALE_REVOKE_CONFLICT' });
+    await expect(RetailAfterSaleService.create(scope, returnInput(), actor)).rejects.toMatchObject({ code: 'AFTER_SALE_IDEMPOTENCY_CONFLICT' });
+    await RetailAfterSaleRequestModel.deleteMany({});
+    await expect(RetailAfterSaleService.revoke(scope, returnInput(), actor)).rejects.toMatchObject({ code: 'AFTER_SALE_REVOKE_CONFLICT' });
+  });
+  it('binds revoked after-sale keys to payload, actor, type and scope', async () => {
+    await confirm(); await RetailAfterSaleService.revoke(scope, returnInput(), actor);
+    for (const [s, input, who] of [[{ ...scope, branchId: id() }, returnInput(), actor], [scope, returnInput({ reason: 'other' }), actor], [scope, returnInput(), { ...actor, id: 'other' }]] as const) await expect(RetailAfterSaleService.create(s, input, who)).rejects.toMatchObject({ code: 'AFTER_SALE_IDEMPOTENCY_CONFLICT' });
+  });
+  it.each([1, 2, 3])('allows only one of concurrent after-sale posting and revocation (%s)', async () => {
+    await confirm();
+    const results = await Promise.allSettled([RetailAfterSaleService.create(scope, returnInput(), actor), RetailAfterSaleService.revoke(scope, returnInput(), actor)]);
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    const gate = await RetailAfterSaleRequestModel.findOne({ idempotencyKey: 'return-1' }).lean();
+    expect(['completed', 'revoked']).toContain(gate?.status);
+    expect(await RetailAfterSaleModel.countDocuments()).toBe(gate?.status === 'completed' ? 1 : 0);
+    expect((await order())?.refundedAmount).toBe(gate?.status === 'completed' ? 200 : 0);
+  });
+  it('replays simultaneous revocation without duplicating markers', async () => {
+    await confirm();
+    const results = await Promise.all([1, 2, 3].map(() => RetailAfterSaleService.revoke(scope, returnInput(), actor)));
+    expect(results.every(row => row?.status === 'revoked')).toBe(true);
+    expect(await RetailAfterSaleRequestModel.countDocuments()).toBe(1);
+  });
+
+  it.each(['return', 'buyback'])('revokes a versioned unused request after a verified prior %s', async type => {
+    await confirm();
+    await RetailAfterSaleService.create(scope, returnInput({ type, items: [{ orderLineIndex: 0, quantity: 1, condition: 'good', unitAmount: 100 }] }), actor);
+    const input = returnInput({ idempotencyKey: 'new-request', expectedVersion: 2 });
+    const before = JSON.stringify([await order(), await balance()]);
+    expect(await RetailAfterSaleService.revoke(scope, input, actor)).toMatchObject({ status: 'revoked' });
+    expect(await RetailAfterSaleRequestModel.findOne({ idempotencyKey: 'new-request' }).lean()).toMatchObject({ expectedVersion: 2, baselineDigest: expect.any(String) });
+    await expect(RetailAfterSaleService.create(scope, input, actor)).rejects.toMatchObject({ code: 'AFTER_SALE_REVOKED' });
+    expect(JSON.stringify([await order(), await balance()])).toBe(before);
+  });
+  it('keeps legacy fingerprints replayable but never silently adds a version', async () => {
+    await confirm();
+    await RetailAfterSaleService.create(scope, returnInput(), actor);
+    expect(await RetailAfterSaleService.create(scope, returnInput(), actor)).toMatchObject({ idempotencyKey: 'return-1' });
+    await expect(RetailAfterSaleService.create(scope, returnInput({ expectedVersion: 1 }), actor)).rejects.toMatchObject({ code: 'AFTER_SALE_IDEMPOTENCY_CONFLICT' });
+    await expect(RetailAfterSaleService.revoke(scope, returnInput({ idempotencyKey: 'unused-legacy' }), actor)).rejects.toMatchObject({ code: 'AFTER_SALE_REVOKE_CONFLICT' });
+  });
+  it('rejects stale versioned posting and revocation while replaying a matching posted request', async () => {
+    await confirm();
+    const first = returnInput({ expectedVersion: 1 });
+    await RetailAfterSaleService.create(scope, first, actor);
+    expect(await RetailAfterSaleService.create(scope, first, actor)).toMatchObject({ idempotencyKey: 'return-1' });
+    const stale = returnInput({ expectedVersion: 1, idempotencyKey: 'stale' });
+    await expect(RetailAfterSaleService.create(scope, stale, actor)).rejects.toMatchObject({ code: 'AFTER_SALE_VERSION_CONFLICT' });
+    await expect(RetailAfterSaleService.revoke(scope, stale, actor)).rejects.toMatchObject({ code: 'AFTER_SALE_REVOKE_CONFLICT' });
+    expect(await RetailAfterSaleRequestModel.countDocuments({ idempotencyKey: 'stale' })).toBe(0);
+  });
+  it.each(['missing-gate', 'missing-document', 'missing-receipt', 'refund', 'digest', 'orphan-receipt', 'receipt-quantity'])('refuses versioned revocation with incomplete baseline: %s', async damage => {
+    await confirm(); await RetailAfterSaleService.create(scope, returnInput(), actor);
+    if (damage === 'missing-gate') await RetailAfterSaleRequestModel.deleteMany({});
+    if (damage === 'missing-document') await RetailAfterSaleModel.deleteMany({});
+    if (damage === 'missing-receipt') await GoodsReceiptModel.deleteMany({});
+    if (damage === 'refund') await RetailOrderModel.updateOne({ _id: orderId }, { $set: { 'refunds.0.amount': 999 } });
+    if (damage === 'digest') await RetailAfterSaleModel.updateOne({}, { $unset: { reconciliationEvidence: 1 } });
+    if (damage === 'orphan-receipt') await GoodsReceiptModel.updateOne({}, { $set: { sourceId: id() } });
+    if (damage === 'receipt-quantity') await GoodsReceiptModel.updateOne({}, { $set: { 'items.0.quantity': 99 } });
+    await expect(RetailAfterSaleService.revoke(scope, returnInput({ idempotencyKey: 'new-key', expectedVersion: 2 }), actor)).rejects.toMatchObject({ code: 'AFTER_SALE_REVOKE_CONFLICT' });
+    expect(await RetailAfterSaleRequestModel.countDocuments({ idempotencyKey: 'new-key' })).toBe(0);
+  });
+  it('allows only one new after-sale key to post from the same order version', async () => {
+    await confirm();
+    const results = await Promise.allSettled(['a', 'b'].map(idempotencyKey => RetailAfterSaleService.create(scope, returnInput({ expectedVersion: 1, idempotencyKey }), actor)));
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect((await order())?.refundedAmount).toBe(200);
   });
 });
