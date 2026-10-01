@@ -72,7 +72,7 @@ export async function parseApiErrorResponse(response: Response): Promise<ApiClie
   if (isRecord(payload) && typeof payload.error === 'string') {
     return new ApiClientError({
       status: response.status,
-      code: "API_ERROR",
+      code: typeof payload.code === "string" ? payload.code : "API_ERROR",
       message: payload.error,
     });
   }

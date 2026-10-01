@@ -4,21 +4,26 @@ const labels: Record<string, string> = {
   syncing: "Đang đồng bộ",
   failed: "Đồng bộ lỗi",
   synced: "Đã đồng bộ",
+  revoked: "Đã thu hồi",
 };
 export default function RetailOfflineQueuePanel({
   items,
   onRetry,
   onRemove,
+  onReconcile,
+  onRevoke,
 }: {
   items: RetailOfflineOrder[];
   onRetry(id: string): void;
   onRemove(id: string): void;
+  onReconcile?(id: string): void;
+  onRevoke?(id: string): void;
 }) {
   if (!items.length) return null;
   return (
     <section className="rounded-xl border border-amber-200 bg-amber-50 p-3">
       <h2 className="font-bold text-amber-900">
-        Đơn hàng offline ({items.length})
+        Yêu cầu thanh toán ({items.length})
       </h2>
       <div className="mt-2 space-y-2">
         {items.map((item) => (
@@ -29,11 +34,15 @@ export default function RetailOfflineQueuePanel({
                 {new Date(item.createdAt).toLocaleTimeString("vi-VN")}
               </span>
             </div>
+            <p className="mt-1 text-slate-600">
+              {(item.payload as any)?.draftId ? "Đơn #" + String((item.payload as any).draftId).slice(-6) : "Chưa có mã đơn"}
+              {Number.isSafeInteger((item.payload as any)?.expectedGrandTotal) && " · Tổng: " + new Intl.NumberFormat("vi-VN").format((item.payload as any).expectedGrandTotal) + " đ"}
+            </p>
             {item.lastError && (
               <p className="mt-1 text-red-700">{item.lastError}</p>
             )}
             <div className="mt-2 flex gap-3">
-              {item.status === "failed" && (
+              {item.status !== "synced" && item.status !== "revoked" && (
                 <button
                   aria-label={`Thử lại ${item.id}`}
                   onClick={() => onRetry(item.id)}
@@ -42,13 +51,17 @@ export default function RetailOfflineQueuePanel({
                   Thử lại
                 </button>
               )}
-              <button
+              {item.status !== "synced" && item.status !== "revoked" && <>
+                {onReconcile && <button aria-label={`Đối chiếu ${item.id}`} onClick={() => onReconcile(item.id)} className="font-semibold text-cyan-700">Đối chiếu</button>}
+                {onRevoke && <button aria-label={`Thu hồi ${item.id}`} onClick={() => onRevoke(item.id)} className="text-red-700">Thu hồi yêu cầu</button>}
+              </>}
+              {item.status === "synced" && <button
                 aria-label={`Xóa ${item.id}`}
                 onClick={() => onRemove(item.id)}
                 className="text-slate-600"
               >
                 Xóa
-              </button>
+              </button>}
             </div>
           </div>
         ))}

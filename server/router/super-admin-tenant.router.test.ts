@@ -18,9 +18,13 @@ async function serve(options: { failModuleUpdate?: boolean; failEmit?: boolean }
       return { ...tenant, ...update };
     },
     scheduleDeletion: async () => ({ ...tenant, lifecycleStatus: "scheduled-deletion" }), cancelDeletion: async () => tenant,
+    listUsers: async (code: string) => [{ _id: "u1", displayName: "User 1", email: "u1@test.com", role: "admin", companyCode: code }],
+    createUser: async (code: string, input: any) => ({ _id: "u2", ...input, companyCode: code }),
+    updateUser: async (code: string, userId: string, input: any) => ({ _id: userId, ...input, companyCode: code }),
+    deleteUser: async (_code: string, _userId: string) => ({ success: true }),
   };
   const app = express(); app.use(express.json()); app.use((req: any, _res, next) => { req.user = { id: "admin-1", role: "superadmin", sessionId: "s-1" }; next(); });
-  app.use(createTenantRouter({ service, clearModuleCache: (code: string) => { cleared.push(code); }, emitToCompany: async (...args: any[]) => { if (options.failEmit) throw new Error("socket unavailable"); emitted.push(args); }, execute: async (_context: any, request: any, handler: any) => { if (request.definition.requiresReason && !request.reason?.trim()) throw new Error("A written reason is required"); calls.push(request); return { actionId: "action-1", result: await handler(request.input) }; } }));
+  app.use(createTenantRouter({ skipAuthGuards: true, service, clearModuleCache: (code: string) => { cleared.push(code); }, emitToCompany: async (...args: any[]) => { if (options.failEmit) throw new Error("socket unavailable"); emitted.push(args); }, execute: async (_context: any, request: any, handler: any) => { if (request.definition.requiresReason && !request.reason?.trim()) throw new Error("A written reason is required"); calls.push(request); return { actionId: "action-1", result: await handler(request.input) }; } }));
   const server = await new Promise<any>((resolve) => { const value = app.listen(0, () => resolve(value)); });
   return { calls, cleared, emitted, url: `http://127.0.0.1:${server.address().port}`, close: () => new Promise<void>((resolve) => server.close(resolve)) };
 }
@@ -85,3 +89,37 @@ test("keeps the saved update successful when realtime delivery is unavailable", 
     assert.deepEqual(api.cleared, ["ACME"]);
   } finally { console.error = originalError; await api.close(); }
 });
+
+test("supports listing, creating, updating, and deleting tenant users", async () => {
+  const api = await serve();
+  try {
+    const listRes = await fetch(`${api.url}/tenants/ACME/users`).then((r) => r.json());
+    assert.equal(listRes.users.length, 1);
+    assert.equal(listRes.users[0].email, "u1@test.com");
+
+    const createRes = await fetch(`${api.url}/tenants/ACME/users`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ displayName: "New User", email: "new@acme.test", password: "password123", role: "admin" }),
+    });
+    assert.equal(createRes.status, 201);
+    const createData = await createRes.json();
+    assert.equal(createData.user.email, "new@acme.test");
+
+    const updateRes = await fetch(`${api.url}/tenants/ACME/users/u2`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ displayName: "Updated User" }),
+    });
+    assert.equal(updateRes.status, 200);
+    const updateData = await updateRes.json();
+    assert.equal(updateData.user.displayName, "Updated User");
+
+    const deleteRes = await fetch(`${api.url}/tenants/ACME/users/u2`, {
+      method: "DELETE",
+    });
+    assert.equal(deleteRes.status, 200);
+    const deleteData = await deleteRes.json();
+    assert.equal(deleteData.message, "Xóa tài khoản thành công");
+  } finally { await api.close(); }
+});

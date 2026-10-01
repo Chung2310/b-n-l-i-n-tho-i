@@ -20,6 +20,17 @@ test("parses policy success=false error objects", async () => {
   assert.equal(error.message, "Chính sách hoa hồng chưa hoạt động.");
 });
 
+test("preserves retail top-level domain codes with string errors", async () => {
+  for (const code of ["DRAFT_UPDATE_INVALID", "COLLECTION_INVALID", "CANCELLATION_INVALID", "AFTER_SALE_INVALID", "ORDER_IDEMPOTENCY_CONFLICT"]) {
+    const response = new Response(JSON.stringify({ success: false, error: "Invalid request", code }), { status: 400 });
+    const error = await parseApiErrorResponse(response);
+    assert.equal(error.code, code);
+    assert.equal(error.status, 400);
+    assert.equal(error.message, "Invalid request");
+  }
+  assert.equal((await parseApiErrorResponse(new Response(JSON.stringify({ error: "Legacy", code: 123 }), { status: 400 }))).code, "API_ERROR");
+});
+
 test("uses a safe fallback for malformed and non-JSON responses", async () => {
   const malformed = new Response("gateway down", { status: 502, headers: { "content-type": "text/plain" } });
   const malformedError = await parseApiErrorResponse(malformed);

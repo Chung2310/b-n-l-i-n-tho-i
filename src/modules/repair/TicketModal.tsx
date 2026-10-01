@@ -3,6 +3,7 @@ import { Sparkles, Calculator, CheckCircle2, RotateCw, FileText, Check, AlertTri
 import RepairRefundForm from "../partners/RepairRefundForm";
 import { customerApi } from "../customer-management/customerApi";
 import { repairService, type RepairTicket } from "../../services/repairService";
+import RepairPaymentForm from "./RepairPaymentForm";
 import RepairTicketExtras from "./RepairTicketExtras";
 import {
   costBearerBadgeClass,
@@ -126,10 +127,11 @@ export default function TicketModal({
     ticket.laborFee ? ticket.laborFee.toLocaleString("vi-VN") : ""
   );
   const [quoteSaved, setQuoteSaved] = useState(false);
-  const [payment, setPayment] = useState("");
   const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [actionBusy, setBusy] = useState(false);
+  const [paymentLocked, setPaymentLocked] = useState(false);
   const [errorAlert, setErrorAlert] = useState<string | null>(null);
+  const busy = actionBusy || paymentLocked;
   const quoteSavePending = useRef(false);
 
   useEffect(() => {
@@ -585,48 +587,7 @@ export default function TicketModal({
           </div>
         )}
 
-        {ticket.status === "done" && ticket.dueAmount > 0 && (
-          <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/40 to-white p-4 sm:flex-row sm:items-center shadow-2xs">
-            <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-emerald-900">
-                  Thu tiền để giao máy (Còn nợ: <span className="text-rose-600">{money(ticket.dueAmount)} đ</span>)
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPayment(ticket.dueAmount.toLocaleString("vi-VN"))}
-                  className="text-xs font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer"
-                >
-                  Thu đủ số nợ
-                </button>
-              </div>
-              <div className="relative mt-1.5">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={payment}
-                  onChange={(e) => handleCurrencyChange(e, setPayment)}
-                  placeholder={`VD: ${ticket.dueAmount.toLocaleString("vi-VN")}`}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm font-bold text-slate-900 sm:w-auto focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-            </div>
-            <button
-              disabled={busy || !payment || parseDigits(payment) <= 0}
-              onClick={() => {
-                const amount = parseDigits(payment);
-                if (amount > ticket.dueAmount) {
-                  setErrorAlert("Số tiền thanh toán vượt quá công nợ.");
-                  return;
-                }
-                void run(() => repairService.pay(ticket._id, amount));
-              }}
-              className="min-h-11 w-full rounded-xl bg-emerald-600 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50 sm:w-auto cursor-pointer"
-            >
-              Ghi nhận thanh toán
-            </button>
-          </div>
-        )}
+        <RepairPaymentForm ticket={ticket} onPendingChange={setPaymentLocked} onComplete={() => { onChanged(); onClose(); }} />
 
         <div className="mt-5 flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:flex-wrap">
           {ticket.status === "done" && (
@@ -657,15 +618,13 @@ export default function TicketModal({
           )}
         </div>
 
-        {ticket.status === "delivered" && (
-          <RepairRefundForm
-            ticket={ticket}
-            onChanged={() => {
-              onChanged();
-              onClose();
-            }}
-          />
-        )}
+        <RepairRefundForm
+          ticket={ticket}
+          onChanged={() => {
+            onChanged();
+            onClose();
+          }}
+        />
         <RepairTicketExtras ticket={ticket} onChanged={onChanged} />
 
         <div className="mt-5 border-t border-slate-100 pt-4">

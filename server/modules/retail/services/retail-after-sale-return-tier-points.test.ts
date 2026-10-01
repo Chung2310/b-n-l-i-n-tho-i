@@ -1,3 +1,4 @@
+import { RetailAfterSaleRequestModel } from "../models/retail-after-sale-request.model";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose, { Types } from "mongoose";
@@ -18,11 +19,10 @@ import { CustomerSettingsModel } from "../../customer-management/models/customer
 import { RetailCustomerTierJobModel } from "../models/retail-customer-tier-job.model";
 import { RetailCustomerTierHistoryModel } from "../models/retail-customer-tier-history.model";
 import { RepairTicketModel } from "../../repair/repair-ticket.model";
-import { processTierRefreshBySourceKey } from "./retail-customer-tier.service";
 
 const scope = { companyCode: "TIER_PTS_TEST", branchId: new Types.ObjectId().toString() };
 const actor = { id: "cashier", displayName: "Thu ngân" };
-const models: mongoose.Model<any>[] = [
+const models: mongoose.Model<any>[] = [RetailAfterSaleRequestModel,
   RetailAfterSaleModel,
   RetailOrderModel,
   GoodsReceiptModel,
@@ -168,6 +168,8 @@ beforeEach(async () => {
     createdByName: actor.displayName,
   });
 
+  await InventoryLedgerEntryModel.create({ ...scope, warehouseId, productId: String(productId), variantId, sku: "IPHONE-15", productName: "iPhone 15", direction: "out", purpose: "sale", quantity: 2, quantityDelta: -2, unitCost: 15_000_000, unitPrice: 20_000_000, sourceType: "retail-order", sourceId: String(order._id), sourceLine: 0, idempotencyKey: `order:${order._id}:out`, operatorName: actor.displayName });
+
   await SerialUnitModel.create([
     {
       ...scope,
@@ -202,6 +204,10 @@ beforeEach(async () => {
       updatedBy: actor.id,
     },
   ]);
+
+  await SerialUnitModel.updateMany({}, { $set: { soldBranchId: scope.branchId, currentDocumentType: "retail-order", currentDocumentId: String(order._id) } });
+  const units = await SerialUnitModel.find().lean();
+  await SerialEventModel.create(units.map((unit) => ({ ...scope, serialUnitId: String(unit._id), serialNumber: unit.serialNumber, eventType: "sold", fromStatus: "in_stock", toStatus: "sold", documentType: "retail-order", documentId: String(order._id), actorId: actor.id, actorName: actor.displayName })));
 
   // Ghi nhận đơn hàng đã tích 100 điểm khi mua (10tr lãi gộp / 100k = 100 điểm)
   await CustomerPointLedgerModel.create({
@@ -264,7 +270,7 @@ describe("RetailAfterSaleService - Trả hàng trừ điểm phân hạng & đi�
     expect(revertLedger?.balanceAfter).toBe(70);
 
     // 4. Đợi tier refresh hoàn tất
-    await new Promise((r) => setTimeout(r, 200));
+    await expect.poll(async () => (await RetailCustomerTierJobModel.findOne({ sourceKey: `retail-after-sale:${doc._id}:tier-return` }).lean())?.status, { timeout: 10000 }).toBe("completed");
 
     // Khách hàng còn lại 1 đơn: doanh số net = 20tr, lợi nhuận gộp = 20tr - 15tr = 5tr
     // Với 5tr lãi gộp >= 1tr (Gold threshold), khách giữ Gold, nhưng tierGrossProfit và tierTotalSales được cập nhật chính xác
@@ -306,7 +312,7 @@ describe("RetailAfterSaleService - Trả hàng trừ điểm phân hạng & đi�
     expect(updatedCustomer?.totalPointsEarned).toBe(20);
 
     // 3. Đợi tier refresh hoàn tất
-    await new Promise((r) => setTimeout(r, 200));
+    await expect.poll(async () => (await RetailCustomerTierJobModel.findOne({ sourceKey: `retail-after-sale:${doc._id}:tier-return` }).lean())?.status, { timeout: 10000 }).toBe("completed");
 
     // Doanh số net = 0, lãi gộp = 0 -> khách bị hạ về hạng Standard (Thành viên)
     const downgradedCustomer = await CustomerModel.findById(customer._id).lean();

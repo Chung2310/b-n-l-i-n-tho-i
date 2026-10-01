@@ -196,10 +196,6 @@ export default function RepairReportsPanel() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Báo cáo sửa chữa & bảo hành
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Doanh thu phân loại theo chi nhánh và hiệu suất kỹ thuật viên, tính trên
-            phiếu đã sửa xong trong kỳ.
-          </p>
         </div>
 
         <button
@@ -221,55 +217,50 @@ export default function RepairReportsPanel() {
             <button
               type="button"
               onClick={() => applyPreset("today")}
-              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
-                activePreset === "today"
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${activePreset === "today"
                   ? "bg-white text-slate-900 shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
-              }`}
+                }`}
             >
               Hôm nay
             </button>
             <button
               type="button"
               onClick={() => applyPreset("week")}
-              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
-                activePreset === "week"
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${activePreset === "week"
                   ? "bg-white text-slate-900 shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
-              }`}
+                }`}
             >
               7 ngày qua
             </button>
             <button
               type="button"
               onClick={() => applyPreset("month")}
-              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
-                activePreset === "month"
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${activePreset === "month"
                   ? "bg-white text-slate-900 shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
-              }`}
+                }`}
             >
               Tháng này
             </button>
             <button
               type="button"
               onClick={() => applyPreset("lastMonth")}
-              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
-                activePreset === "lastMonth"
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${activePreset === "lastMonth"
                   ? "bg-white text-slate-900 shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
-              }`}
+                }`}
             >
               Tháng trước
             </button>
             <button
               type="button"
               onClick={() => applyPreset("quarter")}
-              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
-                activePreset === "quarter"
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${activePreset === "quarter"
                   ? "bg-white text-slate-900 shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
-              }`}
+                }`}
             >
               Quý này
             </button>
@@ -337,6 +328,7 @@ export default function RepairReportsPanel() {
             {busy ? "Đang tải..." : "Xem báo cáo"}
           </button>
         </form>
+        <p className="mt-2 text-xs text-slate-600">Doanh thu đã trừ khoản hoàn liên kết phiếu chi Finance theo ngày chi. Khoản hoàn cũ chưa đối soát chưa được khấu trừ. Công và linh kiện được phân bổ theo tổng báo giá; hoàn tiền không tự giảm giá vốn.</p>
       </div>
 
       {/* KPI Metrics Strip */}
@@ -464,9 +456,8 @@ export default function RepairReportsPanel() {
                       {formatMoney(row.collected)}
                     </td>
                     <td
-                      className={`py-3 px-4 text-right font-bold ${
-                        row.outstanding > 0 ? "text-rose-600" : "text-slate-400 font-normal"
-                      }`}
+                      className={`py-3 px-4 text-right font-bold ${row.outstanding > 0 ? "text-rose-600" : "text-slate-400 font-normal"
+                        }`}
                     >
                       {row.outstanding > 0 ? formatMoney(row.outstanding) : "0 đ"}
                     </td>
@@ -513,9 +504,8 @@ export default function RepairReportsPanel() {
                       {formatMoney(revenue.total.collected)}
                     </td>
                     <td
-                      className={`py-3 px-4 text-right ${
-                        revenue.total.outstanding > 0 ? "text-rose-600" : "text-slate-500"
-                      }`}
+                      className={`py-3 px-4 text-right ${revenue.total.outstanding > 0 ? "text-rose-600" : "text-slate-500"
+                        }`}
                     >
                       {formatMoney(revenue.total.outstanding)}
                     </td>

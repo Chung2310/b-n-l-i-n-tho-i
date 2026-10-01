@@ -23,3 +23,17 @@ export const filterOrgChartEmployees = (
 export const getManagerForEmployee = (employee: EmployeeNode, employees: EmployeeNode[]): EmployeeNode | undefined => {
   return employee.parentId ? employees.find((candidate) => candidate.id === employee.parentId) : undefined;
 };
+
+export const getRootEmployees = (arrangedEmployees: EmployeeNode[]): EmployeeNode[] => {
+  return arrangedEmployees
+    .filter((e) => !e.parentId || !arrangedEmployees.some((p) => p.id === e.parentId))
+    .sort((a, b) => (b.isLeader ? 1 : 0) - (a.isLeader ? 1 : 0) || (a.level ?? 99) - (b.level ?? 99));
+};
+
+export const getRootDirectReports = (
+  arrangedEmployees: EmployeeNode[],
+  rootEmployees: EmployeeNode[]
+): EmployeeNode[] => {
+  const rootIds = new Set(rootEmployees.map((r) => r.id));
+  return arrangedEmployees.filter((e) => e.parentId && rootIds.has(e.parentId));
+};

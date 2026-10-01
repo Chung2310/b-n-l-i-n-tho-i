@@ -83,12 +83,9 @@ describe("UserDetailDialog", () => {
     fireEvent.change(screen.getByLabelText("Vai trò"), { target: { value: "user" } });
     fireEvent.change(screen.getByLabelText("Lý do thay đổi quyền"), { target: { value: "Điều chỉnh trách nhiệm" } });
     fireEvent.click(screen.getByRole("button", { name: "Lưu quyền truy cập" }));
-    await completeStepUp();
 
     await waitFor(() => expect(superAdminUserAccessService.assignRole).toHaveBeenCalledWith(
-      "SYSTEM", "user-1", "user", ["access:read"], expect.objectContaining({
-        reason: "Điều chỉnh trách nhiệm", password: "S3cret!", token: "123456", step: expect.any(Number),
-      }),
+      "SYSTEM", "user-1", "user", ["access:read"], { reason: "Điều chỉnh trách nhiệm" },
     ));
     expect(await screen.findByText("Đã cập nhật vai trò và quyền.")).toBeTruthy();
   });

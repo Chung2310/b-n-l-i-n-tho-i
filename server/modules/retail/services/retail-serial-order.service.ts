@@ -9,6 +9,8 @@ import { ProductVariantModel } from "../../../model/product-variant.model";
 import { ProductCatalogModel } from "../../../model/product-catalog.model";
 import { computeWarrantyEnd, resolveCustomerWarrantyMonths } from "../../inventory/serials/warranty-clock";
 import { ensureDefaultWarehouse } from "../../inventory/warehouse/warehouse.service";
+import { loadRetailStockSource } from "./retail-stock-source";
+import { GoodsReceiptModel } from "../../../model/goods-receipt.model";
 
 export function applyClaimedSerialToOrderItem(item: { internalBarcodes?: string[]; soldAt?: Date; customerWarrantyStartAt?: Date; customerWarrantyEndAt?: Date }, claimed: { internalBarcode?: string }, soldAt: Date, customerMonths: number) {
   const internalBarcodes = claimed.internalBarcode ? [...new Set([...(item.internalBarcodes || []), claimed.internalBarcode])] : item.internalBarcodes;
@@ -51,13 +53,51 @@ export async function claimSerialsForOrder(scope: RetailBranchScope, items: Arra
   }
 }
 
-export async function releaseSerialsForOrder(scope: RetailBranchScope, orderId: string, actorId: string, actorName: string, session: ClientSession, receipt?: { id: string; warehouseId: string }) {
-  const serials = await SerialUnitModel.find({ companyCode: scope.companyCode, branchId: scope.branchId, currentDocumentType: "retail-order", currentDocumentId: orderId, status: "sold" }).session(session).lean();
-  for (const serial of serials) {
-    const released = await SerialUnitModel.findOneAndUpdate({ _id: serial._id, status: "sold" }, { $set: { status: "in_stock", updatedBy: actorId, ...(receipt ? { warehouseId: receipt.warehouseId, currentDocumentType: "goods-receipt", currentDocumentId: receipt.id } : {}) },
-      $unset: { ...(!receipt ? { currentDocumentType: 1, currentDocumentId: 1 } : {}), customerId: 1, customerWarranty: 1, soldAt: 1, soldOrderId: 1, soldOrderCode: 1, soldBranchId: 1, soldInvoiceId: 1 } }, { returnDocument: 'after', session });
-    if (!released) continue;
-    await SerialEventModel.create([{ companyCode: scope.companyCode, branchId: scope.branchId, serialUnitId: String(serial._id), serialNumber: serial.serialNumber, eventType: "sale_cancelled", fromStatus: "sold", toStatus: "in_stock", documentType: receipt ? "goods-receipt" : "retail-order", documentId: receipt?.id || orderId, actorId, actorName }], { session });
+export async function releaseSerialsForOrder(scope: RetailBranchScope, orderId: string, actorId: string, actorName: string, session: ClientSession, receipt: { id: string; warehouseId: string }) {
+  const conflict = (): never => { throw Object.assign(new Error("Danh sách máy không còn khớp lần bán gốc. Cần đối soát trước khi hủy đơn."), { code: "SALE_CANCEL_SERIAL_CONFLICT", status: 409, statusCode: 409 }); };
+  if (!session.inTransaction()) throw Object.assign(new Error("Hoàn máy yêu cầu transaction đang hoạt động."), { statusCode: 503 });
+  const order = await RetailOrderModel.findOne({ _id: orderId, ...scope, stockApplied: true, status: { $in: ["confirmed", "completed"] } }).session(session).lean();
+  if (!order) conflict();
+  const source = await loadRetailStockSource(scope, orderId, order.items, session);
+  const sourceReceipt = receipt && await GoodsReceiptModel.findOne({ _id: receipt.id, ...scope, orderId, sourceId: orderId, receiptKind: "sales_cancel", status: "confirmed", warehouseId: source.warehouseId }).session(session).lean();
+  if (!sourceReceipt || receipt.warehouseId !== source.warehouseId) conflict();
+  // Include every linked unit, even moved or no longer sold, to detect missing/extra machines.
+  const serials = await SerialUnitModel.find({ companyCode: scope.companyCode, $or: [{ soldOrderId: orderId }, { currentDocumentType: "retail-order", currentDocumentId: orderId }] }).session(session).lean();
+  const selected = new Map<string, typeof serials[number]>();
+  for (const [index, item] of order.items.entries()) {
+    const tracked = item.trackingMode === "serial" || item.trackingMode === "unit_barcode";
+    if (!tracked) { if (item.serialNumbers?.length || item.internalBarcodes?.length) conflict(); continue; }
+    const identifiers = item.trackingMode === "serial" ? (item.serialNumbers || []).map(normalizeSerialNumber) : (item.internalBarcodes || []).map(normalizeInternalBarcode);
+    if (!Number.isSafeInteger(item.quantity) || identifiers.length !== item.quantity || new Set(identifiers).size !== identifiers.length) conflict();
+    const entry = source.entries[index];
+    const lineCodes = new Set<string>();
+    for (const identifier of identifiers) {
+      const matches = serials.filter((unit) => (item.trackingMode === "serial" ? unit.normalizedSerialNumber : unit.normalizedInternalBarcode) === identifier);
+      if (matches.length !== 1) conflict();
+      const unit = matches[0], unitId = String(unit._id);
+      if (selected.has(unitId) || unit.branchId !== scope.branchId || unit.warehouseId !== source.warehouseId
+        || unit.productId !== entry.productId || String(unit.variantId || "") !== String(entry.variantId || "") || unit.sku !== entry.sku
+        || unit.status !== "sold" || unit.soldOrderId !== orderId || unit.soldBranchId !== scope.branchId
+        || unit.currentDocumentType !== "retail-order" || unit.currentDocumentId !== orderId) conflict();
+      const lastEvent = await SerialEventModel.findOne({ companyCode: scope.companyCode, serialUnitId: unitId }).sort({ occurredAt: -1, _id: -1 }).session(session).lean();
+      if (!lastEvent || lastEvent.branchId !== scope.branchId || lastEvent.eventType !== "sold" || lastEvent.fromStatus !== "in_stock" || lastEvent.toStatus !== "sold" || lastEvent.documentType !== "retail-order" || lastEvent.documentId !== orderId) conflict();
+      lineCodes.add(unit.normalizedInternalBarcode);
+      selected.set(unitId, unit);
+    }
+    if (item.trackingMode === "serial" && item.internalBarcodes?.length) {
+      const codes = item.internalBarcodes.map(normalizeInternalBarcode);
+      if (codes.length !== item.quantity || new Set(codes).size !== codes.length || codes.some((code) => !lineCodes.has(code))) conflict();
+    }
   }
-  return serials.length;
+  if (selected.size !== serials.length) conflict();
+  for (const unit of selected.values()) {
+    const released = await SerialUnitModel.findOneAndUpdate({ _id: unit._id, ...scope, warehouseId: source.warehouseId, productId: unit.productId,
+      variantId: unit.variantId || { $exists: false }, sku: unit.sku, normalizedSerialNumber: unit.normalizedSerialNumber, normalizedInternalBarcode: unit.normalizedInternalBarcode,
+      status: "sold", soldOrderId: orderId, soldBranchId: scope.branchId, currentDocumentType: "retail-order", currentDocumentId: orderId },
+      { $set: { status: "in_stock", updatedBy: actorId, warehouseId: receipt.warehouseId, currentDocumentType: "goods-receipt", currentDocumentId: receipt.id },
+        $unset: { customerId: 1, customerWarranty: 1, soldAt: 1, soldOrderId: 1, soldOrderCode: 1, soldBranchId: 1, soldInvoiceId: 1 } }, { returnDocument: "after", session });
+    if (!released) conflict();
+    await SerialEventModel.create([{ ...scope, serialUnitId: String(unit._id), serialNumber: unit.serialNumber, eventType: "sale_cancelled", fromStatus: "sold", toStatus: "in_stock", documentType: "goods-receipt", documentId: receipt.id, reason: sourceReceipt.notes, actorId, actorName }], { session });
+  }
+  return selected.size;
 }

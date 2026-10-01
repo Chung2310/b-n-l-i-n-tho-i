@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+vi.mock("../retail/hooks/useRetailScope", () => ({ useRetailScope: () => ({ scope: { companyCode: "company-a", branchId: "branch-a" }, userProfile: { uid: "user-1" } }) }));
 import React from "react";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

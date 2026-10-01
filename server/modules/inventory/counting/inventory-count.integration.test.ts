@@ -7,7 +7,7 @@ import { InventoryLedgerEntryModel } from "../../../model/inventory-ledger-entry
 import { ProductCatalogModel } from "../../../model/product-catalog.model";
 import { ProductVariantModel } from "../../../model/product-variant.model";
 import { WarehouseModel } from "../../../model/warehouse.model";
-import { approveCount, createCount, scanCountUnit, submitCount, updateCountItem } from "./inventory-count.service";
+import { approveCount as approveReviewedCount, createCount, recreateCount, scanCountUnit, submitCount, updateCountItem } from "./inventory-count.service";
 import { SerialUnitModel } from "../serials/serial-unit.model";
 import { SerialEventModel } from "../serials/serial-event.model";
 
@@ -18,6 +18,13 @@ const productId = new mongoose.Types.ObjectId().toString();
 const variantId = new mongoose.Types.ObjectId().toString();
 const scope = { companyCode, branchId };
 let replSet: MongoMemoryReplSet;
+
+// Existing invariant cases use a review of the current version. Validation
+// cases below call approveReviewedCount directly with missing/stale evidence.
+async function approveCount(scope: { companyCode: string; branchId: string }, id: string, actor: { id?: string; email?: string }) {
+  const count = await InventoryCountModel.findById(id).lean();
+  return approveReviewedCount(scope, id, actor, { expectedVersion: count?.version, discrepancyConfirmed: true, reason: "Reviewed physical count", unexpectedScanResolutions: [] });
+}
 
 async function seedCount(quantityDelta = 2, sourceBalanceVersion = 0) {
   await WarehouseModel.create({ _id: warehouseId, companyCode, branchId, code: "TEST", name: "Test warehouse", kind: "selling", isDefault: true, isActive: true });
@@ -267,5 +274,111 @@ describe("inventory count approval integration", () => {
     expect(submitted.submittedById).toBe("submit-id");
     const approved = await approveCount(scope, String(count._id), { id: "approve-id", email: "same@example.test" });
     expect(approved.approvedById).toBe("approve-id");
+  });
+  it("recreates a conflicted count from current stock with empty counts and reciprocal links", async () => {
+    const source: any = await scanningCount();
+    source.status = "conflict"; source.items[0].scannedUnitIds = [source.items[0].expectedUnits[0].serialUnitId]; await source.save();
+    await ProductVariantModel.updateOne({ _id: variantId }, { trackingMode: "serial" });
+    await InventoryBalanceModel.updateOne({ variantId }, { quantity: 1, version: 5 });
+    await SerialUnitModel.updateOne({ serialNumber: "A" }, { status: "sold" });
+    const next: any = await recreateCount(scope, String(source._id), { id: "new-counter" });
+    expect(next).toMatchObject({ status: "draft", recreatedFromId: String(source._id), createdById: "new-counter" });
+    expect(next.items[0]).toMatchObject({ systemQuantity: 1, sourceBalanceVersion: 5, countedQuantity: 0, quantityDelta: -1 });
+    expect(next.items[0].expectedUnits).toHaveLength(1);
+    expect(next.items[0].scannedUnitIds).toHaveLength(0);
+    const old: any = await InventoryCountModel.findById(source._id).lean();
+    expect(old.replacementCountId).toBe(String(next._id));
+    expect(old.status).toBe("conflict");
+    expect(old.items[0].scannedUnitIds).toHaveLength(1);
+    expect(await InventoryLedgerEntryModel.countDocuments()).toBe(0);
+  });
+  it("returns the same replacement for concurrent and later retries", async () => {
+    const source = await seedCount(); source.status = "conflict"; await source.save();
+    const [one, two] = await Promise.all([recreateCount(scope, String(source._id), { id: "one" }), recreateCount(scope, String(source._id), { id: "two" })]);
+    expect(String(one._id)).toBe(String(two._id));
+    const retry = await recreateCount(scope, String(source._id), { id: "three" });
+    expect(String(retry._id)).toBe(String(one._id));
+    expect(await InventoryCountModel.countDocuments()).toBe(2);
+    expect(one.items[0].countedQuantity).toBe(0);
+  });
+  it("rolls back the replacement if linking the source fails", async () => {
+    const source = await seedCount(); source.status = "conflict"; await source.save();
+    const original = InventoryCountModel.prototype.save;
+    vi.spyOn(InventoryCountModel.prototype, "save").mockImplementation(async function(this: any, options: any) {
+      if (String(this._id) === String(source._id)) throw new Error("link failed");
+      return original.call(this, options);
+    });
+    await expect(recreateCount(scope, String(source._id), { id: "counter" })).rejects.toThrow("link failed");
+    expect(await InventoryCountModel.countDocuments()).toBe(1);
+    expect((await InventoryCountModel.findById(source._id).lean())?.replacementCountId).toBeUndefined();
+  });
+  it("rejects non-conflict sources, other scopes, inactive warehouses and broken links", async () => {
+    const source = await seedCount();
+    await expect(recreateCount(scope, String(source._id), { id: "counter" })).rejects.toMatchObject({ statusCode: 409 });
+    source.status = "conflict"; await source.save();
+    await expect(recreateCount({ ...scope, companyCode: "OTHER" }, String(source._id), { id: "counter" })).rejects.toMatchObject({ statusCode: 404 });
+    await expect(recreateCount({ ...scope, branchId: "OTHER" }, String(source._id), { id: "counter" })).rejects.toMatchObject({ statusCode: 404 });
+    await WarehouseModel.updateOne({ _id: warehouseId }, { isActive: false });
+    await expect(recreateCount(scope, String(source._id), { id: "counter" })).rejects.toMatchObject({ statusCode: 409 });
+    await InventoryCountModel.updateOne({ _id: source._id }, { replacementCountId: new mongoose.Types.ObjectId().toString() });
+    await expect(recreateCount(scope, String(source._id), { id: "counter" })).rejects.toMatchObject({ statusCode: 409 });
+    expect(await InventoryCountModel.countDocuments()).toBe(1);
+  });
+  it("requires explicit review and a reason before applying discrepancies", async () => {
+    const count = await seedCount();
+    for (const review of [{}, { expectedVersion: count.version }, { expectedVersion: count.version, discrepancyConfirmed: true }, { expectedVersion: count.version, reason: "reviewed", discrepancyConfirmed: "true" }]) {
+      await expect(approveReviewedCount(scope, String(count._id), { id: "approver" }, review)).rejects.toMatchObject({ statusCode: 400 });
+    }
+    expect((await InventoryBalanceModel.findOne().lean())?.quantity).toBe(10);
+    expect(await InventoryLedgerEntryModel.countDocuments()).toBe(0);
+    const result = await approveReviewedCount(scope, String(count._id), { id: "approver" }, { expectedVersion: count.version, discrepancyConfirmed: true, reason: "Physical quantity verified" });
+    expect(result.approvalReview).toMatchObject({ expectedVersion: count.version, confirmedById: "approver", reason: "Physical quantity verified" });
+  });
+  it("rejects a stale approval without marking the document as stock conflict", async () => {
+    const count = await seedCount();
+    await expect(approveReviewedCount(scope, String(count._id), { id: "approver" }, { expectedVersion: count.version + 1, discrepancyConfirmed: true, reason: "reviewed" })).rejects.toMatchObject({ statusCode: 409 });
+    expect((await InventoryCountModel.findById(count._id).lean())?.status).toBe("pending_approval");
+    expect(await InventoryLedgerEntryModel.countDocuments()).toBe(0);
+  });
+  it("requires an exact reasoned disposition for every unexpected scan", async () => {
+    const count: any = await seedCount(0);
+    count.unexpectedScans = [{ code: "EXTRA", reason: "unknown", scannedAt: new Date() }]; await count.save();
+    for (const unexpectedScanResolutions of [[], [{ code: "WRONG", reason: "checked" }], [{ code: "EXTRA", reason: "" }], [{ code: "EXTRA", reason: "checked" }, { code: "EXTRA", reason: "again" }]]) {
+      await expect(approveReviewedCount(scope, String(count._id), { id: "approver" }, { expectedVersion: count.version, unexpectedScanResolutions })).rejects.toMatchObject({ statusCode: 400 });
+    }
+    const result = await approveReviewedCount(scope, String(count._id), { id: "approver" }, { expectedVersion: count.version, unexpectedScanResolutions: [{ code: "EXTRA", reason: "Customer-owned equipment, excluded from warehouse" }] });
+    expect(result.approvalReview?.unexpectedScanResolutions).toEqual([{ code: "EXTRA", reason: "Customer-owned equipment, excluded from warehouse" }]);
+    expect((await InventoryBalanceModel.findOne().lean())?.quantity).toBe(10);
+  });
+  async function missingMachineCount() {
+    const count: any = await scanningCount();
+    await InventoryBalanceModel.updateOne({ variantId }, { quantity: 2 });
+    count.status = "pending_approval"; count.items[0].systemQuantity = 2;
+    count.items[0].countedQuantity = 1; count.items[0].quantityDelta = -1;
+    count.items[0].scannedUnitIds = [count.items[0].expectedUnits[0].serialUnitId];
+    await count.save(); return count;
+  }
+  it("records confirmed missing machines with their count reference atomically", async () => {
+    const count = await missingMachineCount();
+    await approveCount(scope, String(count._id), { id: "approver" });
+    expect((await SerialUnitModel.findOne({ serialNumber: "B" }).lean())).toMatchObject({ status: "lost", currentDocumentType: "inventory-count", currentDocumentId: String(count._id), updatedBy: "approver" });
+    expect((await InventoryBalanceModel.findOne().lean())?.quantity).toBe(1);
+    expect(await SerialEventModel.countDocuments({ eventType: "count_lost" })).toBe(1);
+  });
+  it("rolls back stock and approval when a missing machine moved outside the counted warehouse", async () => {
+    const count = await missingMachineCount();
+    await SerialUnitModel.updateOne({ serialNumber: "B" }, { warehouseId: new mongoose.Types.ObjectId().toString() });
+    await expect(approveCount(scope, String(count._id), { id: "approver" })).rejects.toMatchObject({ statusCode: 409 });
+    expect((await InventoryBalanceModel.findOne().lean())?.quantity).toBe(2);
+    expect(await InventoryLedgerEntryModel.countDocuments()).toBe(0);
+    const saved = await InventoryCountModel.findById(count._id).lean();
+    expect(saved?.approvalReview).toBeUndefined();
+    expect(saved?.status).toBe("pending_approval");
+  });
+  it("rejects inconsistent tracked counts even after a user confirms them", async () => {
+    const count = await missingMachineCount();
+    await InventoryCountModel.updateOne({ _id: count._id }, { "items.0.countedQuantity": 0, "items.0.quantityDelta": -2 });
+    await expect(approveCount(scope, String(count._id), { id: "approver" })).rejects.toMatchObject({ statusCode: 409 });
+    expect(await InventoryLedgerEntryModel.countDocuments()).toBe(0);
   });
 });

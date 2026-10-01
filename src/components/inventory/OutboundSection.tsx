@@ -101,27 +101,27 @@ export function OutboundSection({
     const typedLog = log as any;
     const items = typedLog.items && typedLog.items.length > 0
       ? typedLog.items.map((i: any) => ({
-          productId: i.productId,
-          variantId: i.variantId,
-          sku: i.sku || log.sku,
-          productName: i.productName || log.productName,
-          displayName: i.displayName,
-          quantity: Number(i.quantity) || 1,
-          unitPrice: i.unitPrice,
-          lineTotal: i.lineTotal,
-          unitCost: i.unitCost,
-          unitIdentifiers: i.unitIdentifiers || [],
-          serialNumbers: i.serialNumbers || [],
-        }))
+        productId: i.productId,
+        variantId: i.variantId,
+        sku: i.sku || log.sku,
+        productName: i.productName || log.productName,
+        displayName: i.displayName,
+        quantity: Number(i.quantity) || 1,
+        unitPrice: i.unitPrice,
+        lineTotal: i.lineTotal,
+        unitCost: i.unitCost,
+        unitIdentifiers: i.unitIdentifiers || [],
+        serialNumbers: i.serialNumbers || [],
+      }))
       : [
-          {
-            sku: log.sku,
-            productName: log.productName,
-            quantity: Number(log.quantity) || 1,
-            unitIdentifiers: typedLog.unitIdentifiers || [],
-            serialNumbers: typedLog.serialNumbers || [],
-          },
-        ];
+        {
+          sku: log.sku,
+          productName: log.productName,
+          quantity: Number(log.quantity) || 1,
+          unitIdentifiers: typedLog.unitIdentifiers || [],
+          serialNumbers: typedLog.serialNumbers || [],
+        },
+      ];
 
     return {
       id: log.id,
@@ -350,14 +350,11 @@ export function OutboundSection({
 
   return (
     <div className="space-y-6">
-      
+
       {/* 1. Header Section */}
       <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h3 className="text-base font-bold text-slate-900">Xuất hàng</h3>
-          <p className="mt-1 text-sm text-slate-500">
-            Khai báo và lập phiếu xuất kho bán lẻ, luân chuyển hoặc bảo hành kèm danh sách IMEI chi tiết.
-          </p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -509,20 +506,20 @@ export function OutboundSection({
             selectedWarehouseFilter !== "all" ||
             selectedPurposeFilter !== "all" ||
             selectedStatusFilter !== "all") && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery("");
-                setSelectedWarehouseFilter("all");
-                setSelectedPurposeFilter("all");
-                setSelectedStatusFilter("all");
-                setPage(1);
-              }}
-              className="text-cyan-700 hover:text-cyan-900 font-semibold"
-            >
-              Đặt lại bộ lọc
-            </button>
-          )}
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedWarehouseFilter("all");
+                  setSelectedPurposeFilter("all");
+                  setSelectedStatusFilter("all");
+                  setPage(1);
+                }}
+                className="text-cyan-700 hover:text-cyan-900 font-semibold"
+              >
+                Đặt lại bộ lọc
+              </button>
+            )}
         </div>
       </div>
 
