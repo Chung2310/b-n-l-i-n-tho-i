@@ -1,9 +1,11 @@
 import React, { useMemo, useState, useEffect } from "react";
+import { Printer } from "lucide-react";
 import { toast } from "../../../pages/Toast";
 import type { GoodsReceipt, Supplier, Warehouse } from "../../../services/inventoryReceivingService";
 import { inventoryReceivingService } from "../../../services/inventoryReceivingService";
 import { productCatalogService, type CatalogProductDetail } from "../../../services/productCatalogService";
 import { printReceiptVoucher } from "./printReceiptVoucher";
+import { printDeviceBarcodeLabels, type DeviceBarcodeLabel } from "./printDeviceBarcodeLabels";
 
 interface ReceiptDetailModalProps {
   receipt: GoodsReceipt;
@@ -72,22 +74,34 @@ export function ReceiptDetailModal({
   }, [receipt.items]);
 
   const allSerialsList = useMemo(() => {
-    const list: Array<{ sku: string; productName: string; serial: string; internalBarcode?: string }> = [];
+    const list: Array<DeviceBarcodeLabel> = [];
     receipt.items.forEach((item) => {
       const serials = item.serialNumbers || [];
-      serials.forEach((sn, idx) => {
-        if (sn && sn.trim()) {
-          list.push({
-            sku: item.sku,
-            productName: item.productName,
-            serial: sn.trim(),
-            internalBarcode: item.unitDetails?.[idx]?.internalBarcode,
-          });
-        }
-      });
+      const details = item.unitDetails || [];
+      const count = Math.max(serials.length, details.length);
+      for (let idx = 0; idx < count; idx += 1) {
+        const unit = details[idx] || {};
+        const label = {
+          sku: item.sku,
+          productName: item.productName,
+          internalBarcode: unit.internalBarcode || "",
+          serialNumber: unit.serialNumber || serials[idx] || undefined,
+          imei1: unit.imei1,
+          imei2: unit.imei2,
+        };
+        if (label.internalBarcode || label.serialNumber || label.imei1 || label.imei2) list.push(label);
+      }
     });
     return list;
   }, [receipt.items]);
+
+  const handlePrintUnitLabels = () => {
+    try {
+      printDeviceBarcodeLabels(allSerialsList.filter((unit) => unit.internalBarcode));
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Không thể mở trang in tem mã vạch.");
+    }
+  };
 
   // Copy helper
   const copyToClipboard = (text: string, key: string, label: string) => {
@@ -100,11 +114,11 @@ export function ReceiptDetailModal({
   // Copy all IMEIs in this receipt
   const handleCopyAllImeis = () => {
     if (allSerialsList.length === 0) {
-      toast.info("Phiếu nhập này không có mã IMEI nào.");
+      toast.info("Phiếu nhập này chưa có thông tin thiết bị.");
       return;
     }
-    const content = allSerialsList.map((s) => `${s.sku}\t${s.serial}${s.internalBarcode ? `\t${s.internalBarcode}` : ""}`).join("\n");
-    copyToClipboard(content, "all-imeis", `${allSerialsList.length} mã IMEI`);
+    const content = allSerialsList.map((unit) => [unit.sku, unit.internalBarcode, unit.serialNumber, unit.imei1, unit.imei2].filter(Boolean).join("\t")).join("\n");
+    copyToClipboard(content, "all-imeis", `${allSerialsList.length} dòng thiết bị`);
   };
 
   // Print receipt via isolated iframe
@@ -172,7 +186,16 @@ export function ReceiptDetailModal({
                 onClick={handleCopyAllImeis}
                 className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
               >
-                {copiedKey === "all-imeis" ? "Đã chép toàn bộ IMEI" : `Sao chép ${allSerialsList.length} IMEI`}
+                {copiedKey === "all-imeis" ? "Đã chép thiết bị" : `Sao chép ${allSerialsList.length} máy`}
+              </button>
+            )}
+            {receipt.status === "confirmed" && allSerialsList.some((unit) => unit.internalBarcode) && (
+              <button
+                type="button"
+                onClick={handlePrintUnitLabels}
+                className="inline-flex items-center gap-1.5 rounded border border-violet-700 bg-violet-700 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-violet-800 transition-colors shadow-sm"
+              >
+                <Printer className="h-3.5 w-3.5" /> In tem mã vạch
               </button>
             )}
             <button
@@ -270,7 +293,7 @@ export function ReceiptDetailModal({
               <div>
                 <span className="text-slate-500 font-medium">Tổng số IMEI:</span>{" "}
                 <strong className={`text-sm font-bold ${allSerialsList.length === totalQuantity ? "text-emerald-700" : "text-amber-700"}`}>
-                  {allSerialsList.length} / {totalQuantity} IMEI
+                  {allSerialsList.length} / {totalQuantity} máy có định danh
                 </strong>
               </div>
             </div>
@@ -283,12 +306,12 @@ export function ReceiptDetailModal({
             </div>
           </div>
 
-          {/* Search IMEI filter inside receipt */}
+          {/* Search device identifiers inside receipt */}
           {allSerialsList.length > 0 && (
             <div className="flex items-center gap-3 print:hidden">
               <input
                 type="text"
-                placeholder="Tra cứu nhanh IMEI trong phiếu này (VD: 35789...)..."
+                placeholder="Tìm serial, IMEI hoặc barcode trong phiếu..."
                 value={searchImeiQuery}
                 onChange={(e) => setSearchImeiQuery(e.target.value)}
                 className="w-full max-w-md rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600 shadow-sm"
@@ -304,7 +327,7 @@ export function ReceiptDetailModal({
               )}
               {searchImeiQuery && (
                 <span className="text-xs font-semibold text-cyan-800">
-                  Khớp {allSerialsList.filter((s) => s.serial.toLowerCase().includes(searchImeiQuery.toLowerCase())).length} IMEI
+                  Khớp {allSerialsList.filter((unit) => [unit.internalBarcode, unit.serialNumber, unit.imei1, unit.imei2].some((value) => value?.toLowerCase().includes(searchImeiQuery.toLowerCase()))).length} máy
                 </span>
               )}
             </div>
@@ -328,8 +351,11 @@ export function ReceiptDetailModal({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {receipt.items.map((item, index) => {
-                  const serials = (item.serialNumbers || []).filter((s) => s && s.trim());
-                  const hasSerials = serials.length > 0;
+                  const details = item.unitDetails || [];
+                  const serials = details.length
+                    ? Array.from({ length: Math.max(details.length, item.serialNumbers?.length || 0) }, (_, unitIndex) => details[unitIndex]?.serialNumber || item.serialNumbers?.[unitIndex] || "")
+                    : (item.serialNumbers || []).filter((s) => s && s.trim());
+                  const hasSerials = details.length > 0 || serials.length > 0;
                   const isExpanded = Boolean(expandedImeiIndex[index]);
                   const detail = productDetails[item.productId];
                   const variant = detail?.variants.find((v) => v._id === item.variantId || v.sku === item.sku);
@@ -337,7 +363,7 @@ export function ReceiptDetailModal({
 
                   // Check if this item matches search
                   const q = searchImeiQuery.trim().toLowerCase();
-                  const matchesSearch = !q || serials.some((s) => s.toLowerCase().includes(q)) || item.sku.toLowerCase().includes(q) || item.productName.toLowerCase().includes(q);
+                  const matchesSearch = !q || details.some((unit) => [unit.internalBarcode, unit.serialNumber, unit.imei1, unit.imei2].some((value) => value?.toLowerCase().includes(q))) || serials.some((s) => s.toLowerCase().includes(q)) || item.sku.toLowerCase().includes(q) || item.productName.toLowerCase().includes(q);
 
                   if (q && !matchesSearch) return null;
 
@@ -402,7 +428,7 @@ export function ReceiptDetailModal({
                                   : "bg-rose-50 border-rose-200 text-rose-700"
                               }`}
                             >
-                              {hasSerials ? `${serials.length} IMEI ${isExpanded ? "▲" : "▼"}` : "Thiếu IMEI"}
+                              {hasSerials ? `${Math.max(details.length, serials.length)} máy ${isExpanded ? "▲" : "▼"}` : "Chưa có chi tiết máy"}
                             </button>
                           ) : (
                             <span className="text-slate-400 text-[11px]">—</span>
@@ -418,7 +444,7 @@ export function ReceiptDetailModal({
                               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
                                 <div className="flex items-center gap-2">
                                   <span className="font-semibold text-slate-800 text-xs">
-                                    Danh sách {serials.length} IMEI của SKU {item.sku}:
+                                    Danh sách {Math.max(details.length, serials.length)} máy của SKU {item.sku}:
                                   </span>
                                   <span className="text-[11px] text-slate-400">
                                     (Click vào mã bất kỳ để sao chép)
@@ -428,9 +454,9 @@ export function ReceiptDetailModal({
                                   type="button"
                                   onClick={() =>
                                     copyToClipboard(
-                                      serials.join("\n"),
+                                      details.map((unit, unitIndex) => [unit.serialNumber || serials[unitIndex], unit.imei1, unit.imei2, unit.internalBarcode].filter(Boolean).join("\t")).join("\n"),
                                       `sku-imei-${index}`,
-                                      `${serials.length} IMEI của SKU ${item.sku}`
+                                      `${Math.max(details.length, serials.length)} máy của SKU ${item.sku}`
                                     )
                                   }
                                   className="text-xs font-semibold text-cyan-700 hover:text-cyan-900 hover:underline"
@@ -442,13 +468,13 @@ export function ReceiptDetailModal({
                               {/* Monospace chips grid */}
                               <div className="grid gap-1.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 max-h-48 overflow-y-auto pt-1">
                                 {serials.map((sn, sIdx) => {
-                                  const internalBarcode = item.unitDetails?.[sIdx]?.internalBarcode;
-                                  const isMatched = q && sn.toLowerCase().includes(q);
+                                    const unit = details[sIdx] || {};
+                                    const isMatched = q && [sn, unit.internalBarcode, unit.imei1, unit.imei2].some((value) => value?.toLowerCase().includes(q));
 
                                   return (
                                     <div
                                       key={sIdx}
-                                      onClick={() => copyToClipboard(sn, `sn-${index}-${sIdx}`, `IMEI ${sn}`)}
+                                      onClick={() => copyToClipboard([sn, unit.imei1, unit.imei2, unit.internalBarcode].filter(Boolean).join("\t"), `sn-${index}-${sIdx}`, `thông tin máy ${sn}`)}
                                       className={`flex items-center justify-between rounded px-2.5 py-1 border font-mono text-[11px] cursor-pointer transition-colors shadow-2xs ${
                                         isMatched
                                           ? "bg-amber-100 border-amber-300 text-amber-900 font-bold"
@@ -458,13 +484,14 @@ export function ReceiptDetailModal({
                                     >
                                       <span className="truncate">
                                         <span className="text-slate-400 font-sans mr-1">#{sIdx + 1}</span>
-                                        {sn}
+                                        {sn || unit.imei1 || unit.imei2 || unit.internalBarcode}
                                       </span>
-                                      {internalBarcode && (
-                                        <span className="text-[9px] font-sans text-slate-400 font-medium ml-1 truncate max-w-[80px]" title={`Mã NB: ${internalBarcode}`}>
-                                          NB: {internalBarcode}
+                                      {unit.internalBarcode && (
+                                        <span className="text-[9px] font-sans text-slate-400 font-medium ml-1 truncate max-w-[80px]" title={`Barcode: ${unit.internalBarcode}`}>
+                                          BC: {unit.internalBarcode}
                                         </span>
                                       )}
+                                      {(unit.imei1 || unit.imei2) && <span className="ml-1 truncate text-[9px] text-slate-400">{[unit.imei1 && `I1 ${unit.imei1}`, unit.imei2 && `I2 ${unit.imei2}`].filter(Boolean).join(" · ")}</span>}
                                     </div>
                                   );
                                 })}

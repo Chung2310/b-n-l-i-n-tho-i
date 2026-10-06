@@ -62,7 +62,11 @@ async function restoreSerials(scope: RetailBranchScope, order: any, doc: any, ac
   if (!tracked) return;
   const source = await loadRetailStockSource(scope, String(order._id), order.items, session);
   for (const item of doc.items) {
-    const ids = item.trackingMode === "serial" ? (item.serialNumbers || []).map((v: string) => ({ normalizedSerialNumber: normalizeSerialNumber(v) })) : item.trackingMode === "unit_barcode" ? (item.internalBarcodes || []).map((v: string) => ({ normalizedInternalBarcode: normalizeInternalBarcode(v) })) : [];
+    const ids = item.trackingMode === "serial"
+      ? (item.serialNumbers || []).map((v: string) => ({ normalizedSerialNumber: normalizeSerialNumber(v) }))
+      : item.trackingMode === "unit_barcode"
+        ? (item.internalBarcodes || []).map((v: string) => ({ $or: [{ normalizedInternalBarcode: normalizeInternalBarcode(v) }, { normalizedBarcodeAliases: normalizeInternalBarcode(v) }] }))
+        : [];
     for (const identifier of ids) {
       const entry = source.entries[item.orderLineIndex];
       const filter = { ...scope, ...identifier, warehouseId: source.warehouseId, productId: entry.productId,
@@ -75,7 +79,7 @@ async function restoreSerials(scope: RetailBranchScope, order: any, doc: any, ac
         || event.toStatus !== "sold" || event.documentType !== "retail-order" || event.documentId !== String(order._id)) conflict();
       // Optional barcode selection must describe these same serial units, not other units on the line.
       if (item.trackingMode === "serial" && item.internalBarcodes?.length
-        && (item.internalBarcodes.length !== item.quantity || !item.internalBarcodes.includes(unit.normalizedInternalBarcode))) conflict();
+        && (item.internalBarcodes.length !== item.quantity || !item.internalBarcodes.some((code: string) => [unit.normalizedInternalBarcode, ...(unit.normalizedBarcodeAliases || [])].includes(normalizeInternalBarcode(code))))) conflict();
       const serial: any = await SerialUnitModel.findOneAndUpdate(
         { ...filter, _id: unit._id },
         { $set: { status: "in_stock", warehouseId, currentDocumentType: "goods-receipt", currentDocumentId: String(doc.receiptId), updatedBy: actorId(actor) }, $unset: { customerId: 1, customerWarranty: 1, soldAt: 1, soldOrderId: 1, soldOrderCode: 1, soldInvoiceId: 1, soldBranchId: 1 } },

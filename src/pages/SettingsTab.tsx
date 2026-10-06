@@ -8,6 +8,7 @@ import {
   Shield,
   ChevronLeft,
   ChevronRight,
+  Printer,
 } from "lucide-react";
 import { toast } from "./Toast";
 import { useSubTabRouter } from "../hooks/useSubTabRouter";
@@ -17,6 +18,7 @@ import { SETTINGS_SUB_TAB_ROUTES, type SettingsSubTabType } from "../router/subT
 const ProfileTab = lazy(() => import("../components/settings/ProfileTab"));
 const SecurityTab = lazy(() => import("../components/settings/SecurityTab"));
 const ErpConfigTab = lazy(() => import("../components/settings/ErpConfigTab"));
+const DeviceLabelPrintSettingsTab = lazy(() => import("../components/settings/DeviceLabelPrintSettingsTab"));
 
 
 export default function SettingsTab() {
@@ -131,6 +133,7 @@ export default function SettingsTab() {
               { id: "profile", label: "Hồ sơ cá nhân", icon: User },
               { id: "security", label: "Bảo mật", icon: Shield },
               { id: "erp", label: "Cấu hình ERP", icon: Sliders },
+              { id: "labels", label: "In tem mã vạch", icon: Printer },
 
             ].map((tab) => {
               const isActive = activeSubTab === tab.id;
@@ -224,6 +227,7 @@ export default function SettingsTab() {
             {activeSubTab === "profile" && <ProfileTab />}
             {activeSubTab === "security" && <SecurityTab />}
             {activeSubTab === "erp" && <ErpConfigTab />}
+            {activeSubTab === "labels" && <DeviceLabelPrintSettingsTab />}
 
           </Suspense>
         </div>

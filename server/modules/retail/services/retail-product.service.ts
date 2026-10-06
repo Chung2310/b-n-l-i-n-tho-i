@@ -59,7 +59,7 @@ export const RetailProductService = {
           companyCode: scope.companyCode,
           branchId: scope.branchId,
           status: "in_stock",
-          $or: [{ normalizedSerialNumber: barcode.toUpperCase() }, { normalizedInternalBarcode: barcode.toUpperCase() }],
+          $or: [{ normalizedSerialNumber: barcode.toUpperCase() }, { normalizedInternalBarcode: barcode.toUpperCase() }, { normalizedBarcodeAliases: barcode.toUpperCase() }, { normalizedImeis: barcode.toUpperCase() }],
         }).lean()
       : null;
     const productIdsByName = q && !barcode

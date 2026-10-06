@@ -14,8 +14,14 @@ export interface ISerialUnit {
   productName: string;
   internalBarcode: string;
   normalizedInternalBarcode: string;
+  globalBarcodeKey?: string;
+  barcodeAliases?: string[];
+  normalizedBarcodeAliases?: string[];
   serialNumber: string;
   normalizedSerialNumber: string;
+  imei1?: string;
+  imei2?: string;
+  normalizedImeis?: string[];
   status: SerialUnitStatus;
   internalUse?: { recipientName: string; issuedAt: Date; stockLogId: string; unitCost: number };
   currentDocumentType?: string;
