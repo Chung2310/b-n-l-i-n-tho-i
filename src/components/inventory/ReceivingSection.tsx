@@ -478,6 +478,7 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
             <label className="block text-sm font-medium text-slate-700 mb-1.5">Nhà cung cấp</label>
             <Dropdown<string>
               aria-label="Nhà cung cấp"
+              name="supplierId"
               value={supplierId}
               onChange={setSupplierId}
               options={supplierOptions}
