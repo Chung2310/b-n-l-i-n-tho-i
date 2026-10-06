@@ -235,7 +235,7 @@ async function scanCountUnitOnce(scope: Scope, countId: string, rawCode: unknown
 
   const unit: any = await SerialUnitModel.findOne({
     companyCode: normalizedCompany(scope.companyCode),
-    $or: [{ normalizedSerialNumber: normalizeSerialNumber(value) }, { normalizedInternalBarcode: normalizeInternalBarcode(value) }],
+    $or: [{ normalizedSerialNumber: normalizeSerialNumber(value) }, { normalizedInternalBarcode: normalizeInternalBarcode(value) }, { normalizedBarcodeAliases: normalizeInternalBarcode(value) }, { normalizedImeis: normalizeInternalBarcode(value) }],
   }).lean();
 
   const recordUnexpected = async (reason: "other_warehouse" | "sold" | "unknown" | "wrong_status") => {

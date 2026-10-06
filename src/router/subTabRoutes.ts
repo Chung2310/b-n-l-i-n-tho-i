@@ -10,6 +10,7 @@ export type SettingsSubTabType =
   | "profile"
   | "security"
   | "erp"
+  | "labels"
   | "face-recognition"
   | "branches";
 
@@ -57,6 +58,7 @@ export const SETTINGS_SUB_TAB_ROUTES: SubTabRouteMap<SettingsSubTabType> = [
   { slug: "ho-so", value: "profile" },
   { slug: "bao-mat", value: "security" },
   { slug: "cau-hinh", value: "erp" },
+  { slug: "tem-ma-vach", value: "labels" },
   { slug: "nhan-dien-khuon-mat", value: "face-recognition" },
   { slug: "chi-nhanh", value: "branches" },
 ];

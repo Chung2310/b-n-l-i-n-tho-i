@@ -120,7 +120,8 @@ export async function reconcileInventory(db: mongo.Db, session: mongo.ClientSess
     if (unit.status === "internal_use") {
       const log = await reference("logs", unit.internalUse?.stockLogId);
       if (!log || log.branchId !== unit.branchId || log.warehouseId !== unit.warehouseId || log.purpose !== "nội bộ" || !["Hoàn thành", "Thành công"].includes(log.status) || log.reversalId || unit.currentDocumentId !== id(log._id) || unit.currentDocumentType !== "manual-stock-log" || !unit.internalUse?.recipientName || unit.internalUse.recipientName !== String(log.customerName || "").trim()) await finding("INTERNAL_USE_MISMATCH", "error", unit, "Máy sử dụng nội bộ không khớp lần cấp phát hiện hành.");
-      const line = log?.items?.find((item: any) => item.productId === unit.productId && item.variantId === unit.variantId && [...(item.unitIdentifiers || []), ...(item.serialNumbers || [])].some((code: string) => [unit.normalizedSerialNumber, unit.normalizedInternalBarcode].includes(String(code).trim().toUpperCase())));
+      const knownIdentifiers = [unit.normalizedSerialNumber, unit.normalizedInternalBarcode, ...(unit.normalizedBarcodeAliases || [])];
+      const line = log?.items?.find((item: any) => item.productId === unit.productId && item.variantId === unit.variantId && [...(item.unitIdentifiers || []), ...(item.serialNumbers || [])].some((code: string) => knownIdentifiers.includes(String(code).trim().toUpperCase())));
       if (!line || !Number.isFinite(unit.internalUse?.unitCost) || unit.internalUse.unitCost < 0 || !same(line.unitCost, unit.internalUse.unitCost, 0.01)) await finding("INTERNAL_USE_VALUE_MISMATCH", "error", unit, "Định danh/giá vốn cấp phát không khớp dòng phiếu gốc.");
     } else if (unit.internalUse) await finding("STALE_INTERNAL_USE", "error", unit, "Thông tin cấp phát còn lưu khi máy không ở trạng thái nội bộ.");
   }
@@ -137,7 +138,7 @@ export async function reconcileInventory(db: mongo.Db, session: mongo.ClientSess
       const codes: string[] = line.unitDetails?.length ? line.unitDetails.map((unit: any) => id(unit.internalBarcode).trim().toUpperCase()) : (line.serialNumbers || []).map((code: string) => code.trim().toUpperCase());
       if (codes.length !== line.quantity || new Set(codes).size !== codes.length) { await finding("RECEIPT_IDENTIFIERS_MISSING", "error", { ...receipt, ...line }, "Phiếu nhập xác nhận thiếu/trùng định danh máy."); continue; }
       for (const code of codes) {
-        const unit = await find("units", { companyCode: scope.companyCode, productId: line.productId, variantId: line.variantId, $or: [{ normalizedInternalBarcode: code }, { normalizedSerialNumber: code }] });
+        const unit = await find("units", { companyCode: scope.companyCode, productId: line.productId, variantId: line.variantId, $or: [{ normalizedInternalBarcode: code }, { normalizedBarcodeAliases: code }, { normalizedSerialNumber: code }, { normalizedImeis: code }] });
         const event = unit && await find("events", { companyCode: scope.companyCode, serialUnitId: id(unit._id), documentType: "goods-receipt", documentId: id(receipt._id), toStatus: "in_stock" });
         if (!unit || !event) await finding("RECEIPT_SERIAL_EVIDENCE_MISSING", "review", { ...receipt, ...line }, "Không đủ máy/sự kiện gắn phiếu nhập; cần kiểm tra lịch sử và backfill.", { identifier: code });
       }

@@ -38,11 +38,13 @@ export async function claimSerialsForOrder(scope: RetailBranchScope, items: Arra
     const variant: any = item.variantId ? await ProductVariantModel.findOne({ _id: item.variantId, companyCode: scope.companyCode }).session(session).lean() : null;
     const product: any = variant?.productId ? await ProductCatalogModel.findOne({ _id: variant.productId, companyCode: scope.companyCode }).select("warrantyMonths").session(session).lean() : null;
     const customerMonths = resolveCustomerWarrantyMonths(product?.warrantyMonths, variant?.warrantyMonths);
-    const identifiers = item.trackingMode === "serial" ? serialNumbers.map((value) => ({ value, field: "normalizedSerialNumber" as const, normalized: normalizeSerialNumber(value) })) : internalBarcodes.map((value) => ({ value, field: "normalizedInternalBarcode" as const, normalized: normalizeInternalBarcode(value) }));
+    const identifiers = item.trackingMode === "serial"
+      ? serialNumbers.map((value) => ({ value, normalized: normalizeSerialNumber(value), filter: { normalizedSerialNumber: normalizeSerialNumber(value) } }))
+      : internalBarcodes.map((value) => ({ value, normalized: normalizeInternalBarcode(value), filter: { $or: [{ normalizedInternalBarcode: normalizeInternalBarcode(value) }, { normalizedBarcodeAliases: normalizeInternalBarcode(value) }] } }));
     for (const identifier of identifiers) {
       const serialProductId = variant ? String(variant.productId) : item.productId;
       const claimed = await SerialUnitModel.findOneAndUpdate(
-        { companyCode: scope.companyCode, branchId: scope.branchId, warehouseId: String(defaultWarehouse._id), productId: serialProductId, ...(item.variantId ? { variantId: item.variantId } : {}), [identifier.field]: identifier.normalized, status: "in_stock" },
+        { companyCode: scope.companyCode, branchId: scope.branchId, warehouseId: String(defaultWarehouse._id), productId: serialProductId, ...(item.variantId ? { variantId: item.variantId } : {}), ...identifier.filter, status: "in_stock" },
         { $set: { status: "sold", currentDocumentType: "retail-order", currentDocumentId: orderId, customerId, updatedBy: actorId, soldAt, soldOrderId: orderId, soldOrderCode: orderCode, soldBranchId: scope.branchId, ...(customerMonths > 0 ? { customerWarranty: { months: customerMonths, startAt: soldAt, endAt: computeWarrantyEnd(soldAt, customerMonths), source: "variant" } } : {}) } },
         { returnDocument: 'after', session },
       );
@@ -72,7 +74,9 @@ export async function releaseSerialsForOrder(scope: RetailBranchScope, orderId: 
     const entry = source.entries[index];
     const lineCodes = new Set<string>();
     for (const identifier of identifiers) {
-      const matches = serials.filter((unit) => (item.trackingMode === "serial" ? unit.normalizedSerialNumber : unit.normalizedInternalBarcode) === identifier);
+      const matches = serials.filter((unit) => item.trackingMode === "serial"
+        ? unit.normalizedSerialNumber === identifier
+        : unit.normalizedInternalBarcode === identifier || unit.normalizedBarcodeAliases?.includes(identifier));
       if (matches.length !== 1) conflict();
       const unit = matches[0], unitId = String(unit._id);
       if (selected.has(unitId) || unit.branchId !== scope.branchId || unit.warehouseId !== source.warehouseId
@@ -82,6 +86,7 @@ export async function releaseSerialsForOrder(scope: RetailBranchScope, orderId: 
       const lastEvent = await SerialEventModel.findOne({ companyCode: scope.companyCode, serialUnitId: unitId }).sort({ occurredAt: -1, _id: -1 }).session(session).lean();
       if (!lastEvent || lastEvent.branchId !== scope.branchId || lastEvent.eventType !== "sold" || lastEvent.fromStatus !== "in_stock" || lastEvent.toStatus !== "sold" || lastEvent.documentType !== "retail-order" || lastEvent.documentId !== orderId) conflict();
       lineCodes.add(unit.normalizedInternalBarcode);
+      for (const alias of unit.normalizedBarcodeAliases || []) lineCodes.add(alias);
       selected.set(unitId, unit);
     }
     if (item.trackingMode === "serial" && item.internalBarcodes?.length) {

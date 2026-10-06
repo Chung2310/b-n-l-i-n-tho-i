@@ -9,7 +9,7 @@ import { getCustomerContact } from "../customer-management/contracts";
 
 export async function lookupSoldDevice(scope: RetailScope, code: string, at = new Date()) {
   const normalized = String(code || "").trim().toUpperCase();
-  const unit: any = await SerialUnitModel.findOne({ companyCode: scope.companyCode, status: "sold", $or: [{ normalizedSerialNumber: normalized }, { normalizedInternalBarcode: normalized }] }).lean();
+  const unit: any = await SerialUnitModel.findOne({ companyCode: scope.companyCode, status: "sold", $or: [{ normalizedSerialNumber: normalized }, { normalizedInternalBarcode: normalized }, { normalizedBarcodeAliases: normalized }, { normalizedImeis: normalized }] }).lean();
   if (!unit) return { found: false as const };
   const customer = unit.customerId ? await getCustomerContact({ companyCode: scope.companyCode }, String(unit.customerId), { includeInactive: true }).catch(() => null) : null;
   const isHex = (id?: unknown) => typeof id === "string" && /^[0-9a-fA-F]{24}$/.test(id.trim());

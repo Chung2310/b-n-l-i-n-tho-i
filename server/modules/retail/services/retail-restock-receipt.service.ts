@@ -33,10 +33,10 @@ export async function createRetailRestockReceipt(scope: RetailBranchScope, input
     const units = item.trackingMode === "serial" || item.trackingMode === "unit_barcode"
       ? await SerialUnitModel.find({ ...scope, soldOrderId: String(input.order._id), ...(item.trackingMode === "serial"
         ? { normalizedSerialNumber: { $in: item.serialNumbers } }
-        : { normalizedInternalBarcode: { $in: item.internalBarcodes } }) }).session(session).lean()
+        : { $or: [{ normalizedInternalBarcode: { $in: item.internalBarcodes } }, { normalizedBarcodeAliases: { $in: item.internalBarcodes } }] }) }).session(session).lean()
       : [];
     items.push({ ...item, lineTotal: item.quantity * item.unitCost,
-      unitDetails: units.map((unit) => ({ internalBarcode: unit.internalBarcode, serialNumber: unit.serialNumber })),
+      unitDetails: units.map((unit) => ({ internalBarcode: unit.internalBarcode, barcodeAliases: unit.barcodeAliases, serialNumber: unit.serialNumber, imei1: unit.imei1, imei2: unit.imei2 })),
     });
   }
   const now = input.receivedAt || new Date();
