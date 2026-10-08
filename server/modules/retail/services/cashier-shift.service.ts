@@ -138,7 +138,7 @@ const actorName = (actor: any) => String(actor.displayName || actor.email || "")
 
 export function summarizeShift(shift: any, orders: any[]) {
   const id = String(shift._id);
-  const sold = orders.filter((order) => order.shiftId === id && order.status !== "cancelled");
+  const sold = orders.filter((order) => order.shiftId === id && order.status !== "cancelled" && order.status !== "draft");
   const methodMap = new Map<string, { method: any; collectedAmount: number; refundedAmount: number }>();
   for (const order of orders) {
     for (const payment of order.payments || []) if (payment.shiftId === id) {
@@ -220,17 +220,18 @@ const movementPayload = (input: any) => JSON.stringify([input.type, Number(input
 
 export async function capturePosSession(shift: any, orders: any[], session: mongoose.ClientSession, at: Date) {
   const id = String(shift._id);
-  if (orders.length) await RetailPosSessionSnapshotModel.insertMany(orders.map((order) => ({
+  const recordedOrders = orders.filter((order) => order.status !== "draft");
+  if (recordedOrders.length) await RetailPosSessionSnapshotModel.insertMany(recordedOrders.map((order) => ({
     companyCode: shift.companyCode, branchId: shift.branchId, shiftId: id, orderId: String(order._id), order,
   })), { session });
-  const sold = orders.filter((order) => String(order.shiftId) === id && order.status !== "cancelled");
+  const sold = recordedOrders.filter((order) => String(order.shiftId) === id && order.status !== "cancelled");
   const products = new Map<string, any>();
   for (const order of sold) for (const item of order.items || []) {
     const key = `${item.productId}:${item.variantId || item.sku}`;
     const row = products.get(key) || { sku: item.sku, name: item.productName, quantity: 0, sales: 0 };
     row.quantity += item.quantity; row.sales += item.lineTotal; products.set(key, row);
   }
-  shift.closingSnapshot = { capturedAt: at, orderCount: orders.length, soldOrderCount: sold.length, products: [...products.values()] };
+  shift.closingSnapshot = { capturedAt: at, orderCount: recordedOrders.length, soldOrderCount: sold.length, products: [...products.values()] };
 }
 
 async function closeAtMidnight(id: string, now: Date) {
@@ -431,14 +432,19 @@ export const CashierShiftService = {
   },
   async list(scope: RetailBranchScope, query: any) {
     const page = Math.max(1, Number(query.page) || 1); const limit = Math.min(100, Math.max(1, Number(query.limit) || 20)); const filter: any = { ...scope };
-    for (const key of ["businessDate", "cashierId", "status"]) if (query[key]) filter[key] = query[key];
+    if (query.from || query.to) filter.businessDate = {
+      ...(query.from ? { $gte: String(query.from) } : {}),
+      ...(query.to ? { $lte: String(query.to) } : {}),
+    };
+    if (query.cashierId) filter.cashierId = String(query.cashierId);
+    if (query.status) filter.status = String(query.status);
     if (query.pendingReconciliation === "true") Object.assign(filter, { status: "closed" });
     const [items, total] = await Promise.all([CashierShiftModel.find(filter).sort({ openedAt: -1 }).skip((page - 1) * limit).limit(limit).lean(), CashierShiftModel.countDocuments(filter)]);
     const openIds = items.filter((item) => item.status === "open").map((item) => String(item._id));
     const liveOrders = openIds.length ? await RetailOrderModel.find({ ...scope, $or: [{ shiftId: { $in: openIds } }, { "payments.shiftId": { $in: openIds } }, { "refunds.shiftId": { $in: openIds } }] }).lean() : [];
     for (const item of items) if (item.status === "open") {
       const id = String(item._id);
-      Object.assign(item, summarizeShift(item, liveOrders), { soldOrderCount: liveOrders.filter((order) => order.shiftId === id && order.status !== "cancelled").length });
+      Object.assign(item, summarizeShift(item, liveOrders), { soldOrderCount: liveOrders.filter((order) => order.shiftId === id && order.status !== "cancelled" && order.status !== "draft").length });
     }
     return { items, total, page, limit };
   },
@@ -447,28 +453,20 @@ export const CashierShiftService = {
     const shift: any = await CashierShiftModel.findOne({ _id: id, ...scope }).lean();
     if (!shift) throw new ConflictError("SHIFT_NOT_FOUND", "Không tìm thấy phiên POS.");
     const page = Math.max(1, Number(query.page) || 1), limit = Math.min(50, Math.max(1, Number(query.limit) || 20));
-    const live: any[] = await RetailOrderModel.find({ ...scope, $or: [{ shiftId: id }, { "payments.shiftId": id }, { "refunds.shiftId": id }] }).sort({ createdAt: -1 }).lean();
+    const allLive: any[] = await RetailOrderModel.find({ ...scope, $or: [{ shiftId: id }, { "payments.shiftId": id }, { "refunds.shiftId": id }] }).sort({ createdAt: -1 }).lean();
+    const live = allLive.filter((order) => order.status !== "draft");
     let orders: any[], total: number;
     if (shift.closingSnapshot) {
-      const rows = await RetailPosSessionSnapshotModel.find({ ...scope, shiftId: id }).sort({ _id: -1 }).skip((page - 1) * limit).limit(limit).lean();
-      orders = rows.map((row) => row.order); total = shift.closingSnapshot.orderCount;
+      const snapshotFilter = { ...scope, shiftId: id, "order.status": { $ne: "draft" } };
+      const [rows, snapshotTotal] = await Promise.all([
+        RetailPosSessionSnapshotModel.find(snapshotFilter).sort({ _id: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+        RetailPosSessionSnapshotModel.countDocuments(snapshotFilter),
+      ]);
+      orders = rows.map((row) => row.order); total = snapshotTotal;
     } else {
       orders = live.slice((page - 1) * limit, page * limit); total = live.length;
       if (shift.status === "open") Object.assign(shift, summarizeShift(shift, live));
     }
-    const evidence = shift.closingSnapshot ? await RetailPosSessionSnapshotModel.aggregate([
-      { $match: { ...scope, shiftId: id } },
-      { $project: { orderId: 1, status: "$order.status", payments: { $size: { $ifNull: ["$order.payments", []] } }, refunds: { $size: { $ifNull: ["$order.refunds", []] } } } },
-    ]) : [];
-    const snapshotCounts = new Map(evidence.map((row: any) => [row.orderId, row]));
-    const closedAt = shift.closedAt ? new Date(shift.closedAt).getTime() : Infinity;
-    const later: any[] = [];
-    for (const order of live) if (order.shiftId === id) {
-      for (const [index, payment] of (order.payments || []).entries()) if (shift.closingSnapshot ? index >= (snapshotCounts.get(String(order._id))?.payments ?? 0) : new Date(payment.recordedAt || payment.paidAt).getTime() > closedAt) later.push({ orderId: String(order._id), orderCode: order.orderCode, type: "payment", method: payment.method, amount: payment.amount, at: payment.paidAt, recordedAt: payment.recordedAt, byName: payment.receivedByName, shiftId: payment.shiftId, needsReview: payment.settlementStatus === "unassigned" });
-      for (const [index, refund] of (order.refunds || []).entries()) if (shift.closingSnapshot ? index >= (snapshotCounts.get(String(order._id))?.refunds ?? 0) : new Date(refund.refundedAt).getTime() > closedAt) later.push({ orderId: String(order._id), orderCode: order.orderCode, type: "refund", method: refund.method, amount: refund.amount, at: refund.refundedAt, byName: refund.refundedByName, shiftId: refund.shiftId });
-      if (order.cancelledAt && (shift.closingSnapshot ? snapshotCounts.get(String(order._id))?.status !== "cancelled" : new Date(order.cancelledAt).getTime() > closedAt)) later.push({ orderId: String(order._id), orderCode: order.orderCode, type: "cancel", amount: order.grandTotal, at: order.cancelledAt, byName: order.cancelledByName });
-    }
-    const adjustmentsPage = Math.max(1, Number(query.adjustmentsPage) || 1);
     // After-sale receipts are immutable. Keep the close boundary when reading
     // them so subsequent receipts cannot change the closed session's history.
     const afterSalesPage = Math.max(1, Number(query.afterSalesPage) || 1);
@@ -483,15 +481,31 @@ export const CashierShiftService = {
       ]),
     ]);
     const sold = live.filter((order) => order.shiftId === id && order.status !== "cancelled");
+    const snapshotOrders = shift.closingSnapshot
+      ? await RetailPosSessionSnapshotModel.find({ ...scope, shiftId: id, "order.status": { $ne: "draft" } }).select("order").lean()
+      : null;
+    const profitOrders = snapshotOrders
+      ? snapshotOrders.map((row: any) => row.order)
+      : shift.closingSnapshot?.orderCount === 0
+        ? []
+        : live;
+    let grossProfit: number | undefined;
+    if (!shift.closingSnapshot || snapshotOrders !== null) {
+      grossProfit = profitOrders
+        .filter((order: any) => String(order.shiftId) === id && order.status !== "cancelled")
+        .reduce((sum: number, order: any) => {
+          const totalCost = Number(order.totalCost ?? (order.items || []).reduce((cost: number, item: any) => cost + Number(item.quantity || 0) * Number(item.unitCost || 0), 0));
+          return sum + Number(order.grandTotal || 0) - Number(order.refundedAmount || 0) - totalCost;
+        }, 0);
+    }
     const products = new Map<string, any>();
     for (const order of sold) for (const item of order.items || []) {
       const key = `${item.productId}:${item.variantId || item.sku}`;
       const row = products.get(key) || { sku: item.sku, name: item.productName, quantity: 0, sales: 0 };
       row.quantity += item.quantity; row.sales += item.lineTotal; products.set(key, row);
     }
-    return { shift, orders, total, page, limit, legacySnapshot: shift.status !== "open" && !shift.closingSnapshot,
+    return { shift, orders, total, page, limit, legacySnapshot: shift.status !== "open" && !shift.closingSnapshot, grossProfit,
       products: shift.closingSnapshot?.products || [...products.values()], soldOrderCount: shift.closingSnapshot?.soldOrderCount ?? sold.length,
-      adjustments: later.slice((adjustmentsPage - 1) * limit, adjustmentsPage * limit), adjustmentsTotal: later.length, adjustmentsPage,
       afterSales, afterSalesTotal, afterSalesPage, buybackMethodTotals };
   },
   async open(scope: RetailBranchScope, input: any, actor: any) {
@@ -530,7 +544,7 @@ export const CashierShiftService = {
   },
   async close(scope: RetailBranchScope, id: string, input: any, actor: any) {
     const manager = await hasEffectiveRetailCapability(actor, "manager");
-    const countedCash = input.countedCash == null && manager ? undefined : Number(input.countedCash);
+    const countedCash = manager && input.countedCash != null ? Number(input.countedCash) : undefined;
     if (countedCash !== undefined && (!Number.isSafeInteger(countedCash) || countedCash < 0)) throw new Error("Tiền thực đếm không hợp lệ.");
     const session = await mongoose.startSession();
     let closed: any = null;
@@ -545,7 +559,7 @@ export const CashierShiftService = {
         await capturePosSession(shift, orders, session, now);
         const varianceAmount = countedCash == null ? undefined : countedCash - totals.expectedCash;
         const settings = await getResolvedRetailSettings(scope);
-        const reason = String(input.varianceReason || "").trim();
+        const reason = manager ? String(input.varianceReason || "").trim() : "";
         if (manager && varianceAmount != null && varianceNeedsReason(varianceAmount, settings.varianceReasonThreshold) && !reason) throw missingVarianceReasonError();
         Object.assign(shift, totals, { countedCash, varianceAmount, varianceReason: reason || undefined, status: "closed", closingMode: "manual", closedAt: now, closedBy: actorId(actor) });
         if (countedCash != null) { shift.countedBy = actorId(actor); shift.countedAt = now; }

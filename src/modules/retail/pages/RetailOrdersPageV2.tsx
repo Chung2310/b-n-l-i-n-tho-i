@@ -224,7 +224,6 @@ export default function RetailOrdersPageV2() {
             onChange={(e) => setStatus(e.target.value)}
           >
             <option value="">Tất cả trạng thái</option>
-            <option value="draft">Đơn treo</option>
             <option value="confirmed">Còn xử lý</option>
             <option value="completed">Hoàn tất</option>
             <option value="cancelled">Đã hủy</option>
@@ -295,7 +294,7 @@ export default function RetailOrdersPageV2() {
                     >
                       <td className="px-4 py-3">
                         <span className="font-mono font-bold text-slate-900 group-hover:text-cyan-700 transition">
-                          {order.orderCode || `Đơn #${order._id.slice(-6)}`}
+                          {order.orderCode || "Đơn hàng"}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -349,7 +348,7 @@ export default function RetailOrdersPageV2() {
                               ? "Đã hủy"
                               : order.status === "confirmed"
                                 ? "Còn xử lý"
-                                : "Đơn treo"}
+                                : "Chờ xử lý"}
                         </span>
                         <AfterSaleBadge order={order} />
                       </td>
@@ -464,7 +463,7 @@ function OrderDialog({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-bold text-slate-900">
-                {order.orderCode || `Đơn #${order._id.slice(-6)}`}
+                {order.orderCode || "Đơn hàng"}
               </h2>
               <span
                 className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${order.status === "completed"

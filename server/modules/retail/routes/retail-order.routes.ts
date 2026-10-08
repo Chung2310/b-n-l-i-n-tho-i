@@ -8,6 +8,7 @@ const manage = requirePermission(RETAIL_MANAGER_PERMISSION) as any;
 const read = requirePermission(["retail:read", RETAIL_MANAGER_PERMISSION]) as any;
 retailOrderRoutes.post("/checkout/reconcile", operate, retailOrderController.reconcileCheckout as any);
 retailOrderRoutes.post("/checkout/revoke", operate, retailOrderController.revokeCheckout as any);
+retailOrderRoutes.post("/checkout", operate, retailOrderController.checkout as any);
 retailOrderRoutes.post("/draft-requests/reconcile", operate, retailOrderController.reconcileDraftRequest as any);
 retailOrderRoutes.post("/draft-requests/revoke", operate, retailOrderController.revokeDraftRequest as any);
 retailOrderRoutes.post("/quote", operate, retailOrderController.quote as any);

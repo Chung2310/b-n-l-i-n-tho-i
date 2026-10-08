@@ -13,6 +13,17 @@ export async function confirmOfflineOrderLocked(scope: OfflineScope, item: Retai
     if (item.companyCode !== scope.companyCode || item.branchId !== scope.branchId || item.userId !== scope.userId) {
       throw new Error("Yêu cầu offline không thuộc tài khoản/chi nhánh hiện tại.");
     }
+    if (!payload?.draftCreation && !payload?.draftUpdate && payload?.draftSaved !== true) {
+      const result = await retailOrdersApi.checkout(scope, {
+        input: payload.input,
+        expectedGrandTotal: payload.expectedGrandTotal,
+        payments: payload.payments,
+        idempotencyKey: item.idempotencyKey,
+        posSessionId: payload.posSessionId,
+      });
+      verifyConfirmation(result);
+      return result;
+    }
     if (payload?.draftSaved !== true && payload?.draftId && payload?.draftUpdate?.idempotencyKey && queue) {
       const request = payload.draftUpdate;
       if (request.orderId !== payload.draftId) throw new Error("Yêu cầu sửa nháp không khớp đơn offline.");

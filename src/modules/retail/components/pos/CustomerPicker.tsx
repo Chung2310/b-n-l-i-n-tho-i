@@ -94,12 +94,12 @@ export default function CustomerPicker({
         <button
           type="button"
           aria-label="Tìm khách hàng"
-          title="Tìm khách hàng thành viên"
+          title="Tìm khách thành viên để tích điểm"
           onClick={() => setIsOpen(true)}
           className="flex items-center gap-2 w-full rounded-xl border border-dashed border-slate-300 hover:border-cyan-500 bg-white hover:bg-slate-50 px-3.5 py-2.5 text-xs text-slate-500 hover:text-cyan-700 transition cursor-pointer shadow-2xs"
         >
           <Search className="h-4 w-4 text-cyan-600 shrink-0" />
-          <span className="truncate">Tìm khách hàng thành viên (tích điểm)...</span>
+          <span className="truncate">Tìm khách thành viên để tích điểm (không bắt buộc)...</span>
         </button>
       </div>
     );
@@ -112,7 +112,7 @@ export default function CustomerPicker({
       aria-label="Tìm khách hàng"
       aria-expanded={items.length > 0}
       className={`w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 ${collapsible || onClose ? "pr-8" : "pr-3"} text-xs sm:text-sm font-medium text-slate-800 placeholder-slate-400 hover:border-slate-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition shadow-2xs`}
-      placeholder="Tìm khách hàng thành viên (tích điểm)..."
+      placeholder="Tìm khách thành viên để tích điểm (không bắt buộc)..."
       value={query}
       onChange={(event) => { setQuery(event.target.value); setSearchCompleted(false); }}
     />

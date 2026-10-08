@@ -2,6 +2,12 @@ import type { RetailScope } from "../types";
 import { ApiClientError } from "../../../services/apiClientError";
 export type DraftCreationRequest = { idempotencyKey: string; input: Record<string, unknown>; editable?: boolean };
 export type DraftUpdateRequest = DraftCreationRequest & { orderId: string };
+export class RetailCheckoutLockBusyError extends Error {
+  constructor() {
+    super("POS đang xử lý giao dịch ở tab khác. Hãy thử lại sau.");
+    this.name = "RetailCheckoutLockBusyError";
+  }
+}
 export const draftRequestStorageKey = (scope: RetailScope, userId: string, orderId?: string) => orderId
   ? `retail-update-draft:v1:${JSON.stringify([scope.companyCode, scope.branchId, userId, orderId])}`
   : `retail-create-draft:v1:${JSON.stringify([scope.companyCode, scope.branchId, userId])}`;
@@ -36,10 +42,12 @@ export async function withDraftRequestLock<T>(scope: RetailScope, userId: string
   if (!scope.companyCode || !scope.branchId || !userId) throw new Error("Thiếu phạm vi tài khoản/chi nhánh tạo đơn.");
   if (!navigator.locks?.request) throw new Error("Không khóa được thao tác giữa các tab. Cần trình duyệt hỗ trợ và kết nối HTTPS.");
   return navigator.locks.request(draftRequestStorageKey(scope, userId) + ":lock", { mode: "exclusive", ifAvailable: true }, async lock => {
-    if (!lock) throw new Error("Đơn nháp đang được xử lý ở tab khác. Chờ rồi thử lại.");
+    if (!lock) throw new RetailCheckoutLockBusyError();
     return work();
   });
 }
+// The POS also uses this same scoped lock to serialize checkout requests.
+export const withRetailCheckoutLock = withDraftRequestLock;
 
 export function prepareDraftCreation(scope: RetailScope, userId: string, input: object, orderId?: string): DraftCreationRequest {
   const saved = readDraftRequest(scope, userId, orderId);

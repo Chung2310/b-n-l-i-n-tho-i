@@ -2,7 +2,6 @@ import React from "react";
 import {
   CreditCard,
   FileText,
-  Pause,
   Search,
   Settings,
   Ticket,
@@ -35,7 +34,6 @@ export interface CartPanelProps {
   busy: boolean;
   canPay: boolean;
   dispatch: React.Dispatch<any>;
-  onHold: () => Promise<void>;
   onPay: () => void;
 }
 
@@ -48,7 +46,6 @@ export function CartPanel({
   busy,
   canPay,
   dispatch,
-  onHold,
   onPay,
 }: CartPanelProps) {
   const [showDiscountModal, setShowDiscountModal] = React.useState(false);
@@ -57,7 +54,7 @@ export function CartPanel({
   const [showInstallmentModal, setShowInstallmentModal] = React.useState(false);
 
   const orderNote = cart.note || "";
-  const [draftNote, setDraftNote] = React.useState("");
+  const [noteEditorValue, setNoteEditorValue] = React.useState("");
   const isInstallment = Boolean(cart.installment);
   const [installmentPartner, setInstallmentPartner] = React.useState("HD Saison");
   const [installmentMonths, setInstallmentMonths] = React.useState(6);
@@ -69,6 +66,7 @@ export function CartPanel({
     <aside className="flex flex-col h-full min-h-0 bg-white border-l border-slate-200 p-4 overflow-hidden text-slate-800 select-none shadow-xs">
       {/* Customer Picker */}
       <div className="space-y-2 shrink-0">
+        <p className="text-[11px] font-medium text-slate-500">Khách thành viên <span className="font-normal text-slate-400">· không bắt buộc, dùng để tích điểm</span></p>
         <CustomerPicker
           scope={scope}
           value={cart.customer}
@@ -259,7 +257,7 @@ export function CartPanel({
           <button
             type="button"
             onClick={() => {
-              setDraftNote(orderNote);
+              setNoteEditorValue(orderNote);
               setShowNoteModal(true);
             }}
             className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition cursor-pointer shadow-2xs ${
@@ -340,8 +338,6 @@ export function CartPanel({
           Thanh toán
         </button>
       </div>
-
-      <button type="button" disabled={busy || !cart.lines.length} onClick={() => void onHold()} className="mt-2 flex shrink-0 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold text-slate-700 disabled:opacity-50"><Pause className="h-4 w-4" />Treo đơn</button>
 
       {/* Discount & Order Adjustments Modal */}
       {showDiscountModal && (
@@ -539,8 +535,8 @@ export function CartPanel({
               <textarea
                 className="w-full h-24 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-800 placeholder-slate-400 focus:border-cyan-500 focus:bg-white focus:outline-none resize-none transition"
                 placeholder="Nhập ghi chú hoặc yêu cầu giao hàng..."
-                value={draftNote}
-                onChange={(e) => setDraftNote(e.target.value)}
+                value={noteEditorValue}
+                onChange={(e) => setNoteEditorValue(e.target.value)}
               />
               <div className="flex flex-wrap gap-1.5">
                 {["Dán cường lực", "Cài đặt máy", "Giao gấp", "Bọc quà tặng", "Khách quen"].map((preset) => (
@@ -548,7 +544,7 @@ export function CartPanel({
                     key={preset}
                     type="button"
                     onClick={() =>
-                      setDraftNote((prev) =>
+                      setNoteEditorValue((prev) =>
                         prev ? `${prev}, ${preset}` : preset
                       )
                     }
@@ -564,7 +560,7 @@ export function CartPanel({
               <button
                 type="button"
                 onClick={() => {
-                  setDraftNote("");
+                  setNoteEditorValue("");
                   dispatch({ type: "note", note: "" });
                   setShowNoteModal(false);
                 }}
@@ -575,7 +571,7 @@ export function CartPanel({
               <button
                 type="button"
                 onClick={() => {
-                  dispatch({ type: "note", note: draftNote.trim() });
+                  dispatch({ type: "note", note: noteEditorValue.trim() });
                   setShowNoteModal(false);
                 }}
                 className="rounded-xl bg-cyan-600 px-5 py-2 text-xs font-bold text-white hover:bg-cyan-700 cursor-pointer shadow-xs"

@@ -12,7 +12,6 @@ const InvoicesPage = lazy(() => import("./pages/RetailInvoicesPageContent"));
 const ReportsPage = lazy(() => import("./pages/RetailReportsPage"));
 const WarrantyLookupPage = lazy(() => import("./pages/WarrantyLookupPage"));
 const ShiftWorkspace = lazy(() => import("./pages/RetailShiftWorkspace"));
-const ShiftReconciliation = lazy(() => import("./pages/RetailShiftReconciliationPanel"));
 
 type RetailSubTab = "BÁN HÀNG" | "ĐƠN HÀNG" | "ĐỔI TRẢ" | "HÓA ĐƠN" | "BÁO CÁO" | "CA POS" | "CÀI ĐẶT" | "MÃ ƯU ĐÃI";
 
@@ -79,7 +78,7 @@ export default function RetailWorkspace() {
           {activeTab === "ĐỔI TRẢ" && <ReturnsPage />}
           {activeTab === "HÓA ĐƠN" && <InvoicesPage />}
           {activeTab === "BÁO CÁO" && <ReportsPage />}
-          {activeTab === "CA POS" && <div className="space-y-5"><ShiftReconciliation /><ShiftWorkspace /></div>}
+          {activeTab === "CA POS" && <ShiftWorkspace />}
           {activeTab === "CÀI ĐẶT" && <SettingsPage />}
           {activeTab === "MÃ ƯU ĐÃI" && <CouponsPage />}
           {(activeTab as any) === "BẢO HÀNH" && <WarrantyLookupPage />}

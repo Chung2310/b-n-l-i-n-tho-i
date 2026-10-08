@@ -56,7 +56,7 @@ export function ShiftScheduleNotice({ error, subject = "you" }: { error: unknown
       <dl className="mt-3 space-y-1.5 text-sm text-slate-700">
         <div className="flex justify-between gap-3">
           <dt className="text-slate-500">Ca áp dụng</dt>
-          <dd className="font-semibold">{details.workShiftName} ({details.workShiftCode})</dd>
+          <dd className="font-semibold">{details.workShiftName}</dd>
         </div>
         {start && end && (
           <div className="flex justify-between gap-3">

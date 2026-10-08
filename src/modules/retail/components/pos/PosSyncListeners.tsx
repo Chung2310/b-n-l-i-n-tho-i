@@ -30,12 +30,19 @@ export function OnlineRetailSync({
   sync,
 }: {
   scope: OfflineScope;
-  sync(scope: OfflineScope): Promise<unknown>;
+  sync(scope: OfflineScope, options?: { automatic?: boolean }): Promise<unknown>;
 }) {
   const callback = React.useRef(sync);
   callback.current = sync;
+  const inFlight = React.useRef(false);
   React.useEffect(() => {
-    const run = () => void callback.current(scope);
+    const run = () => {
+      if (inFlight.current) return;
+      inFlight.current = true;
+      void Promise.resolve(callback.current(scope, { automatic: true }))
+        .catch(() => undefined)
+        .finally(() => { inFlight.current = false; });
+    };
     window.addEventListener("online", run);
     if (navigator.onLine) run();
     return () => window.removeEventListener("online", run);

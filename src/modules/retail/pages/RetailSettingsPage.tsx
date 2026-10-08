@@ -18,11 +18,13 @@ import {
   Sliders,
   Sparkles,
   Store,
+  X,
 } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { useBranch } from "../../../context/BranchContext";
 import { retailSettingsApi } from "../api/retailSettings.api";
-import type { RetailSettings } from "../types";
+import type { RetailInvoice, RetailSettings } from "../types";
+import ReceiptPrintView from "../components/pos/ReceiptPrintViewSerial";
 import { getApiErrorMessage } from "../../../utils/errorMessage";
 import { toast } from "../../../pages/Toast";
 
@@ -32,6 +34,7 @@ export default function RetailSettingsPage() {
   const [settings, setSettings] = useState<RetailSettings | null>(null);
   const [initialSettings, setInitialSettings] = useState<RetailSettings | null>(null);
   const [saving, setSaving] = useState(false);
+  const [testInvoice, setTestInvoice] = useState<RetailInvoice | null>(null);
   const [error, setError] = useState("");
   const companyCode = userProfile?.companyCode || "";
 
@@ -106,6 +109,56 @@ export default function RetailSettingsPage() {
   };
 
   const todayStr = new Date().toISOString().slice(2, 10).replace(/-/g, "");
+  const openTestReceipt = async () => {
+    let storeName = "";
+    try {
+      ({ storeName } = await retailSettingsApi.printConfig({ companyCode, branchId: activeBranchId }));
+    } catch (cause) {
+      const msg = getApiErrorMessage(cause, "Không lấy được tên cửa hàng để in thử.");
+      toast.error(msg);
+      return;
+    }
+    const issuedAt = new Date().toISOString();
+    const total = 13_300_000;
+    const brandName = storeName.trim() || companyCode;
+    setTestInvoice({
+      _id: "test-invoice",
+      orderId: "test-order",
+      invoiceNo: (settings.invoicePrefix || "HD") + "-IN-THU",
+      orderCode: (settings.orderPrefix || "DH") + "-IN-THU",
+      issuedAt,
+      status: "issued",
+      snapshot: {
+        store: {
+          legalName: brandName,
+          storeName: brandName,
+          branchCode: activeBranch?.code || "",
+          branchName: activeBranch?.name || userProfile?.branchName || "",
+          branchAddress: activeBranch?.address,
+          branchPhone: activeBranch?.phone,
+        },
+        customerName: "Khách hàng in thử",
+        cashierName: userProfile?.displayName || "Nhân viên bán hàng",
+        salespersonName: userProfile?.displayName || "Nhân viên bán hàng",
+        businessDate: issuedAt.slice(0, 10),
+        items: [
+          { productId: "test-phone", sku: "SP-IN-THU-01", productName: "Điện thoại mẫu 128GB", unit: "cái", quantity: 1, unitPrice: 12_900_000, discountAmount: 0, lineTotal: 12_900_000 },
+          { productId: "test-case", sku: "SP-IN-THU-02", productName: "Ốp lưng mẫu", unit: "cái", quantity: 2, unitPrice: 250_000, discountAmount: 0, lineTotal: 500_000 },
+        ],
+        subtotal: 13_400_000,
+        orderDiscount: 100_000,
+        taxRate: 0,
+        taxAmount: 0,
+        shippingFee: 0,
+        grandTotal: total,
+        paidAmount: total,
+        dueAmount: 0,
+        paymentStatus: "paid",
+        payments: [{ method: "cash", amount: total, tenderedAmount: 14_000_000, changeAmount: 700_000 }],
+        amountInWords: "Mười ba triệu ba trăm nghìn đồng",
+      },
+    });
+  };
 
   return (
     <div className="w-full space-y-6 pb-12">
@@ -449,8 +502,9 @@ export default function RetailSettingsPage() {
                 </label>
 
                 {/* Visual card selector */}
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {[
+                    { id: "58mm", title: "58 mm (XP-58)", desc: "Máy in bill XP-58", icon: Receipt },
                     { id: "80mm", title: "80 mm (K80)", desc: "Máy in bill nhiệt", icon: Receipt },
                     { id: "A5", title: "Khổ A5", desc: "Phiếu nhỏ gọn", icon: FileText },
                     { id: "A4", title: "Khổ A4", desc: "Đầy đủ tiêu chuẩn", icon: Printer },
@@ -481,6 +535,7 @@ export default function RetailSettingsPage() {
                   onChange={(event) => update("invoicePaperSize", event.target.value as RetailSettings["invoicePaperSize"])}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-800 shadow-xs focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
                 >
+                  <option value="58mm">58 mm (Máy in bill XP-58)</option>
                   <option value="80mm">80 mm (Máy in bill nhiệt K80)</option>
                   <option value="A5">Khổ A5 (Nửa tờ A4)</option>
                   <option value="A4">Khổ A4 (Tiêu chuẩn)</option>
@@ -498,13 +553,39 @@ export default function RetailSettingsPage() {
                   onChange={(event) => update("invoiceTemplate", event.target.value as RetailSettings["invoiceTemplate"])}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-800 shadow-xs focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
                 >
-                  <option value="standard">Tiêu chuẩn (Kèm mã QR và thông tin doanh nghiệp)</option>
+                  <option value="standard">{"Ti\u00eau chu\u1ea9n (K\u00e8m m\u00e3 v\u1ea1ch v\u00e0 th\u00f4ng tin c\u1eeda h\u00e0ng)"}</option>
                 </select>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-cyan-100 bg-cyan-50/50 p-3.5">
+                <p className="max-w-md text-[11px] leading-relaxed text-slate-600">In hóa đơn mẫu để kiểm tra nội dung và khổ giấy đang chọn. Không tạo đơn bán thật.</p>
+                <button type="button" onClick={openTestReceipt} className="inline-flex min-h-9 items-center gap-2 rounded-xl bg-cyan-700 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-cyan-800 focus:outline-none focus:ring-2 focus:ring-cyan-500/25">
+                  <Printer className="h-4 w-4" />
+                  In thử hóa đơn
+                </button>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {testInvoice && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div role="dialog" aria-modal="true" aria-label="In thử hóa đơn" className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <header className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+              <div><h2 className="font-bold text-slate-900">In thử hóa đơn</h2><p className="mt-0.5 text-xs text-slate-500">Dữ liệu mẫu · Khổ giấy {settings.invoicePaperSize}</p></div>
+              <button type="button" aria-label="Đóng xem trước" onClick={() => setTestInvoice(null)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"><X className="h-4 w-4" /></button>
+            </header>
+            <div className="max-h-[65vh] overflow-y-auto bg-slate-100 p-4 sm:p-6">
+              <ReceiptPrintView invoice={testInvoice} paperSize={settings.invoicePaperSize} />
+            </div>
+            <footer className="flex justify-end gap-2 border-t border-slate-100 bg-white px-5 py-4">
+              <button type="button" onClick={() => setTestInvoice(null)} className="min-h-10 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Đóng</button>
+              <button type="button" onClick={() => window.print()} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-cyan-700 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-800"><Printer className="h-4 w-4" />In thử</button>
+            </footer>
+          </div>
+        </div>
+      )}
 
       {/* Floating / Sticky Save Bar when changes detected */}
       {hasChanges && (

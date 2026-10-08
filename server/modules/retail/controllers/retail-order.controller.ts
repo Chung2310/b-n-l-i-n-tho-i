@@ -143,6 +143,35 @@ export const retailOrderController = {
       res.status(error.status || 400).json({ success: false, error: error.message, code: error.code });
     }
   },
+  checkout: async (req: Request, res: Response) => {
+    try {
+      const actor = (req as any).user || {};
+      const retailScope = scope(req);
+      const input = req.body || {};
+      const manager = await hasEffectiveRetailCapability(actor, "manager");
+      const attempt = await RetailOrderService.idempotency(retailScope, input.idempotencyKey);
+      let shift;
+      if (attempt.status === "not_found") {
+        if (!input.posSessionId) {
+          const error: any = new Error("Chưa có mã phiên POS. Hãy mở phiên trước khi thanh toán.");
+          error.status = 409;
+          error.code = "POS_SESSION_REQUIRED";
+          throw error;
+        }
+        shift = await CashierShiftService.operational(
+          retailScope,
+          actor,
+          new Date(),
+          String(req.query.terminalId || input.terminalId || "default"),
+          String(input.posSessionId),
+        );
+      }
+      const result = await RetailOrderService.checkout(retailScope, input, actor, shift, manager);
+      res.status(201).json({ success: true, data: { ...result, order: serializeRetailOrder(result.order, manager) } });
+    } catch (error: any) {
+      res.status(error.status || 400).json({ success: false, error: error.message, code: error.code });
+    }
+  },
   revokeCollection: async (req: Request, res: Response) => {
     try { res.json({ success: true, data: await RetailOrderService.revokeCollection(scope(req), req.params.id, req.body || {}, (req as any).user, req.body?.cashSessionId ? { _id: req.body.cashSessionId } : undefined) }); }
     catch (error: any) { res.status(error.status || 400).json({ success: false, error: error.message, code: error.code }); }

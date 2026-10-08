@@ -35,7 +35,7 @@ export default function RetailOfflineQueuePanel({
               </span>
             </div>
             <p className="mt-1 text-slate-600">
-              {(item.payload as any)?.draftId ? "Đơn #" + String((item.payload as any).draftId).slice(-6) : "Chưa có mã đơn"}
+              Giao dịch bán hàng
               {Number.isSafeInteger((item.payload as any)?.expectedGrandTotal) && " · Tổng: " + new Intl.NumberFormat("vi-VN").format((item.payload as any).expectedGrandTotal) + " đ"}
             </p>
             {item.lastError && (
