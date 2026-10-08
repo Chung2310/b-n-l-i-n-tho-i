@@ -17,18 +17,19 @@ export const retailOrdersApi = {
   async detail(scope: RetailScope, id: string) { const response = await apiFetch<{ success: true; data: RetailOrder }>(`/retail/orders/${id}`, { params: scope }); return response.data; },
   async paymentQr(scope: RetailScope, id: string) { const response = await apiFetch<{ success: true; data: RetailPaymentQr }>(`/retail/orders/${id}/payment-qr`, { params: scope }); return response.data; },
   async quote(scope: RetailScope, input: unknown) { const response = await apiFetch<{ success: true; data: any }>("/retail/orders/quote", { method: "POST", params: scope, body: JSON.stringify(input) }); return response.data; },
+  async checkout(scope: RetailScope, input: unknown) { const response = await apiFetch<{ success: true; data: RetailOrderResult }>("/retail/orders/checkout", { method: "POST", params: scope, body: JSON.stringify(input) }); return response.data; },
   async createDraft(scope: RetailScope, input: unknown) { const response = await apiFetch<{ success: true; data: RetailOrder }>("/retail/orders", { method: "POST", params: scope, body: JSON.stringify(input) }); return response.data; },
   async updateDraft(scope: RetailScope, id: string, input: unknown) { const response = await apiFetch<{ success: true; data: RetailOrder }>(`/retail/orders/${id}`, { method: "PATCH", params: scope, body: JSON.stringify(input) }); return response.data; },
-  async confirm(scope: RetailScope, id: string, input: { expectedVersion: number; expectedGrandTotal: number; payments: RetailPaymentInput[]; idempotencyKey: string }) { const response = await apiFetch<{ success: true; data: RetailOrderResult }>(`/retail/orders/${id}/confirm`, { method: "POST", params: scope, body: JSON.stringify(input) }); return response.data; },
-  async revokeCollection(scope: RetailScope, id: string, input: { payments: RetailPaymentInput[]; idempotencyKey: string; expectedVersion: number }) {
+  async confirm(scope: RetailScope, id: string, input: { expectedVersion: number; expectedGrandTotal: number; payments: RetailPaymentInput[]; idempotencyKey: string; posSessionId?: string }) { const response = await apiFetch<{ success: true; data: RetailOrderResult }>(`/retail/orders/${id}/confirm`, { method: "POST", params: scope, body: JSON.stringify(input) }); return response.data; },
+  async revokeCollection(scope: RetailScope, id: string, input: { cashSessionId?: string; payments: RetailPaymentInput[]; idempotencyKey: string; expectedVersion: number }) {
     const response = await apiFetch<{ success: true; data: { status: "revoked"; message: string } }>(`/retail/orders/${id}/payments/revoke`, { method: "POST", params: scope, body: JSON.stringify(input) });
     return response.data;
   },
-  async reconcileCollection(scope: RetailScope, id: string, input: { payments: RetailPaymentInput[]; idempotencyKey: string; expectedVersion: number }) {
+  async reconcileCollection(scope: RetailScope, id: string, input: { cashSessionId?: string; payments: RetailPaymentInput[]; idempotencyKey: string; expectedVersion: number }) {
     const response = await apiFetch<{ success: true; data: { status: "completed" | "not_found" | "processing" | "conflict" | "revoked"; message: string; order?: RetailOrder } }>(`/retail/orders/${id}/payments/reconcile`, { method: "POST", params: scope, body: JSON.stringify(input) });
     return response.data;
   },
-  async collect(scope: RetailScope, id: string, payments: RetailPaymentInput[], request: { idempotencyKey: string; expectedVersion: number }) { const response = await apiFetch<{ success: true; data: RetailOrder }>(`/retail/orders/${id}/payments`, { method: "POST", params: scope, body: JSON.stringify({ payments, ...request }) }); return response.data; },
+  async collect(scope: RetailScope, id: string, payments: RetailPaymentInput[], request: { cashSessionId?: string; idempotencyKey: string; expectedVersion: number }) { const response = await apiFetch<{ success: true; data: RetailOrder }>(`/retail/orders/${id}/payments`, { method: "POST", params: scope, body: JSON.stringify({ payments, ...request }) }); return response.data; },
   async revokeCancellation(scope: RetailScope, id: string, input: unknown) {
     const response = await apiFetch<{ success: true; data: { status: "revoked"; message: string } }>(`/retail/orders/${id}/cancel/revoke`, { method: "POST", params: scope, body: JSON.stringify(input) });
     return response.data;

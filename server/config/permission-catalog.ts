@@ -41,6 +41,7 @@ export const PERMISSION_FEATURES: PermissionFeatureDefinition[] = [
   feature("commission-payment", "Chi trả hoa hồng", "Đối tác"),
   feature("customer", "Khách hàng", "Khách hàng"),
   feature("retail", "Bán lẻ", "Bán lẻ"),
+  feature("pos", "Quầy bán hàng POS", "Bán lẻ"),
   feature("resource", "Tài nguyên", "Tài nguyên"),
   feature("chat", "Trò chuyện", "Trò chuyện"),
   feature("recruitment", "Tuyển dụng", "Tuyển dụng"),

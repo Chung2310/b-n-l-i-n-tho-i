@@ -1,43 +1,24 @@
+import { readPosCart, savePosCart } from "../offline/posCartRecovery";
 import { resolveCheckoutIntent, resolveCheckoutIntentLocked } from "../offline/resolveCheckoutIntent";
 import { checkoutWithPersistedIntent, PendingCheckoutError } from "../offline/checkoutIntent";
 import React from "react";
 import { confirmOfflineOrderLocked } from "../offline/confirmOfflineOrder";
-import { verifyDraftResult, withDraftRequestLock, prepareDraftCreation, prepareDraftUpdate, clearDraftCreation, allowRejectedDraftEdit, type DraftCreationRequest } from "../offline/draftCreationRequest";
-import CollaboratorPicker from "../../partners/CollaboratorPicker";
+import { RetailCheckoutLockBusyError, withRetailCheckoutLock } from "../offline/draftCreationRequest";
 import {
   Camera,
   Check,
-  ChevronDown,
   Folder,
-  FolderOpen,
-  ImageIcon,
+  Headphones,
+  Package,
   Plus,
-  Tag,
-  HelpCircle,
-  Keyboard,
-  Maximize,
-  Minimize,
-  Pause,
-  RefreshCw,
-  Search,
-  ShoppingCart,
+  Smartphone,
+  Star,
   Store,
-  Ticket,
-  Trash2,
-  User,
-  X,
+  Tablet,
+  Tag,
 } from "lucide-react";
-import { customerApi } from "../../customer-management/customerApi";
 import BarcodeScannerDialog from "../components/pos/BarcodeScannerDialog";
 import CheckoutSuccessDialog from "../components/pos/CheckoutSuccessDialog";
-import CustomerCouponOffers from "../components/coupons/CustomerCouponOffers";
-import CartCouponPicker from "../components/coupons/CartCouponPicker";
-import CustomerPicker from "../components/pos/CustomerPicker";
-import DiscountInput from "../components/pos/DiscountInput";
-import PendingDraftRequests from "../components/pos/PendingDraftRequests";
-import HeldDraftsBar from "../components/pos/HeldDraftsBar";
-import OrderAdjustments from "../components/pos/OrderAdjustments";
-import { QuantityInput } from "../components/pos/QuantityInput";
 import PaymentDialog from "../components/pos/PaymentDialog";
 import PosShortcutHelp from "../components/pos/PosShortcutHelp";
 import ScanFeedback, {
@@ -45,10 +26,29 @@ import ScanFeedback, {
   type ScanFeedbackKind,
 } from "../components/pos/ScanFeedback";
 import RetailOfflineQueuePanel from "../components/pos/RetailOfflineQueuePanel";
-import { SerialPicker, UnitBarcodePicker } from "../components/pos/RetailUnitPickerDialog";
 import AddSerialToCartDialog from "../components/pos/AddSerialToCartDialog";
+import ProductVariantSelectorModal from "../components/pos/ProductVariantSelectorModal";
+import { PosHeader } from "../components/pos/PosHeader";
+import {
+  PosCategoryDrilldown,
+  PosBottomTabs,
+} from "../components/pos/PosCategoryNavigation";
+import {
+  ProductCard,
+  type ProductGroup,
+  groupProductsBySku,
+} from "../components/pos/ProductCard";
+import { ProductGrid } from "../components/pos/ProductGrid";
+import { CartPanel } from "../components/pos/CartPanel";
+import {
+  HidScannerListener,
+  OnlineRetailSync,
+  PosNotice,
+} from "../components/pos/PosSyncListeners";
 import { retailOrdersApi } from "../api/retailOrders.api";
-import { retailProductsApi } from "../api/retailProducts.api";
+import { retailInvoicesApi } from "../api/retailInvoices.api";
+import { customerApi } from "../../customer-management/customerApi";
+import { retailProductsApi, type RetailOfficialCategory } from "../api/retailProducts.api";
 import {
   initialRetailCart,
   retailCartReducer,
@@ -68,18 +68,35 @@ import {
 } from "../offline/retailOfflineQueue";
 import { syncRetailOfflineQueue } from "../offline/retailOfflineSync";
 import type {
-  RetailOrder,
   RetailOrderResult,
   RetailPaymentInput,
   RetailProduct,
+  RetailSettings,
   RetailScope,
 } from "../types";
+import { retailSettingsApi } from "../api/retailSettings.api";
 import { toast } from "../../../pages/Toast";
 
 const money = (value: number) =>
   new Intl.NumberFormat("vi-VN").format(value) + " ₫";
 
-export default function RetailPosPage() {
+type PosCategoryTab = "popular" | "phones" | "tablets" | "accessories" | "all";
+
+export interface RetailPosPageProps {
+  posSessionId?: string;
+  onCloseShift?: () => void;
+  canLeavePos?: boolean;
+  onLeavePos?: () => void;
+  onLogout?: () => void;
+}
+
+export default function RetailPosPage({
+  posSessionId,
+  onCloseShift,
+  canLeavePos,
+  onLeavePos,
+  onLogout,
+}: RetailPosPageProps = {}) {
   const { fullscreen, toggleFullscreen } = useRetailFullscreen();
   const { scope, userProfile, branchName, activeBranch } = useRetailScope() as any;
   const branchDisplayName =
@@ -87,17 +104,32 @@ export default function RetailPosPage() {
     activeBranch?.name ||
     userProfile?.branchName ||
     (scope?.branchId && !/^[0-9a-fA-F]{24}$/.test(scope.branchId) ? scope.branchId : "");
-  const [cart, dispatch] = React.useReducer(
-    retailCartReducer,
-    initialRetailCart,
-  );
+  const recoveryKey = `retail-pos-cart:v1:${JSON.stringify([scope?.companyCode, scope?.branchId, userProfile?.uid])}`;
+  const [recovered] = React.useState(() => readPosCart(recoveryKey));
+  const [recoveryBlocked, setRecoveryBlocked] = React.useState(Boolean(recovered.error));
+  const [cart, dispatch] = React.useReducer(retailCartReducer, recovered.cart);
   const [products, setProducts] = React.useState<RetailProduct[]>([]);
-  const [drafts, setDrafts] = React.useState<RetailOrder[]>([]);
-  const [draft, setDraft] = React.useState<RetailOrder | null>(null);
+  const [officialCategories, setOfficialCategories] = React.useState<RetailOfficialCategory[]>([]);
+  const recoveryErrorShown = React.useRef(false);
+  React.useLayoutEffect(() => {
+    if (recoveryBlocked) return;
+    try { savePosCart(recoveryKey, cart); }
+    catch { if (!recoveryErrorShown.current) { recoveryErrorShown.current = true; toast.error("Không lưu được giỏ trên thiết bị."); } }
+  }, [recoveryKey, cart, recoveryBlocked]);
+  const leaveWithCart = (callback?: () => void, label = "rời POS") => {
+    if (!callback || busy) return;
+    if (recoveryBlocked) { callback(); return; }
+    if (cart.lines.length && !window.confirm(`Giỏ chưa thanh toán sẽ được giữ trên máy này. Bạn muốn ${label}?`)) return;
+    try { savePosCart(recoveryKey, cart); callback(); }
+    catch { toast.error("Không lưu được giỏ trên thiết bị."); }
+  };
   const [q, setQ] = React.useState("");
+  const [selectedL1, setSelectedL1] = React.useState<string>("all");
+  const [selectedL2, setSelectedL2] = React.useState<string>("all");
+  const [selectedL3, setSelectedL3] = React.useState<string>("all");
   const [busy, setBusy] = React.useState(false);
-  const draftWriteBusy = React.useRef(false);
-  const requestScope = JSON.stringify([scope?.companyCode, scope?.branchId, userProfile?.uid]);
+  const checkoutBusy = React.useRef(false);
+  const requestScope = JSON.stringify([scope?.companyCode, scope?.branchId, scope?.terminalId, userProfile?.uid, posSessionId]);
   const scopeToken = React.useMemo(() => ({}), [requestScope]);
   const liveRequestScope = React.useRef(scopeToken);
   liveRequestScope.current = scopeToken;
@@ -109,15 +141,28 @@ export default function RetailPosPage() {
   const [billingProfiles, setBillingProfiles] = React.useState<any[]>([]);
   const [scanning, setScanning] = React.useState(false);
   const [pendingProduct, setPendingProduct] = React.useState<RetailProduct | null>(null);
+  const [selectedVariantGroup, setSelectedVariantGroup] = React.useState<ProductGroup | null>(null);
   const [completed, setCompleted] = React.useState<RetailOrderResult | null>(
     null,
   );
+  const [invoicePaperSize, setInvoicePaperSize] = React.useState<RetailSettings["invoicePaperSize"]>("80mm");
   const [help, setHelp] = React.useState(false);
   const [scanFeedback, setScanFeedback] = React.useState<{
     kind: ScanFeedbackKind;
     text: string;
   } | null>(null);
   const [reloading, setReloading] = React.useState(false);
+
+  React.useEffect(() => {
+    let active = true;
+    setInvoicePaperSize("80mm");
+    if (scope) {
+      void retailSettingsApi.printConfig(scope)
+        .then((config) => { if (active) setInvoicePaperSize(config.invoicePaperSize); })
+        .catch(() => undefined);
+    }
+    return () => { active = false; };
+  }, [scope?.companyCode, scope?.branchId]);
 
   const searchRef = React.useRef<HTMLInputElement>(null);
   const queueRef = React.useRef(
@@ -130,11 +175,7 @@ export default function RetailPosPage() {
     scope && userProfile?.uid ? { ...scope, userId: userProfile.uid } : null;
 
   const openPayment = () => {
-    if (!cart.quote || cart.quoteDirty) return;
-    if (!cart.customer?._id) {
-      toast.error("Vui lòng chọn khách hàng trước khi thanh toán.");
-      return;
-    }
+    if (recoveryBlocked || !cart.quote || cart.quoteDirty) return;
     setPaying(true);
   };
 
@@ -151,12 +192,6 @@ export default function RetailPosPage() {
       () => ({
         focusSearch: () => searchRef.current?.focus(),
         openPayment,
-        holdDraft: () =>
-          (
-            Array.from(document.querySelectorAll("button")).find((button) =>
-              button.textContent?.includes("Treo đơn"),
-            ) as HTMLButtonElement | undefined
-          )?.click(),
         openScanner: () => setScanning(true),
         openHelp: () => setHelp(true),
       }),
@@ -172,33 +207,33 @@ export default function RetailPosPage() {
     [],
   );
 
-  const refreshDrafts = React.useCallback(() => {
-    if (scope) {
-      void retailOrdersApi
-        .list(scope, { heldOnly: true, limit: 5 })
-        .then((data) => setDrafts(data.items))
-        .catch(show);
-    }
-  }, [scope?.companyCode, scope?.branchId, show]);
-
   const refreshCatalog = React.useCallback(async () => {
     if (!scope) return;
     setReloading(true);
     try {
       const data = await retailProductsApi.list(scope, { q, limit: 500 });
       setProducts(data.items);
-      refreshDrafts();
+      if (data.categories && data.categories.length > 0) {
+        setOfficialCategories(data.categories);
+      }
     } catch (error) {
       show(error);
     } finally {
       setReloading(false);
     }
-  }, [scope?.companyCode, scope?.branchId, q, refreshDrafts, show]);
+  }, [scope?.companyCode, scope?.branchId, q, show]);
 
   React.useEffect(() => {
-    if (!scope) return;
-    refreshDrafts();
-  }, [scope?.companyCode, scope?.branchId, refreshDrafts, show]);
+    if (!scope || typeof retailProductsApi.categories !== "function") return;
+    void retailProductsApi
+      .categories(scope)
+      .then((cats) => {
+        if (cats && Array.isArray(cats) && cats.length > 0) {
+          setOfficialCategories(cats);
+        }
+      })
+      .catch(() => undefined);
+  }, [scope?.companyCode, scope?.branchId]);
 
   React.useEffect(() => {
     if (!scope) return;
@@ -206,7 +241,12 @@ export default function RetailPosPage() {
       () =>
         void retailProductsApi
           .list(scope, { q, limit: 500 })
-          .then((data) => setProducts(data.items))
+          .then((data) => {
+            setProducts(data.items);
+            if (data.categories && data.categories.length > 0) {
+              setOfficialCategories(data.categories);
+            }
+          })
           .catch(show),
       200,
     );
@@ -264,7 +304,7 @@ export default function RetailPosPage() {
     refreshOffline();
   }, [refreshOffline]);
 
-  if (!scope) return <Notice />;
+  if (!scope) return <PosNotice />;
 
   const scan = async (barcode: string) => {
     try {
@@ -383,142 +423,48 @@ export default function RetailPosPage() {
     if (clearSearch) setQ("");
   };
 
-  const openDraft = (value: RetailOrder) => {
-    setDraft(value);
-    dispatch({
-      type: "load",
-      collaboratorId: value.collaboratorId,
-      lines: value.items.map((item) => ({
-        product: {
-          _id: item.productId,
-          sku: item.sku,
-          name: item.productName,
-          category: "",
-          unit: item.unit,
-          stock: 0,
-          price: item.unitPrice,
-        },
-        quantity: item.quantity,
-        discount: { type: "amount", value: item.discountAmount },
-        serialNumbers: item.serialNumbers,
-      })),
-      customer: value.customerId
-        ? {
-            _id: value.customerId,
-            customerCode: value.customerSnapshot?.customerCode || value.customerId,
-            companyCode: scope.companyCode,
-            type: value.billingProfileId ? "vat" : "regular",
-            name: value.customerName || "Khách hàng",
-            phone: value.customerPhone,
-          }
-        : null,
-      billingProfile:
-        value.billingProfileId && value.billingSnapshot
-          ? {
-              _id: value.billingProfileId,
-              customerId: value.customerId || "",
-              legalName: value.billingSnapshot.legalName,
-              taxId: value.billingSnapshot.taxId,
-              address: value.billingSnapshot.address,
-              invoiceEmail: value.billingSnapshot.invoiceEmail,
-              contactName: value.billingSnapshot.contactName,
-              isDefault: false,
-              status: "active",
-              version: 0,
-            }
-          : null,
-      couponCode: value.couponCode,
-      orderDiscount: {
-        type: "amount",
-        value: value.couponCode ? 0 : value.orderDiscount,
-      },
-      taxRate: value.taxRate,
-      shippingFee: value.shippingFee,
-    });
-    toast.info(`Đang xử lý đơn treo #${value._id.slice(-6)}`);
-  };
-
-  const saveDraft = async () => {
-    if (draftWriteBusy.current) return;
-    if (!cart.lines.length) return;
-    if (!cart.customer?._id) {
-      toast.error("Vui lòng chọn khách hàng trước khi lưu đơn.");
-      return;
-    }
-    const current = () => mounted.current && liveRequestScope.current === scopeToken;
-    draftWriteBusy.current = true;
-    setBusy(true);
-    let request: DraftCreationRequest | undefined;
-    try {
-      await withDraftRequestLock(scope, userProfile?.uid || "", async () => {
-        try {
-          const input = buildRetailOrderInput(cart);
-          if (draft) {
-            request = prepareDraftUpdate(scope, userProfile?.uid || "", draft._id, { ...input, version: draft.version });
-            const saved = await retailOrdersApi.updateDraft(scope, draft._id, { ...request.input, idempotencyKey: request.idempotencyKey });
-            verifyDraftResult(saved, draft._id);
-            clearDraftCreation(scope, userProfile?.uid || "", request, draft._id);
-          }
-          else {
-            request = prepareDraftCreation(scope, userProfile?.uid || "", input);
-            const saved = await retailOrdersApi.createDraft(scope, { ...request.input, idempotencyKey: request.idempotencyKey });
-            verifyDraftResult(saved);
-            clearDraftCreation(scope, userProfile?.uid || "", request);
-          }
-          if (!current()) return;
-          dispatch({ type: "reset" });
-          setDraft(null);
-          refreshDrafts();
-          toast.success("Đã treo đơn. Đơn không giữ tồn kho.");
-        } catch (error) {
-          if (request) allowRejectedDraftEdit(scope, userProfile?.uid || "", request, error, draft?._id);
-          if (current()) show(error);
-        } finally {
-          draftWriteBusy.current = false;
-          if (current()) setBusy(false);
-        }
-      });
-    } catch (error) {
-      draftWriteBusy.current = false;
-      if (current()) setBusy(false);
-      if (current()) show(error);
-    }
-  };
-
   const checkout = async (payments: RetailPaymentInput[], dueDate?: string) => {
-    if (!cart.quote || cart.quoteDirty || draftWriteBusy.current) return;
+    if (recoveryBlocked || !cart.quote || cart.quoteDirty || checkoutBusy.current) return;
+    if (!posSessionId) { toast.error("Phiên POS chưa mở. Hãy mở phiên trước khi thanh toán."); return; }
     const current = () => mounted.current && liveRequestScope.current === scopeToken;
-    draftWriteBusy.current = true;
+    checkoutBusy.current = true;
     setBusy(true);
     try {
-      if (!offlineScope || typeof indexedDB === "undefined") throw new Error("Không có bộ nhớ bền để lưu yêu cầu thanh toán. Chưa gửi thanh toán.");
-      const result = await checkoutWithPersistedIntent(offlineScope, queueRef.current, { ...buildRetailOrderInput(cart), dueDate }, payments, cart.quote.grandTotal, draft);
+    if (!scope || !offlineScope || typeof indexedDB === "undefined") throw new Error("Không có bộ nhớ bền để lưu yêu cầu thanh toán. Chưa gửi thanh toán.");
+      const result = await checkoutWithPersistedIntent(offlineScope, queueRef.current, { ...buildRetailOrderInput(cart), dueDate }, payments, cart.quote.grandTotal, posSessionId);
       if (current()) { finish(result); setPaying(false); }
+      try {
+        await retailInvoicesApi.registerPosPrint(scope, result.invoice._id);
+        if (current()) window.requestAnimationFrame(() => { if (current()) window.print(); });
+      } catch {
+        if (current()) toast.error("Đơn đã thanh toán nhưng chưa in được hóa đơn. Vui lòng nhờ quản lý in lại.");
+      }
     } catch (error) {
       if (current()) {
         if (error instanceof PendingCheckoutError) {
-          dispatch({ type: "reset" }); setDraft(null); setPaying(false);
+          dispatch({ type: "reset" });
+          setPaying(false);
           toast.info("Đã giữ yêu cầu thanh toán. Xử lý tại mục đồng bộ trước khi tạo giao dịch mới.");
         }
         show(error);
       }
     } finally {
-      draftWriteBusy.current = false;
-      if (current()) { setBusy(false); refreshOffline(); }
+      checkoutBusy.current = false;
+      if (current()) {
+        setBusy(false);
+        refreshOffline();
+      }
     }
   };
 
   const finish = (result: RetailOrderResult) => {
     setCompleted(result);
-    setDraft(null);
-    setPaying(false);
-    refreshDrafts();
+    dispatch({ type: "reset" });
   };
 
   const newOrder = () => {
     dispatch({ type: "reset" });
     setCompleted(null);
-    setDraft(null);
   };
 
   const resolvePendingCheckout = async (id: string, revoke: boolean) => {
@@ -528,14 +474,18 @@ export default function RetailPosPage() {
       const result = await resolveCheckoutIntent(offlineScope, queueRef.current, id, revoke);
       if (mounted.current && liveRequestScope.current === scopeToken) {
         toast.info(result?.message || "Chưa đủ bằng chứng. Giữ nguyên yêu cầu để đối chiếu.");
-        refreshOffline(); refreshDrafts();
+        refreshOffline();
       }
     } catch (error) { if (mounted.current && liveRequestScope.current === scopeToken) show(error); }
   };
 
-  const syncOffline = async (activeScope: OfflineScope, retryId?: string) => {
+  const syncOffline = async (activeScope: OfflineScope, options: { automatic?: boolean } = {}, retryId?: string) => {
     try {
-      return await withDraftRequestLock(activeScope, activeScope.userId, async () => {
+      if (!retryId) {
+        const queued = await queueRef.current.list(activeScope);
+        if (!queued.some((item) => item.status === "pending" || item.status === "syncing")) return [];
+      }
+      return await withRetailCheckoutLock(activeScope, activeScope.userId, async () => {
         if (retryId) {
           const item = (await queueRef.current.list(activeScope)).find(row => row.id === retryId);
           if (!item || item.status === "synced" || item.status === "revoked") return [];
@@ -546,157 +496,414 @@ export default function RetailPosPage() {
           send: item => confirmOfflineOrderLocked(activeScope, item, queueRef.current),
         });
       });
-    } catch (error) { if (mounted.current && liveRequestScope.current === scopeToken) show(error); return []; }
+    } catch (error) {
+      const automaticLockConflict = options.automatic && error instanceof RetailCheckoutLockBusyError;
+      if (!automaticLockConflict && mounted.current && liveRequestScope.current === scopeToken) show(error);
+      return [];
+    }
     finally { if (mounted.current && liveRequestScope.current === scopeToken) refreshOffline(); }
   };
 
+  // Official Category Hierarchy: Level 1 (Mức 1) -> Level 2 (Mức 2) -> Level 3 (Mức 3)
+  const categoryByCode = React.useMemo(() => {
+    const map = new Map<string, RetailOfficialCategory>();
+    for (const cat of officialCategories) {
+      map.set(cat.code, cat);
+    }
+    return map;
+  }, [officialCategories]);
+
+  // Helper to resolve official path for a category code or name from the category tree
+  const resolveOfficialPath = React.useCallback(
+    (codeOrName: string): RetailOfficialCategory[] => {
+      if (!codeOrName || categoryByCode.size === 0) return [];
+      let cat = categoryByCode.get(codeOrName);
+      if (!cat) {
+        cat = officialCategories.find((c) => c.name === codeOrName);
+      }
+      if (!cat) return [];
+
+      const path: RetailOfficialCategory[] = [];
+      const visited = new Set<string>();
+      let cur: string | undefined = cat.code;
+      while (cur && !visited.has(cur)) {
+        visited.add(cur);
+        const item = categoryByCode.get(cur);
+        if (!item) break;
+        path.unshift(item);
+        cur = item.parentCode;
+      }
+      return path;
+    },
+    [categoryByCode, officialCategories],
+  );
+
+  // Extract hierarchy [L1, L2, L3] directly from official data
+  const getProductHierarchy = React.useCallback(
+    (p: RetailProduct): [string, string | undefined, string | undefined] => {
+      // 1. Direct from official categoryPath attached by server
+      if (p.categoryPath && p.categoryPath.length > 0) {
+        const l1 = p.categoryPath[0]?.name || "Chưa phân loại";
+        const l2 = p.categoryPath[1]?.name || (p.brand && p.brand !== "Chưa phân loại" ? p.brand : undefined);
+        const l3 = p.categoryPath[2]?.name;
+        return [l1, l2, l3];
+      }
+
+      // 2. Direct from official category tree lookup
+      const target = (p as any).categoryCode || p.category;
+      if (target) {
+        const path = resolveOfficialPath(target);
+        if (path.length > 0) {
+          const l1 = path[0]?.name || "Chưa phân loại";
+          const l2 = path[1]?.name || (p.brand && p.brand !== "Chưa phân loại" ? p.brand : undefined);
+          const l3 = path[2]?.name;
+          return [l1, l2, l3];
+        }
+      }
+
+      // 3. Fallback for test fixtures or unmapped items
+      const l1 = p.category || "Chưa phân loại";
+      const l2 = p.brand && p.brand !== "Chưa phân loại" ? p.brand : undefined;
+      return [l1, l2, undefined];
+    },
+    [resolveOfficialPath],
+  );
+
+  const matchesL1 = React.useCallback(
+    (p: RetailProduct, l1: string) => {
+      if (l1 === "all") return true;
+      const [prodL1] = getProductHierarchy(p);
+      return prodL1 === l1;
+    },
+    [getProductHierarchy],
+  );
+
+  // Level 1 Tabs for Bottom Bar (Chỉ bao gồm danh mục cấp 1 chính thức)
+  const bottomBarL1Tabs = React.useMemo(() => {
+    const getCatIcon = (name: string) => {
+      const lower = name.toLowerCase();
+      if (lower.includes("điện thoại") || lower.includes("phone")) {
+        return <Smartphone className="h-5 w-5" />;
+      }
+      if (lower.includes("máy tính bảng") || lower.includes("tablet") || lower.includes("ipad")) {
+        return <Tablet className="h-5 w-5" />;
+      }
+      if (lower.includes("phụ kiện") || lower.includes("tai nghe") || lower.includes("âm thanh")) {
+        return <Headphones className="h-5 w-5" />;
+      }
+      if (lower.includes("linh kiện")) {
+        return <Package className="h-5 w-5" />;
+      }
+      return <Folder className="h-5 w-5" />;
+    };
+
+    const tabs: { key: string; name: string; icon: React.ReactNode }[] = [];
+    const seen = new Set<string>();
+
+    // 1. Level 1 from official category tree (chỉ lấy danh mục gốc: !c.parentCode)
+    const rootOfficial = officialCategories.filter((c) => !c.parentCode);
+    for (const cat of rootOfficial) {
+      if (!seen.has(cat.name)) {
+        seen.add(cat.name);
+        tabs.push({ key: cat.name, name: cat.name, icon: getCatIcon(cat.name) });
+      }
+    }
+
+    // 2. Chỉ fallback khi hoàn toàn không có danh mục chính thức từ server (e.g. test fixtures)
+    if (tabs.length === 0) {
+      for (const p of products) {
+        const [l1] = getProductHierarchy(p);
+        if (l1 && l1 !== "Chưa phân loại" && !seen.has(l1)) {
+          seen.add(l1);
+          tabs.push({ key: l1, name: l1, icon: getCatIcon(l1) });
+        }
+      }
+    }
+
+    // 3. Fallback danh mục mặc định nếu hệ thống hoàn toàn trống dữ liệu
+    if (tabs.length === 0) {
+      for (const standard of ["Điện thoại", "Máy tính bảng", "Phụ kiện"]) {
+        if (!seen.has(standard)) {
+          seen.add(standard);
+          tabs.push({ key: standard, name: standard, icon: getCatIcon(standard) });
+        }
+      }
+    }
+
+    return tabs;
+  }, [officialCategories, products, getProductHierarchy]);
+
+  // Level 2 Options (Mức 2: Hãng / Dòng con dưới Mức 1)
+  const level2Options = React.useMemo(() => {
+    const counts = new Map<string, number>();
+
+    for (const p of products) {
+      if (selectedL1 !== "all" && !matchesL1(p, selectedL1)) continue;
+      const [, l2] = getProductHierarchy(p);
+      if (l2) {
+        counts.set(l2, (counts.get(l2) || 0) + 1);
+      }
+    }
+
+    // If Level 1 is selected, also include official Level 2 child categories from DB
+    if (selectedL1 !== "all") {
+      const rootCat = officialCategories.find((c) => !c.parentCode && c.name === selectedL1);
+      if (rootCat) {
+        const childCats = officialCategories.filter((c) => c.parentCode === rootCat.code);
+        for (const cat of childCats) {
+          if (!counts.has(cat.name)) {
+            counts.set(cat.name, 0);
+          }
+        }
+      }
+    }
+
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [products, selectedL1, matchesL1, officialCategories, getProductHierarchy]);
+
+  // Level 3 Options (Mức 3: Đời máy / Phân loại con dưới Mức 2)
+  const level3Options = React.useMemo(() => {
+    if (selectedL2 === "all") return [];
+    const counts = new Map<string, number>();
+
+    for (const p of products) {
+      if (selectedL1 !== "all" && !matchesL1(p, selectedL1)) continue;
+      const [, l2, l3] = getProductHierarchy(p);
+      if (l2 === selectedL2 && l3) {
+        counts.set(l3, (counts.get(l3) || 0) + 1);
+      }
+    }
+
+    // If Level 2 is selected, also include official Level 3 child categories from DB
+    const parentL2Cat = officialCategories.find((c) => c.name === selectedL2);
+    if (parentL2Cat) {
+      const childL3Cats = officialCategories.filter((c) => c.parentCode === parentL2Cat.code);
+      for (const cat of childL3Cats) {
+        if (!counts.has(cat.name)) {
+          counts.set(cat.name, 0);
+        }
+      }
+    }
+
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [products, selectedL1, selectedL2, matchesL1, officialCategories, getProductHierarchy]);
+
+  // Filtered Products strictly following the 3-level official hierarchy
+  const displayProducts = React.useMemo(() => {
+    if (q.trim()) {
+      const query = q.trim().toLowerCase();
+      return products.filter((p) => {
+        const text = `${p.name} ${p.sku} ${p.category} ${p.categoryPath?.map((c) => c.name).join(" ") || ""}`.toLowerCase();
+        return text.includes(query);
+      });
+    }
+
+    return products.filter((p) => {
+      if (selectedL1 !== "all" && !matchesL1(p, selectedL1)) return false;
+      const [, l2, l3] = getProductHierarchy(p);
+
+      if (selectedL2 !== "all") {
+        if (l2 !== selectedL2) return false;
+      }
+
+      if (selectedL3 !== "all") {
+        if (l3 !== selectedL3) return false;
+      }
+
+      return true;
+    });
+  }, [products, q, selectedL1, selectedL2, selectedL3, matchesL1, getProductHierarchy]);
+
+  const displayProductGroups = React.useMemo(
+    () => groupProductsBySku(displayProducts),
+    [displayProducts],
+  );
+
+  const shouldRenderInventoryFolderTree = React.useMemo(() => {
+    if (selectedL1 !== "all" || selectedL2 !== "all" || selectedL3 !== "all" || q.trim()) {
+      return false;
+    }
+    return products.some(
+      (p) =>
+        p.category === "A" ||
+        p.categoryPath?.some((c) => c.name === "Hàng hóa" || c.name === "Quần áo"),
+    );
+  }, [products, selectedL1, selectedL2, selectedL3, q]);
+
+  const categoryTitle = React.useMemo(() => {
+    if (q.trim()) return `Kết quả tìm kiếm cho "${q.trim()}"`;
+    if (selectedL3 !== "all") return selectedL3;
+    if (selectedL2 !== "all") return selectedL2;
+    if (selectedL1 !== "all") return selectedL1;
+    return "Tất cả sản phẩm";
+  }, [q, selectedL1, selectedL2, selectedL3]);
+
   return (
-    <section className={`grid gap-5 lg:grid-cols-[minmax(0,1fr)_450px] ${fullscreen ? "fixed inset-0 z-[45] h-dvh overflow-y-auto bg-slate-50 p-3 sm:p-6" : "min-h-[75vh]"}`}>
+    <section
+      className={`flex flex-col bg-slate-100 text-slate-900 ${
+        fullscreen ? "fixed inset-0 z-[45] h-dvh overflow-hidden" : "h-dvh max-h-screen overflow-hidden"
+      }`}
+    >
+      {recoveryBlocked && <div role="alert" className="z-[95] rounded-xl bg-rose-50 p-4 text-sm text-rose-800"><p>{recovered.error}</p><button type="button" className="mt-2 rounded-lg border px-3 py-2" onClick={() => {
+        if (!window.confirm("Bỏ giỏ đang lỗi để bắt đầu giỏ mới? Bản gốc sẽ được sao lưu trên máy này.")) return;
+        try { const raw = localStorage.getItem(recoveryKey); if (raw) localStorage.setItem(`${recoveryKey}:backup:${Date.now()}`, raw); localStorage.removeItem(recoveryKey); dispatch({ type: "reset" }); setRecoveryBlocked(false); }
+        catch { toast.error("Không sao lưu được giỏ. Hãy kiểm tra bộ nhớ trình duyệt."); }
+      }}>Sao lưu giỏ lỗi và bắt đầu giỏ mới</button></div>}
       <HidScannerListener onScan={(value) => void scan(value)} />
       {offlineScope && (
         <OnlineRetailSync scope={offlineScope} sync={syncOffline} />
       )}
 
-      {/* Main Catalog Column */}
-      <main className="space-y-4">
-        {/* Top Header Card */}
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-emerald-600 text-white shadow-md shadow-cyan-500/20">
-              <Store className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold tracking-tight text-slate-900">
-                  Bán hàng
-                </h1>
-                {branchDisplayName && (
-                  <span className="rounded-full bg-cyan-50 px-2.5 py-0.5 text-xs font-semibold text-cyan-700">
-                    {branchDisplayName}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-500">
-                Thu ngân: <span className="font-semibold text-slate-700">{userProfile?.displayName || userProfile?.email || "Nhân viên"}</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              aria-label={fullscreen ? "Thoát toàn màn hình" : "Toàn màn hình"}
-              aria-pressed={fullscreen}
-              title={fullscreen ? "Thoát toàn màn hình (Esc)" : "Toàn màn hình bán hàng"}
-              onClick={() => void toggleFullscreen()}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-            >
-              {fullscreen ? <Minimize className="h-4 w-4 text-cyan-600" /> : <Maximize className="h-4 w-4 text-cyan-600" />}
-              <span className="hidden sm:inline">{fullscreen ? "Thu nhỏ" : "Toàn màn hình"}</span>
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-95"
-              onClick={() => setScanning(true)}
-              title="Quét mã vạch bằng camera"
-            >
-              <Camera className="h-4 w-4 text-cyan-600" />
-              <span className="hidden sm:inline">Quét camera</span>
-            </button>
-
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-95"
-              onClick={() => setHelp(true)}
-              title="Xem danh sách phím tắt POS (F1)"
-            >
-              <Keyboard className="h-4 w-4 text-slate-500" />
-              <span className="hidden sm:inline">Phím tắt</span>
-            </button>
-
-            <button
-              type="button"
-              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 active:scale-95 disabled:opacity-50"
-              onClick={() => void refreshCatalog()}
-              disabled={reloading}
-              title="Làm mới danh sách sản phẩm"
-            >
-              <RefreshCw className={`h-4 w-4 text-slate-500 ${reloading ? "animate-spin" : ""}`} />
-            </button>
-          </div>
-        </header>
-
-        {/* Held Drafts Bar */}
-        {scope && userProfile?.uid && <PendingDraftRequests key={JSON.stringify([scope.companyCode, scope.branchId, userProfile.uid])} scope={scope} userId={userProfile.uid} busy={busy} onRecovered={refreshDrafts} />}
-        <HeldDraftsBar
-          drafts={drafts}
-          activeId={draft?._id}
-          onOpen={openDraft}
-        />
-
-        {/* Product Search & Barcode Input */}
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-          <input
-            ref={searchRef}
-            autoFocus
-            aria-label="Tìm hoặc quét sản phẩm"
-            className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-11 pr-24 text-sm text-slate-800 placeholder-slate-400 shadow-sm transition focus:border-cyan-500 focus:outline-none focus:ring-4 focus:ring-cyan-500/10"
-            placeholder="Tên sản phẩm, SKU hoặc mã vạch..."
-            value={q}
-            onChange={(event) => setQ(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter") return;
-              event.preventDefault();
-              const product = products[0];
-              if (product) addProductToCart(product, true);
-            }}
-          />
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
-            {q && (
-              <button
-                type="button"
-                onClick={() => setQ("")}
-                className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-            <kbd className="hidden sm:inline-block rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-400 shadow-2xs">
-              Enter ↵
-            </kbd>
-          </div>
-        </div>
-
-        {scanFeedback && <ScanFeedback {...scanFeedback} />}
-
-        {/* Product Catalog Grid */}
-        <ProductGrid key={`${scope.companyCode}:${scope.branchId}:${q}`} products={products} onAdd={addProductToCart} searchQuery={q} />
-      </main>
-
-      {/* Cart & Checkout Panel */}
-      <CartPanel
-        scope={scope}
-        cart={cart}
-        billingProfiles={billingProfiles}
-        busy={busy}
-        canPay={true}
-        dispatch={dispatch}
-        onHold={saveDraft}
-        onPay={openPayment}
+      {/* TOP HEADER BAR */}
+      <PosHeader
+        searchRef={searchRef}
+        searchQuery={q}
+        onSearchChange={setQ}
+        onSearchKeyDown={(event) => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          const product = displayProducts[0] || products[0];
+          if (product) addProductToCart(product, true);
+        }}
+        onScanClick={() => setScanning(true)}
+        userProfile={userProfile}
+        branchDisplayName={branchDisplayName}
+        fullscreen={fullscreen}
+        onToggleFullscreen={() => void toggleFullscreen()}
+        onOpenShortcuts={() => setHelp(true)}
+        onRefreshCatalog={() => void refreshCatalog()}
+        reloading={reloading}
+        onCloseShift={() => leaveWithCart(onCloseShift, "Đóng phiên")}
+        canLeavePos={canLeavePos}
+        onLeavePos={() => leaveWithCart(onLeavePos)}
+        onLogout={() => leaveWithCart(onLogout, "Đăng xuất")}
       />
+
+      {/* MAIN BODY: Product Catalog on LEFT, Cart & Payment on RIGHT */}
+      <div className="grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] xl:grid-cols-[minmax(0,1fr)_450px] overflow-hidden">
+        {/* LEFT COLUMN: Product Catalog & Bottom Category bar */}
+        <main className="flex flex-col min-h-0 border-r border-slate-200 overflow-hidden bg-slate-50/60">
+          {scanFeedback && (
+            <div className="px-4 pt-2">
+              <ScanFeedback {...scanFeedback} />
+            </div>
+          )}
+
+          {/* Catalog Section Header */}
+          <div className="flex items-center justify-between px-4 sm:px-6 pt-3 pb-1 shrink-0">
+            <div className="flex items-center gap-2">
+              <h2 className="text-base sm:text-lg font-bold text-slate-800">
+                {categoryTitle}
+              </h2>
+              <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
+                {displayProducts.length} món
+              </span>
+            </div>
+          </div>
+
+          {/* CATEGORY DRILL-DOWN: LEVEL 2 & LEVEL 3 PILLS + BREADCRUMBS (ABOVE PRODUCTS) */}
+          <PosCategoryDrilldown
+            selectedL1={selectedL1}
+            selectedL2={selectedL2}
+            selectedL3={selectedL3}
+            setSelectedL1={setSelectedL1}
+            setSelectedL2={setSelectedL2}
+            setSelectedL3={setSelectedL3}
+            level2Options={level2Options}
+            level3Options={level3Options}
+            products={products}
+            officialCategories={officialCategories}
+            getProductHierarchy={getProductHierarchy}
+          />
+
+          {/* Product Cards Grid / Category Tree */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 pb-3 pt-1">
+            {shouldRenderInventoryFolderTree ? (
+              <ProductGrid
+                key={`${scope.companyCode}:${scope.branchId}:${q}:${selectedL1}:${selectedL2}:${selectedL3}`}
+                products={displayProducts}
+                onAdd={addProductToCart}
+                onOpenVariantSelector={setSelectedVariantGroup}
+                searchQuery={q}
+              />
+            ) : displayProductGroups.length === 0 ? (
+              <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500 shadow-2xs">
+                <Store className="mb-2 h-10 w-10 text-slate-400" />
+                <p className="text-sm font-medium text-slate-700">Không tìm thấy sản phẩm nào trong danh mục này.</p>
+                <p className="text-xs text-slate-400">Hãy thử chọn phân loại khác hoặc xóa bộ lọc.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
+                {displayProductGroups.map((group) => (
+                  <ProductCard
+                    key={group.key}
+                    group={group}
+                    onAdd={addProductToCart}
+                    onOpenVariantSelector={setSelectedVariantGroup}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* LEVEL 1 BOTTOM BAR (Single Row) */}
+          <PosBottomTabs
+            selectedL1={selectedL1}
+            setSelectedL1={setSelectedL1}
+            setSelectedL2={setSelectedL2}
+            setSelectedL3={setSelectedL3}
+            tabs={bottomBarL1Tabs}
+          />
+        </main>
+
+        {/* RIGHT COLUMN: Cart & Checkout Panel */}
+        <CartPanel
+          scope={scope}
+          cart={cart}
+          billingProfiles={billingProfiles}
+          allowCollaboratorCreation={
+            userProfile?.role === "admin" ||
+            userProfile?.role === "superadmin" ||
+            Boolean(
+              userProfile?.permissions?.some((permission: string) =>
+                ["*", "partner:manage", "retail:manage", "repair:manage"].includes(permission),
+              ),
+            )
+          }
+          allowCouponListing={
+            userProfile?.role === "admin" ||
+            userProfile?.role === "superadmin" ||
+            Boolean(
+              userProfile?.permissions?.some(
+                (permission: string) => permission === "*" || permission === "retail:manage",
+              ),
+            )
+          }
+          busy={busy}
+          canPay={!recoveryBlocked}
+          dispatch={dispatch}
+          onPay={openPayment}
+        />
+      </div>
 
       <RetailOfflineQueuePanel
         items={offlineItems}
-        onRetry={id => { if (offlineScope) void syncOffline(offlineScope, id); }}
+        onRetry={(id) => {
+          if (offlineScope) void syncOffline(offlineScope, {}, id);
+        }}
         onRemove={() => undefined}
-        onReconcile={id => void resolvePendingCheckout(id, false)}
-        onRevoke={id => void resolvePendingCheckout(id, true)}
+        onReconcile={(id) => void resolvePendingCheckout(id, false)}
+        onRevoke={(id) => void resolvePendingCheckout(id, true)}
       />
 
       {paying && cart.quote && (
         <PaymentDialog
           total={cart.quote.grandTotal}
+          installment={cart.installment}
           busy={busy}
           customerId={cart.customer?._id}
           onClose={() => setPaying(false)}
@@ -706,6 +913,7 @@ export default function RetailPosPage() {
 
       {pendingProduct && (
         <AddSerialToCartDialog
+          scope={scope}
           product={pendingProduct}
           excluded={cart.lines.flatMap((line) => line.serialNumbers || [])}
           onClose={() => setPendingProduct(null)}
@@ -716,7 +924,11 @@ export default function RetailPosPage() {
               return;
             }
             dispatch({ type: "add", product: pendingProduct });
-            dispatch({ type: "serials", productId: pendingProduct._id, serialNumbers: [...(line?.serialNumbers || []), serialNumber] });
+            dispatch({
+              type: "serials",
+              productId: pendingProduct._id,
+              serialNumbers: [...(line?.serialNumbers || []), serialNumber],
+            });
             setPendingProduct(null);
           }}
         />
@@ -729,9 +941,22 @@ export default function RetailPosPage() {
         />
       )}
 
+      {selectedVariantGroup && (
+        <ProductVariantSelectorModal
+          isOpen={true}
+          group={selectedVariantGroup}
+          onClose={() => setSelectedVariantGroup(null)}
+          onAdd={(variant) => {
+            setSelectedVariantGroup(null);
+            addProductToCart(variant);
+          }}
+        />
+      )}
+
       {completed && (
         <CheckoutSuccessDialog
           result={completed}
+          paperSize={invoicePaperSize}
           onNewOrder={newOrder}
           onClose={() => setCompleted(null)}
         />
@@ -739,834 +964,5 @@ export default function RetailPosPage() {
 
       {help && <PosShortcutHelp onClose={() => setHelp(false)} />}
     </section>
-  );
-}
-
-type ProductGroup = { key: string; name: string; variants: RetailProduct[] };
-
-function groupProductsBySku(products: RetailProduct[]): ProductGroup[] {
-  const groups = new Map<string, ProductGroup>();
-  for (const product of products) {
-    const key = product.productId || product._id;
-    const suffix = product.variantName ? ` - ${product.variantName}` : "";
-    const baseName =
-      suffix && product.name.endsWith(suffix)
-        ? product.name.slice(0, -suffix.length)
-        : product.name;
-    const existing = groups.get(key);
-    if (existing) existing.variants.push(product);
-    else groups.set(key, { key, name: baseName, variants: [product] });
-  }
-  return Array.from(groups.values());
-}
-
-function ProductRow({
-  group,
-  onAdd,
-}: {
-  group: ProductGroup;
-  onAdd: (product: RetailProduct) => void;
-}) {
-  const defaultId = (
-    group.variants.find((variant) => variant.stock > 0) || group.variants[0]
-  )._id;
-  const [selectedId, setSelectedId] = React.useState(defaultId);
-  const [failedImageUrl, setFailedImageUrl] = React.useState<string | null>(null);
-  const [open, setOpen] = React.useState(false);
-  const [openUpwards, setOpenUpwards] = React.useState(false);
-  const buttonRef = React.useRef<HTMLButtonElement>(null);
-
-  React.useEffect(() => {
-    if (!group.variants.some((variant) => variant._id === selectedId))
-      setSelectedId(defaultId);
-  }, [group.variants, selectedId, defaultId]);
-
-  const selected =
-    group.variants.find((variant) => variant._id === selectedId) ||
-    group.variants[0];
-  const totalStock = group.variants.reduce(
-    (sum, variant) => sum + Math.max(0, variant.stock),
-    0,
-  );
-  const isSoldOut = selected.stock <= 0;
-
-  const toggleOpen = () => {
-    if (!open && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      const section = buttonRef.current.closest("section");
-      const sectionRect = section ? section.getBoundingClientRect() : null;
-      const spaceBelowSection = sectionRect ? sectionRect.bottom - rect.bottom : 999;
-      const spaceBelowWindow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      // If less than 260px below in either the card section or window, open upwards ("nổi lên trên")
-      const shouldOpenUp = (spaceBelowWindow < 260 || spaceBelowSection < 260) && spaceAbove > 180;
-      setOpenUpwards(shouldOpenUp);
-    }
-    setOpen((value) => !value);
-  };
-
-  return (
-    <div
-      className={`group relative min-w-0 bg-white transition-colors hover:bg-cyan-50/50 ${
-        open ? "z-30" : "z-0"
-      }`}
-    >
-      <button
-        type="button"
-        className={`flex w-full min-w-0 items-center gap-3 px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-500 cursor-pointer ${
-          isSoldOut ? "opacity-80" : ""
-        }`}
-        onClick={() => onAdd(selected)}
-      >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-100 bg-slate-50 sm:h-11 sm:w-11">
-          {selected.imageUrl && selected.imageUrl !== failedImageUrl ? (
-            <img
-              src={selected.imageUrl}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              className="h-full w-full object-contain"
-              onError={() => setFailedImageUrl(selected.imageUrl!)}
-            />
-          ) : <ImageIcon aria-hidden="true" className="h-5 w-5 text-slate-300" />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <span title={group.name} className="block truncate text-sm font-semibold leading-snug text-slate-900 transition group-hover:text-cyan-700">
-            {group.name}
-          </span>
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <span title={selected.sku} className="min-w-0 truncate font-mono text-[11px] text-slate-400">SKU: {selected.sku}</span>
-          <span
-            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-              isSoldOut
-                ? "bg-rose-50 text-rose-700 border border-rose-200/80"
-                : selected.stock <= 2
-                ? "bg-amber-50 text-amber-700 border border-amber-200/80"
-                : "bg-emerald-50 text-emerald-700 border border-emerald-200/80"
-            }`}
-          >
-            {isSoldOut ? "Hết hàng" : `Tồn: ${selected.stock}`}
-          </span>
-          </div>
-        </div>
-
-        <div className="flex max-w-[50%] shrink-0 items-center gap-2 sm:gap-3">
-          <span className="min-w-0 break-words text-right text-sm font-bold tabular-nums text-cyan-700">
-            {money(selected.price)}
-          </span>
-          <span
-            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition ${
-              isSoldOut
-                ? "bg-slate-100 text-slate-400"
-                : "bg-cyan-50 text-cyan-700 group-hover:bg-cyan-600 group-hover:text-white"
-            }`}
-          >
-            <Plus className="h-4 w-4" />
-          </span>
-        </div>
-      </button>
-
-      {group.variants.length > 1 && (
-        <div className={`relative mx-3 mb-2 max-w-sm ${open ? "z-40" : ""}`}>
-          <button
-            ref={buttonRef}
-            type="button"
-            aria-haspopup="listbox"
-            aria-expanded={open}
-            aria-label={`Chọn SKU cho ${group.name}`}
-            onClick={toggleOpen}
-            className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200/80 bg-slate-50 px-2 py-1 text-left text-xs transition hover:border-cyan-400 hover:bg-white cursor-pointer"
-          >
-            <span className="flex min-w-0 flex-1 items-center gap-2">
-              <span className="min-w-0 flex-1 truncate font-medium text-slate-700 text-xs">
-                {selected.variantName || selected.sku}
-              </span>
-              <span className="shrink-0 text-[10px] text-slate-400">
-                {group.variants.length} SKU · Tổng tồn: {totalStock}
-              </span>
-            </span>
-            <ChevronDown
-              className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 ${
-                open ? "rotate-180" : ""
-              }`}
-            />
-          </button>
-
-          {open && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setOpen(false)}
-              />
-              <ul
-                role="listbox"
-                className={`absolute left-0 right-0 z-50 max-h-60 overflow-auto rounded-2xl border border-slate-200 bg-white py-1.5 shadow-2xl ring-1 ring-slate-900/5 ${
-                  openUpwards ? "bottom-full mb-1.5" : "top-full mt-1.5"
-                }`}
-              >
-                {group.variants.map((variant) => {
-                  const active = variant._id === selected._id;
-                  const soldOut = variant.stock <= 0;
-                  return (
-                    <li key={variant._id}>
-                      <button
-                        type="button"
-                        role="option"
-                        aria-selected={active}
-                        disabled={soldOut}
-                        onClick={() => {
-                          setSelectedId(variant._id);
-                          setOpen(false);
-                          onAdd(variant);
-                        }}
-                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition ${
-                          soldOut
-                            ? "cursor-not-allowed opacity-45"
-                            : "hover:bg-cyan-50"
-                        } ${active ? "bg-cyan-50/70" : ""}`}
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium text-slate-800">
-                            {variant.variantName || variant.sku}
-                          </span>
-                          <span className="block truncate font-mono text-[10px] text-slate-400">
-                            {variant.sku}
-                          </span>
-                        </span>
-                        <span className="shrink-0 text-right">
-                          <span className="block font-mono font-semibold text-cyan-700">
-                            {money(variant.price)}
-                          </span>
-                          <span
-                            className={`block text-[10px] ${
-                              soldOut ? "text-rose-500 font-semibold" : "text-slate-400"
-                            }`}
-                          >
-                            {soldOut ? "Hết tồn" : `Tồn ${variant.stock}`}
-                          </span>
-                        </span>
-                        <Check
-                          className={`h-4 w-4 shrink-0 ${
-                            active ? "text-cyan-600" : "invisible"
-                          }`}
-                        />
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ProductGrid({
-  products,
-  onAdd,
-  searchQuery,
-}: {
-  products: RetailProduct[];
-  onAdd: (product: RetailProduct) => void;
-  searchQuery?: string;
-}) {
-
-  const groups = React.useMemo(() => groupProductsBySku(products), [products]);
-  const tree = React.useMemo(() => {
-    const root: ProductFolder = { code: "", name: "", children: [], groups: [], count: 0 };
-    for (const group of groups) {
-      const product = group.variants[0];
-      const path = product.categoryPath?.length
-        ? product.categoryPath
-        : [{ code: product.category || "", name: product.category || "Chưa phân loại" }];
-      let parent = root;
-      for (const category of path) {
-        let child = parent.children.find((item) => item.code === category.code);
-        if (!child) {
-          child = { ...category, children: [], groups: [], count: 0 };
-          parent.children.push(child);
-        }
-        child.count += 1;
-        parent = child;
-      }
-      parent.groups.push(group);
-    }
-    return root.children;
-  }, [groups]);
-
-  // When searching, auto-expand all levels so matching items are visible
-  const isSearching = Boolean(searchQuery && searchQuery.trim().length > 0);
-  const effectiveExpandAll = isSearching ? true : null;
-
-  if (groups.length === 0) {
-    return (
-      <div className="flex h-64 flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center text-slate-400">
-        <Store className="mb-2 h-10 w-10 text-slate-300" />
-        <p className="text-sm font-medium">Không tìm thấy sản phẩm nào.</p>
-        <p className="text-xs text-slate-400">Hãy thử từ khóa khác hoặc quét mã vạch.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div aria-label="Thư mục sản phẩm" className="space-y-3">
-      {/* Categories Tree */}
-      <div className="space-y-3">
-        {tree.map((folder) => (
-          <ProductFolderBranch
-            key={folder.code}
-            folder={folder}
-            onAdd={onAdd}
-            depth={1}
-            expandAll={effectiveExpandAll}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-type ProductFolder = {
-  code: string;
-  name: string;
-  children: ProductFolder[];
-  groups: ProductGroup[];
-  count: number;
-};
-
-function ProductFolderBranch({
-  folder,
-  onAdd,
-  depth = 1,
-  expandAll,
-}: {
-  folder: ProductFolder;
-  onAdd: (product: RetailProduct) => void;
-  depth?: number;
-  expandAll?: boolean | null;
-}) {
-  const [localExpanded, setLocalExpanded] = React.useState<boolean>(false);
-
-  React.useEffect(() => {
-    if (expandAll !== null && expandAll !== undefined) {
-      setLocalExpanded(expandAll);
-    }
-  }, [expandAll]);
-
-  const expanded = localExpanded;
-  const contentId = React.useId();
-
-  const handleToggle = () => {
-    setLocalExpanded(!expanded);
-  };
-
-  if (depth === 1) {
-    return (
-      <section className="min-w-0 rounded-2xl border border-slate-200/90 bg-white shadow-xs transition-all duration-200 hover:border-slate-300">
-        <button
-          type="button"
-          aria-label={folder.name}
-          aria-expanded={expanded}
-          aria-controls={contentId}
-          onClick={handleToggle}
-          className={`flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition hover:bg-slate-50/80 cursor-pointer select-none ${
-            expanded ? "rounded-t-2xl" : "rounded-2xl"
-          }`}
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <div
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
-                expanded ? "bg-cyan-600 text-white shadow-sm shadow-cyan-600/25" : "bg-cyan-50 text-cyan-700"
-              }`}
-            >
-              <Folder aria-hidden="true" className="h-4.5 w-4.5" />
-            </div>
-            <div className="min-w-0">
-              <span className="block text-sm font-bold text-slate-800 truncate">{folder.name}</span>
-              <span className="block text-[11px] text-slate-400 font-medium">Danh mục chính · {folder.count} sản phẩm</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2.5 shrink-0">
-            <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
-              {folder.count} sản phẩm
-            </span>
-            <div
-              className={`flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-transform duration-200 ${
-                expanded ? "rotate-180 text-cyan-600 bg-cyan-50" : "bg-slate-100/70"
-              }`}
-            >
-              <ChevronDown aria-hidden="true" className="h-4 w-4" />
-            </div>
-          </div>
-        </button>
-
-        <div id={contentId} hidden={!expanded} className="rounded-b-2xl border-t border-slate-100 bg-slate-50/30 p-3 sm:p-4 space-y-3">
-          {folder.groups.length > 0 && (
-            <div className="min-w-0 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white overflow-visible">
-              {folder.groups.map((group) => (
-                <ProductRow key={group.key} group={group} onAdd={onAdd} />
-              ))}
-            </div>
-          )}
-          {folder.children.map((child) => (
-            <ProductFolderBranch
-              key={child.code}
-              folder={child}
-              onAdd={onAdd}
-              depth={depth + 1}
-              expandAll={expandAll}
-            />
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  if (depth === 2) {
-    return (
-      <section className="min-w-0 rounded-xl border border-slate-200/80 bg-white p-2.5 sm:p-3 shadow-2xs transition-all hover:border-cyan-300">
-        <button
-          type="button"
-          aria-label={folder.name}
-          aria-expanded={expanded}
-          aria-controls={contentId}
-          onClick={handleToggle}
-          className="flex w-full items-center justify-between gap-2.5 text-left cursor-pointer select-none"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
-              <FolderOpen aria-hidden="true" className="h-3.5 w-3.5" />
-            </div>
-            <span className="text-xs sm:text-sm font-semibold text-slate-700 truncate">{folder.name}</span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[11px] text-slate-400 font-medium">{folder.count} sản phẩm</span>
-            <ChevronDown
-              aria-hidden="true"
-              className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${
-                expanded ? "rotate-180 text-amber-600" : ""
-              }`}
-            />
-          </div>
-        </button>
-
-        <div id={contentId} hidden={!expanded} className="mt-2.5 pt-2.5 border-t border-slate-100 space-y-2.5">
-          {folder.groups.length > 0 && (
-            <div className="min-w-0 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white overflow-visible">
-              {folder.groups.map((group) => (
-                <ProductRow key={group.key} group={group} onAdd={onAdd} />
-              ))}
-            </div>
-          )}
-          {folder.children.map((child) => (
-            <ProductFolderBranch
-              key={child.code}
-              folder={child}
-              onAdd={onAdd}
-              depth={depth + 1}
-              expandAll={expandAll}
-            />
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  return (
-    <section className="min-w-0 border-l-2 border-amber-300 pl-3 py-1 space-y-2">
-      <button
-        type="button"
-        aria-label={folder.name}
-        aria-expanded={expanded}
-        aria-controls={contentId}
-        onClick={handleToggle}
-        className="flex w-full items-center justify-between gap-2 text-left cursor-pointer select-none py-1 hover:text-cyan-700"
-      >
-        <div className="flex items-center gap-2 min-w-0">
-          <Tag aria-hidden="true" className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-          <span className="text-xs font-semibold text-slate-700 truncate">{folder.name}</span>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <span className="text-[10px] text-slate-400 font-medium">{folder.count} sản phẩm</span>
-          <ChevronDown
-            aria-hidden="true"
-            className={`h-3 w-3 text-slate-400 transition-transform duration-200 ${
-              expanded ? "rotate-180 text-cyan-600" : ""
-            }`}
-          />
-        </div>
-      </button>
-
-      <div id={contentId} hidden={!expanded} className="pt-2 space-y-2">
-        {folder.groups.length > 0 && (
-          <div className="min-w-0 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white overflow-visible">
-            {folder.groups.map((group) => (
-              <ProductRow key={group.key} group={group} onAdd={onAdd} />
-            ))}
-          </div>
-        )}
-        {folder.children.map((child) => (
-          <ProductFolderBranch
-            key={child.code}
-            folder={child}
-            onAdd={onAdd}
-            depth={depth + 1}
-            expandAll={expandAll}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function HidScannerListener({ onScan }: { onScan(value: string): void }) {
-  const callback = React.useRef(onScan);
-  callback.current = onScan;
-  React.useEffect(() => {
-    const scanner = createHidScannerBuffer({
-      timeoutMs: 50,
-      minLength: 3,
-      onScan: (value) => callback.current(value),
-    });
-    const handler = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (
-        !target ||
-        !["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)
-      )
-        scanner.keydown(event);
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
-  return null;
-}
-
-function OnlineRetailSync({
-  scope,
-  sync,
-}: {
-  scope: OfflineScope;
-  sync(scope: OfflineScope): Promise<unknown>;
-}) {
-  const callback = React.useRef(sync);
-  callback.current = sync;
-  React.useEffect(() => {
-    const run = () => void callback.current(scope);
-    window.addEventListener("online", run);
-    if (navigator.onLine) run();
-    return () => window.removeEventListener("online", run);
-  }, [scope.companyCode, scope.branchId, scope.userId]);
-  return null;
-}
-
-function CartPanel({
-  scope,
-  cart,
-  billingProfiles,
-  busy,
-  canPay,
-  dispatch,
-  onHold,
-  onPay,
-}: {
-  scope: RetailScope;
-  cart: RetailCartState;
-  billingProfiles: any[];
-  busy: boolean;
-  canPay: boolean;
-  dispatch: React.Dispatch<any>;
-  onHold: () => Promise<void>;
-  onPay: () => void;
-}) {
-  const totalItemCount = cart.lines.reduce((sum, line) => sum + line.quantity, 0);
-
-  return (
-    <aside className="flex flex-col rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm">
-      {/* Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-        <h2 className="flex items-center gap-2 font-bold text-slate-900">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700">
-            <ShoppingCart className="h-4 w-4" />
-          </div>
-          <span>Giỏ hàng</span>
-          <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
-            {totalItemCount} món
-          </span>
-        </h2>
-
-        {cart.lines.length > 0 && (
-          <button
-            type="button"
-            onClick={() => dispatch({ type: "reset" })}
-            className="flex items-center gap-1 text-xs font-medium text-slate-400 transition hover:text-rose-600"
-            title="Xóa toàn bộ giỏ hàng"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            <span>Xóa giỏ</span>
-          </button>
-        )}
-      </div>
-
-      {/* Customer & Partner selector */}
-      <div className="mt-3.5 space-y-2.5">
-        <CollaboratorPicker
-          value={cart.collaboratorId}
-          onChange={(collaboratorId) =>
-            dispatch({ type: "collaborator", collaboratorId })
-          }
-        />
-        <CustomerPicker
-          scope={scope}
-          value={cart.customer}
-          onChange={(customer) => dispatch({ type: "customer", customer })}
-        />
-        <CustomerCouponOffers
-          key={scope.companyCode + scope.branchId + (cart.customer?._id || "")}
-          scope={scope}
-          customerId={cart.customer?._id}
-          selectedCode={cart.couponCode}
-          onApply={(code) => dispatch({ type: "coupon", code })}
-        />
-
-        {cart.customer?.type === "vat" && (
-          <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50/70 p-3.5 text-sm">
-            <p className="font-semibold text-amber-900">Hoa don VAT</p>
-            <select
-              aria-label="Ho so VAT"
-              value={cart.billingProfile?._id || ""}
-              onChange={(event) =>
-                dispatch({
-                  type: "billingProfile",
-                  billingProfile:
-                    billingProfiles.find((item) => item._id === event.target.value) ||
-                    null,
-                })
-              }
-              className="w-full rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-2xs"
-            >
-              <option value="">Chon ho so xuat VAT</option>
-              {billingProfiles.map((profile) => (
-                <option key={profile._id} value={profile._id}>
-                  {profile.legalName} - {profile.taxId}
-                </option>
-              ))}
-            </select>
-            {!billingProfiles.length && (
-              <p className="text-xs text-amber-700">
-                Khach nay chua co ho so VAT dang hoat dong.
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Cart Items List */}
-      <div className="my-4 flex-1 space-y-3 overflow-y-auto max-h-[38vh] pr-1">
-        {cart.lines.length === 0 ? (
-          <div className="flex h-36 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-4 text-center text-slate-400">
-            <ShoppingCart className="mb-2 h-7 w-7 text-slate-300" />
-            <p className="text-xs font-medium text-slate-500">Giỏ hàng đang trống</p>
-            <p className="text-[11px] text-slate-400">Chọn sản phẩm bên trái hoặc quét mã vạch</p>
-          </div>
-        ) : (
-          cart.lines.map((line) => (
-            <div
-              key={line.product._id}
-              className="space-y-2.5 rounded-2xl border border-slate-200/80 bg-slate-50/40 p-3 transition hover:border-slate-300"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-sm text-slate-900">
-                    {line.product.name}
-                  </p>
-                  <p className="font-mono text-xs text-slate-500">
-                    {money(line.product.price)}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <QuantityInput
-                    ariaLabel={`Số lượng ${line.product.name}`}
-                    value={line.quantity}
-                    onQuantityChange={(quantity) =>
-                      dispatch({
-                        type: "quantity",
-                        productId: line.product._id,
-                        quantity,
-                      })
-                    }
-                  />
-
-                  <button
-                    type="button"
-                    aria-label={`Xóa ${line.product.name}`}
-                    onClick={() =>
-                      dispatch({ type: "remove", productId: line.product._id })
-                    }
-                    className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              <DiscountInput
-                label={`Giảm giá ${line.product.name}`}
-                value={line.discount}
-                onChange={(discount) =>
-                  dispatch({
-                    type: "lineDiscount",
-                    productId: line.product._id,
-                    discount,
-                  })
-                }
-              />
-
-              {line.product.trackingMode === "serial" && (
-                <SerialPicker
-                  productId={line.product.productId || line.product._id}
-                  variantId={line.product.variantId}
-                  quantity={line.quantity}
-                  value={line.serialNumbers || []}
-                  onChange={(serialNumbers) =>
-                    dispatch({
-                      type: "serials",
-                      productId: line.product._id,
-                      serialNumbers,
-                    })
-                  }
-                />
-              )}
-
-              {line.product.trackingMode === "unit_barcode" && (
-                <UnitBarcodePicker
-                  productId={line.product._id}
-                  variantId={line.product.variantId}
-                  quantity={line.quantity}
-                  value={line.internalBarcodes || []}
-                  onChange={(internalBarcodes) =>
-                    dispatch({
-                      type: "internalBarcodes",
-                      productId: line.product._id,
-                      internalBarcodes,
-                    })
-                  }
-                />
-              )}
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Adjustments & Coupons */}
-      <div className="space-y-3 pt-3 border-t border-slate-100">
-        <OrderAdjustments
-          orderDiscount={cart.orderDiscount}
-          taxRate={cart.taxRate}
-          shippingFee={cart.shippingFee}
-          onChange={(value) => dispatch({ type: "orderAdjustments", ...value })}
-        />
-
-        <div className="rounded-2xl border border-slate-200/90 bg-slate-50/70 p-3 shadow-2xs">
-          <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-            <Ticket className="h-3.5 w-3.5 text-cyan-600" />
-            Mã ưu đãi
-          </label>
-          <CartCouponPicker
-            scope={scope}
-            customerId={cart.customer?._id}
-            value={cart.couponCode || ""}
-            onChange={(code) => dispatch({ type: "coupon", code })}
-          />
-          <div className="relative mt-1.5 flex items-center">
-            <input
-              aria-label="Mã ưu đãi"
-              className="w-full rounded-xl border border-slate-300 bg-white py-2 pl-3 pr-8 font-mono text-xs font-bold uppercase tracking-wider text-slate-800 placeholder:font-sans placeholder:font-normal placeholder:normal-case placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
-              maxLength={32}
-              placeholder="Nhập mã ưu đãi..."
-              value={cart.couponCode || ""}
-              onChange={(event) =>
-                dispatch({ type: "coupon", code: event.target.value })
-              }
-            />
-            {cart.couponCode && (
-              <button
-                type="button"
-                onClick={() => dispatch({ type: "coupon", code: "" })}
-                className="absolute right-2.5 text-slate-400 hover:text-slate-600"
-                title="Xóa mã"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-          {cart.couponCode && (
-            <div className="mt-1.5 text-[11px]">
-              {cart.quoteDirty ? (
-                <span className="text-slate-500">
-                  Đang kiểm tra mã và tính lại đơn...
-                </span>
-              ) : cart.quote && Number(cart.quote.orderDiscount || 0) > 0 ? (
-                <span className="font-semibold text-emerald-700">
-                  ✓ Đã áp dụng giảm {money(Number(cart.quote.orderDiscount || 0))}
-                </span>
-              ) : (
-                <span className="text-amber-700">
-                  Chưa áp dụng được mã. Kiểm tra điều kiện đơn hoặc xóa mã để tiếp tục.
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Summary and Buttons */}
-      <div className="mt-4 pt-3.5 border-t border-slate-100">
-        <div className="flex items-baseline justify-between text-base font-bold text-slate-900">
-          <span>Tổng tiền</span>
-          <span className="font-mono text-2xl text-cyan-700">
-            {money(cart.quote?.grandTotal || 0)}
-          </span>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-2.5">
-          <button
-            type="button"
-            disabled={!cart.lines.length || busy}
-            className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3.5 font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-95 disabled:opacity-40"
-            onClick={() => void onHold()}
-          >
-            <Pause className="h-4 w-4 text-slate-500" />
-            Treo đơn
-          </button>
-
-          <button
-            type="button"
-            disabled={
-              !cart.lines.length ||
-              !cart.quote ||
-              cart.quoteDirty ||
-              !canPay ||
-              busy
-            }
-            className="rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-3.5 font-bold text-white shadow-md shadow-cyan-600/25 transition hover:from-cyan-700 hover:to-blue-700 hover:shadow-cyan-600/35 active:scale-95 disabled:opacity-40"
-            onClick={onPay}
-          >
-            Thanh toán
-          </button>
-        </div>
-      </div>
-    </aside>
-  );
-}
-
-function Notice() {
-  return (
-    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-800">
-      Vui lòng chọn chi nhánh.
-    </div>
   );
 }

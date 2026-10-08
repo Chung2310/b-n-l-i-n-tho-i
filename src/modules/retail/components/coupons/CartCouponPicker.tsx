@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { retailCouponsApi, type RetailCoupon } from "../../api/retailCoupons.api";
+import { Dropdown } from "../../../../components/common/Dropdown";
 import type { RetailScope } from "../../types";
 
-export default function CartCouponPicker({ scope, customerId, value, onChange }: {
+export default function CartCouponPicker({ scope, customerId, value, onChange, allowListing = true }: {
   scope: RetailScope;
   customerId?: string;
   value: string;
   onChange: (code: string) => void;
+  allowListing?: boolean;
 }) {
   const [result, setResult] = useState<{ key: string; items: RetailCoupon[]; error?: string } | null>(null);
   const [revision, setRevision] = useState(0);
@@ -14,6 +16,7 @@ export default function CartCouponPicker({ scope, customerId, value, onChange }:
   useEffect(() => {
     let current = true;
     setResult(null);
+    if (!allowListing) return () => { current = false; };
     const load = async () => {
       try {
         const items: RetailCoupon[] = [];
@@ -31,7 +34,8 @@ export default function CartCouponPicker({ scope, customerId, value, onChange }:
     };
     void load();
     return () => { current = false; };
-  }, [key, revision]);
+  }, [key, revision, allowListing]);
+  if (!allowListing) return null;
   const loading = result?.key !== key;
   const now = Date.now();
   const coupons = loading ? [] : result.items.filter(item => item.active
@@ -39,20 +43,42 @@ export default function CartCouponPicker({ scope, customerId, value, onChange }:
     && (item.usageLimit == null || item.usedCount < item.usageLimit)
     && (!item.customerId || item.customerId === customerId));
   const selected = coupons.some(item => item.code === value) ? value : "";
+
+  const options = [
+    {
+      value: "",
+      label: loading
+        ? "Đang tải mã ưu đãi..."
+        : "Chọn mã đã tạo hoặc nhập mã bên dưới",
+    },
+    ...coupons.map((item) => ({
+      value: item.code,
+      label: `${item.code} — ${item.name} · Giảm ${
+        item.discountType === "percent"
+          ? `${item.value}%`
+          : `${item.value.toLocaleString("vi-VN")} ₫`
+      }`,
+    })),
+  ];
+
   return (
     <div className="mt-2 space-y-1.5">
-      <select
+      <Dropdown<string>
+        name="couponPicker"
         aria-label="Chọn mã ưu đãi đã tạo"
         value={selected}
         disabled={loading || Boolean(result?.error)}
-        onChange={event => onChange(event.target.value)}
-        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 disabled:opacity-60"
-      >
-        <option value="">{loading ? "Đang tải mã ưu đãi..." : "Chọn mã đã tạo hoặc nhập mã bên dưới"}</option>
-        {coupons.map(item => <option key={item._id} value={item.code}>
-          {item.code} — {item.name} · Giảm {item.discountType === "percent" ? `${item.value}%` : `${item.value.toLocaleString("vi-VN")} ₫`}
-        </option>)}
-      </select>
+        onChange={(val) => onChange(val)}
+        options={options}
+        variant="form"
+        size="sm"
+        placeholder={
+          loading
+            ? "Đang tải mã ưu đãi..."
+            : "Chọn mã đã tạo hoặc nhập mã bên dưới"
+        }
+        triggerClassName="w-full bg-white border-slate-200 text-slate-800 font-medium py-2 shadow-2xs hover:border-slate-300"
+      />
       {result?.key === key && result.error && <p role="status" className="text-xs text-amber-700">{result.error} <button type="button" onClick={() => setRevision(value => value + 1)} className="font-semibold underline">Thử lại</button></p>}
       {!loading && !result.error && !coupons.length && <p className="text-xs text-slate-500">Chưa có mã còn hiệu lực phù hợp với khách đã chọn.</p>}
       {coupons.filter(item => item.code === selected).map(item => <p key={item._id} className="text-[11px] text-slate-500">

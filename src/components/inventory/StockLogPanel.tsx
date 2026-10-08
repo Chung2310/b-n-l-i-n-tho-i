@@ -52,9 +52,6 @@ export type StockLogPanelProps = {
   readOnly?: boolean;
   outboundOnly?: boolean;
   hideExcelActions?: boolean;
-  initialWarehouseId?: string;
-  initialSku?: string;
-  openOnMountKey?: number;
 };
 
 export function StockLogPanel({
@@ -74,9 +71,6 @@ export function StockLogPanel({
   readOnly = false,
   outboundOnly = false,
   hideExcelActions = false,
-  initialWarehouseId,
-  initialSku,
-  openOnMountKey,
 }: StockLogPanelProps) {
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -375,19 +369,6 @@ export function StockLogPanel({
     resetDraft();
     setShowCreateModal(true);
   };
-
-  useEffect(() => {
-    if (!openOnMountKey || !outboundOnly) return;
-    resetDraft();
-    setSourceWarehouseId(initialWarehouseId || "");
-    setShowCreateModal(true);
-  }, [initialWarehouseId, openOnMountKey, outboundOnly]);
-
-  useEffect(() => {
-    if (!showCreateModal || !outboundOnly || !initialSku || !openOnMountKey) return;
-    const product = selectableProducts.find((item) => item.sku === initialSku);
-    if (product) setDraftLines([{ productId: product.id, sku: initialSku, quantity: "1" }]);
-  }, [initialSku, openOnMountKey, outboundOnly, selectableProducts, showCreateModal]);
 
   const openEditModal = (log: StockLog) => {
     const items = getLogItems(log);

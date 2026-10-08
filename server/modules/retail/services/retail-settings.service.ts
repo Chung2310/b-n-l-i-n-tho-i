@@ -79,7 +79,7 @@ export function validateRetailSettingsInput(input: Partial<RetailSettingsValues>
   if (input.orderPrefix !== undefined) output.orderPrefix = prefix(input.orderPrefix, "orderPrefix");
   if (input.invoicePrefix !== undefined) output.invoicePrefix = prefix(input.invoicePrefix, "invoicePrefix");
   if (input.invoicePaperSize !== undefined) {
-    if (!["A4", "A5", "80mm"].includes(input.invoicePaperSize)) throw new Error("invoicePaperSize is invalid");
+    if (!["A4", "A5", "80mm", "58mm"].includes(input.invoicePaperSize)) throw new Error("invoicePaperSize is invalid");
     output.invoicePaperSize = input.invoicePaperSize;
   }
   if (input.invoiceTemplate !== undefined) {

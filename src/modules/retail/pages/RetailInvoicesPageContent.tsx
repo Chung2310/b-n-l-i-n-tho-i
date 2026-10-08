@@ -11,6 +11,7 @@ import {
   Printer,
   QrCode,
   RefreshCw,
+  ScanLine,
   Search,
   User,
   Wallet,
@@ -18,9 +19,11 @@ import {
 } from "lucide-react";
 import { retailInvoicesApi } from "../api/retailInvoices.api";
 import { retailOrdersApi } from "../api/retailOrders.api";
+import { retailSettingsApi } from "../api/retailSettings.api";
+import BarcodeScannerDialog from "../components/pos/BarcodeScannerDialog";
 import ReceiptPrintView from "../components/pos/ReceiptPrintViewSerial";
 import { useRetailScope } from "../hooks/useRetailScope";
-import type { RetailInvoice, RetailPaymentQr } from "../types";
+import type { RetailInvoice, RetailPaymentQr, RetailSettings } from "../types";
 import { invoicePaymentRows, invoicePaymentSummary } from "../components/pos/invoicePaymentDisplay";
 import { getApiErrorMessage } from "../../../utils/errorMessage";
 import { toast } from "../../../pages/Toast";
@@ -28,14 +31,30 @@ import { toast } from "../../../pages/Toast";
 const money = (value: number) => new Intl.NumberFormat("vi-VN").format(value) + " ₫";
 
 export default function RetailInvoicesPageContent() {
-  const { scope } = useRetailScope();
+  const { scope, userProfile } = useRetailScope();
+  const canReprint = userProfile?.role === "admin" || userProfile?.role === "superadmin" || Boolean(userProfile?.permissions?.includes("*") || userProfile?.permissions?.includes("retail:manage"));
   const [q, setQ] = React.useState("");
+  const [scanningInvoice, setScanningInvoice] = React.useState(false);
   const [status, setStatus] = React.useState("");
   const [items, setItems] = React.useState<RetailInvoice[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [selected, setSelected] = React.useState<RetailInvoice | null>(null);
+  const [selectedIsReprint, setSelectedIsReprint] = React.useState(false);
   const [downloadingId, setDownloadingId] = React.useState("");
+  const [reprintingId, setReprintingId] = React.useState("");
   const [paymentQr, setPaymentQr] = React.useState<RetailPaymentQr | null>(null);
+  const [invoicePaperSize, setInvoicePaperSize] = React.useState<RetailSettings["invoicePaperSize"]>("80mm");
+
+  React.useEffect(() => {
+    let active = true;
+    setInvoicePaperSize("80mm");
+    if (scope) {
+      void retailSettingsApi.printConfig(scope)
+        .then((config) => { if (active) setInvoicePaperSize(config.invoicePaperSize); })
+        .catch(() => undefined);
+    }
+    return () => { active = false; };
+  }, [scope?.companyCode, scope?.branchId]);
 
   // Poll payment status if QR modal is active
   React.useEffect(() => {
@@ -86,6 +105,7 @@ export default function RetailInvoicesPageContent() {
     try {
       const invoice = await retailInvoicesApi.detail(scope, id);
       setSelected(invoice);
+      setSelectedIsReprint(false);
       return invoice;
     } catch (cause) {
       toast.error(getApiErrorMessage(cause, "Không tải được hóa đơn."));
@@ -94,13 +114,22 @@ export default function RetailInvoicesPageContent() {
   };
 
   const reprint = async (id: string) => {
-    const invoice = await detail(id);
-    if (invoice) {
-      setTimeout(() => window.print(), 0);
+    if (!scope || !canReprint) return;
+    setReprintingId(id);
+    try {
+      const invoice = await retailInvoicesApi.reprint(scope, id);
+      setSelected(invoice);
+      setSelectedIsReprint(true);
+      window.setTimeout(() => window.print(), 0);
+    } catch (cause) {
+      toast.error(getApiErrorMessage(cause, "Không in lại được hóa đơn."));
+    } finally {
+      setReprintingId("");
     }
   };
 
   const download = async (id: string) => {
+    if (!canReprint) return;
     setDownloadingId(id);
     try {
       await retailInvoicesApi.downloadPdf(scope, id);
@@ -212,6 +241,15 @@ export default function RetailInvoicesPageContent() {
             </button>
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={() => setScanningInvoice(true)}
+          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700"
+        >
+          <ScanLine className="h-4 w-4" />
+          Quét mã
+        </button>
 
         <div className="w-full sm:w-52">
           <select
@@ -332,36 +370,39 @@ export default function RetailInvoicesPageContent() {
                             <Eye className="h-3.5 w-3.5" />
                           </button>
 
-                          <button
-                            type="button"
-                            aria-label={`In lại hóa đơn ${invoice.invoiceNo}`}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700 active:scale-95 shadow-2xs cursor-pointer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void reprint(invoice._id);
-                            }}
-                            title="In lại hóa đơn"
-                          >
-                            <Printer className="h-3.5 w-3.5" />
-                          </button>
+                          {canReprint && !isVoid && <>
+                            <button
+                              type="button"
+                              aria-label={`In lại hóa đơn ${invoice.invoiceNo}`}
+                              disabled={reprintingId === invoice._id}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700 active:scale-95 disabled:opacity-50 shadow-2xs cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void reprint(invoice._id);
+                              }}
+                              title="In lại hóa đơn"
+                            >
+                              {reprintingId === invoice._id ? <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-600" /> : <Printer className="h-3.5 w-3.5" />}
+                            </button>
 
-                          <button
-                            type="button"
-                            aria-label={`Tải PDF hóa đơn ${invoice.invoiceNo}`}
-                            disabled={downloadingId === invoice._id}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700 active:scale-95 disabled:opacity-50 shadow-2xs cursor-pointer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void download(invoice._id);
-                            }}
-                            title="Tải tệp PDF"
-                          >
-                            {downloadingId === invoice._id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-600" />
-                            ) : (
-                              <Download className="h-3.5 w-3.5" />
-                            )}
-                          </button>
+                            <button
+                              type="button"
+                              aria-label={`Tải PDF hóa đơn ${invoice.invoiceNo}`}
+                              disabled={downloadingId === invoice._id}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700 active:scale-95 disabled:opacity-50 shadow-2xs cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void download(invoice._id);
+                              }}
+                              title="Tải bản in lại PDF"
+                            >
+                              {downloadingId === invoice._id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-600" />
+                              ) : (
+                                <Download className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          </>}
 
                           {!isVoid && hasDue && (
                             <button
@@ -393,7 +434,11 @@ export default function RetailInvoicesPageContent() {
         <InvoiceDialog
           invoice={selected}
           downloading={downloadingId === selected._id}
+          canReprint={canReprint && selected.status === "issued"}
+          isReprint={selectedIsReprint}
+          paperSize={invoicePaperSize}
           onDownload={() => void download(selected._id)}
+          onReprint={() => void reprint(selected._id)}
           onClose={() => setSelected(null)}
           onShowQr={() => void showPaymentQr(selected.orderId)}
         />
@@ -413,6 +458,13 @@ export default function RetailInvoicesPageContent() {
 
       {/* Payment QR Dialog */}
       {paymentQr && <PaymentQrDialog qr={paymentQr} onClose={() => setPaymentQr(null)} />}
+      {scanningInvoice && (
+        <BarcodeScannerDialog
+          title="Quét mã hóa đơn"
+          onScan={(value) => { setQ(value); setStatus(""); }}
+          onClose={() => setScanningInvoice(false)}
+        />
+      )}
     </section>
   );
 }
@@ -478,13 +530,21 @@ function PaymentQrDialog({ qr, onClose }: { qr: RetailPaymentQr; onClose: () => 
 function InvoiceDialog({
   invoice,
   downloading,
+  canReprint,
+  isReprint,
+  paperSize,
   onDownload,
+  onReprint,
   onClose,
   onShowQr,
 }: {
   invoice: RetailInvoice;
   downloading: boolean;
+  canReprint: boolean;
+  isReprint: boolean;
+  paperSize: RetailSettings["invoicePaperSize"];
   onDownload: () => void;
+  onReprint: () => void;
   onClose: () => void;
   onShowQr: () => void;
 }) {
@@ -513,30 +573,32 @@ function InvoiceDialog({
               <span>{invoice.snapshot.customerName}</span>
             </p>
             <p className="text-sm text-slate-500">
-              Thu ngân: <span className="font-medium text-slate-800">{invoice.snapshot.cashierName}</span>
+              Nhân viên bán hàng: <span className="font-medium text-slate-800">{invoice.snapshot.salespersonName || invoice.snapshot.cashierName}</span>
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              aria-label="Tải PDF hóa đơn"
-              disabled={downloading}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
-              onClick={onDownload}
-            >
-              {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              PDF
-            </button>
-            <button
-              type="button"
-              aria-label="In hóa đơn"
-              className="flex items-center gap-1.5 rounded-xl border border-cyan-600 bg-cyan-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-700 active:scale-95"
-              onClick={() => window.print()}
-            >
-              <Printer className="h-4 w-4" />
-              In
-            </button>
+            {canReprint && <>
+              <button
+                type="button"
+                aria-label="Tải bản in lại PDF"
+                disabled={downloading}
+                className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+                onClick={onDownload}
+              >
+                {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                PDF
+              </button>
+              <button
+                type="button"
+                aria-label="In lại hóa đơn"
+                className="flex items-center gap-1.5 rounded-xl border border-cyan-600 bg-cyan-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-700 active:scale-95"
+                onClick={onReprint}
+              >
+                <Printer className="h-4 w-4" />
+                In lại
+              </button>
+            </>}
             <button
               type="button"
               aria-label="Đóng hóa đơn"
@@ -586,7 +648,7 @@ function InvoiceDialog({
         <div className="mt-5 space-y-2 rounded-2xl bg-slate-50/70 p-4 border border-slate-100 text-sm">
           <Row label="Tạm tính" value={invoice.snapshot.subtotal} />
           <Row label="Giảm giá" value={invoice.snapshot.orderDiscount} />
-          <Row label="Thuế" value={invoice.snapshot.taxAmount} />
+          <Row label={`Thuế (${invoice.snapshot.taxRate}%)`} value={invoice.snapshot.taxAmount} />
           <div className="border-t border-slate-200/80 pt-2">
             <Row label="Tổng cộng" value={invoice.snapshot.grandTotal} strong />
           </div>
@@ -606,9 +668,7 @@ function InvoiceDialog({
         </p>
 
         {/* Print view */}
-        <div className="hidden print:block">
-          <ReceiptPrintView invoice={invoice} />
-        </div>
+        {canReprint && <div className="hidden print:block"><ReceiptPrintView invoice={invoice} isReprint={isReprint} paperSize={paperSize} /></div>}
       </div>
     </div>
   );

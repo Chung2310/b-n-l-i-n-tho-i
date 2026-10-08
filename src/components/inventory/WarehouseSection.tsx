@@ -25,11 +25,7 @@ type ProductBalanceGroup = {
 
 type StockFilterType = "all" | "in_stock" | "low_stock" | "out_of_stock";
 
-export function WarehouseSection({
-  onCreateOutbound,
-}: {
-  onCreateOutbound?: (warehouseId: string, sku: string) => void;
-}) {
+export function WarehouseSection() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [balances, setBalances] = useState<InventoryBalance[]>([]);
   const [warehouseId, setWarehouseId] = useState("");
@@ -712,18 +708,6 @@ export function WarehouseSection({
                                   >
                                     Xem IMEI
                                   </button>
-
-                                  {/* Create Outbound */}
-                                  {itemAvail > 0 && onCreateOutbound && (
-                                    <button
-                                      type="button"
-                                      onClick={() => onCreateOutbound(item.warehouseId, item.sku)}
-                                      className="rounded border border-rose-200 bg-white px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-50 transition-colors shadow-2xs whitespace-nowrap"
-                                      title="Tạo phiếu xuất hàng cho SKU này"
-                                    >
-                                      Xuất kho
-                                    </button>
-                                  )}
 
                                   {/* Set Threshold */}
                                   <button

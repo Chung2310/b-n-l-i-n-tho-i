@@ -23,6 +23,7 @@ scripts/
 server/scripts/*
 !server/scripts/backfill-labor-partner-scheme-policies.ts
 !server/scripts/migrate-global-unit-barcodes.ts
+!server/scripts/migrate-pos-sessions.ts
 
 # Runtime-generated files and local storage
 server/cache/

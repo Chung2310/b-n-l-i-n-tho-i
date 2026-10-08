@@ -61,7 +61,7 @@ export const APP_ROUTES: AppRoute[] = [
     canAccess: (userProfile) =>
       userProfile.role === "superadmin" ||
       userProfile.role === "admin" ||
-      Boolean(userProfile.permissions?.includes("*") || userProfile.permissions?.some((permission) => permission === "retail:read" || permission === "retail:manage")),
+      Boolean(userProfile.permissions?.includes("*") || userProfile.permissions?.some((permission) => permission === "pos:manage" || permission === "retail:read" || permission === "retail:manage")),
   },
   {
     tab: "BÁN LẺ",

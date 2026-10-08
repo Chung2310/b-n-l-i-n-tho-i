@@ -7,6 +7,9 @@ export type ReceivableEntryType = (typeof RECEIVABLE_ENTRY_TYPES)[number];
 export type ReceivableTerminalStatus = Extract<ReceivableStatus, "void" | "written_off">;
 
 export interface IReceivable {
+  debtorType?: "customer" | "financing_partner";
+  financingPartner?: string;
+  purchaserId?: string;
   companyCode: string;
   branchId: string;
   receivableCode: string;

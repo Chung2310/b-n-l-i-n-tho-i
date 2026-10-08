@@ -302,6 +302,7 @@ export default function UserAdminTab() {
   const getAvailableRoles = () => {
     const defaultRoles = [
       { role: "user", displayName: "USER (Nhân viên)", level: 4 },
+      { role: "pos_cashier", displayName: getRoleDisplayName("pos_cashier"), level: 5 },
       { role: "teacher", displayName: getRoleDisplayName("teacher"), level: 4 },
       { role: "manager", displayName: "MANAGER (Quản lý)", level: 3 },
       { role: "branch_owner", displayName: "BRANCH OWNER", level: 2 }
@@ -320,7 +321,7 @@ export default function UserAdminTab() {
 
     // Merge with custom roles
     const customRoles = rolePermissionsList
-      .filter(rp => !["user", "teacher", "manager", "branch_owner", "admin", "superadmin"].includes(rp.role))
+      .filter(rp => !["user", "teacher", "manager", "branch_owner", "pos_cashier", "admin", "superadmin"].includes(rp.role))
       .map(rp => ({
         role: rp.role,
         displayName: getRoleDisplayName(rp.role, rp.displayName),
@@ -387,7 +388,7 @@ export default function UserAdminTab() {
     safeUserPage * USERS_PER_PAGE
   );
 
-  const handleRoleChange = async (targetUid: string, targetName: string, newRole: "user" | "teacher" | "manager" | "admin" | "superadmin") => {
+  const handleRoleChange = async (targetUid: string, targetName: string, newRole: "user" | "teacher" | "manager" | "branch_owner" | "pos_cashier" | "admin" | "superadmin") => {
     if (targetUid === userProfile?.uid) {
       toast.warning("Bạn không thể tự thay đổi vai trò của chính mình!");
       return;
@@ -539,6 +540,10 @@ export default function UserAdminTab() {
     }
     if (!editingUser && userPassword.length < 6) {
       toast.warning("Mật khẩu phải từ 6 ký tự trở lên!");
+      return;
+    }
+    if (userRole === "pos_cashier" && !userBranchId) {
+      toast.warning("Nhân viên bán hàng POS phải được gán chi nhánh.");
       return;
     }
     if (userProfile?.role === "admin" && userRole === "admin") {
@@ -800,7 +805,7 @@ export default function UserAdminTab() {
                   admin: ["*"],
                   branch_owner: ["access:read", "access:manage", "hr:read", "timekeeping:read", "timekeeping:manage", "people:read", "people:manage", "resource:read", "chat:read", "work:read", "work:manage"],
                   manager: [
-                    "access:read", "access:manage",
+                    "retail:manage", "access:read", "access:manage",
                     "timekeeping:read", "timekeeping:manage",
                     "payroll-period:read",
                     "work:read", "work:manage",
@@ -822,6 +827,7 @@ export default function UserAdminTab() {
                     "chat:read",
                     "finance-receivable:read"
                   ],
+                  pos_cashier: ["pos:manage"],
                   teacher: ["people:read", "people:manage"]
                 };
 
@@ -830,10 +836,11 @@ export default function UserAdminTab() {
                   { role: "manager", displayName: getRoleDisplayName("manager"), level: 3, isDefault: true, permissions: DEFAULT_ROLE_PERMISSIONS.manager },
                   { role: "branch_owner", displayName: getRoleDisplayName("branch_owner"), level: 2, isDefault: true, permissions: DEFAULT_ROLE_PERMISSIONS.branch_owner },
                   { role: "teacher", displayName: getRoleDisplayName("teacher"), level: 4, isDefault: true, permissions: DEFAULT_ROLE_PERMISSIONS.teacher },
+                  { role: "pos_cashier", displayName: getRoleDisplayName("pos_cashier"), level: 5, isDefault: true, permissions: DEFAULT_ROLE_PERMISSIONS.pos_cashier },
                   { role: "user", displayName: getRoleDisplayName("user"), level: 4, isDefault: true, permissions: DEFAULT_ROLE_PERMISSIONS.user }
                 ];
                 
-                const customRolesList = rolePermissionsList.filter(rp => !["superadmin", "admin", "manager", "branch_owner", "teacher", "user"].includes(rp.role));
+                const customRolesList = rolePermissionsList.filter(rp => !["superadmin", "admin", "manager", "branch_owner", "teacher", "user", "pos_cashier"].includes(rp.role));
                 
                 const rolesToDisplay = [
                   ...defaultRolesList.map(dr => {

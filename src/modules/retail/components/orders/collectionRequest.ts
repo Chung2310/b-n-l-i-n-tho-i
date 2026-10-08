@@ -1,10 +1,11 @@
 import type { RetailPaymentInput } from "../../types";
 
-export type PendingCollection = { payments: RetailPaymentInput[]; idempotencyKey: string; expectedVersion: number };
+export type PendingCollection = { cashSessionId?: string; payments: RetailPaymentInput[]; idempotencyKey: string; expectedVersion: number };
 function parse(raw: string | null): PendingCollection | null {
   if (raw === null) return null;
   const row = JSON.parse(raw);
   if (!row || typeof row.idempotencyKey !== "string" || !row.idempotencyKey.trim() || !Number.isSafeInteger(row.expectedVersion) || row.expectedVersion < 0 || !Array.isArray(row.payments) || !row.payments.length) throw new Error("Yêu cầu thu đã lưu bị lỗi. Cần đối chiếu trước khi tiếp tục.");
+  if (row.cashSessionId !== undefined && (typeof row.cashSessionId !== "string" || !/^[a-f0-9]{24}$/i.test(row.cashSessionId))) throw new Error("Phiên thu hoàn đã lưu không hợp lệ.");
   let total = 0;
   const payments = row.payments.map((p: RetailPaymentInput) => {
     if (!p || !["cash", "card", "transfer", "ewallet"].includes(p.method) || !Number.isSafeInteger(p.amount) || p.amount <= 0 || (p.reference !== undefined && typeof p.reference !== "string") || (p.tenderedAmount !== undefined && (p.method !== "cash" || !Number.isSafeInteger(p.tenderedAmount) || p.tenderedAmount < p.amount))) throw new Error("Chi tiết khoản thu đã lưu không hợp lệ.");
@@ -12,7 +13,7 @@ function parse(raw: string | null): PendingCollection | null {
     return { method: p.method, amount: p.amount, tenderedAmount: p.tenderedAmount, reference: p.reference };
   });
   if (!Number.isSafeInteger(total)) throw new Error("Tổng khoản thu đã lưu không hợp lệ.");
-  return { payments, idempotencyKey: row.idempotencyKey, expectedVersion: row.expectedVersion };
+  return { ...(row.cashSessionId ? { cashSessionId: row.cashSessionId } : {}), payments, idempotencyKey: row.idempotencyKey, expectedVersion: row.expectedVersion };
 }
 export function sameCollection(a: PendingCollection, b: PendingCollection) {
   return JSON.stringify(parse(JSON.stringify(a))) === JSON.stringify(parse(JSON.stringify(b)));
