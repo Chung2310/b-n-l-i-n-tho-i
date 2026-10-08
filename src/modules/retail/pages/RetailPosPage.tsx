@@ -108,6 +108,10 @@ export default function RetailPosPage({
   const [recovered] = React.useState(() => readPosCart(recoveryKey));
   const [recoveryBlocked, setRecoveryBlocked] = React.useState(Boolean(recovered.error));
   const [cart, dispatch] = React.useReducer(retailCartReducer, recovered.cart);
+  const cartRef = React.useRef(cart);
+  cartRef.current = cart;
+  const defaultTaxRate = React.useRef(0);
+  const manualTaxRateChanged = React.useRef(false);
   const [products, setProducts] = React.useState<RetailProduct[]>([]);
   const [officialCategories, setOfficialCategories] = React.useState<RetailOfficialCategory[]>([]);
   const recoveryErrorShown = React.useRef(false);
@@ -153,12 +157,25 @@ export default function RetailPosPage({
   } | null>(null);
   const [reloading, setReloading] = React.useState(false);
 
+  const resetCart = () => dispatch({ type: "reset", taxRate: defaultTaxRate.current });
+  const dispatchCartAction = (action: any) => {
+    if (action?.type === "orderAdjustments") manualTaxRateChanged.current = true;
+    dispatch(action);
+  };
+
   React.useEffect(() => {
     let active = true;
     setInvoicePaperSize("80mm");
     if (scope) {
       void retailSettingsApi.printConfig(scope)
-        .then((config) => { if (active) setInvoicePaperSize(config.invoicePaperSize); })
+        .then((config) => {
+          if (!active) return;
+          setInvoicePaperSize(config.invoicePaperSize);
+          defaultTaxRate.current = config.defaultTaxRate;
+          if (!recovered.cart.lines.length && !cartRef.current.lines.length && !manualTaxRateChanged.current) {
+            dispatch({ type: "defaultTaxRate", taxRate: config.defaultTaxRate });
+          }
+        })
         .catch(() => undefined);
     }
     return () => { active = false; };
@@ -442,7 +459,7 @@ export default function RetailPosPage({
     } catch (error) {
       if (current()) {
         if (error instanceof PendingCheckoutError) {
-          dispatch({ type: "reset" });
+          resetCart();
           setPaying(false);
           toast.info("Đã giữ yêu cầu thanh toán. Xử lý tại mục đồng bộ trước khi tạo giao dịch mới.");
         }
@@ -459,11 +476,11 @@ export default function RetailPosPage({
 
   const finish = (result: RetailOrderResult) => {
     setCompleted(result);
-    dispatch({ type: "reset" });
+    resetCart();
   };
 
   const newOrder = () => {
-    dispatch({ type: "reset" });
+    resetCart();
     setCompleted(null);
   };
 
@@ -750,7 +767,7 @@ export default function RetailPosPage({
     >
       {recoveryBlocked && <div role="alert" className="z-[95] rounded-xl bg-rose-50 p-4 text-sm text-rose-800"><p>{recovered.error}</p><button type="button" className="mt-2 rounded-lg border px-3 py-2" onClick={() => {
         if (!window.confirm("Bỏ giỏ đang lỗi để bắt đầu giỏ mới? Bản gốc sẽ được sao lưu trên máy này.")) return;
-        try { const raw = localStorage.getItem(recoveryKey); if (raw) localStorage.setItem(`${recoveryKey}:backup:${Date.now()}`, raw); localStorage.removeItem(recoveryKey); dispatch({ type: "reset" }); setRecoveryBlocked(false); }
+        try { const raw = localStorage.getItem(recoveryKey); if (raw) localStorage.setItem(`${recoveryKey}:backup:${Date.now()}`, raw); localStorage.removeItem(recoveryKey); resetCart(); setRecoveryBlocked(false); }
         catch { toast.error("Không sao lưu được giỏ. Hãy kiểm tra bộ nhớ trình duyệt."); }
       }}>Sao lưu giỏ lỗi và bắt đầu giỏ mới</button></div>}
       <HidScannerListener onScan={(value) => void scan(value)} />
@@ -885,7 +902,7 @@ export default function RetailPosPage({
           }
           busy={busy}
           canPay={!recoveryBlocked}
-          dispatch={dispatch}
+          dispatch={dispatchCartAction}
           onPay={openPayment}
         />
       </div>
