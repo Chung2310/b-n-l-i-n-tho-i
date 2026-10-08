@@ -24,6 +24,7 @@ export interface ReceivableLedgerRepository {
 }
 
 type OpenInput = {
+  debtorType?: "customer" | "financing_partner"; financingPartner?: string; purchaserId?: string;
   receivableCode: string; sourceType: string; sourceId: string; sourceCode?: string; sourceEventId: string;
   customerId: string; customerName: string; originalAmount: number; occurredAt: Date; dueDate: Date;
 };

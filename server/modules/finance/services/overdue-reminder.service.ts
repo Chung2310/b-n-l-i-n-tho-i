@@ -19,6 +19,7 @@ function dayNumber(date: Date, timeZone: string) {
 }
 
 export function isReceivableReminderEligible(receivable: any, now: Date, settings: Pick<FinanceReminderSettings, "timeZone" | "reminderIntervalDays">) {
+  if (receivable.debtorType === "financing_partner") return false;
   if (!["open", "partially_paid"].includes(String(receivable.status)) || Number(receivable.balance) <= 0) return false;
   if (!(receivable.dueDate instanceof Date) || dayNumber(receivable.dueDate, settings.timeZone) >= dayNumber(now, settings.timeZone)) return false;
   if (receivable.reminderSuspendedUntil && new Date(receivable.reminderSuspendedUntil) > now) return false;

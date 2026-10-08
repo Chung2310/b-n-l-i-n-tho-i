@@ -31,6 +31,7 @@ export async function publishRetailOrderEvent(event: EventName, scope: RetailBra
         orderId, orderCode: String(order.orderCode), branchId: scope.branchId, customerId: order.customerId ? String(order.customerId) : undefined,
         customerName: order.customerName, customerPhone: order.customerPhone, grandTotal: order.grandTotal,
         paidAmount: order.paidAmount, dueAmount: order.dueAmount, dueDate: order.dueDate ? date(order.dueDate).toISOString() : undefined,
+        ...(order.installment ? { financingPartner: order.installment.partner } : {}),
       },
     }, options.session);
   }

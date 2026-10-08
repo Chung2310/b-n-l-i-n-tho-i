@@ -23,9 +23,9 @@ describe("PaymentDialog", () => {
     expect(screen.getByRole("button", { name: "Thanh toán đủ" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button", { name: "Thanh toán một phần" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Ghi nợ toàn bộ" })).toBeTruthy();
-    expect((screen.getByRole("textbox", { name: "Số tiền thu" }) as HTMLInputElement).value).toBe("500.000");
+    expect(screen.queryByRole("textbox", { name: "Số tiền thu" })).toBeNull();
+    expect((screen.getByRole("textbox", { name: "Tiền khách đưa" }) as HTMLInputElement).value).toBe("500.000");
     expect(screen.getByText("Nguồn tiền 1")).toBeTruthy();
-    expect(screen.getByText("Khoản được ghi nhận vào đơn.")).toBeTruthy();
     expect(screen.getByText("Dùng để tính tiền trả lại.")).toBeTruthy();
   });
 
@@ -69,7 +69,33 @@ describe("PaymentDialog", () => {
     render(<PaymentDialog total={500_000} busy={false} customerId="c1" onClose={vi.fn()} onSubmit={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: "Ghi nợ toàn bộ" }));
     await userEvent.click(screen.getByRole("button", { name: "Thanh toán đủ" }));
-    expect((screen.getByRole("textbox", { name: "Số tiền thu" }) as HTMLInputElement).value).toBe("500.000");
+    expect(screen.queryByRole("textbox", { name: "Số tiền thu" })).toBeNull();
+    expect((screen.getByRole("textbox", { name: "Tiền khách đưa" }) as HTMLInputElement).value).toBe("500.000");
+  });
+
+  it("exposes collection amount when multiple payment sources are added", async () => {
+    render(<PaymentDialog total={500_000} busy={false} customerId="c1" onClose={vi.fn()} onSubmit={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Thêm phương thức" }));
+    expect(screen.getAllByRole("textbox", { name: "Số tiền thu" }).length).toBe(2);
+  });
+
+  it("automatically balances payment sources in full payment mode", async () => {
+    render(<PaymentDialog total={500_000} busy={false} customerId="c1" onClose={vi.fn()} onSubmit={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Thêm phương thức" }));
+    const amountInputs = screen.getAllByRole("textbox", { name: "Số tiền thu" });
+    expect((amountInputs[0] as HTMLInputElement).value).toBe("500.000");
+    expect((amountInputs[1] as HTMLInputElement).value).toBe("");
+
+    // Typing 300.000 into Row 2 automatically reduces Row 1 to 200.000
+    await userEvent.type(amountInputs[1], "300000");
+    expect((amountInputs[0] as HTMLInputElement).value).toBe("200.000");
+    expect((amountInputs[1] as HTMLInputElement).value).toBe("300.000");
+
+    // Typing 100.000 into Row 1 automatically balances Row 2 to 400.000
+    await userEvent.clear(amountInputs[0]);
+    await userEvent.type(amountInputs[0], "100000");
+    expect((amountInputs[0] as HTMLInputElement).value).toBe("100.000");
+    expect((amountInputs[1] as HTMLInputElement).value).toBe("400.000");
   });
 
   it("labels non-cash references and uses overflow-safe responsive layouts", async () => {

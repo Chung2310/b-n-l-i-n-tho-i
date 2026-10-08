@@ -1,3 +1,4 @@
+import CashSessionPicker from "./CashSessionPicker";
 import React from "react";
 import PaymentDialog from "../pos/PaymentDialog";
 import { retailOrdersApi } from "../../api/retailOrders.api";
@@ -22,6 +23,7 @@ export default function CollectionDialog({ order, close, done }: { order: Retail
       return { pending: candidates[0] || null, candidates, error: "" };
     } catch { return { pending: null, candidates: [], error: "Không đọc được yêu cầu thu tiền đang chờ. Vui lòng đối chiếu công nợ trước khi tiếp tục." }; }
   });
+  const [cashSessionId, setCashSessionId] = React.useState(initial.pending?.cashSessionId || "");
   const [candidates, setCandidates] = React.useState(initial.candidates);
   const [pending, setPending] = React.useState(initial.pending);
   const pendingRef = React.useRef(initial.pending);
@@ -89,12 +91,13 @@ export default function CollectionDialog({ order, close, done }: { order: Retail
         }
         if (!saved && !canCollect) throw new Error("Đơn hiện không còn đủ điều kiện thu công nợ.");
         const retry = Boolean(saved);
-        const request: PendingCollection = saved || { payments, expectedVersion: order.version, idempotencyKey: crypto.randomUUID() };
+        if (!saved && payments.some((payment) => payment.method === "cash") && !cashSessionId) throw new Error("Chọn phiên/két để thu tiền mặt.");
+        const request: PendingCollection = saved || { ...(cashSessionId ? { cashSessionId } : {}), payments, expectedVersion: order.version, idempotencyKey: crypto.randomUUID() };
         saveCollection(storageKey, request);
         pendingRef.current = request;
         setPending(request);
         try {
-          const updated = await retailOrdersApi.collect(scope, order._id, request.payments, { idempotencyKey: request.idempotencyKey, expectedVersion: request.expectedVersion });
+          const updated = await retailOrdersApi.collect(scope, order._id, request.payments, { cashSessionId: request.cashSessionId, idempotencyKey: request.idempotencyKey, expectedVersion: request.expectedVersion });
           completed.current = true;
           clearCollection(storageKey, request);
           if (active()) done(updated);
@@ -125,5 +128,5 @@ export default function CollectionDialog({ order, close, done }: { order: Retail
       <div className="mt-4 flex gap-3"><button onClick={close}>Đóng</button><button disabled={busy || blocked || !pending || completed.current} onClick={() => void reconcile()}>Đối chiếu khoản thu</button><button disabled={busy || blocked || !pending || completed.current} onClick={() => void reconcile(true)}>Hủy yêu cầu chưa ghi nhận</button><button disabled={busy || blocked || candidates.length > 1 || !pending || completed.current} onClick={() => void submit([])}>{busy ? "Đang xử lý..." : "Thử lại khoản thu cũ"}</button></div>
     </div>
   </div>;
-  return <><PaymentDialog total={order.dueAmount} busy={busy} customerId={order.customerId} onClose={close} onSubmit={submit} />{error && <div role="alert" className="fixed bottom-4 left-4 z-[70] rounded-xl bg-white p-4 text-red-600">{error}</div>}</>;
+  return <><PaymentDialog total={order.dueAmount} busy={busy} customerId={order.customerId} onClose={close} onSubmit={submit}><CashSessionPicker scope={scope} value={cashSessionId} onChange={setCashSessionId} disabled={busy} /></PaymentDialog>{error && <div role="alert" className="fixed bottom-4 left-4 z-[70] rounded-xl bg-white p-4 text-red-600">{error}</div>}</>;
 }

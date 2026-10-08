@@ -34,8 +34,10 @@ export function createReceivableConsumer(ledger: FinanceReceivableConsumerLedger
       const { scope, actor } = context(event);
       return ledger.openFromEvent(scope, {
         receivableCode: `CN-${payload.orderCode}`, sourceType: "retail_order", sourceId: String(payload.orderId),
-        sourceCode: String(payload.orderCode), sourceEventId: String(event.eventId), customerId: String(payload.customerId),
-        customerName: String(payload.customerName || ""), originalAmount: Number(payload.dueAmount),
+        sourceCode: String(payload.orderCode), sourceEventId: String(event.eventId),
+        customerId: payload.financingPartner ? `financing-partner:${encodeURIComponent(String(payload.financingPartner).trim().toLowerCase())}` : String(payload.customerId),
+        customerName: String(payload.financingPartner || payload.customerName || ""), originalAmount: Number(payload.dueAmount),
+        ...(payload.financingPartner ? { debtorType: "financing_partner", financingPartner: String(payload.financingPartner), purchaserId: String(payload.customerId) } : {}),
         occurredAt: event.occurredAt instanceof Date ? event.occurredAt : new Date(event.occurredAt), dueDate: new Date(payload.dueDate),
       }, actor);
     },

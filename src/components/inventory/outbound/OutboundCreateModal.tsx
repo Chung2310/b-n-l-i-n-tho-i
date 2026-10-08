@@ -39,8 +39,6 @@ export interface OutboundCreateModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialTicket?: OutboundTicket | null;
-  initialWarehouseId?: string;
-  initialSku?: string;
   warehouses: Warehouse[];
   catalogProducts?: ProductItem[];
   onSave: (payload: {
@@ -78,8 +76,6 @@ export function OutboundCreateModal({
   isOpen,
   onClose,
   initialTicket,
-  initialWarehouseId,
-  initialSku,
   warehouses,
   catalogProducts = [],
   onSave,
@@ -113,13 +109,11 @@ export function OutboundCreateModal({
 
     if (initialTicket?.warehouseId) {
       setSourceWarehouseId(initialTicket.warehouseId);
-    } else if (initialWarehouseId) {
-      setSourceWarehouseId(initialWarehouseId);
     } else if (warehouses.length > 0 && !sourceWarehouseId) {
       const defaultWh = warehouses.find((w) => w.isDefault) || warehouses[0];
       setSourceWarehouseId(defaultWh?._id || "");
     }
-  }, [isOpen, initialTicket, initialWarehouseId, warehouses]);
+  }, [isOpen, initialTicket, warehouses]);
 
   // Tải danh sách tồn kho khả dụng khi đổi Kho xuất
   useEffect(() => {
@@ -232,38 +226,21 @@ export function OutboundCreateModal({
       setNotes("");
       setStatus("Đang chờ");
 
-      // Nếu có prefill SKU từ ngoài vào
-      if (initialSku) {
-        setLines([
-          {
-            key: `line-0-${Date.now()}`,
-            productId: "",
-            sku: initialSku,
-            productName: initialSku,
-            quantity: "1",
-            availableStock: 0,
-            isUnitTracked: true,
-            unitIdentifiers: [],
-            serialNumbers: [],
-          },
-        ]);
-      } else {
-        setLines([
-          {
-            key: `line-0-${Date.now()}`,
-            productId: "",
-            sku: "",
-            productName: "",
-            quantity: "1",
-            availableStock: 0,
-            isUnitTracked: true,
-            unitIdentifiers: [],
-            serialNumbers: [],
-          },
-        ]);
-      }
+      setLines([
+        {
+          key: `line-0-${Date.now()}`,
+          productId: "",
+          sku: "",
+          productName: "",
+          quantity: "1",
+          availableStock: 0,
+          isUnitTracked: true,
+          unitIdentifiers: [],
+          serialNumbers: [],
+        },
+      ]);
     }
-  }, [isOpen, initialTicket, initialSku]);
+  }, [isOpen, initialTicket]);
 
   // Cập nhật thông tin tồn kho khả dụng cho các dòng khi balances load xong
   useEffect(() => {

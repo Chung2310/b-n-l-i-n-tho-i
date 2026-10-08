@@ -3,7 +3,7 @@ import { ProductCatalogModel } from "../../../model/product-catalog.model";
 import { ProductCatalogLegacyMappingModel } from "../../../model/product-catalog-legacy-mapping.model";
 import { ProductVariantModel } from "../../../model/product-variant.model";
 import { ProductPriceModel } from "../../../model/product-price.model";
-import { ProductCatalogCategoryModel } from "../../../model/product-catalog-resource.model";
+import { ProductCatalogCategoryModel, ProductCatalogBrandModel } from "../../../model/product-catalog-resource.model";
 import type { RetailBranchScope } from "../contracts";
 import { SerialUnitModel } from "../../inventory/serials/serial-unit.model";
 import { ensureDefaultWarehouse } from "../../inventory/warehouse/warehouse.service";
@@ -116,6 +116,9 @@ export const RetailProductService = {
     const categories = await ProductCatalogCategoryModel.find({ companyCode: scope.companyCode })
       .select("code name parentCode").lean();
     const categoryByCode = new Map(categories.map((category) => [category.code, category]));
+    const brands = await ProductCatalogBrandModel.find({ companyCode: scope.companyCode })
+      .select("code name").lean();
+    const brandByCode = new Map(brands.map((brand) => [brand.code, brand.name]));
     const priceByVariant = new Map(prices.map((item) => [String(item.variantId), item]));
     const items: any[] = variants
       .map((variant) => {
@@ -133,13 +136,18 @@ export const RetailProductService = {
           name: `${product.name} - ${variant.displayName || variant.sku}`,
           variantName: variant.displayName || variant.sku,
           imageUrl: variant.mediaIds?.[0] || product.mediaIds?.[0],
-          category: product.categoryCode,
-          brand: product.brandCode,
+          category: categoryByCode.get(product.categoryCode)?.name || product.categoryCode,
+          categoryCode: product.categoryCode,
+          categoryPath: buildRetailCategoryPath(product.categoryCode, categoryByCode),
+          brand: brandByCode.get(product.brandCode) || product.brandCode,
+          brandCode: product.brandCode,
           unit: variant.unitCode,
           stock: availableStock,
           price: Number(price?.sellingPrice || 0),
           costPrice: Number(price?.costPrice || balance?.averageCost || 0),
           trackingMode: variant.trackingMode,
+          optionValues: variant.optionValues || [],
+          attributes: variant.attributes || [],
           ...(matchesScannedUnit(scannedUnit, variant)
             ? {
                 matchedSerialNumber: scannedUnit.normalizedSerialNumber,
@@ -160,8 +168,29 @@ export const RetailProductService = {
     const total = filteredItems.length;
     const pageItems = filteredItems.slice((page - 1) * limit, page * limit).map((item) => ({
       ...item,
-      categoryPath: buildRetailCategoryPath(item.category, categoryByCode),
+      categoryPath: item.categoryPath?.length ? item.categoryPath : buildRetailCategoryPath(item.categoryCode || item.category, categoryByCode),
     }));
-    return { items: pageItems, total, page, limit };
+    return {
+      items: pageItems,
+      total,
+      page,
+      limit,
+      categories: categories.map((c) => ({
+        code: c.code,
+        name: c.name,
+        parentCode: c.parentCode || "",
+      })),
+    };
+  },
+  async categories(scope: RetailBranchScope) {
+    const categories = await ProductCatalogCategoryModel.find({
+      companyCode: scope.companyCode,
+      status: "active",
+    }).select("code name parentCode").lean();
+    return categories.map((c) => ({
+      code: c.code,
+      name: c.name,
+      parentCode: c.parentCode || "",
+    }));
   },
 };

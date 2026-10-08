@@ -16,6 +16,7 @@
     "reset:superadmin-totp": "tsx server/scripts/reset-superadmin-totp.ts",
     "migrate:legacy-products-to-catalog": "tsx server/scripts/migrate-legacy-products-to-catalog.ts",
     "migrate:inventory-foundation": "tsx server/scripts/migrate-legacy-products-to-catalog.ts",
+    "migrate:pos-sessions": "tsx server/scripts/migrate-pos-sessions.ts",
     "migrate:unit-barcodes": "tsx server/scripts/migrate-global-unit-barcodes.ts",
     "backfill:customer-tiers": "tsx server/scripts/backfill-customer-tiers.ts",
     "backfill:serial-tracking": "tsx server/scripts/backfill-serial-tracking.ts",

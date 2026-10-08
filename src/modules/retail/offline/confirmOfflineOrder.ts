@@ -45,6 +45,7 @@ export async function confirmOfflineOrderLocked(scope: OfflineScope, item: Retai
       expectedGrandTotal: payload.expectedGrandTotal,
       payments: payload.payments,
       idempotencyKey: item.idempotencyKey,
+      posSessionId: payload.posSessionId,
     });
     verifyConfirmation(result, payload.draftId);
     return result;

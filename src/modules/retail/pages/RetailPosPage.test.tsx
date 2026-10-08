@@ -24,9 +24,9 @@ vi.mock("../../../pages/Toast", () => ({
 
 vi.mock("../api/retailCoupons.api", () => ({ retailCouponsApi: { available: vi.fn().mockResolvedValue([]), list: vi.fn() } }));
 vi.mock("../../../services/inventorySerialService", () => ({ inventorySerialService: { list: vi.fn() } }));
-vi.mock("../hooks/useRetailScope", () => ({ useRetailScope: () => ({ scope: { companyCode: "ACME", branchId: "B1" }, userProfile: { uid: "u1" } }) }));
+vi.mock("../hooks/useRetailScope", () => ({ useRetailScope: () => ({ scope: { companyCode: "ACME", branchId: "B1" }, userProfile: { uid: "u1", permissions: ["retail:manage"] } }) }));
 vi.mock("../../customer-management/customerApi", () => ({ customerApi: { billingProfiles: vi.fn() } }));
-vi.mock("../api/retailProducts.api", () => ({ retailProductsApi: { list: vi.fn() } }));
+vi.mock("../api/retailProducts.api", () => ({ retailProductsApi: { list: vi.fn(), categories: vi.fn().mockResolvedValue([]) } }));
 vi.mock("../api/retailShifts.api", () => ({ retailShiftsApi: { current: vi.fn().mockResolvedValue({ _id: "s1", shiftCode: "CA-1", cashierId: "u1", cashierName: "Thu ngân", openingFloat: 0, businessDate: "2026-08-10", status: "open" }) } }));
 vi.mock("../../../services/retailWarrantyService", () => ({ retailWarrantyService: { lookup: vi.fn() } }));
 vi.mock("../api/retailOrders.api", () => ({ retailOrdersApi: { list: vi.fn(), quote: vi.fn(), createDraft: vi.fn(), updateDraft: vi.fn(), confirm: vi.fn(), idempotency: vi.fn(), cancel: vi.fn() } }));
@@ -69,7 +69,7 @@ describe("RetailPosPage", () => {
       { _id: "unit1", serialNumber: "IMEI001", normalizedSerialNumber: "IMEI001" },
       { _id: "unit2", serialNumber: "IMEI002", normalizedSerialNumber: "IMEI002" },
     ], total: 2, page: 1, limit: 100 } as any);
-    render(<RetailPosPage />);
+    render(<RetailPosPage posSessionId="s1" />);
     await userEvent.click(await screen.findByRole("button", { name: "A" }));
     const card = await screen.findByRole("button", { name: /SKU-1/ });
     await userEvent.click(card);
@@ -98,7 +98,7 @@ describe("RetailPosPage", () => {
     vi.mocked(retailProductsApi.list).mockResolvedValue({ items: [{ ...product, trackingMode: "serial" }], total: 1, page: 1, limit: 500 });
     if (scenario === "error") vi.mocked(inventorySerialService.list).mockRejectedValue(new Error("Lỗi tải serial"));
     else vi.mocked(inventorySerialService.list).mockResolvedValue({ items: [], total: 0, page: 1, limit: 100 });
-    render(<RetailPosPage />);
+    render(<RetailPosPage posSessionId="s1" />);
     await userEvent.click(await screen.findByRole("button", { name: "A" }));
     await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
     await screen.findByText(scenario === "error" ? "Lỗi tải serial" : "Không có IMEI / Serial khả dụng phù hợp.");
@@ -107,7 +107,7 @@ describe("RetailPosPage", () => {
   });
 
   it("toggles fullscreen without clearing the current cart", async () => {
-    render(<RetailPosPage />);
+    render(<RetailPosPage posSessionId="s1" />);
     await userEvent.click(await screen.findByRole("button", { name: "A" }));
     await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
     await userEvent.click(screen.getByRole("button", { name: "Toàn màn hình" }));
@@ -119,7 +119,7 @@ describe("RetailPosPage", () => {
   });
   it("uses either a created coupon or a manually typed code in the cart quote", async () => {
     vi.mocked(retailCouponsApi.list).mockResolvedValue({ items: [{ _id: "coupon-1", code: "SALE10", name: "Giảm 10%", discountType: "percent", value: 10, active: true, startsAt: "2020-01-01", endsAt: "2099-01-01", usageLimit: null, usedCount: 0, minSubtotal: 0, maxDiscount: null, version: 0 }], total: 1 });
-    render(<RetailPosPage />);
+    render(<RetailPosPage posSessionId="s1" />);
     await userEvent.click(await screen.findByRole("button", { name: "A" }));
     await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Chọn mã ưu đãi đã tạo" }), "SALE10");
@@ -138,7 +138,7 @@ describe("RetailPosPage", () => {
         { ...product, _id: "p2", sku: "SKU-2", name: "Túi", category: "", categoryPath: [] },
       ], total: 2, page: 1, limit: 500,
     });
-    render(<RetailPosPage />);
+    render(<RetailPosPage posSessionId="s1" />);
     const root = await screen.findByRole("button", { name: /Hàng hóa/ });
     expect(root.getAttribute("aria-expanded")).toBe("false");
     expect(screen.queryByRole("button", { name: /Quần áo/ })).toBeNull();
@@ -171,27 +171,27 @@ describe("RetailPosPage", () => {
 
   it("opens POS without requesting or opening a sales shift", async () => {
     vi.mocked(retailShiftsApi.current).mockResolvedValue(null);
-    render(<RetailPosPage />);
+    render(<RetailPosPage posSessionId="s1" />);
     await userEvent.click(await screen.findByRole("button", { name: "A" }));
     expect(await screen.findByRole("button", { name: /SKU-1/ })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Mở ca bán hàng" })).toBeNull();
     expect(retailShiftsApi.current).not.toHaveBeenCalled();
   });
 
-  it("keeps payment dialog closed and guides cashier to select a customer", async () => {
-    render(<RetailPosPage />);
+  it("allows paying for walk-in retail customers without requiring customer selection", async () => {
+    render(<RetailPosPage posSessionId="s1" />);
     await userEvent.click(await screen.findByRole("button", { name: "A" }));
     await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
     await waitFor(() => expect((screen.getByRole("button", { name: "Thanh toán" }) as HTMLButtonElement).disabled).toBe(false));
 
     await userEvent.click(screen.getByRole("button", { name: "Thanh toán" }));
 
-    expect(screen.queryByTestId("payment-dialog")).toBeNull();
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Vui lòng chọn khách hàng trước khi thanh toán."));
+    expect(screen.getByTestId("payment-dialog")).toBeTruthy();
+    expect(toast.error).not.toHaveBeenCalledWith("Vui lòng chọn khách hàng trước khi thanh toán.");
   });
 
   it("adds the first search result on Enter without treating the text as a barcode scan", async () => {
-    render(<RetailPosPage />);
+    render(<RetailPosPage posSessionId="s1" />);
     const search = await screen.findByRole("textbox", { name: "Tìm hoặc quét sản phẩm" });
 
     await userEvent.type(search, "ÁO");
@@ -207,7 +207,7 @@ describe("RetailPosPage", () => {
   });
 
   it("carries customer, VAT profile and adjustments through quote and checkout to receipt", async () => {
-    render(<RetailPosPage />);
+    render(<RetailPosPage posSessionId="s1" />);
     await userEvent.click(await screen.findByRole("button", { name: "A" }));
     await userEvent.click(await screen.findByRole("button", { name: /Áo/ }));
     await userEvent.click(screen.getByRole("button", { name: "Chọn khách An" }));
@@ -225,7 +225,7 @@ describe("RetailPosPage", () => {
   });
 
   it("creates a customer debt draft with VAT profile and confirms with no collected payments", async () => {
-    render(<RetailPosPage />);
+    render(<RetailPosPage posSessionId="s1" />);
     await userEvent.click(await screen.findByRole("button", { name: "A" }));
     await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
     await userEvent.click(screen.getByRole("button", { name: "Chọn khách An" }));
@@ -242,7 +242,7 @@ describe("RetailPosPage", () => {
       items: [{ ...product, stock: 0 }],
       total: 1, page: 1, limit: 500,
     });
-    render(<RetailPosPage />);
+    render(<RetailPosPage posSessionId="s1" />);
     await userEvent.click(await screen.findByRole("button", { name: "A" }));
     expect(screen.getByText("Hết hàng")).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: /SKU-1/ }));
@@ -257,7 +257,7 @@ describe("RetailPosPage", () => {
       ],
       total: 2, page: 1, limit: 500,
     });
-    render(<RetailPosPage />);
+    render(<RetailPosPage posSessionId="s1" />);
     await userEvent.click(await screen.findByRole("button", { name: "A" }));
 
     // SKU dropdown toggle button is present
@@ -279,7 +279,7 @@ describe("RetailPosPage", () => {
 
 it.each([new TypeError("network"), Object.assign(new Error("Sai giá"), { status: 409 })])("retains a failed checkout without auto-cancel or deleting its intent: %s", async error => {
   vi.mocked(retailOrdersApi.confirm).mockRejectedValueOnce(error);
-  render(<RetailPosPage />);
+  render(<RetailPosPage posSessionId="s1" />);
   await userEvent.click(await screen.findByRole("button", { name: "A" }));
   await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
   await userEvent.click(screen.getByRole("button", { name: "Chọn khách An" }));
@@ -294,7 +294,7 @@ it.each([new TypeError("network"), Object.assign(new Error("Sai giá"), { status
 });
 it("blocks payment when durable browser storage is unavailable", async () => {
   vi.stubGlobal("indexedDB", undefined);
-  render(<RetailPosPage />);
+  render(<RetailPosPage posSessionId="s1" />);
   await userEvent.click(await screen.findByRole("button", { name: "A" }));
   await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
   await userEvent.click(screen.getByRole("button", { name: "Chọn khách An" }));

@@ -4,6 +4,8 @@ import { RetailOrderModel } from "../models/retail-order.model";
 import { RetailSePayTransactionModel } from "../models/retail-sepay-transaction.model";
 import { publishRetailOrderEvent } from "./retail-order-events";
 import { paymentStatusFor, retailPaymentCode } from "./retail-order.service";
+import { CashierShiftModel } from "../models/cashier-shift.model";
+import { businessDateInVietnam, emitSessionChange } from "./cashier-shift.service";
 
 export type SePayPayload = {
   id?: string | number; gateway?: string; transactionDate?: string; accountNumber?: string | number;
@@ -67,15 +69,20 @@ export async function processRetailSePayTransaction(payload: SePayPayload) {
 
   const session = await mongoose.startSession();
   let result: any;
+  let changedShift: any;
   try {
     await session.withTransaction(async () => {
+      changedShift = null;
       const duplicate = await RetailSePayTransactionModel.findOne({ provider: "sepay", transactionId }).session(session).lean();
       if (duplicate) { result = { duplicate: true, orderId: duplicate.orderId, appliedAmount: duplicate.appliedAmount }; return; }
       const order: any = await RetailOrderModel.findOne({ companyCode: company.code, $or: [{ paymentCode }, { orderCode: text(payload.code) }], status: "confirmed", dueAmount: { $gt: 0 } }).session(session);
       if (!order) throw Object.assign(new Error("Không tìm thấy đơn còn nợ theo mã thanh toán."), { status: 404 });
       const appliedAmount = Math.min(receivedAmount, Number(order.dueAmount));
       const paidAt = parseSePayTransactionDate(payload.transactionDate);
-      order.payments.push({ method: "transfer", amount: appliedAmount, reference: transactionId, paidAt, receivedBy: "sepay", receivedByName: "SePay webhook", shiftId: String(order.shiftId || "sepay"), businessDate: String(order.businessDate || paidAt.toISOString().slice(0, 10)) });
+      const recordedAt = new Date();
+      changedShift = order.shiftId ? await CashierShiftModel.findOneAndUpdate({ _id: order.shiftId, companyCode: order.companyCode, branchId: order.branchId, status: "open", operationalEndsAt: { $gte: recordedAt }, openedAt: { $lte: paidAt } },
+        { $inc: { activityVersion: 1 }, $set: { lastActivityAt: recordedAt } }, { session, returnDocument: "after" }) : null;
+      order.payments.push({ method: "transfer", amount: appliedAmount, reference: transactionId, paidAt, recordedAt, receivedBy: "sepay", receivedByName: "SePay webhook", shiftId: changedShift ? String(changedShift._id) : undefined, settlementStatus: changedShift ? "assigned" : "unassigned", businessDate: businessDateInVietnam(paidAt) });
       order.paidAmount += appliedAmount; order.dueAmount = order.grandTotal - order.paidAmount;
       order.paymentStatus = paymentStatusFor(order.paidAmount, order.grandTotal, order.refundedAmount);
       if (order.dueAmount === 0) { order.status = "completed"; order.completedAt = paidAt; }
@@ -85,6 +92,11 @@ export async function processRetailSePayTransaction(payload: SePayPayload) {
       await publishRetailOrderEvent("paid", { companyCode: order.companyCode, branchId: order.branchId }, order, { id: "sepay", displayName: "SePay webhook" }, { session, amount: appliedAmount, transactionKey: transactionId, occurredAt: paidAt });
       result = { duplicate: false, orderId: String(order._id), orderCode: order.orderCode, appliedAmount, excessAmount: receivedAmount - appliedAmount, paymentStatus: order.paymentStatus, status: order.status };
     });
+    if (changedShift) emitSessionChange("pos:session:updated", changedShift);
+    else if (result?.orderId) {
+      const order = await RetailOrderModel.findById(result.orderId).select("companyCode branchId shiftId salespersonId").lean();
+      if (order?.shiftId) emitSessionChange("pos:session:updated", { ...order, _id: order.shiftId, cashierId: order.salespersonId });
+    }
     return result;
   } finally { await session.endSession(); }
 }

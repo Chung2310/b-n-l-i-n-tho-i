@@ -31,11 +31,18 @@ const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const UserDataDeletion = lazy(() => import("./pages/UserDataDeletion"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const PublicRepairFeedbackPage = lazy(() => import("./modules/repair/pages/PublicRepairFeedbackPage"));
+const RetailPosEntry = lazy(() => import("./modules/retail/pages/RetailPosEntry"));
 
 function AppContent() {
   const { user, userProfile, loading } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
-  const currentPath = normalizePublicPath(window.location.pathname);
+  const [pathname, setPathname] = React.useState(window.location.pathname);
+  React.useEffect(() => {
+    const syncPath = () => setPathname(window.location.pathname);
+    window.addEventListener("popstate", syncPath);
+    return () => window.removeEventListener("popstate", syncPath);
+  }, []);
+  const currentPath = normalizePublicPath(pathname);
   const isLandingPage = currentPath === "/" || currentPath === "/landing" || currentPath === "/landing.html";
   const isLandingGuestPage = isLandingPage && !(user && userProfile);
   const isPrivacyPage = currentPath === "/privacy-policy" || currentPath === "/privacy-policy.html";
@@ -43,16 +50,24 @@ function AppContent() {
   const isDeletionPage = currentPath === "/user-data-deletion" || currentPath === "/user-data-deletion.html";
   const isLegalPublicPage = isPrivacyPage || isTermsPage || isDeletionPage;
   const isPublicPage = isLandingGuestPage || isLegalPublicPage;
+  const isPosOnly = userProfile?.role === "pos_cashier";
+  const isPosRoute = currentPath === "/pos" || isPosOnly;
 
   const { activeTab, setActiveTab } = useTabRouter({
-
-    enabled: !isPublicPage && !loading && Boolean(user && userProfile),
+    enabled: !isPublicPage && !isPosRoute && !loading && Boolean(user && userProfile),
   });
   const resolvedActiveTab = resolveEnabledTab(activeTab, userProfile?.enabledModules);
 
   React.useEffect(() => {
     if (resolvedActiveTab !== activeTab) setActiveTab(resolvedActiveTab);
   }, [activeTab, resolvedActiveTab, setActiveTab]);
+
+  React.useEffect(() => {
+    if (isPosOnly && currentPath !== "/pos") {
+      window.history.replaceState(null, "", "/pos");
+      setPathname("/pos");
+    }
+  }, [isPosOnly, currentPath]);
 
   React.useEffect(() => {
     const handleCskhOpen = () => {
@@ -198,6 +213,18 @@ function AppContent() {
           <AuthPage />
         </Suspense>
       </>
+    );
+  }
+
+  if (isPosRoute) {
+    const canAccessPos = isPosOnly || userProfile.role === "admin" || userProfile.role === "superadmin" || Boolean(userProfile.permissions?.some((permission) => ["*", "pos:manage", "retail:manage"].includes(permission)));
+    return canAccessPos ? (
+      <>
+        <SEOHead meta={getSeoForTab("BÁN HÀNG")} />
+        <Suspense fallback={<AuthLoader />}><RetailPosEntry /></Suspense>
+      </>
+    ) : (
+      <main className="flex min-h-dvh items-center justify-center bg-slate-950 p-6 text-center font-semibold text-white">Tài khoản chưa được cấp quyền sử dụng quầy POS.</main>
     );
   }
 

@@ -4,6 +4,7 @@ import { RECEIVABLE_STATUSES, type IReceivable } from "../interfaces/receivable.
 const nonNegativeInteger = { validator: Number.isSafeInteger, message: "Amount must be an integer VND value." };
 
 const schema = new Schema<IReceivable>({
+  debtorType: { type: String, enum: ["customer", "financing_partner"], default: "customer" }, financingPartner: String, purchaserId: String,
   companyCode: { type: String, required: true },
   branchId: { type: String, required: true },
   receivableCode: { type: String, required: true },

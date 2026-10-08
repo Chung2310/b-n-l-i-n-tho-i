@@ -28,9 +28,6 @@ export interface OutboundSectionProps {
   onReverse?: (id: string, reason: string) => Promise<{ _id: string }>;
   stockLogs?: StockLog[];
   isLoading?: boolean;
-  initialWarehouseId?: string;
-  initialSku?: string;
-  openOnMountKey?: number;
   onCreateTransaction: (payload: any) => Promise<void>;
   onUpdateTransaction: (payload: any) => Promise<void>;
   onUpdateStatus?: (
@@ -44,9 +41,6 @@ export function OutboundSection({
   onReverse,
   stockLogs = [],
   isLoading = false,
-  initialWarehouseId,
-  initialSku,
-  openOnMountKey,
   onCreateTransaction,
   onUpdateTransaction,
   onUpdateStatus,
@@ -87,14 +81,6 @@ export function OutboundSection({
   useEffect(() => {
     void loadWarehouses();
   }, []);
-
-  // Tự động mở modal khi có trigger prefill từ bên ngoài (ví dụ bấm "Xuất kho" ở danh sách Kho)
-  useEffect(() => {
-    if (openOnMountKey) {
-      setEditingTicket(null);
-      setCreateModalOpen(true);
-    }
-  }, [openOnMountKey]);
 
   // Chuẩn hóa một StockLog thành OutboundTicket
   const normalizeTicket = (log: StockLog): OutboundTicket => {
@@ -774,8 +760,6 @@ export function OutboundSection({
             setEditingTicket(null);
           }}
           initialTicket={editingTicket}
-          initialWarehouseId={initialWarehouseId}
-          initialSku={initialSku}
           warehouses={warehouses}
           onSave={handleSaveDraft}
         />

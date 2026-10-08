@@ -5,6 +5,7 @@ import { CustomerService, type CustomerActor, type CustomerScope } from "./custo
 import { BillingProfileService } from "./billing-profile.service";
 import { CustomerPurchaseHistoryService } from "./customer-purchase-history.service";
 import { requireRetailBranch, retailScopeFromRequest, RetailScopeError, type RetailBranchScope } from "../retail/contracts";
+import { getEffectivePermissions } from "../../middleware/auth";
 
 function scopeFromRequest(req: Request): CustomerScope {
   const user = (req as any).user || {};
@@ -57,7 +58,23 @@ const handle = (action: (req: Request, res: Response) => Promise<Response>) => a
 };
 
 export const customerController = {
-  list: handle(async (req, res) => res.json({ success: true, data: await CustomerService.list(scopeFromRequest(req), req.query as any) })),
+  list: handle(async (req, res) => {
+    const user = (req as any).user || {};
+    const permissions = await getEffectivePermissions(String(user.id || ""), String(user.role || ""), String(user.companyCode || ""));
+    const scope = scopeFromRequest(req);
+    const posOnly = permissions.has("pos:manage") && !permissions.has("customer:read") && !permissions.has("customer:manage") && !permissions.has("*");
+    if (posOnly) {
+      const query = String(req.query.q || "").trim();
+      if (!query) return res.status(400).json({ success: false, message: "POS cần từ khóa để tìm khách hàng." });
+      const matches = await searchActiveCustomers(scope, query, 10);
+      const items = matches.map((customer) => ({
+        _id: customer.customerId, customerCode: customer.customerCode, companyCode: scope.companyCode,
+        type: customer.type, status: customer.status, name: customer.name, phone: customer.phone,
+      }));
+      return res.json({ success: true, data: { items, total: items.length, page: 1, limit: 10 } });
+    }
+    return res.json({ success: true, data: await CustomerService.list(scope, req.query as any) });
+  }),
   search: handle(async (req, res) => res.json({ success: true, data: await searchActiveCustomers(scopeFromRequest(req), String(req.query.q || ""), Number(req.query.limit) || 10) })),
   create: handle(async (req, res) => res.status(201).json({ success: true, data: await CustomerService.create(scopeFromRequest(req), req.body || {}, actorFromRequest(req)) })),
   quickCreate: handle(async (req, res) => res.status(201).json({ success: true, data: await quickCreateCustomer(scopeFromRequest(req), req.body || {}, actorFromRequest(req)) })),

@@ -1,3 +1,4 @@
+import CashSessionPicker from "../components/orders/CashSessionPicker";
 import React from "react";
 import {
   AlertCircle,
@@ -519,13 +520,15 @@ function OrderDialog({
           </div>
         </div>
 
+        {order.note && <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm">Ghi chú: {order.note}</p>}
+        {order.installment && <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm">Trả góp {order.installment.partner} · {order.installment.months} tháng · Trả trước {order.installment.prepayPercent}% · Đối tác tài trợ {money(order.installment.financedAmount || 0)}</p>}
         <AfterSaleHistory order={order} />
 
         {/* Financial Metrics */}
         <div className="mt-5 grid grid-cols-3 gap-3">
           <Metric label="Tổng cộng" value={order.grandTotal} />
           <Metric label="Đã thu" value={order.paidAmount} />
-          <Metric label="Còn nợ" value={order.dueAmount} />
+          <Metric label={order.installment ? "Chờ đối tác thanh toán" : "Còn nợ"} value={order.dueAmount} />
         </div>
 
         {/* Action Buttons */}
@@ -615,6 +618,7 @@ export function AfterSalesForm({
   const { scope, userProfile } = useRetailScope();
   const request = useAfterSaleRequest(scope, userProfile?.uid || "", order._id);
   const { pending, busy } = request;
+  const [cashSessionId, setCashSessionId] = React.useState(pending?.cashSessionId || "");
   const [reason, setReason] = React.useState(pending?.reason || "");
   const [method, setMethod] = React.useState<RetailAfterSaleInput["paymentMethod"]>(pending?.paymentMethod || "cash");
   const blocked = request.scopeChanged || Boolean(request.storageError) || Boolean(pending && pending.type !== type);
@@ -684,7 +688,9 @@ export function AfterSalesForm({
   const submit = async () => {
     if (!scope || blocked || (!pending && exhausted)) return;
     try {
+      if (!pending && method === "cash" && !cashSessionId) throw new Error("Chọn phiên/két để chi tiền mặt.");
       const d = await request.send({
+        ...(cashSessionId ? { cashSessionId } : {}),
         expectedVersion: order.version,
         type,
         orderId: order._id,
@@ -736,6 +742,7 @@ export function AfterSalesForm({
         {pending && <button disabled={busy || request.scopeChanged || Boolean(request.storageError)} onClick={() => void reconcileAfterSale()}>Đối chiếu yêu cầu hậu mãi</button>}
         {exhausted && !pending && <p>Toàn bộ hàng đã được xử lý. Không có yêu cầu cũ để thử lại trên trình duyệt này.</p>}
         {pending && <div className="mt-3 text-sm"><p>Yêu cầu đã lưu: {pending.reason} · {pending.paymentMethod}{pending.paymentReference ? " · " + pending.paymentReference : ""}</p>{pending.items.map((item, index) => <p key={index}>Dòng {item.orderLineIndex + 1} · {item.quantity} sản phẩm · {item.condition}{item.unitAmount !== undefined ? " · " + money(item.unitAmount) + "/sản phẩm" : ""}{item.note ? " · " + item.note : ""}</p>)}</div>}
+        <CashSessionPicker scope={scope} value={pending?.cashSessionId || cashSessionId} onChange={setCashSessionId} disabled={busy || Boolean(pending) || blocked || exhausted} />
         <fieldset disabled={busy || Boolean(pending) || blocked || exhausted}>
         <div className="mt-4 space-y-3">
           <p className="text-xs font-semibold uppercase text-slate-400">Chọn mặt hàng áp dụng:</p>
@@ -919,6 +926,7 @@ export function CancelDialog({
     } catch { return { pending: null, error: "Không đọc được yêu cầu hủy đang chờ hoặc có bản lưu xung đột. Đóng cửa sổ và kiểm tra danh sách yêu cầu hủy đang chờ." }; }
   });
   const [pending, setPending] = React.useState(initial.pending);
+  const [cashSessionId, setCashSessionId] = React.useState(initial.pending?.cashSessionId || "");
   const pendingRef = React.useRef(initial.pending), inFlight = React.useRef(false), completed = React.useRef(false);
   const [error, setError] = React.useState(initial.error);
   const blocked = origin.current !== identity || Boolean(initial.error) || !scope || !userProfile?.uid;
@@ -974,7 +982,8 @@ export function CancelDialog({
         }
         if (!saved && !canCreate) throw new Error("Đơn không còn đủ điều kiện tạo yêu cầu hủy mới.");
         const retry = Boolean(saved);
-        const request: PendingCancellation = saved || { reason: reason.trim(), refunds: remaining ? [{ method, amount: remaining }] : [], idempotencyKey: crypto.randomUUID(), expectedVersion: order.version };
+        if (!saved && remaining > 0 && method === "cash" && !cashSessionId) throw new Error("Chọn phiên/két để hoàn tiền mặt.");
+        const request: PendingCancellation = saved || { ...(cashSessionId ? { cashSessionId } : {}), reason: reason.trim(), refunds: remaining ? [{ method, amount: remaining }] : [], idempotencyKey: crypto.randomUUID(), expectedVersion: order.version };
         saveCancellation(storageKey, request);
         pendingRef.current = request;
         setPending(request);
@@ -1029,6 +1038,7 @@ export function CancelDialog({
           />
         </div>
 
+        {refundRequired && <CashSessionPicker scope={scope} value={pending?.cashSessionId || cashSessionId} onChange={setCashSessionId} disabled={submitting || Boolean(pending) || blocked} />}
         {refundRequired && (
           <div>
             <label className="text-xs font-semibold text-slate-600">Phương thức hoàn tiền:</label>

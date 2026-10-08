@@ -18,13 +18,15 @@ import { RetailOrderModel } from "../models/retail-order.model";
 import { RetailOrderCounterModel } from "../models/retail-order-counter.model";
 import { RetailIdempotencyModel } from "../models/retail-idempotency.model";
 import { RetailInvoiceModel } from "../models/retail-invoice.model";
+import { CashierShiftModel } from "../models/cashier-shift.model";
 import { getBillingProfile, getCustomerBrief } from "../../customer-management/contracts";
 import { calculateOrderTotals, toDiscountInput } from "./retail-pricing.service";
 import { consumeCoupon, releaseCoupon, resolveCoupon } from "./retail-coupon.service";
 import { getResolvedRetailSettings } from "./retail-settings.service";
 import { applyOrderStockOut, revertOrderStock } from "./retail-stock.service";
 import { issueRetailInvoice } from "./retail-invoice.service";
-import { businessDateInVietnam } from "./cashier-shift.service";
+import { businessDateInVietnam, emitSessionChange } from "./cashier-shift.service";
+import { assertPaymentSessionDeadline, lockRetailPaymentSession } from "./retail-payment-session.service";
 import { buildOrderListQuery } from "./retail-query.service";
 import type { PostReceivableEntryInput } from "../interfaces/retail-receivable.interface";
 import { enqueueTierRefresh, processTierRefreshBySourceKey } from "./retail-customer-tier.service";
@@ -198,10 +200,31 @@ export function serializeRetailOrder(order: any, canSeeCost: boolean) {
 
 const actorId = (actor: any) => String(actor.id || actor.uid || "");
 const actorName = (actor: any) => String(actor.displayName || actor.email || "");
+async function touchPosSession(shift: any, scope: RetailBranchScope, actor: any, session: mongoose.ClientSession) {
+  if (!shift?._id) return;
+  const now = new Date();
+  const open = await CashierShiftModel.updateOne({
+    _id: String(shift._id), ...scope, cashierId: actorId(actor), terminalId: shift.terminalId, status: "open",
+    $or: [
+      { operationalEndsAt: { $gte: now } },
+      { operationalEndsAt: { $exists: false }, businessDate: businessDateInVietnam(now) },
+    ],
+  }, { $inc: { activityVersion: 1 }, $set: { lastActivityAt: now } }, { session });
+  if (open.modifiedCount !== 1) throw retailError("Phiên POS đã đóng hoặc hết hạn. Hãy kiểm tra trạng thái phiên trước khi bán tiếp.", "POS_SESSION_CLOSED");
+}
+function orderExtras(input: any) {
+  const note = String(input.note || "").trim();
+  if (note.length > 2000) throw retailError("Ghi chú tối đa 2000 ký tự.", "ORDER_NOTE_INVALID", 400);
+  if (!input.installment) return { note, installment: null };
+  const partner = String(input.installment.partner || "").trim();
+  const months = Number(input.installment.months), prepayPercent = Number(input.installment.prepayPercent);
+  if (!partner || partner.length > 100 || !Number.isSafeInteger(months) || months < 1 || months > 60 || !Number.isFinite(prepayPercent) || prepayPercent < 0 || prepayPercent > 100) throw retailError("Thông tin trả góp không hợp lệ.", "INSTALLMENT_INVALID", 400);
+  return { note, installment: { partner, months, prepayPercent } };
+}
 function draftRequestFingerprint(operation: string, scope: RetailBranchScope, actor: any, input: any, orderId?: string) {
   const canonical = (value: any): any => Array.isArray(value) ? value.map(canonical) : value && typeof value === "object"
     ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])])) : value;
-  const fields = ["items", "customerId", "billingProfileId", "orderDiscount", "taxRate", "shippingFee", "dueDate", "couponCode", "collaboratorId", "salespersonId", "salespersonName", ...(orderId ? ["version"] : [])];
+  const fields = ["items", "customerId", "billingProfileId", "orderDiscount", "taxRate", "shippingFee", "dueDate", "couponCode", "collaboratorId", "salespersonId", "salespersonName", "note", "installment", ...(orderId ? ["version"] : [])];
   return createHash("sha256").update(JSON.stringify(canonical({ operation, ...scope, actorId: actorId(actor), ...(orderId ? { orderId } : {}), input: Object.fromEntries(fields.map((field) => [field, input[field]])) }))).digest("hex");
 }
 const replayConflict = () => retailError("Khóa xác nhận không khớp yêu cầu hoặc thiếu chứng từ gốc. Vui lòng đối chiếu đơn hàng.", "ORDER_IDEMPOTENCY_CONFLICT");
@@ -293,7 +316,7 @@ async function priceInput(scope: RetailBranchScope, input: any, session?: mongoo
   return { settings, pricing: { ...calculateOrderTotals({ items, orderDiscount, taxRate: input.taxRate === undefined ? settings.defaultTaxRate : Number(input.taxRate), shippingFee: Number(input.shippingFee || 0), maxDiscountPercent: settings.maxDiscountPercent }), couponCode: couponSnapshot?.code || "", couponSnapshot } };
 }
 
-function snapshotPayment(item: any, shift: any, actor: any) { return { ...item, paidAt: new Date(), receivedBy: actorId(actor), receivedByName: actorName(actor), shiftId: shift?._id ? String(shift._id) : undefined, businessDate: shift?.businessDate || businessDateInVietnam(new Date()) }; }
+function snapshotPayment(item: any, shift: any, actor: any) { return { ...item, recordedAt: new Date(), settlementStatus: shift?._id ? "assigned" : "unassigned", paidAt: new Date(), receivedBy: actorId(actor), receivedByName: actorName(actor), shiftId: shift?._id ? String(shift._id) : undefined, businessDate: shift?.businessDate || businessDateInVietnam(new Date()) }; }
 
 export function customerLookupFilter(scope: RetailBranchScope, customerId: string) {
   return { _id: customerId, companyCode: scope.companyCode };
@@ -324,7 +347,7 @@ function confirmationIdentity(scope: RetailBranchScope, id: string, input: any, 
     const requestPayments = normalizePayments(input.payments || [], expectedGrandTotal);
     const requestFingerprint = createHash("sha256").update(JSON.stringify({ version: 1,
       companyCode: scope.companyCode, branchId: scope.branchId, orderId: id,
-      operation: "confirm-order", actorId: actorId(actor), shiftId: String(shift?._id || ""),
+      operation: "confirm-order", actorId: actorId(actor), shiftId: String(input.posSessionId || shift?._id || ""),
       expectedVersion: input.expectedVersion, expectedGrandTotal, payments: requestPayments.payments,
     })).digest("hex");
     return { key, requestFingerprint, requestPayments, expectedGrandTotal };
@@ -333,6 +356,7 @@ const checkoutCanonical = (value: any): any => Array.isArray(value) ? value.map(
 function checkoutIdentity(scope: RetailBranchScope, input: any, actor: any) {
   const key = input?.idempotencyKey, payload = input?.payload;
   if (typeof key !== "string" || !key.trim() || key !== key.trim() || !payload || !actorId(actor)) throw replayConflict();
+  if (payload.posSessionId !== undefined && (typeof payload.posSessionId !== "string" || !payload.posSessionId.trim())) throw replayConflict();
   if (payload.draftCreation && payload.draftUpdate) throw replayConflict();
   const request = payload.draftCreation || payload.draftUpdate;
   const operation = payload.draftCreation ? "create-draft" : "update-draft";
@@ -346,10 +370,11 @@ function checkoutIdentity(scope: RetailBranchScope, input: any, actor: any) {
     if (payload.draftUpdate && payload.draftId !== orderId) throw replayConflict();
   } else if (payload.draftSaved !== true || !Types.ObjectId.isValid(orderId)) throw replayConflict();
   // Keep the existing confirmation normalization and v1 fingerprint unchanged.
-  const confirmInput = { idempotencyKey: key, expectedVersion, expectedGrandTotal: payload.expectedGrandTotal, payments: payload.payments };
+  const confirmInput = { idempotencyKey: key, expectedVersion, expectedGrandTotal: payload.expectedGrandTotal, payments: payload.payments, posSessionId: payload.posSessionId };
   confirmationIdentity(scope, orderId || "", confirmInput, actor);
   const requestFingerprint = createHash("sha256").update(JSON.stringify(checkoutCanonical({ version: 1, ...scope, actorId: actorId(actor),
     draft: request ? { operation, request, ...(operation === "update-draft" ? { orderId } : {}) } : { orderId, expectedVersion },
+    ...(payload.posSessionId ? { posSessionId: payload.posSessionId } : {}),
     expectedGrandTotal: payload.expectedGrandTotal, payments: payload.payments,
   }))).digest("hex");
   return { key, payload, request, operation, orderId, expectedVersion, confirmInput, requestFingerprint };
@@ -393,7 +418,8 @@ async function checkoutEvidence(scope: RetailBranchScope, input: any, actor: any
     const snapshot: any = invoice.snapshot;
     const fields = (row: any) => ({ method: row.method, amount: row.amount, tenderedAmount: row.tenderedAmount, changeAmount: row.changeAmount, reference: row.reference });
     const same = (left: any, right: any) => JSON.stringify(checkoutCanonical(left)) === JSON.stringify(checkoutCanonical(right));
-    if (order.version < intent.expectedVersion + 1 || order.grandTotal !== identity.expectedGrandTotal || !snapshot || snapshot.grandTotal !== identity.expectedGrandTotal || snapshot.paidAmount !== expected.total || snapshot.dueAmount !== identity.expectedGrandTotal - expected.total || !same(snapshot.payments?.map(fields), expected.payments) || !same(order.payments.slice(0, expected.payments.length).map(fields), expected.payments) || order.payments.slice(0, expected.payments.length).some(p => p.receivedBy !== actorId(actor) || !!p.shiftId) || order.payments.reduce((sum, p) => sum + p.amount, 0) !== order.paidAmount) throw replayConflict();
+    const expectedShiftId = String(intent.payload.posSessionId || "");
+    if (order.version < intent.expectedVersion + 1 || order.grandTotal !== identity.expectedGrandTotal || String(order.shiftId || "") !== expectedShiftId || !snapshot || snapshot.grandTotal !== identity.expectedGrandTotal || snapshot.paidAmount !== expected.total || snapshot.dueAmount !== identity.expectedGrandTotal - expected.total || !same(snapshot.payments?.map(fields), expected.payments) || !same(order.payments.slice(0, expected.payments.length).map(fields), expected.payments) || order.payments.slice(0, expected.payments.length).some(p => p.receivedBy !== actorId(actor) || String(p.shiftId || "") !== expectedShiftId) || order.payments.reduce((sum, p) => sum + p.amount, 0) !== order.paidAmount) throw replayConflict();
     return { status: "completed" as const, message: "Đã đối chiếu yêu cầu và hóa đơn gốc.", order, invoice };
   }
   if (!revoke) return { status: "not_found" as const, message: "Chưa ghi nhận xác nhận. Giữ nguyên yêu cầu; đây không phải quyền xóa." };
@@ -556,7 +582,7 @@ export const RetailOrderService = {
           const { pricing } = await priceInput(scope, input, session);
           const customerSnapshot = await resolveOrderCustomerSnapshots(scope, input.customerId, input.billingProfileId);
           requireRetailPaymentCustomer(customerSnapshot?.customerId);
-          const [order] = await RetailOrderModel.create([{ ...scope, collaboratorId: collaborator ? String(collaborator._id) : undefined, couponCode: pricing.couponCode, couponSnapshot: pricing.couponSnapshot, items: pricing.lines, subtotal: pricing.subtotal, orderDiscount: pricing.orderDiscount, taxRate: pricing.taxRate, taxAmount: pricing.taxAmount, shippingFee: pricing.shippingFee, grandTotal: pricing.grandTotal, totalCost: pricing.totalCost, payments: [], refunds: [], paidAmount: 0, refundedAmount: 0, dueAmount: pricing.grandTotal, paymentStatus: "unpaid", status: "draft", businessDate: currentBusinessDate, heldAt: new Date(), heldSlot: slot, salespersonId: String(input.salespersonId || creator), salespersonName: String(input.salespersonName || actorName(actor)), createdBy: creator, createdByName: actorName(actor), stockApplied: false, version: 0, ...(customerSnapshot || {}), dueDate: input.dueDate }], { session });
+          const [order] = await RetailOrderModel.create([{ ...scope, ...orderExtras(input), collaboratorId: collaborator ? String(collaborator._id) : undefined, couponCode: pricing.couponCode, couponSnapshot: pricing.couponSnapshot, items: pricing.lines, subtotal: pricing.subtotal, orderDiscount: pricing.orderDiscount, taxRate: pricing.taxRate, taxAmount: pricing.taxAmount, shippingFee: pricing.shippingFee, grandTotal: pricing.grandTotal, totalCost: pricing.totalCost, payments: [], refunds: [], paidAmount: 0, refundedAmount: 0, dueAmount: pricing.grandTotal, paymentStatus: "unpaid", status: "draft", businessDate: currentBusinessDate, heldAt: new Date(), heldSlot: slot, salespersonId: String(input.salespersonId || creator), salespersonName: String(input.salespersonName || actorName(actor)), createdBy: creator, createdByName: actorName(actor), stockApplied: false, version: 0, ...(customerSnapshot || {}), dueDate: input.dueDate }], { session });
           await RetailIdempotencyModel.updateOne(keyFilter, { $set: { status: "completed", orderId: String(order._id) } }, { session });
           return order;
         });
@@ -598,7 +624,7 @@ export const RetailOrderService = {
         const collaborator = await resolveCollaborator(scope.companyCode, input.collaboratorId === undefined ? existing.collaboratorId : input.collaboratorId);
         const { pricing } = await priceInput(scope, input, session);
         const customerSnapshot = await resolveOrderCustomerSnapshots(scope, input.customerId, input.billingProfileId);
-        const order = await RetailOrderModel.findOneAndUpdate({ _id: id, ...scope, status: "draft", version: expectedVersion }, { $set: { collaboratorId: collaborator ? String(collaborator._id) : null, couponCode: pricing.couponCode, couponSnapshot: pricing.couponSnapshot, items: pricing.lines, subtotal: pricing.subtotal, orderDiscount: pricing.orderDiscount, taxRate: pricing.taxRate, taxAmount: pricing.taxAmount, shippingFee: pricing.shippingFee, grandTotal: pricing.grandTotal, totalCost: pricing.totalCost, dueAmount: pricing.grandTotal, ...(customerSnapshot || { customerId: undefined, customerName: undefined, customerPhone: undefined, billingProfileId: undefined, customerSnapshot: undefined, billingSnapshot: undefined }), dueDate: input.dueDate }, $inc: { version: 1 } }, { returnDocument: "after", session });
+        const order = await RetailOrderModel.findOneAndUpdate({ _id: id, ...scope, status: "draft", version: expectedVersion }, { $set: { ...orderExtras(input), collaboratorId: collaborator ? String(collaborator._id) : null, couponCode: pricing.couponCode, couponSnapshot: pricing.couponSnapshot, items: pricing.lines, subtotal: pricing.subtotal, orderDiscount: pricing.orderDiscount, taxRate: pricing.taxRate, taxAmount: pricing.taxAmount, shippingFee: pricing.shippingFee, grandTotal: pricing.grandTotal, totalCost: pricing.totalCost, dueAmount: pricing.grandTotal, ...(customerSnapshot || { customerId: undefined, customerName: undefined, customerPhone: undefined, billingProfileId: undefined, customerSnapshot: undefined, billingSnapshot: undefined }), dueDate: input.dueDate }, $inc: { version: 1 } }, { returnDocument: "after", session });
         if (!order) throw retailError("Đơn đã được thay đổi ở màn hình khác.", "ORDER_VERSION_CONFLICT");
         await RetailIdempotencyModel.updateOne(keyFilter, { $set: { status: "completed" } }, { session });
         return order;
@@ -628,12 +654,19 @@ export const RetailOrderService = {
       const committed = await RetailIdempotencyModel.findOne(keyFilter).session(session).lean();
       if (committed) { result = await replay(committed, session); return; }
       await RetailIdempotencyModel.create([{ ...scope, key, orderId: id, requestFingerprint, operation: "confirm-order", status: "processing" }], { session });
+      if (shift) await touchPosSession(shift, scope, actor, session);
       const draft: any = await RetailOrderModel.findOne({ _id: id, ...scope, status: "draft", version: input.expectedVersion }).session(session);
       if (!draft) throw retailError("Đơn đã thay đổi hoặc không thể xác nhận. Vui lòng tải lại và kiểm tra nội dung.", "ORDER_VERSION_CONFLICT");
       requireRetailPaymentCustomer(draft.customerId);
       assertHeldDraftAccess(String(draft.createdBy), actorId(actor), canManage);
       const { settings, pricing } = await priceInput(scope, draft.toObject(), session, true); if (Number(input.expectedGrandTotal) !== pricing.grandTotal) throw Object.assign(new Error("Tổng tiền đã thay đổi."), { code: "ORDER_TOTAL_MISMATCH", status: 409, details: { expected: Number(input.expectedGrandTotal), actual: pricing.grandTotal } });
       const normalized = normalizePayments(input.payments || [], pricing.grandTotal); const dueAmount = pricing.grandTotal - normalized.total;
+      if (draft.installment) {
+        const upfrontAmount = Math.round(pricing.grandTotal * draft.installment.prepayPercent / 100);
+        if (normalized.total !== upfrontAmount) throw retailError("Số tiền thu phải khớp tiền trả trước đã chọn.", "INSTALLMENT_UPFRONT_MISMATCH", 400);
+        draft.installment.upfrontAmount = upfrontAmount;
+        draft.installment.financedAmount = dueAmount;
+      }
       if (dueAmount > 0 && !draft.dueDate) throw new Error("Bán nợ cần khách hàng và hạn thanh toán.");
       const customerSnapshots = await resolveOrderCustomerSnapshots(scope, draft.customerId, draft.billingProfileId);
       const customer: any = customerSnapshots ? { name: customerSnapshots.customerName, phone: customerSnapshots.customerPhone } : null;
@@ -653,7 +686,9 @@ export const RetailOrderService = {
       await draft.save({ session });
       if (draft.commissionSnapshot) await reconcileCommission("retail", String(draft._id), scope.companyCode, session);
       await publishRetailOrderEvent("confirmed", scope, draft, actor, { session });
-      await RetailIdempotencyModel.updateOne({ companyCode: scope.companyCode, key }, { $set: { status: "completed", orderId: String(draft._id), invoiceId: String(invoice._id) } }, { session }); result = { order: draft, invoice };
+      await RetailIdempotencyModel.updateOne({ companyCode: scope.companyCode, key }, { $set: { status: "completed", orderId: String(draft._id), invoiceId: String(invoice._id) } }, { session });
+      if (shift) await touchPosSession(shift, scope, actor, session);
+      result = { order: draft, invoice };
     }); } catch (error: any) {
       if (error?.code === 11000 && error?.keyPattern?.companyCode && error?.keyPattern?.key) {
         const prior = await RetailIdempotencyModel.findOne(keyFilter).lean();
@@ -662,6 +697,7 @@ export const RetailOrderService = {
       throw error;
     } finally { await session.endSession(); }
     scheduleOrderTierRefreshAfterCommit(scope, "confirm", result.order);
+    if (shift) emitSessionChange("pos:session:updated", shift);
     return result;
   },
   async revokeCollection(scope: RetailBranchScope, id: string, input: any, actor: any, shift?: any) {
@@ -735,10 +771,11 @@ export const RetailOrderService = {
     if (existing) return replay(existing);
     const session = await mongoose.startSession();
     try {
-      return await session.withTransaction(async () => {
+      const result = await session.withTransaction(async () => {
         const existing = await RetailIdempotencyModel.findOne(keyFilter).session(session).lean();
         if (existing) return replay(existing, session);
         await RetailIdempotencyModel.create([{ ...scope, key, orderId: id, operation: "collect-order", requestFingerprint, status: "processing" }], { session });
+        shift = await lockRetailPaymentSession(scope, { ...input, cashSessionId: input.cashSessionId || shift?._id }, actor, session, normalized.payments.some((payment) => payment.method === "cash"));
         const order: any = await RetailOrderModel.findOne({ _id: id, ...scope, status: "confirmed", version: input.expectedVersion }).session(session);
         if (!order) throw retailError("Đơn đã thay đổi hoặc không thể thu thêm. Vui lòng đối chiếu công nợ.", "ORDER_VERSION_CONFLICT");
         if (normalized.total > order.dueAmount) throw retailError("Số tiền thu vượt công nợ còn lại.", "COLLECTION_INVALID", 400);
@@ -753,8 +790,12 @@ export const RetailOrderService = {
         if (order.commissionSnapshot) await reconcileCommission("retail", String(order._id), scope.companyCode, session);
         await publishRetailOrderEvent("paid", scope, order, actor, { session, amount: normalized.total, transactionKey: key });
         await RetailIdempotencyModel.updateOne(keyFilter, { $set: { status: "completed", collectionEvidence } }, { session });
+        assertPaymentSessionDeadline(shift);
         return order;
       });
+      if (shift) emitSessionChange("pos:session:updated", shift);
+      if (result?.shiftId && result.shiftId !== String(shift?._id || "")) emitSessionChange("pos:session:updated", { ...scope, _id: result.shiftId, cashierId: result.salespersonId });
+      return result;
     } catch (error: any) {
       if (error?.code === 11000 && error?.keyPattern?.companyCode && error?.keyPattern?.key) {
         const existing = await RetailIdempotencyModel.findOne(keyFilter).lean();
@@ -856,6 +897,7 @@ export const RetailOrderService = {
         if (order.status === "draft") assertHeldDraftAccess(String(order.createdBy), actorId(actor), canManage);
         if (order.status === "completed" && !canManage) throw Object.assign(new Error("Chỉ quản lý được hủy đơn hoàn tất."), { status: 403 });
         if (await RetailAfterSaleModel.exists({ ...scope, orderId: String(order._id) }).session(session)) throw retailError("Đơn đã trả hàng hoặc thu mua lại. Vui lòng xử lý phần hàng còn lại bằng phiếu trả hàng.", "ORDER_HAS_AFTER_SALES");
+        if (order.status !== "draft") shift = await lockRetailPaymentSession(scope, { ...input, cashSessionId: input.cashSessionId || shift?._id }, actor, session, refunds.payments.some((payment: any) => payment.method === "cash"), refunds.payments.filter((payment: any) => payment.method === "cash").reduce((sum: number, payment: any) => sum + payment.amount, 0));
         const remainingRefund = order.paidAmount - order.refundedAmount;
         if (refunds.total !== remainingRefund) throw retailError("Phải ghi nhận đúng số tiền hoàn còn lại khi hủy đơn.", "CANCELLATION_INVALID", 400);
         if (order.status === "draft") {
@@ -870,12 +912,13 @@ export const RetailOrderService = {
         await enqueueOrderTierRefresh(scope, "cancel", order, session);
         await revertOrderPointsOnCancel(scope, order, actor, session);
         order.refunds.push(...refunds.payments.map((item: any) => ({ method: item.method, amount: item.amount, reference: item.reference, refundedAt: new Date(), refundedBy: actorId(actor), refundedByName: actorName(actor), shiftId: shift?._id ? String(shift._id) : undefined, businessDate: shift?.businessDate || businessDateInVietnam(new Date()), reason })));
-        order.refundedAmount += refunds.total; order.paymentStatus = paymentStatusFor(order.paidAmount, order.grandTotal, order.refundedAmount); order.status = "cancelled"; order.cancelReason = reason; order.cancelledAt = new Date(); order.version += 1;
+        order.refundedAmount += refunds.total; order.paymentStatus = paymentStatusFor(order.paidAmount, order.grandTotal, order.refundedAmount); order.status = "cancelled"; order.cancelReason = reason; order.cancelledByName = actorName(actor); order.cancelledAt = new Date(); order.version += 1;
         await order.save({ session });
         if (order.commissionSnapshot) await reconcileCommission("retail", String(order._id), scope.companyCode, session);
         await publishRetailOrderEvent("cancelled", scope, order, actor, { session });
         await RetailInvoiceModel.updateOne({ orderId: String(order._id), ...scope, status: "issued" }, { $set: { status: "void", voidedAt: new Date(), voidReason: reason } }, { session });
         await RetailIdempotencyModel.updateOne(keyFilter, { $set: { status: "completed", cancelledFromStatus, cancellationDigest: cancellationDigest(order) } }, { session });
+        assertPaymentSessionDeadline(shift);
         result = order;
       });
     } catch (error: any) {
@@ -886,6 +929,8 @@ export const RetailOrderService = {
       throw error;
     } finally { await session.endSession(); }
     if (result.stockApplied) scheduleOrderTierRefreshAfterCommit(scope, "cancel", result);
+    if (shift) emitSessionChange("pos:session:updated", shift);
+    if (result?.shiftId && result.shiftId !== String(shift?._id || "")) emitSessionChange("pos:session:updated", { ...scope, _id: result.shiftId, cashierId: result.salespersonId });
     return result;
   },
   async deleteCancelled(scope: RetailBranchScope, id: string) {

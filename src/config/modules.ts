@@ -25,7 +25,7 @@ export const MODULE_READ_PERMISSIONS: Partial<Record<TabType, string[]>> = {
   "ĐỐI TÁC": ["partner:read", "partner:manage", "partner-self:read", "partner-self:manage"],
   "TỔNG QUAN": ["dashboard:read"], "NHÂN SỰ": ["hr:read", "access:read", "work:read", "timekeeping:read", "timekeeping:manage"], "KHO & SẢN PHẨM": ["inventory:read"],
   "QUẢN LÝ KHÁCH HÀNG": ["customer:read", "customer:manage"], "SỬA CHỮA & BẢO HÀNH": ["repair:read", "repair:manage"], "QUẢN LÝ TÀI NGUYÊN": ["resource:read"],
-  "BÁN HÀNG": ["retail:read", "retail:manage"], "BÁN LẺ": ["retail:read", "retail:manage"], "TÀI CHÍNH": ["finance-wallet:read", "finance-wallet:manage", "finance-receivable:read", "finance-receivable:manage", "asset:read", "asset:manage"],
+  "BÁN HÀNG": ["pos:manage", "retail:read", "retail:manage"], "BÁN LẺ": ["retail:read", "retail:manage"], "TÀI CHÍNH": ["finance-wallet:read", "finance-wallet:manage", "finance-receivable:read", "finance-receivable:manage", "asset:read", "asset:manage"],
   "TRÒ CHUYỆN": ["chat:read"], "MARKETING": ["marketing:read", "marketing:manage"],
   "CSKH": ["repair:read", "repair:manage", "customer:read", "customer:manage", "marketing:read", "marketing:manage"],
 };

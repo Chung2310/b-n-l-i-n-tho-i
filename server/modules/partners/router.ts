@@ -23,7 +23,7 @@ const createPartner = requirePermission(["partner:manage", "retail:manage", "rep
 const policies = requirePermission("commission-policy:manage") as any;
 const finance = requirePermission("commission-payment:manage") as any;
 const own = requirePermission(["partner-self:read", "partner-self:manage"]) as any;
-const picker = requirePermission(["retail:manage", "retail:read", "repair:manage", "partner:read", "partner:manage"]) as any;
+const picker = requirePermission(["pos:manage", "retail:manage", "retail:read", "repair:manage", "partner:read", "partner:manage"]) as any;
 export function partnerCompany(req: any) {
   const companyCode = retailScopeFromRequest(req.user || {}, { companyCode: req.query.companyCode || req.user?.companyCode }).companyCode;
   if (!companyCode) throw invalid("Thiếu công ty."); return companyCode;

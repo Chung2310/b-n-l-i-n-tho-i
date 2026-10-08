@@ -1,6 +1,6 @@
 export type DomainEventType = "retail.order.confirmed" | "retail.order.paid" | "retail.order.cancelled" | "finance.receivable.settled" | "finance.receivable.overdue" | "repair.ticket.received" | "repair.ticket.done" | "repair.ticket.delivered";
 
-export interface RetailOrderConfirmedPayload { orderId: string; orderCode: string; branchId: string; customerId?: string; customerName?: string; customerPhone?: string; grandTotal: number; paidAmount: number; dueAmount: number; dueDate?: string; }
+export interface RetailOrderConfirmedPayload { orderId: string; orderCode: string; branchId: string; customerId?: string; customerName?: string; customerPhone?: string; grandTotal: number; paidAmount: number; dueAmount: number; dueDate?: string; financingPartner?: string; }
 export interface RetailOrderPaidPayload { orderId: string; orderCode: string; branchId: string; customerId: string; amount: number; transactionKey: string; occurredAt: string; }
 export interface RetailOrderCancelledPayload { orderId: string; orderCode: string; branchId: string; customerId?: string; dueAmount: number; refundedAmount: number; reason: string; cancelledAt: string; }
 export interface FinanceReceivableSettledPayload { receivableId: string; sourceType: string; sourceId: string; sourceCode: string; settledAt: string; }

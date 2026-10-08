@@ -646,6 +646,7 @@ export const authService = {
 
     const validBranch = branchId ? await BranchModel.findOne({ _id: branchId, companyCode: finalCompanyCode, isActive: true }).lean() : null;
     if (branchId && !validBranch) throw new Error("Chi nhánh không hợp lệ hoặc không thuộc công ty.");
+    if (role === "pos_cashier" && !validBranch) throw new Error("Nhân viên bán hàng POS phải được gán chi nhánh.");
 
     const salaryValue = monthlySalary === undefined || monthlySalary === null || monthlySalary === "" ? undefined : Number(monthlySalary);
     if (salaryValue !== undefined && (!Number.isFinite(salaryValue) || salaryValue < 0)) {
@@ -663,7 +664,7 @@ export const authService = {
       companyName: companyName?.trim(),
       branchId: branchId || undefined,
       parentId: parentId || undefined,
-      level: level || (role === "admin" ? 1 : (role === "branch_owner" ? 2 : (role === "manager" ? 3 : 4))),
+      level: role === "pos_cashier" ? DEFAULT_ROLE_LEVELS.pos_cashier : (level || DEFAULT_ROLE_LEVELS[role] || 4),
       department: finalDept,
       division: division || (role === "admin" ? "Ban Giám Đốc" : (role === "branch_owner" ? "Quản lý chi nhánh" : (role === "manager" ? "Quản lý" : "Nhân sự"))),
       qualification: "",
@@ -741,6 +742,11 @@ export const authService = {
         const validBranch = await BranchModel.findOne({ _id: updateData.branchId, companyCode: targetCompany, isActive: true }).lean();
         if (!validBranch) throw new Error("Chi nhánh không hợp lệ hoặc không thuộc công ty.");
       }
+    }
+    if ((updateData.role !== undefined || updateData.branchId !== undefined)
+      && (updateData.role || user.role) === "pos_cashier"
+      && !(updateData.branchId !== undefined ? updateData.branchId : user.branchId)) {
+      throw new Error("Nhân viên bán hàng POS phải được gán chi nhánh.");
     }
 
     if (updateData.role && callerRole !== "superadmin") {

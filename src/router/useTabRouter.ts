@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { pathToTab, tabToPath } from "../seo/seo-config";
 import type { TabType } from "../types";
 import { DEFAULT_APP_TAB } from "./route-config";
@@ -19,6 +19,7 @@ function resolveInitialTab() {
 export function useTabRouter(options?: { enabled?: boolean }) {
   const enabled = options?.enabled ?? true;
   const [activeTab, setActiveTab] = useState<TabType>(resolveInitialTab);
+  const wasEnabled = useRef(false);
 
   console.log(`[useTabRouter] Render: activeTab="${activeTab}", enabled=${enabled}, pathname="${window.location.pathname}"`);
 
@@ -47,13 +48,18 @@ export function useTabRouter(options?: { enabled?: boolean }) {
   }, [enabled]);
 
   useEffect(() => {
+    const justEnabled = enabled && !wasEnabled.current;
+    wasEnabled.current = enabled;
     if (!enabled) return;
+    // On re-entry from a standalone route, let the URL-to-tab effect finish first.
+    if (justEnabled && activeTab !== resolveTabFromPath(window.location.pathname)) return;
 
     const nextPath = tabToPath(activeTab);
     console.log(`[useTabRouter] Sync Path Effect: activeTab="${activeTab}", currentPath="${window.location.pathname}", nextPath="${nextPath}"`);
     if (window.location.pathname !== nextPath) {
       console.log(`[useTabRouter] Pushing state to nextPath="${nextPath}"`);
       window.history.pushState(null, "", nextPath);
+      window.dispatchEvent(new Event("popstate"));
     }
   }, [activeTab, enabled]);
 

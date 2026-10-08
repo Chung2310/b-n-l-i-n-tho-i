@@ -1,5 +1,6 @@
 import { useAuth } from "../../../context/AuthContext";
 import { useBranch } from "../../../context/BranchContext";
+import { getPosTerminalId } from "../posTerminal";
 
 export function useRetailScope() {
   const { userProfile } = useAuth();
@@ -12,10 +13,13 @@ export function useRetailScope() {
     "";
 
   return {
-    scope:
-      userProfile?.companyCode && activeBranchId
-        ? { companyCode: userProfile.companyCode, branchId: activeBranchId }
-        : null,
+    scope: userProfile?.companyCode && activeBranchId
+      ? {
+          companyCode: userProfile.companyCode,
+          branchId: activeBranchId,
+          terminalId: getPosTerminalId(userProfile.companyCode, activeBranchId),
+        }
+      : null,
     userProfile,
     activeBranch,
     branchName,
