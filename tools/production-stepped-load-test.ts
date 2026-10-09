@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 
 import { summarize, type RequestResult, type StressSummary } from "./controlled-staging-stress-test.js";
 
-export const PRODUCTION_ORIGIN = "https://erp.igentechsolutions.com";
+export const PRODUCTION_ORIGIN = "https://erp.igentechnology.net";
 export const MAX_PRODUCTION_CONCURRENCY = 10;
 export const MAX_PRODUCTION_DURATION_MS = 600_000;
 export const PRODUCTION_STAGES = Object.freeze([
