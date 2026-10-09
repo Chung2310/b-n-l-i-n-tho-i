@@ -305,8 +305,8 @@ export function getSeoForPath(requestPath: string): SeoMeta {
   return tab ? getSeoForTab(tab) : DEFAULT_SEO;
 }
 
-export function resolveSeoUrl(path: string) {
-  return new URL(path, SEO_BASE_URL).toString();
+export function resolveSeoUrl(path: string, baseUrl = SEO_BASE_URL) {
+  return new URL(path, baseUrl).toString();
 }
 
 export function tabToPath(tab: TabType): string {

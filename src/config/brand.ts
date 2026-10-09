@@ -1,6 +1,20 @@
 export const BRAND_NAME = "iGEN Retail";
 export const BRAND_TAGLINE = "Enterprise Hub";
-export const SERVICE_WEBSITE_URL = "https://erp.igentechnology.net";
+export const ERP_SERVICE_WEBSITE_URL = "https://erp.igentechnology.net";
+export const RETAIL_SERVICE_WEBSITE_URL = "https://retail.igentechnology.net";
+
+function getBrowserHostname() {
+  return typeof window === "undefined" ? "" : window.location.hostname;
+}
+
+export function resolveServiceWebsiteUrl(hostname = getBrowserHostname()) {
+  const normalizedHostname = hostname.trim().toLowerCase().replace(/\.$/, "");
+  return normalizedHostname === "retail.igentechnology.net"
+    ? RETAIL_SERVICE_WEBSITE_URL
+    : ERP_SERVICE_WEBSITE_URL;
+}
+
+export const SERVICE_WEBSITE_URL = resolveServiceWebsiteUrl();
 export const SUPPORT_EMAIL = "igen.work99@gmail.com";
 export const SUPPORT_URL = `${SERVICE_WEBSITE_URL}/#phap-ly`;
 export const PRIVACY_POLICY_URL = `${SERVICE_WEBSITE_URL}/privacy-policy`;
