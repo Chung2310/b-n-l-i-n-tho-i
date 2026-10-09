@@ -21,7 +21,7 @@ it.each([false, true])("serializes reconciled order using effective cost permiss
   expect(returned.totalCost).toBe(manager ? 70 : undefined);
   expect(returned.items[0].unitCost).toBe(manager ? 70 : undefined);
   expect(order.totalCost).toBe(70);
-  expect(RetailOrderService.reconcileCollection).toHaveBeenCalledWith({ companyCode: "A", branchId: "B" }, "o1", req.body, req.user);
+  expect(RetailOrderService.reconcileCollection).toHaveBeenCalledWith({ companyCode: "A", branchId: "B" }, "o1", req.body, req.user, undefined);
 });
 it("rejects a requested branch outside the actor scope before reconciliation", async () => {
   vi.mocked(hasEffectiveRetailCapability).mockResolvedValue(false);
@@ -42,5 +42,5 @@ it.each([false, true])('filters cancellation snapshot costs using current permis
   const result = res.json.mock.calls[0][0].data.order;
   expect(result.totalCost).toBe(manager ? 70 : undefined);
   expect(result.items[0].unitCost).toBe(manager ? 70 : undefined);
-  expect(RetailOrderService.reconcileCancellation).toHaveBeenCalledWith({ companyCode: 'A', branchId: 'B' }, 'o1', req.body, req.user, manager);
+  expect(RetailOrderService.reconcileCancellation).toHaveBeenCalledWith({ companyCode: 'A', branchId: 'B' }, 'o1', req.body, req.user, manager, undefined);
 });

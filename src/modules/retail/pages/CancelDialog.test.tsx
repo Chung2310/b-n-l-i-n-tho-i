@@ -6,19 +6,24 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import PendingCancellations from "../components/orders/PendingCancellations";
 import { CancelDialog } from "./RetailOrdersPageV2";
 import { retailOrdersApi } from "../api/retailOrders.api";
+import { retailShiftsApi } from "../api/retailShifts.api";
 import type { RetailOrder } from "../types";
 const context = vi.hoisted(() => ({ branchId: "B" }));
 vi.mock("../hooks/useRetailScope", () => ({ useRetailScope: () => ({ scope: { companyCode: "A", branchId: context.branchId }, userProfile: { uid: "u1" } }) }));
 vi.mock("../api/retailOrders.api", () => ({ retailOrdersApi: { cancel: vi.fn(), reconcileCancellation: vi.fn(), revokeCancellation: vi.fn() } }));
+vi.mock("../api/retailShifts.api", () => ({ retailShiftsApi: { list: vi.fn() } }));
+const cashSessionId = "0123456789abcdef01234567";
 const order = { _id: "o1", status: "completed", paidAmount: 400, refundedAmount: 0, version: 1 } as RetailOrder;
-beforeEach(() => { vi.resetAllMocks(); sessionStorage.clear(); localStorage.clear(); Object.defineProperty(navigator, "locks", { configurable: true, value: { request: vi.fn(async (_key, _options, work) => work({ name: _key })) } }); context.branchId = "B"; });
+beforeEach(() => { vi.resetAllMocks(); vi.mocked(retailShiftsApi.list).mockResolvedValue({ items: [{ _id: cashSessionId, cashierName: "Test cashier", businessDate: "2026-10-09", status: "open" } as any], total: 1, page: 1, limit: 100 }); sessionStorage.clear(); localStorage.clear(); Object.defineProperty(navigator, "locks", { configurable: true, value: { request: vi.fn(async (_key, _options, work) => work({ name: _key })) } }); context.branchId = "B"; });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+const chooseOpenCashSession = async () => { const picker = await screen.findByRole("combobox", { name: /Phi.n thu/ }); await screen.findByRole("option", { name: /Test cashier/ }); await userEvent.selectOptions(picker, cashSessionId); };
 
 it("keeps cancellation reason, refund, version and key through a lost response and remount", async () => {
   const done = vi.fn();
   vi.mocked(retailOrdersApi.cancel).mockRejectedValueOnce(new Error("network"));
   const view = render(<CancelDialog order={order} onClose={vi.fn()} done={done} />);
   await userEvent.type(screen.getByLabelText("Lý do hủy"), "Unused");
+  await chooseOpenCashSession();
   await userEvent.click(screen.getByRole("button", { name: "Xác nhận hủy đơn" }));
   await screen.findByRole("button", { name: "Thử lại yêu cầu hủy cũ" });
   expect((screen.getByLabelText("Lý do hủy") as HTMLTextAreaElement).disabled).toBe(true);
@@ -39,6 +44,7 @@ it("coalesces clicks and ignores a late cancellation after scope changes", async
   const done = vi.fn();
   const view = render(<CancelDialog order={order} onClose={vi.fn()} done={done} />);
   await userEvent.type(screen.getByLabelText("Lý do hủy"), "Unused");
+  await chooseOpenCashSession();
   await userEvent.dblClick(screen.getByRole("button", { name: "Xác nhận hủy đơn" }));
   expect(retailOrdersApi.cancel).toHaveBeenCalledTimes(1);
   context.branchId = "OTHER";
@@ -51,6 +57,7 @@ it("does not cancel if the request cannot be persisted", async () => {
   vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("quota"); });
   render(<CancelDialog order={order} onClose={vi.fn()} done={vi.fn()} />);
   await userEvent.type(screen.getByLabelText("Lý do hủy"), "Unused");
+  await chooseOpenCashSession();
   await userEvent.click(screen.getByRole("button", { name: "Xác nhận hủy đơn" }));
   expect(retailOrdersApi.cancel).not.toHaveBeenCalled();
   expect(await screen.findByRole("alert")).toBeTruthy();
