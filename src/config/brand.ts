@@ -16,9 +16,12 @@ export function resolveServiceWebsiteUrl(hostname = getBrowserHostname()) {
 
 export const SERVICE_WEBSITE_URL = resolveServiceWebsiteUrl();
 export const SUPPORT_EMAIL = "igen.work99@gmail.com";
+export const PRIVACY_POLICY_PATH = "/privacy-policy";
+export const TERMS_OF_SERVICE_PATH = "/terms-of-service";
+export const USER_DATA_DELETION_PATH = "/user-data-deletion";
 export const SUPPORT_URL = `${SERVICE_WEBSITE_URL}/#phap-ly`;
-export const PRIVACY_POLICY_URL = `${SERVICE_WEBSITE_URL}/privacy-policy`;
-export const TERMS_OF_SERVICE_URL = `${SERVICE_WEBSITE_URL}/terms-of-service`;
-export const USER_DATA_DELETION_URL = `${SERVICE_WEBSITE_URL}/user-data-deletion`;
+export const PRIVACY_POLICY_URL = `${SERVICE_WEBSITE_URL}${PRIVACY_POLICY_PATH}`;
+export const TERMS_OF_SERVICE_URL = `${SERVICE_WEBSITE_URL}${TERMS_OF_SERVICE_PATH}`;
+export const USER_DATA_DELETION_URL = `${SERVICE_WEBSITE_URL}${USER_DATA_DELETION_PATH}`;
 export const BRAND_LOGO_PATH = "/brand-icon.png";
 export const BRAND_LOGO_URL = `${SERVICE_WEBSITE_URL}${BRAND_LOGO_PATH}`;
