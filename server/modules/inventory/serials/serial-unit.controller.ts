@@ -1,12 +1,14 @@
 import type { Request, Response } from "express";
 import { getSerialHistory, listSerialUnits, registerSerialBatch, registerSerialUnit, transferSerialUnit, transitionSerialUnit } from "./serial-unit.service";
 import { acceptSerialTransfer, cancelSerialTransfer, requestSerialTransfer } from "./serial-transfer.service";
+import { allocateInternalBarcodes } from "./unit-barcode-allocator";
 
 function scope(req: Request) { return { companyCode: String((req as any).user?.companyCode || "").trim().toUpperCase(), branchId: String((req as any).user?.branchId || "").trim(), warehouseId: req.query.warehouseId ? String(req.query.warehouseId) : undefined }; }
 function actor(req: Request) { return { id: String((req as any).user?.id || (req as any).user?._id || ""), name: String((req as any).user?.displayName || (req as any).user?.name || (req as any).user?.fullName || (req as any).user?.email || (req as any).user?.id || "") }; }
 function sendError(res: Response, error: any) { return res.status(Number(error?.statusCode) || 400).json({ status: "error", code: error?.code, message: error?.message || "Không thể xử lý IMEI/serial." }); }
 
 export const serialUnitController = {
+  allocateBarcodes: async (req: Request, res: Response) => { try { return res.json({ status: "success", data: await allocateInternalBarcodes(Number(req.body?.count)) }); } catch (e) { return sendError(res, e); } },
   list: async (req: Request, res: Response) => { try { return res.json({ status: "success", data: await listSerialUnits(scope(req), { serial: String(req.query.serial || ""), barcodes: String(req.query.barcodes || "").split(",").map((value) => value.trim()).filter(Boolean), sku: String(req.query.sku || ""), productId: String(req.query.productId || ""), variantId: String(req.query.variantId || ""), trackingMode: req.query.trackingMode as any, forSale: String(req.query.forSale || "") === "true", status: req.query.status as any, page: Number(req.query.page), limit: Number(req.query.limit) }) }); } catch (e) { return sendError(res, e); } },
   detail: async (req: Request, res: Response) => { try { const result = await listSerialUnits(scope(req), { serial: req.params.id, limit: 1 }); if (!result.items[0]) return res.status(404).json({ status: "error", message: "Không tìm thấy IMEI/serial." }); return res.json({ status: "success", data: result.items[0] }); } catch (e) { return sendError(res, e); } },
   history: async (req: Request, res: Response) => { try { return res.json({ status: "success", data: await getSerialHistory(scope(req), req.params.id) }); } catch (e) { return sendError(res, e); } },

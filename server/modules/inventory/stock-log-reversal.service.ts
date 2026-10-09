@@ -48,7 +48,7 @@ export async function reverseManualOutbound(scope: InventoryScope, sourceId: str
         if (!Number.isInteger(item.quantity) || identifiers.length !== item.quantity) inventoryError("Thiếu danh sách máy gốc để đảo.", 409);
         for (const identifier of identifiers) {
           const code = identifier.trim().toUpperCase();
-          const matches = await SerialUnitModel.find({ companyCode: scope.companyCode, branchId: scope.branchId, warehouseId: original.warehouseId, productId: item.productId, variantId: item.variantId, status: expectedStatus, currentDocumentType: "manual-stock-log", currentDocumentId: sourceId, $or: [{ normalizedSerialNumber: code }, { normalizedInternalBarcode: code }] }).session(session);
+          const matches = await SerialUnitModel.find({ companyCode: scope.companyCode, branchId: scope.branchId, warehouseId: original.warehouseId, productId: item.productId, variantId: item.variantId, status: expectedStatus, currentDocumentType: "manual-stock-log", currentDocumentId: sourceId, $or: [{ normalizedSerialNumber: code }, { normalizedInternalBarcode: code }, { normalizedBarcodeAliases: code }] }).session(session);
           if (matches.length !== 1 || seen.has(String(matches[0]._id))) inventoryError(`Máy ${identifier} đã đổi trạng thái/vị trí hoặc không khớp phiếu. Cần xử lý chuỗi nghiệp vụ trước.`, 409);
           const unit = matches[0], id = String(unit._id);
           if (expectedStatus === "internal_use" && (unit.internalUse?.stockLogId !== sourceId || unit.internalUse?.recipientName !== String(original.customerName || "").trim() || unit.internalUse?.unitCost !== entry.unitCost)) inventoryError("Thông tin cấp phát không khớp phiếu gốc; cần đối soát trước khi thu hồi.", 409);

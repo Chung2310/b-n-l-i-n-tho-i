@@ -1,6 +1,9 @@
 import React, { useMemo, useState, useRef, useEffect } from "react";
+import { ChevronDown, ChevronUp, Printer } from "lucide-react";
 import { toast } from "../../../pages/Toast";
 import type { GoodsReceiptItem } from "../../../services/inventoryReceivingService";
+import { inventorySerialService } from "../../../services/inventorySerialService";
+import { printDeviceBarcodeLabels, type DeviceBarcodeLabel } from "./printDeviceBarcodeLabels";
 
 type DraftLine = GoodsReceiptItem & { key: string; displayName: string };
 
@@ -19,22 +22,84 @@ export function SerialManagerModal({
   onSave,
   otherLinesSerials = [],
 }: SerialManagerModalProps) {
-  if (!isOpen) return null;
-
   const [activeTab, setActiveTab] = useState<"scan" | "paste" | "list">("scan");
 
   // Số lượng cố định từ phiếu nhập, không cho phép sửa đổi tại modal nhập IMEI
   const currentQty = useMemo(() => Math.max(1, Math.round(line.quantity)), [line.quantity]);
   const [serials, setSerials] = useState<string[]>(() => {
     const list = line.serialNumbers || [];
-    return Array.from({ length: currentQty }, (_, i) => list[i] || "");
+    const details = line.unitDetails || [];
+    return Array.from({ length: currentQty }, (_, i) => list[i] || details[i]?.serialNumber || "");
   });
-  const [unitDetails, setUnitDetails] = useState<Array<{ internalBarcode: string }>>(() => {
+  const [unitDetails, setUnitDetails] = useState<Array<{ internalBarcode?: string; serialNumber?: string; imei1?: string; imei2?: string }>>(() => {
     const list = line.unitDetails || [];
     return Array.from({ length: currentQty }, (_, i) => ({
-      internalBarcode: list[i]?.internalBarcode || "",
+      internalBarcode: list[i]?.internalBarcode,
+      serialNumber: list[i]?.serialNumber,
+      imei1: list[i]?.imei1,
+      imei2: list[i]?.imei2,
     }));
   });
+  const [generatingBarcodes, setGeneratingBarcodes] = useState(false);
+  const [expandedImeiUnits, setExpandedImeiUnits] = useState<Record<number, boolean>>({});
+  const [barcodeFeedback, setBarcodeFeedback] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
+
+  const handleGenerateInternalBarcodes = async (indexes: number[], replaceExisting = false) => {
+    const targets = indexes.filter((index) => replaceExisting || !unitDetails[index]?.internalBarcode?.trim());
+    if (targets.length === 0) {
+      setBarcodeFeedback({ type: "info", message: "Các thiết bị đã có mã quản lý." });
+      return;
+    }
+
+    setBarcodeFeedback(null);
+    setGeneratingBarcodes(true);
+    try {
+      const barcodes = await inventorySerialService.allocateInternalBarcodes(targets.length);
+      if (barcodes.length !== targets.length) throw new Error("Số mã được cấp không khớp số thiết bị.");
+      const barcodeByIndex = new Map(targets.map((index, barcodeIndex) => [index, barcodes[barcodeIndex]]));
+      setUnitDetails((current) => current.map((unit, index) => {
+        const barcode = barcodeByIndex.get(index);
+        if (!barcode || (!replaceExisting && unit.internalBarcode?.trim())) return unit;
+        return { ...unit, internalBarcode: barcode };
+      }));
+      setBarcodeFeedback({ type: "success", message: `Đã tự sinh ${barcodes.length} mã quản lý.` });
+    } catch (error) {
+      setBarcodeFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Không thể tự sinh mã quản lý.",
+      });
+    } finally {
+      setGeneratingBarcodes(false);
+    }
+  };
+
+  const handlePrintBarcodes = () => {
+    const labels: DeviceBarcodeLabel[] = Array.from({ length: currentQty }, (_, index) => index)
+      .map((index) => ({
+        internalBarcode: unitDetails[index]?.internalBarcode || "",
+        sku: line.sku || line.variantId,
+        productName: line.productName || line.displayName || line.sku || "Thiết bị",
+        serialNumber: serials[index]?.trim() || undefined,
+        imei1: unitDetails[index]?.imei1,
+        imei2: unitDetails[index]?.imei2,
+      }))
+      .filter((label) => label.internalBarcode.trim());
+
+    if (labels.length !== currentQty) {
+      setBarcodeFeedback({ type: "info", message: `Hãy tự sinh mã còn thiếu để in đủ ${currentQty} tem.` });
+      return;
+    }
+
+    try {
+      printDeviceBarcodeLabels(labels);
+      setBarcodeFeedback({ type: "success", message: `Đã mở cửa sổ in ${labels.length} tem barcode.` });
+    } catch (error) {
+      setBarcodeFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Không thể mở trang in tem barcode.",
+      });
+    }
+  };
 
   // Scanner state
   const [scanInput, setScanInput] = useState("");
@@ -47,12 +112,13 @@ export function SerialManagerModal({
 
   // Focus scanner input on tab change to scan
   useEffect(() => {
-    if (activeTab === "scan") {
-      setTimeout(() => {
-        scannerInputRef.current?.focus();
-      }, 100);
-    }
-  }, [activeTab]);
+    if (activeTab !== "scan" || !isOpen) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      scannerInputRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeTab, isOpen]);
 
   // Valid count
   const filledSerials = useMemo(() => {
@@ -162,19 +228,6 @@ export function SerialManagerModal({
     setActiveTab("list");
   };
 
-  // Generate internal barcodes for all units
-  const handleGenerateInternalBarcodes = () => {
-    const token = line.sku.replace(/[^A-Za-z0-9]+/g, "-").toUpperCase();
-    const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    setUnitDetails((curr) =>
-      curr.map((item, index) => ({
-        ...item,
-        internalBarcode: `IG-${token}-${date}-${String(index + 1).padStart(6, "0")}`,
-      }))
-    );
-    toast.success(`Đã sinh mã vạch nội bộ tự động cho ${currentQty} đơn vị.`);
-  };
-
   // Clear all IMEIs
   const handleClearAllSerials = () => {
     setSerials(Array.from({ length: currentQty }, () => ""));
@@ -184,10 +237,6 @@ export function SerialManagerModal({
   // Save changes
   const handleSave = () => {
     if (line.trackingMode === "serial") {
-      if (filledSerials.length !== currentQty) {
-        toast.error(`SKU theo IMEI phải nhập đủ ${currentQty} mã (hiện có ${filledSerials.length}).`);
-        return;
-      }
       if (hasInternalDuplicates) {
         toast.error("Phát hiện IMEI bị trùng lặp trong danh sách. Vui lòng kiểm tra lại.");
         return;
@@ -204,8 +253,8 @@ export function SerialManagerModal({
       serialNumbers: serials.map((s) => s.trim()),
       unitDetails: unitDetails.map((u, i) => ({
         ...u,
+        internalBarcode: u.internalBarcode?.trim() || undefined,
         serialNumber: serials[i]?.trim() || undefined,
-        internalBarcode: u.internalBarcode?.trim() || "",
       })),
     };
 
@@ -216,23 +265,27 @@ export function SerialManagerModal({
 
   const progressPercent = Math.min(100, Math.round((filledSerials.length / currentQty) * 100));
   const isComplete = filledSerials.length === currentQty && !hasInternalDuplicates;
+  const generatedBarcodeCount = unitDetails.filter((unit) => Boolean(unit.internalBarcode?.trim())).length;
+  const missingBarcodeCount = Math.max(0, currentQty - generatedBarcodeCount);
+
+  if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/55 p-3 sm:p-4">
       <div
         role="dialog"
         aria-modal="true"
-        className="flex max-h-[92vh] w-full max-w-3xl flex-col rounded-xl bg-white shadow-2xl overflow-hidden border border-slate-200"
+        className="flex h-[min(780px,92vh)] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
       >
         {/* Header */}
         <div className="border-b border-slate-200 bg-white px-6 py-4">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2.5">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <h3 className="text-base font-semibold text-slate-900 tracking-tight">
                   Quản lý IMEI &amp; Sê-ri
                 </h3>
-                <span className="font-mono text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                <span className="max-w-full truncate rounded border border-slate-200 bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-700">
                   {line.sku}
                 </span>
               </div>
@@ -308,7 +361,7 @@ export function SerialManagerModal({
         </div>
 
         {/* Tab Selector */}
-        <div className="flex border-b border-slate-200 bg-white px-6 gap-6">
+        <div className="flex shrink-0 gap-4 overflow-x-auto border-b border-slate-200 bg-white px-4 sm:gap-6 sm:px-6">
           <button
             type="button"
             onClick={() => setActiveTab("scan")}
@@ -348,7 +401,7 @@ export function SerialManagerModal({
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto p-6 max-h-[380px]">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
           {/* TAB 1: SCANNER */}
           {activeTab === "scan" && (
             <div className="space-y-4">
@@ -481,116 +534,177 @@ export function SerialManagerModal({
           {activeTab === "list" && (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-slate-700">
-                  Danh sách chi tiết {currentQty} máy:
-                </span>
-                <div className="flex items-center gap-2">
+                <div>
+                  <span className="text-xs font-semibold text-slate-700">
+                    Danh sách chi tiết {currentQty} máy:
+                  </span>
+                  <p className="mt-0.5 text-[11px] text-slate-500">
+                    Mã quản lý dùng để in barcode; serial và IMEI nhập theo thông tin trên máy.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={handleGenerateInternalBarcodes}
-                    className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+                    disabled={generatingBarcodes || missingBarcodeCount === 0}
+                    onClick={() => void handleGenerateInternalBarcodes(Array.from({ length: currentQty }, (_, index) => index))}
+                    className="min-w-[148px] whitespace-nowrap rounded border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-center text-xs font-semibold text-cyan-800 hover:bg-cyan-100 disabled:cursor-wait disabled:opacity-60"
                   >
-                    Tự động tạo mã vạch nội bộ
+                    {generatingBarcodes ? "Đang tạo mã..." : missingBarcodeCount ? "Tự sinh mã còn thiếu" : "Đã tạo đủ mã"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePrintBarcodes()}
+                    className="inline-flex items-center gap-1.5 whitespace-nowrap rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    title="In trọn bộ tem; cần tạo đủ barcode cho các thiết bị"
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    In toàn bộ tem ({generatedBarcodeCount}/{currentQty})
                   </button>
                   <button
                     type="button"
                     onClick={handleClearAllSerials}
                     className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-500 hover:text-rose-600 hover:border-rose-200 transition-colors shadow-sm"
                   >
-                    Xóa sạch IMEI
+                    Xóa serial chính
                   </button>
                 </div>
               </div>
 
-              {/* Table of units */}
-              <div className="overflow-hidden rounded-lg border border-slate-200 shadow-sm max-h-[260px] overflow-y-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100 text-slate-600 uppercase font-semibold sticky top-0 z-10">
-                    <tr>
-                      <th className="p-2 w-12 text-center">#</th>
-                      <th className="p-2 w-[45%]">Mã IMEI / Sê-ri *</th>
-                      <th className="p-2 w-[45%]">Mã vạch nội bộ (Nếu có)</th>
-                      <th className="p-2 w-12 text-center">Thao tác</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white font-mono">
-                    {Array.from({ length: currentQty }).map((_, index) => {
-                      const val = serials[index] || "";
-                      const isFilled = Boolean(val.trim());
-                      const isDup =
-                        isFilled &&
-                        serials.filter((s) => s.trim().toUpperCase() === val.trim().toUpperCase())
-                          .length > 1;
+              <div
+                role={barcodeFeedback?.type === "error" ? "alert" : "status"}
+                aria-live="polite"
+                aria-hidden={!barcodeFeedback}
+                className={`flex min-h-9 items-center rounded-md border px-3 py-2 text-xs font-medium ${
+                  barcodeFeedback?.type === "error"
+                    ? "border-rose-200 bg-rose-50 text-rose-800"
+                    : barcodeFeedback?.type === "success"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      : barcodeFeedback?.type === "info"
+                        ? "border-slate-200 bg-slate-50 text-slate-700"
+                        : "invisible border-transparent bg-transparent"
+                }`}
+              >
+                {barcodeFeedback?.message || " "}
+              </div>
 
-                      return (
-                        <tr
-                          key={index}
-                          className={`hover:bg-slate-50 ${
-                            isDup ? "bg-rose-50/50" : ""
-                          }`}
+              {/* Responsive cards keep every field visible without horizontal scrolling */}
+              <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+                {Array.from({ length: currentQty }).map((_, index) => {
+                  const val = serials[index] || "";
+                  const isFilled = Boolean(val.trim());
+                  const isDup =
+                    isFilled &&
+                    serials.filter((serial) => serial.trim().toUpperCase() === val.trim().toUpperCase())
+                      .length > 1;
+                  const secondaryImeiCount = [unitDetails[index]?.imei1, unitDetails[index]?.imei2]
+                    .filter((imei) => Boolean(imei?.trim())).length;
+                  const isImeiExpanded = Boolean(expandedImeiUnits[index]);
+
+                  return (
+                    <article
+                      key={index}
+                      className={`rounded-lg border p-3 ${isDup ? "border-rose-300 bg-rose-50/50" : "border-slate-200 bg-white"}`}
+                    >
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="shrink-0 rounded bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+                            Thiết bị #{index + 1}
+                          </span>
+                          {isDup && (
+                            <span className="text-xs font-medium text-rose-700">Serial bị trùng</span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextSerials = [...serials];
+                            nextSerials[index] = "";
+                            setSerials(nextSerials);
+                          }}
+                          className="shrink-0 rounded px-2 py-1 text-xs font-medium text-slate-500 hover:bg-rose-50 hover:text-rose-700"
+                          title="Xóa serial hoặc IMEI chính"
                         >
-                          <td className="p-2 text-center text-slate-400 font-sans font-medium">
-                            {index + 1}
-                          </td>
-                          <td className="p-2">
-                            <div className="relative">
-                              <input
-                                type="text"
-                                placeholder={`IMEI đơn vị #${index + 1}`}
-                                value={val}
-                                onChange={(e) => {
-                                  const next = [...serials];
-                                  next[index] = e.target.value;
-                                  setSerials(next);
-                                }}
-                                className={`w-full rounded border px-2 py-1 text-xs outline-none focus:border-cyan-600 ${
-                                  isDup
-                                    ? "border-rose-400 bg-rose-50 text-rose-900"
-                                    : "border-slate-200 bg-white text-slate-800"
-                                }`}
-                              />
-                              {isDup && (
-                                <span className="absolute right-2 top-1 text-[10px] text-rose-600 font-sans font-medium">
-                                  Trùng lặp!
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="p-2">
+                          Xóa serial
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
+                        <label className="min-w-0">
+                          <span className="mb-1 block text-[11px] font-medium text-slate-600">Serial / IMEI chính</span>
+                          <input
+                            type="text"
+                            placeholder={`Nhập hoặc quét serial/IMEI #${index + 1}`}
+                            value={val}
+                            onChange={(event) => {
+                              const next = [...serials];
+                              next[index] = event.target.value;
+                              setSerials(next);
+                            }}
+                            className={`w-full rounded-md border px-2.5 py-2 text-xs font-mono outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600 ${
+                              isDup
+                                ? "border-rose-400 bg-white text-rose-900"
+                                : "border-slate-200 bg-white text-slate-800"
+                            }`}
+                          />
+                        </label>
+
+                        <label className="min-w-0">
+                          <span className="mb-1 block text-[11px] font-medium text-slate-600">Mã quản lý / barcode</span>
+                          <div className="flex min-w-0 gap-2">
                             <input
                               type="text"
-                              placeholder={`Mã nội bộ #${index + 1}`}
+                              readOnly
+                              aria-label={`Mã quản lý thiết bị ${index + 1}`}
                               value={unitDetails[index]?.internalBarcode || ""}
-                              onChange={(e) => {
-                                const next = [...unitDetails];
-                                next[index] = {
-                                  ...next[index],
-                                  internalBarcode: e.target.value,
-                                };
-                                setUnitDetails(next);
-                              }}
-                              className="w-full rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700 outline-none focus:border-cyan-600 focus:bg-white"
+                              placeholder="Chưa tạo mã"
+                              className="min-w-0 flex-1 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs font-mono text-slate-700"
                             />
-                          </td>
-                          <td className="p-2 text-center">
                             <button
                               type="button"
-                              onClick={() => {
-                                const nextSerials = [...serials];
-                                nextSerials[index] = "";
-                                setSerials(nextSerials);
-                              }}
-                              className="text-slate-400 hover:text-rose-600 text-xs font-sans font-medium"
-                              title="Xóa IMEI này"
+                              disabled={generatingBarcodes}
+                              onClick={() => void handleGenerateInternalBarcodes([index], Boolean(unitDetails[index]?.internalBarcode))}
+                              className="min-w-[92px] shrink-0 rounded-md border border-cyan-200 px-2 py-2 text-[11px] font-semibold text-cyan-800 hover:bg-cyan-50 disabled:cursor-wait disabled:opacity-50"
                             >
-                              Xóa
+                              {unitDetails[index]?.internalBarcode ? "Tạo lại" : "Tự sinh"}
                             </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          </div>
+                        </label>
+                      </div>
+
+                      <button
+                        type="button"
+                        aria-expanded={isImeiExpanded}
+                        onClick={() => setExpandedImeiUnits((current) => ({ ...current, [index]: !current[index] }))}
+                        className="mt-2 inline-flex items-center gap-1 rounded px-1 py-1 text-xs font-medium text-cyan-800 hover:bg-cyan-50"
+                      >
+                        {isImeiExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                        {isImeiExpanded ? "Thu gọn IMEI phụ" : secondaryImeiCount ? "Hiện IMEI phụ" : "Thêm IMEI phụ"}
+                        {secondaryImeiCount > 0 && <span className="text-slate-500">({secondaryImeiCount}/2)</span>}
+                      </button>
+
+                      {isImeiExpanded && (
+                        <div className="mt-1 grid grid-cols-1 gap-2.5 border-t border-slate-100 pt-3 sm:grid-cols-2">
+                          {(["imei1", "imei2"] as const).map((field, imeiIndex) => (
+                            <label key={field} className="min-w-0">
+                              <span className="mb-1 block text-[11px] font-medium text-slate-600">IMEI {imeiIndex + 1} (nếu có)</span>
+                              <input
+                                type="text"
+                                placeholder={`Nhập IMEI ${imeiIndex + 1}`}
+                                value={unitDetails[index]?.[field] || ""}
+                                onChange={(event) => {
+                                  const next = [...unitDetails];
+                                  next[index] = { ...next[index], [field]: event.target.value };
+                                  setUnitDetails(next);
+                                }}
+                                className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs font-mono text-slate-700 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600"
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
               </div>
 
 
@@ -599,23 +713,23 @@ export function SerialManagerModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-6 py-4">
+        <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
           <div className="text-xs text-slate-500">
             Tổng cộng: <strong className="text-slate-800">{currentQty} đơn vị</strong> ·{" "}
             Đã có IMEI: <strong className="text-cyan-700 font-bold">{filledSerials.length}</strong>
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex w-full items-center gap-2.5 sm:w-auto">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+              className="flex-1 rounded-md border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 sm:flex-none"
             >
               Hủy bỏ
             </button>
             <button
               type="button"
               onClick={handleSave}
-              className="rounded-md bg-cyan-700 px-5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-cyan-800 transition-colors"
+              className="flex-1 rounded-md bg-cyan-700 px-5 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-cyan-800 sm:flex-none"
             >
               Lưu &amp; Áp dụng IMEI
             </button>

@@ -13,7 +13,7 @@ export type SeoMeta = {
   changeFrequency?: "daily" | "weekly" | "monthly";
 };
 
-export const SEO_BASE_URL = "https://erp.igentechsolutions.com";
+export const SEO_BASE_URL = "https://erp.igentechnology.net";
 export const SEO_DEFAULT_IMAGE = BRAND_LOGO_URL;
 export const SEO_DEFAULT_LOCALE = "vi_VN";
 
@@ -173,7 +173,7 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
       "Phân hệ bán hàng trên iGEN Retail hỗ trợ quản lý khách hàng, cấu hình bán hàng tại quầy và vận hành POS theo chi nhánh.",
     keywords:
       "bán hàng, POS, quản lý bán hàng, khách hàng bán hàng, ERP bán hàng, iGEN Retail",
-    path: "/ban-hang",
+    path: "/pos",
     robots: "noindex, nofollow",
     priority: "0.2",
     changeFrequency: "weekly",
@@ -184,7 +184,7 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
       "Phân hệ bán hàng trên iGEN Retail hỗ trợ quản lý khách hàng, cấu hình bán hàng tại quầy và vận hành POS theo chi nhánh.",
     keywords:
       "bán hàng, POS, quản lý bán hàng, khách hàng bán hàng, ERP bán hàng, iGEN Retail",
-    path: "/ban-hang",
+    path: "/ban-le",
     robots: "noindex, nofollow",
     priority: "0.2",
     changeFrequency: "weekly",
@@ -305,8 +305,8 @@ export function getSeoForPath(requestPath: string): SeoMeta {
   return tab ? getSeoForTab(tab) : DEFAULT_SEO;
 }
 
-export function resolveSeoUrl(path: string) {
-  return new URL(path, SEO_BASE_URL).toString();
+export function resolveSeoUrl(path: string, baseUrl = SEO_BASE_URL) {
+  return new URL(path, baseUrl).toString();
 }
 
 export function tabToPath(tab: TabType): string {
@@ -315,9 +315,7 @@ export function tabToPath(tab: TabType): string {
 
 export function pathToTab(pathname: string): TabType | null {
   const normalized = pathname.startsWith("/") ? pathname : `/${pathname}`;
-  if (normalized.toLowerCase() === "/ban-le") {
-    return "BÁN HÀNG";
-  }
+  if (normalized.toLowerCase() === "/ban-le") return "BÁN LẺ";
   const matched = (Object.entries(TAB_SEO_MAP) as Array<[TabType, SeoMeta]>).find(
     ([, meta]) => meta.path.toLowerCase() === normalized.toLowerCase()
   );

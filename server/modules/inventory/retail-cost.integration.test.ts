@@ -1,4 +1,5 @@
 import { RetailAfterSaleRequestModel } from "../retail/models/retail-after-sale-request.model";
+import { CashierShiftModel } from "../retail/models/cashier-shift.model";
 import mongoose from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -38,24 +39,24 @@ import { resolveSaleCost, resolveReturnCost } from "../finance/services/cost-res
 import { financeReport } from "../finance/services/management.service";
 
 const id = () => new mongoose.Types.ObjectId().toString();
-const branchId = id(), warehouseId = id(), productId = id(), variantId = id(), orderId = id();
+const branchId = id(), warehouseId = id(), productId = id(), variantId = id(), orderId = id(), cashierShiftId = id();
 const scope = { companyCode: "RETAILCOST", branchId };
-const actor = { id: "cashier", displayName: "Cashier" };
-const models = [RetailAfterSaleRequestModel, BranchModel, CompanyModel, WarehouseModel, ProductCatalogModel, ProductVariantModel, ProductPriceModel, InventoryBalanceModel, InventoryLedgerEntryModel, StockLogModel, GoodsReceiptModel, RetailOrderModel, RetailOrderCounterModel, RetailInvoiceModel, RetailInvoiceCounterModel, RetailIdempotencyModel, RetailSettingsModel, RetailAfterSaleModel, CustomerPointLedgerModel, SerialUnitModel, SerialEventModel];
+const actor = { id: id(), displayName: "Cashier" };
+const models = [RetailAfterSaleRequestModel, CashierShiftModel, BranchModel, CompanyModel, WarehouseModel, ProductCatalogModel, ProductVariantModel, ProductPriceModel, InventoryBalanceModel, InventoryLedgerEntryModel, StockLogModel, GoodsReceiptModel, RetailOrderModel, RetailOrderCounterModel, RetailInvoiceModel, RetailInvoiceCounterModel, RetailIdempotencyModel, RetailSettingsModel, RetailAfterSaleModel, CustomerPointLedgerModel, SerialUnitModel, SerialEventModel];
 let replica: MongoMemoryReplSet;
 const balance = () => InventoryBalanceModel.findOne({ warehouseId, variantId }).lean();
 const order = () => RetailOrderModel.findById(orderId).lean();
-const confirmInput = (extra: any = {}) => ({ idempotencyKey: "confirm-1", expectedVersion: 0, expectedGrandTotal: 400, payments: [{ method: "cash", amount: 400, tenderedAmount: 400 }], ...extra });
+const confirmInput = (extra: any = {}) => ({ idempotencyKey: "confirm-1", expectedVersion: 0, expectedGrandTotal: 400, payments: [{ method: "cash", amount: 400, tenderedAmount: 400 }], cashSessionId: cashierShiftId, terminalId: "default", ...extra });
 const confirm = (extra: any = {}) => RetailOrderService.confirm(scope, orderId, confirmInput(extra), actor);
-const returnInput = (extra: any = {}) => ({ type: "return", orderId, items: [{ orderLineIndex: 0, quantity: 1 }], reason: "Unused", paymentMethod: "cash", idempotencyKey: "return-1", ...extra });
-const cancelInput = (extra: any = {}) => ({ reason: "Cancelled", refunds: [{ method: "cash", amount: 400 }], idempotencyKey: "cancel-1", expectedVersion: 1, ...extra });
+const returnInput = (extra: any = {}) => ({ type: "return", orderId, items: [{ orderLineIndex: 0, quantity: 1 }], reason: "Unused", paymentMethod: "cash", cashSessionId: cashierShiftId, terminalId: "default", idempotencyKey: "return-1", ...extra });
+const cancelInput = (extra: any = {}) => ({ reason: "Cancelled", refunds: [{ method: "cash", amount: 400 }], cashSessionId: cashierShiftId, terminalId: "default", idempotencyKey: "cancel-1", expectedVersion: 1, ...extra });
 const cancel = (extra: any = {}) => RetailOrderService.cancel(scope, orderId, cancelInput(extra), actor, undefined, true);
 async function debtSale() {
   await RetailOrderModel.updateOne({ _id: orderId }, { dueDate: "2026-12-31" });
   await RetailOrderService.confirm(scope, orderId, confirmInput({ payments: [] }), actor);
 }
-const collectInput = (extra: any = {}) => ({ idempotencyKey: "collect-1", expectedVersion: 1, payments: [{ method: "cash", amount: 100 }], ...extra });
-const collect = (extra: any = {}) => RetailOrderService.collect(scope, orderId, collectInput(extra), actor);
+const collectInput = (extra: any = {}) => ({ idempotencyKey: "collect-1", expectedVersion: 1, payments: [{ method: "cash", amount: 100 }], cashSessionId: cashierShiftId, terminalId: "default", ...extra });
+const collect = (extra: any = {}) => RetailOrderService.collect(scope, orderId, collectInput(extra), actor, { _id: cashierShiftId });
 const draftCustomerId = id();
 const createInput = (extra: any = {}) => ({ idempotencyKey: "create-1", customerId: draftCustomerId, items: [{ productId: variantId, quantity: 2, discount: { type: "amount", value: 0 } }], orderDiscount: { type: "amount", value: 0 }, taxRate: 0, shippingFee: 0, ...extra });
 const createDraft = (extra: any = {}) => RetailOrderService.createDraft(scope, createInput(extra), actor);
@@ -86,6 +87,7 @@ describe("retail cost follows the committed stock ledger", () => {
   beforeEach(async () => {
     vi.restoreAllMocks(); vi.clearAllMocks();
     await Promise.all(models.map((model: any) => model.deleteMany({})));
+    await CashierShiftModel.create({ _id: cashierShiftId, ...scope, shiftCode: "CASH-1", terminalId: "default", cashierId: actor.id, cashierName: actor.displayName, openingFloat: 100000, openedAt: new Date(), openedBy: actor.id, businessDate: "2026-10-09", status: "open", operationalEndsAt: new Date(Date.now() + 24 * 60 * 60 * 1000) });
     await CompanyModel.collection.insertOne({ code: scope.companyCode, name: "Test Company" } as any);
     await BranchModel.create({ _id: branchId, companyCode: scope.companyCode, code: "MAIN", name: "Main", isActive: true });
     await WarehouseModel.create({ _id: warehouseId, ...scope, code: "MAIN", name: "Main", isDefault: true, isActive: true });
@@ -1107,7 +1109,7 @@ describe("retail cost follows the committed stock ledger", () => {
 
   it('reconciles missing and completed collections without any writes or events', async () => {
     await debtSale();
-    const check = () => RetailOrderService.reconcileCollection(scope, orderId, collectInput(), actor);
+    const check = () => RetailOrderService.reconcileCollection(scope, orderId, collectInput(), actor, { _id: cashierShiftId });
     const beforeMissing = JSON.stringify(await order());
     expect(await check()).toMatchObject({ status: 'not_found' });
     expect(JSON.stringify(await order())).toBe(beforeMissing);
@@ -1133,7 +1135,7 @@ describe("retail cost follows the committed stock ledger", () => {
       [scope, orderId, collectInput({ expectedVersion: 2 }), actor],
       [scope, orderId, collectInput({ payments: [{ method: 'cash', amount: 101 }] }), actor],
     ] as const) {
-      const result = await RetailOrderService.reconcileCollection(s, oid, input, who);
+      const result = await RetailOrderService.reconcileCollection(s, oid, input, who, { _id: cashierShiftId });
       expect(result).toMatchObject({ status: 'conflict' });
       expect(result).not.toHaveProperty('order');
     }
@@ -1147,12 +1149,12 @@ describe("retail cost follows the committed stock ledger", () => {
     if (damage === 'version') await RetailOrderModel.updateOne({ _id: orderId }, { $set: { version: 1 } });
     if (damage === 'total') await RetailOrderModel.updateOne({ _id: orderId }, { $set: { grandTotal: 401 } });
     if (damage === 'actor') await RetailOrderModel.updateOne({ _id: orderId }, { $set: { 'payments.0.receivedBy': 'other' } });
-    expect(await RetailOrderService.reconcileCollection(scope, orderId, collectInput(), actor)).toMatchObject({ status: 'conflict' });
+    expect(await RetailOrderService.reconcileCollection(scope, orderId, collectInput(), actor, { _id: cashierShiftId })).toMatchObject({ status: 'conflict' });
   });
   it('reports a matching processing collection without changing its state', async () => {
     await debtSale(); await collect();
     await RetailIdempotencyModel.updateOne({ key: 'collect-1' }, { $set: { status: 'processing' } });
-    expect(await RetailOrderService.reconcileCollection(scope, orderId, collectInput(), actor)).toMatchObject({ status: 'processing' });
+    expect(await RetailOrderService.reconcileCollection(scope, orderId, collectInput(), actor, { _id: cashierShiftId })).toMatchObject({ status: 'processing' });
     expect(await RetailIdempotencyModel.findOne({ key: 'collect-1' }).lean()).toMatchObject({ status: 'processing' });
   });
 
@@ -1160,8 +1162,8 @@ describe("retail cost follows the committed stock ledger", () => {
     await debtSale();
     const before = JSON.stringify(await order());
     const events = vi.mocked(publishRetailOrderEvent).mock.calls.length;
-    for (let i = 0; i < 2; i++) expect(await RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor)).toMatchObject({ status: 'revoked' });
-    expect(await RetailOrderService.reconcileCollection(scope, orderId, collectInput(), actor)).toMatchObject({ status: 'revoked' });
+    for (let i = 0; i < 2; i++) expect(await RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor, { _id: cashierShiftId })).toMatchObject({ status: 'revoked' });
+    expect(await RetailOrderService.reconcileCollection(scope, orderId, collectInput(), actor, { _id: cashierShiftId })).toMatchObject({ status: 'revoked' });
     await expect(collect()).rejects.toMatchObject({ code: 'COLLECTION_REVOKED' });
     expect(JSON.stringify(await order())).toBe(before);
     expect(publishRetailOrderEvent).toHaveBeenCalledTimes(events);
@@ -1169,20 +1171,20 @@ describe("retail cost follows the committed stock ledger", () => {
   });
   it('never revokes a completed or processing collection', async () => {
     await debtSale(); await collect();
-    await expect(RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor)).rejects.toMatchObject({ code: 'COLLECTION_REVOKE_CONFLICT' });
+    await expect(RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor, { _id: cashierShiftId })).rejects.toMatchObject({ code: 'COLLECTION_REVOKE_CONFLICT' });
     await RetailIdempotencyModel.updateOne({ key: 'collect-1' }, { $set: { status: 'processing' } });
-    await expect(RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor)).rejects.toMatchObject({ code: 'COLLECTION_REVOKE_CONFLICT' });
+    await expect(RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor, { _id: cashierShiftId })).rejects.toMatchObject({ code: 'COLLECTION_REVOKE_CONFLICT' });
     expect((await order())?.paidAmount).toBe(100);
   });
   it('does not revoke stale requests with missing attempt evidence', async () => {
     await debtSale(); await collect();
     await RetailIdempotencyModel.deleteOne({ key: 'collect-1' });
-    await expect(RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor)).rejects.toMatchObject({ code: 'COLLECTION_REVOKE_CONFLICT' });
+    await expect(RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor, { _id: cashierShiftId })).rejects.toMatchObject({ code: 'COLLECTION_REVOKE_CONFLICT' });
     expect(await RetailIdempotencyModel.countDocuments({ key: 'collect-1' })).toBe(0);
   });
   it('binds revoked keys to the exact actor, payload, branch, order and shift', async () => {
     await debtSale();
-    await RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor);
+    await RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor, { _id: cashierShiftId });
     for (const [s, oid, input, who, shift] of [
       [scope, orderId, collectInput(), { ...actor, id: 'other' }, undefined],
       [scope, orderId, collectInput({ expectedVersion: 2 }), actor, undefined],
@@ -1194,17 +1196,17 @@ describe("retail cost follows the committed stock ledger", () => {
   });
   it.each([1, 2, 3])('serializes competing collection and revocation (%s)', async () => {
     await debtSale();
-    const results = await Promise.allSettled([collect(), RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor)]);
+    const results = await Promise.allSettled([collect(), RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor, { _id: cashierShiftId })]);
     expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
     const attempt = await RetailIdempotencyModel.findOne({ key: 'collect-1' }).lean();
     expect(['completed', 'revoked']).toContain(attempt?.status);
     expect((await order())?.paidAmount).toBe(attempt?.status === 'completed' ? 100 : 0);
     if (attempt?.status === 'revoked') await expect(collect()).rejects.toMatchObject({ code: 'COLLECTION_REVOKED' });
-    else await expect(RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor)).rejects.toMatchObject({ code: 'COLLECTION_REVOKE_CONFLICT' });
+    else await expect(RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor, { _id: cashierShiftId })).rejects.toMatchObject({ code: 'COLLECTION_REVOKE_CONFLICT' });
   });
   it('concurrent identical revocations leave a single durable marker', async () => {
     await debtSale();
-    const results = await Promise.all([1, 2, 3].map(() => RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor)));
+    const results = await Promise.all([1, 2, 3].map(() => RetailOrderService.revokeCollection(scope, orderId, collectInput(), actor, { _id: cashierShiftId })));
     expect(results.every(result => result?.status === 'revoked')).toBe(true);
     expect(await RetailIdempotencyModel.countDocuments({ key: 'collect-1' })).toBe(1);
   });

@@ -1,4 +1,5 @@
 import { RetailAfterSaleRequestModel } from "../models/retail-after-sale-request.model";
+import { CashierShiftModel } from "../models/cashier-shift.model";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose, { Types } from "mongoose";
@@ -18,8 +19,9 @@ import { revertOrderStock } from "./retail-stock.service";
 import { backfillRetailRestockReceipts } from "./retail-restock-backfill.service";
 
 const scope = { companyCode: "AFTER_SALE_TEST", branchId: new Types.ObjectId().toString() };
-const actor = { id: "cashier", displayName: "Thu ngân" };
-const models: mongoose.Model<any>[] = [RetailAfterSaleRequestModel, RetailAfterSaleModel, RetailOrderModel, GoodsReceiptModel, ProductVariantModel, InventoryBalanceModel, InventoryLedgerEntryModel, WarehouseModel, SerialUnitModel, SerialEventModel, StockLogModel];
+const actor = { id: new Types.ObjectId().toString(), displayName: "Thu ngân" };
+const cashSessionId = new Types.ObjectId().toString();
+const models: mongoose.Model<any>[] = [RetailAfterSaleRequestModel, CashierShiftModel, RetailAfterSaleModel, RetailOrderModel, GoodsReceiptModel, ProductVariantModel, InventoryBalanceModel, InventoryLedgerEntryModel, WarehouseModel, SerialUnitModel, SerialEventModel, StockLogModel];
 let repl: MongoMemoryReplSet;
 let order: any;
 let variantId: string;
@@ -33,6 +35,7 @@ beforeAll(async () => {
 afterAll(async () => { await mongoose.disconnect(); await repl?.stop(); });
 beforeEach(async () => {
   for (const model of models) await model.deleteMany({});
+  await CashierShiftModel.create({ _id: cashSessionId, ...scope, shiftCode: "AFTER-SALE-1", terminalId: "default", cashierId: actor.id, cashierName: actor.displayName, openingFloat: 100000, openedAt: new Date(), openedBy: actor.id, businessDate: "2026-10-09", status: "open", operationalEndsAt: new Date(Date.now() + 24 * 60 * 60 * 1000) });
   const productId = new Types.ObjectId();
   const variantObjectId = new Types.ObjectId();
   variantId = String(variantObjectId);
@@ -52,7 +55,7 @@ beforeEach(async () => {
 });
 
 function input(type = "return", serial = "SN1", key = "request-1") {
-  return { type, orderId: String(order._id), items: [{ orderLineIndex: 0, quantity: 1, serialNumbers: [serial], unitAmount: 40, condition: "good" }], reason: "Khách trả máy", paymentMethod: "cash", idempotencyKey: key };
+  return { type, orderId: String(order._id), items: [{ orderLineIndex: 0, quantity: 1, serialNumbers: [serial], unitAmount: 40, condition: "good" }], reason: "Khách trả máy", paymentMethod: "cash", cashSessionId, terminalId: "default", idempotencyKey: key };
 }
 
 describe("after-sale receipts and stock", () => {

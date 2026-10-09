@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Printer } from "lucide-react";
 import { toast } from "../../pages/Toast";
 import {
   inventorySerialService,
   type InventorySerialUnit,
 } from "../../services/inventorySerialService";
 import type { InventoryBalance } from "../../services/inventoryReceivingService";
+import { printDeviceBarcodeLabels } from "./receiving/printDeviceBarcodeLabels";
 
 type Props = {
   balance: InventoryBalance;
@@ -32,7 +34,7 @@ export function WarehouseSerialDetailModal({ balance, onClose }: Props) {
         productId: balance.productId,
         variantId: balance.variantId,
         sku: balance.sku,
-        trackingMode: "serial",
+        trackingMode: balance.trackingMode === "unit_barcode" ? "unit_barcode" : "serial",
         status: "in_stock",
         limit: 200,
       })
@@ -60,7 +62,7 @@ export function WarehouseSerialDetailModal({ balance, onClose }: Props) {
     const term = query.trim().toLowerCase();
     if (!term) return items;
     return items.filter((item) =>
-      [item.serialNumber, item.internalBarcode].some((code) =>
+      [item.serialNumber, item.internalBarcode, item.imei1, item.imei2].some((code) =>
         String(code || "").toLowerCase().includes(term)
       )
     );
@@ -74,21 +76,36 @@ export function WarehouseSerialDetailModal({ balance, onClose }: Props) {
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  // Copy all IMEIs in this modal
+  // Copy all device identifiers in this modal
   const handleCopyAll = () => {
     const imeis = filteredItems
-      .map((i) => i.serialNumber)
-      .filter((sn): sn is string => Boolean(sn && sn.trim()));
+      .map((item) => [item.sku, item.internalBarcode, item.serialNumber, item.imei1, item.imei2].filter(Boolean).join("\t"))
+      .filter(Boolean);
 
     if (imeis.length === 0) {
-      toast.info("Không có mã IMEI nào để sao chép.");
+      toast.info("Không có thông tin thiết bị để sao chép.");
       return;
     }
 
     navigator.clipboard.writeText(imeis.join("\n"));
     setCopiedKey("all");
-    toast.success(`Đã sao chép ${imeis.length} mã IMEI vào bộ nhớ tạm!`);
+    toast.success(`Đã sao chép ${imeis.length} máy vào bộ nhớ tạm!`);
     setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  const handlePrintLabels = () => {
+    try {
+      printDeviceBarcodeLabels(filteredItems.filter((item) => item.internalBarcode).map((item) => ({
+        internalBarcode: item.internalBarcode,
+        sku: item.sku,
+        productName: item.productName,
+        serialNumber: item.serialNumber === item.internalBarcode ? undefined : item.serialNumber,
+        imei1: item.imei1,
+        imei2: item.imei2,
+      })));
+    } catch (cause: unknown) {
+      toast.error(cause instanceof Error ? cause.message : "Không thể mở trang in tem mã vạch.");
+    }
   };
 
   const availableCount = Math.max(0, balance.quantity - balance.reservedQuantity);
@@ -110,7 +127,7 @@ export function WarehouseSerialDetailModal({ balance, onClose }: Props) {
           <div>
             <div className="flex items-center gap-2.5">
               <h2 id="serial-modal-title" className="text-base font-bold text-slate-900 tracking-tight">
-                Danh sách IMEI / Serial tồn kho
+                Danh sách máy tồn kho
               </h2>
               <span className="font-mono text-xs font-bold text-cyan-800 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-200">
                 {balance.sku}
@@ -126,13 +143,22 @@ export function WarehouseSerialDetailModal({ balance, onClose }: Props) {
           </div>
 
           <div className="flex items-center gap-2">
+            {filteredItems.some((item) => item.internalBarcode) && (
+              <button
+                type="button"
+                onClick={handlePrintLabels}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-violet-700 bg-violet-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-800 transition-colors whitespace-nowrap"
+              >
+                <Printer className="h-3.5 w-3.5" /> In tem
+              </button>
+            )}
             {filteredItems.length > 0 && (
               <button
                 type="button"
                 onClick={handleCopyAll}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs whitespace-nowrap"
               >
-                {copiedKey === "all" ? "Đã chép tất cả" : `Sao chép ${filteredItems.length} IMEI`}
+                {copiedKey === "all" ? "Đã chép tất cả" : `Sao chép ${filteredItems.length} máy`}
               </button>
             )}
 
@@ -180,7 +206,7 @@ export function WarehouseSerialDetailModal({ balance, onClose }: Props) {
             </span>
             <span>·</span>
             <span>
-              Hiển thị: <strong className="text-cyan-800">{filteredItems.length} IMEI</strong>
+              Hiển thị: <strong className="text-cyan-800">{filteredItems.length} máy</strong>
             </span>
           </div>
         </div>
@@ -222,8 +248,9 @@ export function WarehouseSerialDetailModal({ balance, onClose }: Props) {
                 <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-600">
                   <tr>
                     <th className="w-12 px-3 py-3 text-center">#</th>
-                    <th className="w-48 px-4 py-3">Mã IMEI / Serial</th>
+                    <th className="w-48 px-4 py-3">Serial / IMEI chính</th>
                     <th className="px-4 py-3">Mã vạch nội bộ</th>
+                    <th className="px-4 py-3">IMEI 1 / IMEI 2</th>
                     <th className="w-40 px-4 py-3 text-center">Bảo hành NCC đến</th>
                     <th className="w-28 px-4 py-3 text-center whitespace-nowrap">Trạng thái</th>
                     <th className="w-20 px-3 py-3 text-center whitespace-nowrap">Thao tác</th>
@@ -232,7 +259,9 @@ export function WarehouseSerialDetailModal({ balance, onClose }: Props) {
 
                 <tbody className="divide-y divide-slate-100">
                   {filteredItems.map((item, index) => {
-                    const isCopied = copiedKey === `sn-${index}`;
+                    const serialLabel = item.serialNumber === item.internalBarcode ? "" : item.serialNumber;
+                    const deviceText = [serialLabel, item.imei1, item.imei2, item.internalBarcode].filter(Boolean).join("\t");
+                    const isCopied = copiedKey === `device-${index}`;
 
                     return (
                       <tr
@@ -248,14 +277,11 @@ export function WarehouseSerialDetailModal({ balance, onClose }: Props) {
                         <td className="px-4 py-2.5">
                           <button
                             type="button"
-                            onClick={() =>
-                              item.serialNumber &&
-                              copyText(item.serialNumber, `sn-${index}`, `IMEI ${item.serialNumber}`)
-                            }
+                            onClick={() => deviceText && copyText(deviceText, `device-${index}`, "thông tin thiết bị")}
                             className="font-mono text-xs font-bold text-slate-900 hover:text-cyan-700 transition-colors text-left"
-                            title="Bấm để sao chép mã IMEI này"
+                            title="Bấm để sao chép thông tin thiết bị"
                           >
-                            {item.serialNumber || "—"}
+                            {serialLabel || "—"}
                           </button>
                         </td>
 
@@ -267,6 +293,11 @@ export function WarehouseSerialDetailModal({ balance, onClose }: Props) {
                           >
                             {item.internalBarcode || "—"}
                           </span>
+                        </td>
+
+                        <td className="px-4 py-2.5 font-mono text-[10px] text-slate-600">
+                          <span>{item.imei1 || "—"}</span>
+                          {item.imei2 && <span className="block">{item.imei2}</span>}
                         </td>
 
                         {/* Warranty */}
@@ -285,10 +316,7 @@ export function WarehouseSerialDetailModal({ balance, onClose }: Props) {
                         <td className="px-3 py-2.5 text-center whitespace-nowrap">
                           <button
                             type="button"
-                            onClick={() =>
-                              item.serialNumber &&
-                              copyText(item.serialNumber, `sn-${index}`, `IMEI ${item.serialNumber}`)
-                            }
+                            onClick={() => deviceText && copyText(deviceText, `device-${index}`, "thông tin thiết bị")}
                             className="rounded border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 hover:text-cyan-800 transition-colors shadow-2xs"
                           >
                             {isCopied ? "Đã chép" : "Chép"}

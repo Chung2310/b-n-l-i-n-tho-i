@@ -1,3 +1,5 @@
+import { CashierShiftModel } from "../models/cashier-shift.model";
+import { assertPaymentSessionDeadline, lockRetailPaymentSession } from "./retail-payment-session.service";
 import { RetailAfterSaleRequestModel } from "../models/retail-after-sale-request.model";
 import { GoodsReceiptModel } from "../../../model/goods-receipt.model";
 import { createHash } from "node:crypto";
@@ -13,7 +15,7 @@ import { normalizeInternalBarcode } from "../../inventory/serials/unit-barcode-v
 import type { RetailBranchScope } from "../contracts";
 import { RetailAfterSaleModel } from "../models/retail-after-sale.model";
 import { RetailOrderModel } from "../models/retail-order.model";
-import { businessDateInVietnam } from "./cashier-shift.service";
+import { businessDateInVietnam, emitSessionChange } from "./cashier-shift.service";
 import { enqueueTierRefresh, processTierRefreshBySourceKey } from "./retail-customer-tier.service";
 import { CustomerPointService } from "../../customer-management/services/customer-point.service";
 import { CustomerPointLedgerModel } from "../../customer-management/models/customer-point-ledger.model";
@@ -62,7 +64,11 @@ async function restoreSerials(scope: RetailBranchScope, order: any, doc: any, ac
   if (!tracked) return;
   const source = await loadRetailStockSource(scope, String(order._id), order.items, session);
   for (const item of doc.items) {
-    const ids = item.trackingMode === "serial" ? (item.serialNumbers || []).map((v: string) => ({ normalizedSerialNumber: normalizeSerialNumber(v) })) : item.trackingMode === "unit_barcode" ? (item.internalBarcodes || []).map((v: string) => ({ normalizedInternalBarcode: normalizeInternalBarcode(v) })) : [];
+    const ids = item.trackingMode === "serial"
+      ? (item.serialNumbers || []).map((v: string) => ({ normalizedSerialNumber: normalizeSerialNumber(v) }))
+      : item.trackingMode === "unit_barcode"
+        ? (item.internalBarcodes || []).map((v: string) => ({ $or: [{ normalizedInternalBarcode: normalizeInternalBarcode(v) }, { normalizedBarcodeAliases: normalizeInternalBarcode(v) }] }))
+        : [];
     for (const identifier of ids) {
       const entry = source.entries[item.orderLineIndex];
       const filter = { ...scope, ...identifier, warehouseId: source.warehouseId, productId: entry.productId,
@@ -75,7 +81,7 @@ async function restoreSerials(scope: RetailBranchScope, order: any, doc: any, ac
         || event.toStatus !== "sold" || event.documentType !== "retail-order" || event.documentId !== String(order._id)) conflict();
       // Optional barcode selection must describe these same serial units, not other units on the line.
       if (item.trackingMode === "serial" && item.internalBarcodes?.length
-        && (item.internalBarcodes.length !== item.quantity || !item.internalBarcodes.includes(unit.normalizedInternalBarcode))) conflict();
+        && (item.internalBarcodes.length !== item.quantity || !item.internalBarcodes.some((code: string) => [unit.normalizedInternalBarcode, ...(unit.normalizedBarcodeAliases || [])].includes(normalizeInternalBarcode(code))))) conflict();
       const serial: any = await SerialUnitModel.findOneAndUpdate(
         { ...filter, _id: unit._id },
         { $set: { status: "in_stock", warehouseId, currentDocumentType: "goods-receipt", currentDocumentId: String(doc.receiptId), updatedBy: actorId(actor) }, $unset: { customerId: 1, customerWarranty: 1, soldAt: 1, soldOrderId: 1, soldOrderCode: 1, soldInvoiceId: 1, soldBranchId: 1 } },
@@ -263,7 +269,7 @@ export const RetailAfterSaleService = {
   },
   async list(scope: RetailBranchScope, query: any) { const page = Math.max(1, Number(query.page) || 1), limit = Math.min(100, Math.max(1, Number(query.limit) || 20)), filter: any = { ...scope, ...(query.type ? { type: String(query.type) } : {}), ...(query.orderId ? { orderId: String(query.orderId) } : {}) }; const [items, total] = await Promise.all([RetailAfterSaleModel.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(), RetailAfterSaleModel.countDocuments(filter)]); return { items, total, page, limit }; },
   async create(scope: RetailBranchScope, input: any, actor: any, shift?: any) {
-    const businessDate = shift?.businessDate || businessDateInVietnam(new Date());
+    let businessDate = shift?.businessDate || businessDateInVietnam(new Date());
     const { reason, paymentMethod, idempotencyKey, requestFingerprint } = afterSaleIdentity(scope, input, actor, shift);
     const checkedReplay = (doc: any) => {
       if (doc.branchId !== scope.branchId || doc.orderId !== String(input.orderId) ||
@@ -303,6 +309,8 @@ export const RetailAfterSaleService = {
       const prior: any[] = await (session ? priorQuery.session(session) : priorQuery);
       const used = new Map<number, number>(); for (const d of prior) for (const i of d.items || []) used.set(i.orderLineIndex, (used.get(i.orderLineIndex) || 0) + i.quantity);
       const items = selectedItems(order, input, used), totalAmount = items.reduce((s: number, i: any) => s + i.lineAmount, 0); if (totalAmount <= 0) throw fail("Tổng tiền phải lớn hơn 0.");
+      shift = await lockRetailPaymentSession(scope, { ...input, cashSessionId: input.cashSessionId || shift?._id }, actor, session, paymentMethod === "cash", paymentMethod === "cash" ? totalAmount : 0);
+      businessDate = shift?.businessDate || businessDateInVietnam(new Date());
       const stockSource = input.type === "return" ? await loadRetailStockSource(scope, String(order._id), order.items, session) : null;
       if (stockSource) {
         const expectedCost = remainingRetailCost(order.items, prior);
@@ -330,6 +338,9 @@ export const RetailAfterSaleService = {
       doc.receiptCode = receipt.receiptCode;
       await doc.save({ session });
       await restoreSerials(scope, order, doc, actor, receipt.warehouseId, session);
+      if (input.type === "buyback" && paymentMethod === "cash" && shift) {
+        await CashierShiftModel.updateOne({ _id: shift._id, ...scope, status: "open" }, { $push: { cashMovements: { key: `buyback:${doc._id}`, type: "out", amount: totalAmount, reason: `Thu mua ${code}`, at: new Date(), by: actorId(actor), byName: actorName(actor) } } }, { session });
+      }
       const refundIndex = order.refunds.length;
       if (input.type === "return") {
         order.refunds.push({ method: paymentMethod, amount: totalAmount, reference: doc.paymentReference, refundedAt: new Date(), refundedBy: actorId(actor), refundedByName: actorName(actor), shiftId: shift?._id ? String(shift._id) : undefined, businessDate: businessDate, reason });
@@ -348,6 +359,7 @@ export const RetailAfterSaleService = {
       await doc.save({ session });
       if (input.type === "return" && order.commissionSnapshot) await reconcileCommission("retail", String(order._id), scope.companyCode, session);
       await RetailAfterSaleRequestModel.updateOne(replayFilter, { $set: { status: "completed", documentId: String(doc._id) } }, { session });
+      assertPaymentSessionDeadline(shift);
       return doc;
     }); } catch (error: any) {
       // Only the request-key unique index establishes a concurrent replay.
@@ -361,6 +373,11 @@ export const RetailAfterSaleService = {
     if (input.type === "return" && result?.customerId) {
       const sourceKey = `retail-after-sale:${result._id}:tier-return`;
       setImmediate(() => void processTierRefreshBySourceKey(scope.companyCode, sourceKey).catch((error) => console.error("[retail-tier-refresh]", error)));
+    }
+    if (shift) emitSessionChange("pos:session:updated", shift);
+    if (result?.orderId) {
+      const source = await RetailOrderModel.findOne({ _id: result.orderId, ...scope }).select("shiftId salespersonId").lean();
+      if (source?.shiftId && source.shiftId !== String(shift?._id || "")) emitSessionChange("pos:session:updated", { ...scope, _id: source.shiftId, cashierId: source.salespersonId });
     }
     return result;
   },

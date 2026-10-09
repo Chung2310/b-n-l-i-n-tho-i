@@ -273,11 +273,22 @@ describe("inventory posting invariants", () => {
   it("registers identifiers against existing quantity without changing stock or value", async () => {
     await ProductVariantModel.updateOne({ _id: variantId }, { trackingMode: "unit_barcode" });
     await InventoryBalanceModel.updateOne({ variantId }, { reservedQuantity: 2 });
-    await registerSerialBatch({ ...scope, warehouseId }, { ...line(), serialNumbers: ["B1", "B2"], internalBarcodes: ["B1", "B2"] }, { id: "u", name: "User" });
+    await registerSerialBatch({ ...scope, warehouseId }, {
+      ...line(),
+      quantity: 2,
+      unitDetails: [
+        { serialNumber: "SERIAL-B1", internalBarcode: "BAR-B1" },
+        { serialNumber: "SERIAL-B2", internalBarcode: "BAR-B2" },
+      ],
+    }, { id: "u", name: "User" });
     const balance = await InventoryBalanceModel.findOne({ variantId }).lean();
     expect(balance).toMatchObject({ quantity: 2, reservedQuantity: 2, averageCost: 100, version: 2 });
     expect(await InventoryLedgerEntryModel.countDocuments()).toBe(0);
     expect(await SerialEventModel.countDocuments()).toBe(2);
+    expect(await SerialUnitModel.find({ variantId }).sort({ serialNumber: 1 }).lean()).toMatchObject([
+      { serialNumber: "SERIAL-B1", internalBarcode: "BAR-B1" },
+      { serialNumber: "SERIAL-B2", internalBarcode: "BAR-B2" },
+    ]);
     await expect(registerSerialUnit({ ...scope, warehouseId }, { ...line(), serialNumber: "B3" }, { id: "u", name: "User" })).rejects.toMatchObject({ statusCode: 409 });
     expect((await InventoryBalanceModel.findOne({ variantId }).lean())?.version).toBe(2);
   });

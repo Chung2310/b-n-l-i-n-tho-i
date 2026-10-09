@@ -108,4 +108,24 @@ describe("CustomerPicker", () => {
     expect((screen.getByRole("textbox", { name: "Tên khách hàng" }) as HTMLInputElement).value).toBe("Lâm");
     expect((screen.getByRole("textbox", { name: "Số điện thoại" }) as HTMLInputElement).value).toBe("");
   });
+
+  it("renders search trigger icon in collapsible mode and expands when clicked", async () => {
+    const onChange = vi.fn();
+    render(<CustomerPicker scope={scope} value={null} onChange={onChange} collapsible={true} />);
+
+    // Combobox is not shown initially in collapsible mode
+    expect(screen.queryByRole("combobox", { name: "Tìm khách hàng" })).toBeNull();
+
+    // Click search trigger button
+    const trigger = screen.getByRole("button", { name: "Tìm khách hàng" });
+    await userEvent.click(trigger);
+
+    // Combobox now expands ("sổ ra")
+    expect(screen.getByRole("combobox", { name: "Tìm khách hàng" })).toBeTruthy();
+
+    // Close button collapses back
+    const closeBtn = screen.getByRole("button", { name: "Đóng tìm kiếm" });
+    await userEvent.click(closeBtn);
+    expect(screen.queryByRole("combobox", { name: "Tìm khách hàng" })).toBeNull();
+  });
 });

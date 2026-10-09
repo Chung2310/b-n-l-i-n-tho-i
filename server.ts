@@ -15,6 +15,7 @@ import { startRetailDebtReminderScheduler } from "./server/modules/retail/servic
 import { startRetailReminderRetryScheduler } from "./server/modules/retail/services/retail-reminder-retry.service";
 import { startRetailCouponAutomationScheduler } from "./server/modules/retail/services/retail-coupon-automation.service";
 import { startRetailCustomerTierScheduler } from "./server/modules/retail/services/retail-customer-tier.service";
+import { startRetailPosSessionScheduler } from "./server/modules/retail/services/retail-pos-session-scheduler.service";
 import { startMonthlyKpiScheduler } from "./server/service/kanban-monthly-kpi-scheduler.service";
 import { startPayrollPublicationScheduler } from "./server/service/payroll-publication-scheduler.service";
 import { startDomainEventWorker } from "./server/integrations/shared/domain-event-worker";
@@ -22,7 +23,12 @@ import { apiRouter } from "./server/router";
 import { swaggerRouter } from "./server/swagger";
 import { initSocketServer } from "./server/socket";
 import { buildDocumentTitle, getSeoForPath, resolveSeoUrl } from "./src/seo/seo-config";
-import { BRAND_NAME, BRAND_TAGLINE, BRAND_LOGO_URL, SERVICE_WEBSITE_URL } from "./src/config/brand";
+import {
+  BRAND_LOGO_PATH,
+  BRAND_NAME,
+  BRAND_TAGLINE,
+  resolveServiceWebsiteUrl,
+} from "./src/config/brand";
 import { selectiveBodyParser } from "./server/middleware/body-limit";
 import { globalApiRateLimiter } from "./server/middleware/rate-limit";
 import { flushUserActivityQueue, userActivityMiddleware } from "./server/middleware/user-activity";
@@ -63,11 +69,12 @@ function shouldSkipRoutineApiLog(method: string, url: string) {
   return noisyPrefixes.some((prefix) => normalizedUrl.startsWith(prefix));
 }
 
-function injectSeoMeta(html: string, requestPath: string): string {
+function injectSeoMeta(html: string, requestPath: string, requestHostname = ""): string {
   try {
     const seo = getSeoForPath(requestPath);
-    const canonicalUrl = resolveSeoUrl(seo.path);
-    const imageUrl = seo.image || BRAND_LOGO_URL;
+    const serviceWebsiteUrl = resolveServiceWebsiteUrl(requestHostname);
+    const canonicalUrl = resolveSeoUrl(seo.path, serviceWebsiteUrl);
+    const imageUrl = `${serviceWebsiteUrl}${BRAND_LOGO_PATH}`;
 
     let output = html;
 
@@ -154,23 +161,23 @@ function injectSeoMeta(html: string, requestPath: string): string {
       "@graph": [
         {
           "@type": "Organization",
-          "@id": `${SERVICE_WEBSITE_URL}/#organization`,
+          "@id": `${serviceWebsiteUrl}/#organization`,
           "name": BRAND_NAME,
-          "url": SERVICE_WEBSITE_URL,
+          "url": serviceWebsiteUrl,
           "logo": {
             "@type": "ImageObject",
-            "url": BRAND_LOGO_URL
+            "url": imageUrl
           }
         },
         {
           "@type": "WebSite",
-          "@id": `${SERVICE_WEBSITE_URL}/#website`,
+          "@id": `${serviceWebsiteUrl}/#website`,
           "name": BRAND_NAME,
-          "url": SERVICE_WEBSITE_URL,
+          "url": serviceWebsiteUrl,
           "inLanguage": "vi-VN",
           "description": BRAND_TAGLINE,
           "publisher": {
-            "@id": `${SERVICE_WEBSITE_URL}/#organization`
+            "@id": `${serviceWebsiteUrl}/#organization`
           }
         },
         {
@@ -192,7 +199,7 @@ function injectSeoMeta(html: string, requestPath: string): string {
           "description": seo.description,
           "inLanguage": "vi-VN",
           "isPartOf": {
-            "@id": `${SERVICE_WEBSITE_URL}/#website`
+            "@id": `${serviceWebsiteUrl}/#website`
           },
           "primaryImageOfPage": {
             "@type": "ImageObject",
@@ -234,6 +241,7 @@ async function startServer() {
   startRetailDebtReminderScheduler();
   startRetailReminderRetryScheduler();
   startRetailCustomerTierScheduler();
+  startRetailPosSessionScheduler();
   startRetailCouponAutomationScheduler();
   startMonthlyKpiScheduler();
   startPayrollPublicationScheduler();
@@ -360,7 +368,7 @@ async function startServer() {
         const indexHtmlPath = path.join(process.cwd(), "index.html");
         const template = await fs.promises.readFile(indexHtmlPath, "utf-8");
         const transformedTemplate = await vite.transformIndexHtml(req.originalUrl, template);
-        const personalizedHtml = injectSeoMeta(transformedTemplate, req.path);
+        const personalizedHtml = injectSeoMeta(transformedTemplate, req.path, req.hostname);
 
         res.status(200).set({ "Content-Type": "text/html" }).end(personalizedHtml);
       } catch (err) {
@@ -400,7 +408,7 @@ async function startServer() {
           indexHtmlCached = fs.readFileSync(indexHtmlPath, "utf-8");
         }
 
-        const personalizedHtml = injectSeoMeta(indexHtmlCached, req.path);
+        const personalizedHtml = injectSeoMeta(indexHtmlCached, req.path, req.hostname);
         res.setHeader("Content-Type", "text/html");
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         res.send(personalizedHtml);

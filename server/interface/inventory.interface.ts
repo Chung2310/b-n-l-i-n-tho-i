@@ -143,7 +143,7 @@ export interface IGoodsReceiptItem {
   sku: string;
   trackingMode?: "none" | "quantity" | "unit_barcode" | "lot" | "serial";
   serialNumbers?: string[];
-  unitDetails?: Array<{ internalBarcode: string; serialNumber?: string; imei1?: string; imei2?: string }>;
+  unitDetails?: Array<{ internalBarcode: string; barcodeAliases?: string[]; serialNumber?: string; imei1?: string; imei2?: string }>;
   productName: string;
   quantity: number;
   unitCost: number;

@@ -61,7 +61,13 @@ function normalizeItems(input: unknown) {
         throw new ReceivingValidationError(`Bảo hành nhà cung cấp dòng ${index + 1} phải từ 0 đến 1200 tháng.`);
       }
     }
-    return { productId, variantId, barcode: text(raw?.barcode, "Mã vạch") || undefined, quantity, unitCost, supplierWarrantyMonths, note: text(raw?.note, "Ghi chú") || undefined, unitDetails: Array.isArray(raw?.unitDetails) ? raw.unitDetails : undefined };
+    const unitDetails = Array.isArray(raw?.unitDetails) ? raw.unitDetails.map((unit: any) => ({
+      ...(text(unit?.internalBarcode, "Mã quản lý") ? { internalBarcode: text(unit.internalBarcode, "Mã quản lý") } : {}),
+      ...(text(unit?.serialNumber, "Serial") ? { serialNumber: text(unit.serialNumber, "Serial") } : {}),
+      ...(text(unit?.imei1, "IMEI 1") ? { imei1: text(unit.imei1, "IMEI 1") } : {}),
+      ...(text(unit?.imei2, "IMEI 2") ? { imei2: text(unit.imei2, "IMEI 2") } : {}),
+    })) : undefined;
+    return { productId, variantId, barcode: text(raw?.barcode, "Mã vạch") || undefined, quantity, unitCost, supplierWarrantyMonths, note: text(raw?.note, "Ghi chú") || undefined, unitDetails };
   });
 }
 
@@ -164,8 +170,8 @@ export async function createReceipt(rawScope: Scope, input: any, actor: Actor) {
   const warehouse = input?.warehouseId ? await getWarehouse(scope.companyCode, scope.branchId, String(input.warehouseId)) : await (await import("../warehouse/warehouse.service")).ensureDefaultWarehouse(scope.companyCode, scope.branchId);
   if (!warehouse) throw new ReceivingValidationError("Không tìm thấy kho nhập.");
   const rawItems = normalizeItems(input?.items);
-  const items = (await resolveReceiptItems(scope.companyCode, rawItems)).map((item: any, index) => ({ ...item, serialNumbers: Array.isArray(input?.items?.[index]?.serialNumbers) ? input.items[index].serialNumbers : undefined, unitDetails: Array.isArray(input?.items?.[index]?.unitDetails) ? input.items[index].unitDetails : undefined }));
-  validateReceivingSerialLines(items as any);
+  const items = (await resolveReceiptItems(scope.companyCode, rawItems)).map((item: any, index) => ({ ...item, serialNumbers: Array.isArray(input?.items?.[index]?.serialNumbers) ? input.items[index].serialNumbers : undefined }));
+  validateReceivingSerialLines(items as any, false);
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
   const payload = { companyCode: scope.companyCode, branchId: scope.branchId, warehouseId: String(warehouse._id), supplierId, supplierName: supplier.name, status: "draft" as const, receivedAt: input?.receivedAt ? new Date(input.receivedAt) : undefined, items, subtotal, financeTerms: receiptFinanceTerms(input.financeTerms, subtotal), notes: text(input?.notes, "Ghi chú") || undefined, createdBy: actorId(actor), createdByName: actor.email || actor.id, version: 0 };
   const businessDay = receiptBusinessDay();
@@ -191,8 +197,8 @@ export async function updateReceipt(rawScope: Scope, id: string, input: any, act
   if (!current) throw new ReceivingValidationError("Không tìm thấy phiếu nhập.");
   if (current.status !== "draft") throw new ReceivingValidationError("Chỉ được sửa phiếu nhập ở trạng thái Nháp.");
   const rawItems = normalizeItems(input?.items);
-  const items = (await resolveReceiptItems(scope.companyCode, rawItems)).map((item: any, index) => ({ ...item, serialNumbers: Array.isArray(input?.items?.[index]?.serialNumbers) ? input.items[index].serialNumbers : undefined, unitDetails: Array.isArray(input?.items?.[index]?.unitDetails) ? input.items[index].unitDetails : undefined }));
-  validateReceivingSerialLines(items as any);
+  const items = (await resolveReceiptItems(scope.companyCode, rawItems)).map((item: any, index) => ({ ...item, serialNumbers: Array.isArray(input?.items?.[index]?.serialNumbers) ? input.items[index].serialNumbers : undefined }));
+  validateReceivingSerialLines(items as any, false);
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
   const updated = await GoodsReceiptModel.findOneAndUpdate({ _id: id, ...scope, status: "draft", version: current.version }, { $set: { supplierId, supplierName: supplier.name, items, subtotal, financeTerms: receiptFinanceTerms(input.financeTerms === undefined ? current.financeTerms : input.financeTerms, subtotal) || null, notes: text(input?.notes, "Ghi chú") || undefined, updatedBy: actorId(actor) }, $inc: { version: 1 } }, { returnDocument: 'after', runValidators: true }).lean();
   if (!updated) throw new ReceivingValidationError("Phiếu nhập đã thay đổi, vui lòng tải lại rồi sửa lại.");
@@ -209,16 +215,17 @@ export async function confirmReceipt(rawScope: Scope, id: string, actor: Actor) 
       if (confirmed) { await recordReceiptDebt(confirmed, session); return confirmed; }
       throw new ReceivingValidationError("Phiếu nhập phải ở trạng thái Đang nhập kho mới có thể hoàn thành.");
     }
+    validateReceivingSerialLines(receipt.items as any[], true);
     const movement = await writeStockMovement({ companyCode: scope.companyCode, branchId: scope.branchId, warehouseId: receipt.warehouseId, direction: "in", purpose: "purchase", sourceType: "goods-receipt", sourceId: String(receipt._id), sourceCode: receipt.receiptCode, idempotencyKey: `goods-receipt:${receipt._id}:confirm`, operatorName: actor.email || actor.id || "", items: receipt.items.map((item: any) => ({ productId: item.productId, variantId: item.variantId, sku: item.sku, productName: item.productName, quantity: item.quantity, unitCost: item.unitCost, lineTotal: item.lineTotal })), reason: `Nhập hàng ${receipt.receiptCode}`, session, writeLegacyStockLog: true });
-    receipt.status = "confirmed"; receipt.confirmedBy = actorId(actor); receipt.confirmedByName = actor.email || actor.id; receipt.confirmedAt = new Date(); receipt.version += 1; await receipt.save({ session });
     for (const item of receipt.items as any[]) if (["serial", "unit_barcode"].includes(item.trackingMode)) {
       const details = Array.isArray(item.unitDetails) ? item.unitDetails : [];
-      const serialNumbers = item.trackingMode === "serial" ? (item.serialNumbers || []).map((value: string, index: number) => value || details[index]?.internalBarcode) : details.map((detail: any) => detail.internalBarcode);
-      const internalBarcodes = details.map((detail: any) => detail.internalBarcode);
+      const serialNumbers = item.trackingMode === "serial" ? (item.serialNumbers || []).map((value: string) => value.trim()) : undefined;
       const supplierMonths = Number(item.supplierWarrantyMonths ?? item.warrantyMonths ?? 0);
       const startAt = receipt.receivedAt || receipt.confirmedAt || new Date();
-      await registerSerialBatch({ companyCode: scope.companyCode, branchId: scope.branchId, warehouseId: String(receipt.warehouseId) }, { productId: item.productId, variantId: item.variantId, sku: item.sku, productName: item.productName, serialNumbers, internalBarcodes, documentType: "goods-receipt", documentId: String(receipt._id), supplierWarranty: supplierMonths > 0 ? { supplierId: receipt.supplierId, supplierName: receipt.supplierName, receiptId: String(receipt._id), receiptCode: receipt.receiptCode, months: supplierMonths, startAt, startSource: "receipt", endAt: computeWarrantyEnd(startAt, supplierMonths) } : undefined }, { id: actorId(actor), name: actor.email || actor.id || "" }, session);
+      const registered = await registerSerialBatch({ companyCode: scope.companyCode, branchId: scope.branchId, warehouseId: String(receipt.warehouseId) }, { productId: item.productId, variantId: item.variantId, sku: item.sku, productName: item.productName, quantity: Number(item.quantity), serialNumbers, unitDetails: details, documentType: "goods-receipt", documentId: String(receipt._id), supplierWarranty: supplierMonths > 0 ? { supplierId: receipt.supplierId, supplierName: receipt.supplierName, receiptId: String(receipt._id), receiptCode: receipt.receiptCode, months: supplierMonths, startAt, startSource: "receipt", endAt: computeWarrantyEnd(startAt, supplierMonths) } : undefined }, { id: actorId(actor), name: actor.email || actor.id || "" }, session);
+      item.unitDetails = registered.map((unit: any) => ({ internalBarcode: unit.internalBarcode, serialNumber: item.trackingMode === "serial" ? unit.serialNumber : unit.serialNumber === unit.internalBarcode ? undefined : unit.serialNumber, imei1: unit.imei1, imei2: unit.imei2 }));
     }
+    receipt.status = "confirmed"; receipt.confirmedBy = actorId(actor); receipt.confirmedByName = actor.email || actor.id; receipt.confirmedAt = new Date(); receipt.version += 1; await receipt.save({ session });
     await recordReceiptDebt(receipt, session);
     void movement;
     return receipt.toObject();
@@ -227,8 +234,11 @@ export async function confirmReceipt(rawScope: Scope, id: string, actor: Actor) 
 
 export async function submitReceipt(rawScope: Scope, id: string, actor: Actor) {
   const scope = normalizeScope(rawScope);
-  const receipt = await GoodsReceiptModel.findOneAndUpdate({ _id: id, ...scope, status: "draft" }, { $set: { status: "pending" }, $inc: { version: 1 } }, { returnDocument: 'after' }).lean();
-  if (!receipt) throw new ReceivingValidationError("Chỉ có thể gửi xác nhận phiếu đang ở trạng thái Nháp.");
+  const current = await GoodsReceiptModel.findOne({ _id: id, ...scope, status: "draft" }).lean();
+  if (!current) throw new ReceivingValidationError("Chỉ có thể gửi xác nhận phiếu đang ở trạng thái Nháp.");
+  validateReceivingSerialLines(current.items as any[], true);
+  const receipt = await GoodsReceiptModel.findOneAndUpdate({ _id: id, ...scope, status: "draft", version: current.version }, { $set: { status: "pending" }, $inc: { version: 1 } }, { returnDocument: 'after' }).lean();
+  if (!receipt) throw new ReceivingValidationError("Phiếu nhập vừa thay đổi. Vui lòng tải lại rồi gửi xác nhận.");
   return receipt;
 }
 

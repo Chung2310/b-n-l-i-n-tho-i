@@ -61,7 +61,7 @@ async function post(scope: InventoryScope, log: any, items: any[], session: Clie
   for (const item of items) {
     if (!["serial", "unit_barcode"].includes(item.trackingMode)) continue;
     for (const identifier of item.unitIdentifiers) {
-      const matches = await SerialUnitModel.find({ companyCode: scope.companyCode, branchId: scope.branchId, warehouseId: log.warehouseId, productId: item.productId, variantId: item.variantId, status: "in_stock", $or: [{ normalizedSerialNumber: identifier }, { normalizedInternalBarcode: identifier }] }).session(session);
+      const matches = await SerialUnitModel.find({ companyCode: scope.companyCode, branchId: scope.branchId, warehouseId: log.warehouseId, productId: item.productId, variantId: item.variantId, status: "in_stock", $or: [{ normalizedSerialNumber: identifier }, { normalizedInternalBarcode: identifier }, { normalizedBarcodeAliases: identifier }] }).session(session);
       if (matches.length !== 1 || seen.has(String(matches[0]._id))) inventoryError(`Mã ${identifier} không sẵn sàng, bị trùng hoặc không thuộc SKU/kho xuất.`, 409);
       seen.add(String(matches[0]._id)); units.push(matches[0]);
     }

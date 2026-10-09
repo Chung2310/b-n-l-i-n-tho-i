@@ -82,7 +82,6 @@ export default function InventoryTab() {
   const [searchCategory, setSearchCategory] = useState("");
   const [searchLog, setSearchLog] = useState("");
   const [stockLogExcelImporting, setStockLogExcelImporting] = useState(false);
-  const [outboundPrefill, setOutboundPrefill] = useState<{ warehouseId: string; sku: string; nonce: number } | null>(null);
 
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
@@ -711,10 +710,7 @@ export default function InventoryTab() {
           </div>
         )}
 
-        {subTab === "KHO HÀNG" && <WarehouseSection onCreateOutbound={(warehouseId, sku) => {
-          setOutboundPrefill({ warehouseId, sku, nonce: Date.now() });
-          setSubTab("XUẤT HÀNG");
-        }} />}
+        {subTab === "KHO HÀNG" && <WarehouseSection />}
         {subTab === "NHẬP HÀNG" && <ReceivingSection />}
         {subTab === "ĐIỀU CHUYỂN" && activeBranchId && <InventoryTransferSection key={activeBranchId} branchId={activeBranchId} canManage={hasPermission?.("inventory:manage") || false} />}
         {subTab === "IMEI / SERIAL" && <SerialRegistrySection key={activeBranchId} onTransfers={() => setSubTab("ĐIỀU CHUYỂN")} />}
@@ -901,9 +897,6 @@ export default function InventoryTab() {
               onReverse={activeBranchId && hasPermission?.("inventory:manage") ? (id, reason) => inventoryStockLogService.reverseOutbound(id, reason, activeBranchId) : undefined}
               stockLogs={stockLogs}
               isLoading={stockLogLoading}
-              initialWarehouseId={outboundPrefill?.warehouseId}
-              initialSku={outboundPrefill?.sku}
-              openOnMountKey={outboundPrefill?.nonce}
               onCreateTransaction={handleCreateTransaction}
               onUpdateTransaction={handleUpdateTransaction}
               onUpdateStatus={handleQuickUpdateTransactionStatus}

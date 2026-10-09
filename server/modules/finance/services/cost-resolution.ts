@@ -20,7 +20,7 @@ export function resolveSaleCost(order: any, item: any, index: number, ledger: an
     const matches = ids.map(id => receipts.flatMap(r => {
       const receivedAt = new Date(r.confirmedAt || r.receivedAt || r.createdAt).getTime();
       if (!sameScope(r) || r.status !== "confirmed" || !Number.isFinite(receivedAt) || receivedAt > soldAt) return [];
-      return (r.items || []).filter((line: any) => sameItem(line) && positive(line.unitCost) && (serials.length ? (line.serialNumbers || []).includes(id) || (line.unitDetails || []).some((u: any) => u.serialNumber === id) : (line.unitDetails || []).some((u: any) => u.internalBarcode === id))).map((line: any) => ({ cost: line.unitCost, reference: r.receiptCode }));
+      return (r.items || []).filter((line: any) => sameItem(line) && positive(line.unitCost) && (serials.length ? (line.serialNumbers || []).includes(id) || (line.unitDetails || []).some((u: any) => u.serialNumber === id) : (line.unitDetails || []).some((u: any) => u.internalBarcode === id || (u.barcodeAliases || []).includes(id)))).map((line: any) => ({ cost: line.unitCost, reference: r.receiptCode }));
     }));
     if (matches.every(m => m.length === 1)) return { cost: matches.reduce((s, m) => s + m[0].cost, 0), costBasis: "receipt_identifier", costReference: [...new Set(matches.map(m => m[0].reference))].join(", ") };
   }

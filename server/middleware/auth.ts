@@ -55,9 +55,10 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "dashboard:read", "access:manage", "hr:read", "timekeeping:manage", "people:manage", "resource:read", "chat:read", "work:manage"
   ],
   manager: [
-    "dashboard:read", "access:read", "work:manage", "inventory:read",
+    "dashboard:read", "access:read", "work:manage", "inventory:read", "retail:manage",
     "hr:read", "people:read", "timekeeping:read", "chat:read", "resource:read", "settings:manage"
   ],
+  pos_cashier: ["pos:manage"],
   user: [
     "access:read", "work:manage", "inventory:read", "hr:read", "people:read", "timekeeping:read", "chat:read", "resource:read"
   ],
@@ -82,7 +83,8 @@ export const DEFAULT_ROLE_LEVELS: Record<string, number> = {
   branch_owner: 2,
   manager: 3,
   user: 4,
-  teacher: 4
+  teacher: 4,
+  pos_cashier: 5,
 };
 
 /**

@@ -10,7 +10,7 @@ const GoodsReceiptItemSchema = new Schema(
     sku: { type: String, required: true, trim: true, uppercase: true },
     trackingMode: { type: String, enum: ["none", "quantity", "unit_barcode", "lot", "serial"] },
     serialNumbers: { type: [String], default: undefined },
-    unitDetails: { type: [{ internalBarcode: { type: String, required: true, trim: true }, serialNumber: { type: String, trim: true }, imei1: { type: String, trim: true }, imei2: { type: String, trim: true } }], default: undefined },
+    unitDetails: { type: [{ internalBarcode: { type: String, trim: true }, barcodeAliases: { type: [String], default: undefined }, serialNumber: { type: String, trim: true }, imei1: { type: String, trim: true }, imei2: { type: String, trim: true } }], default: undefined },
     productName: { type: String, required: true, trim: true },
     quantity: { type: Number, required: true, min: 0.000001 },
     unitCost: { type: Number, required: true, min: 0 },

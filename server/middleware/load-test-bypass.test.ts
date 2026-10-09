@@ -22,7 +22,7 @@ test("fails closed for production, wrong host, weak config, or wrong secret", ()
     providedSecret: secret,
   };
   assert.equal(isStagingLoadTestBypass({ ...base, nodeEnv: "production" }), false);
-  assert.equal(isStagingLoadTestBypass({ ...base, hostname: "erp.igentechsolutions.com" }), false);
+  assert.equal(isStagingLoadTestBypass({ ...base, hostname: "erp.igentechnology.net" }), false);
   assert.equal(isStagingLoadTestBypass({ ...base, configuredSecret: "short" }), false);
   assert.equal(isStagingLoadTestBypass({ ...base, providedSecret: `${secret}x` }), false);
   assert.equal(isStagingLoadTestBypass({ ...base, providedSecret: undefined }), false);

@@ -3,21 +3,23 @@ import type { Request, Response } from "express";
 import { requireAuth, requirePermission } from "../../../middleware/auth";
 import { requireModule } from "../../../middleware/require-module";
 import { requireRetailBranch, retailScopeFromRequest } from "../contracts";
-import { RETAIL_MANAGER_PERMISSION } from "../permissions";
+import { RETAIL_MANAGER_PERMISSION, RETAIL_OPERATE_PERMISSION } from "../permissions";
 import { retailBirthdayProgramService } from "../services/retail-birthday-coupon.service";
 import { retailCouponAutomationService, issueCouponAutomations } from "../services/retail-coupon-automation.service";
 import { getPromotionCustomer } from "../../customer-management/contracts";
 import { retailCouponService } from "../services/retail-coupon.service";
 
 export const retailCouponRoutes = Router();
-retailCouponRoutes.use(requireAuth as any, requireModule("retail"), requirePermission(RETAIL_MANAGER_PERMISSION) as any);
-retailCouponRoutes.get("/tiers", async (req: Request, res: Response) => {
+const operate = requirePermission([RETAIL_OPERATE_PERMISSION, RETAIL_MANAGER_PERMISSION]) as any;
+const manage = requirePermission(RETAIL_MANAGER_PERMISSION) as any;
+retailCouponRoutes.use(requireAuth as any, requireModule("retail"));
+retailCouponRoutes.get("/tiers", operate, async (req: Request, res: Response) => {
   try {
     const scope = requireRetailBranch(retailScopeFromRequest((req as any).user || {}, req.query));
     res.json({ success: true, data: await retailCouponService.tiers(scope) });
   } catch (error: any) { res.status(error.status || 400).json({ success: false, error: error.message }); }
 });
-retailCouponRoutes.get("/available", async (req: Request, res: Response) => {
+retailCouponRoutes.get("/available", operate, async (req: Request, res: Response) => {
   try {
     const scope = requireRetailBranch(retailScopeFromRequest((req as any).user || {}, req.query));
     const customer = await getPromotionCustomer(scope.companyCode, req.query.customerId);
@@ -27,7 +29,7 @@ retailCouponRoutes.get("/available", async (req: Request, res: Response) => {
   } catch (error: any) { res.status(error.status || 400).json({ success: false, error: error.message }); }
 });
 for (const method of ["get", "post", "put"] as const) {
-  retailCouponRoutes[method](method === "put" ? "/automations/:id" : "/automations", async (req: Request, res: Response) => {
+  retailCouponRoutes[method](method === "put" ? "/automations/:id" : "/automations", manage, async (req: Request, res: Response) => {
     try {
       const actor = (req as any).user || {};
       const scope = requireRetailBranch(retailScopeFromRequest(actor, req.query));
@@ -40,7 +42,7 @@ for (const method of ["get", "post", "put"] as const) {
   });
 }
 for (const method of ["get", "put"] as const) {
-  retailCouponRoutes[method]("/birthday-program", async (req: Request, res: Response) => {
+  retailCouponRoutes[method]("/birthday-program", manage, async (req: Request, res: Response) => {
     try {
       const actor = (req as any).user || {};
       const scope = requireRetailBranch(retailScopeFromRequest(actor, req.query));
@@ -51,7 +53,7 @@ for (const method of ["get", "put"] as const) {
   });
 }
 for (const method of ["get", "post", "put"] as const) {
-  retailCouponRoutes[method](method === "put" ? "/:id" : "/", async (req: Request, res: Response) => {
+  retailCouponRoutes[method](method === "put" ? "/:id" : "/", manage, async (req: Request, res: Response) => {
     try {
       const actor = (req as any).user || {};
       const scope = requireRetailBranch(retailScopeFromRequest(actor, req.query));

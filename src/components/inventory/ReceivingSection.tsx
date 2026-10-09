@@ -32,10 +32,11 @@ import {
 } from "../../services/productCatalogService";
 import { toast } from "../../pages/Toast";
 import { listSupplierPartners, type SupplierPartnerOption } from "../../modules/partners/partnerApi";
+import { Dropdown, type DropdownOption } from "../common/Dropdown";
 
 type DraftLine = GoodsReceiptItem & { key: string; displayName: string };
 
-/** SKU theo dõi tới từng đơn vị thì phiếu phải tách ra mỗi đơn vị một dòng để gán IMEI/mã vạch nội bộ riêng. */
+/** SKU theo dõi tới từng đơn vị thì phiếu phải tách ra mỗi đơn vị một dòng để lưu định danh thiết bị. */
 const unitTracked = (trackingMode?: GoodsReceiptItem["trackingMode"]) => trackingMode === "serial" || trackingMode === "unit_barcode";
 
 const unitCount = (line: DraftLine) => Math.max(0, Math.ceil(line.quantity) || 0);
@@ -51,7 +52,6 @@ function normalizeUnits(line: DraftLine, count: number): DraftLine {
       : line.serialNumbers,
     unitDetails: Array.from({ length: count }, (_, index) => ({
       ...line.unitDetails?.[index],
-      internalBarcode: line.unitDetails?.[index]?.internalBarcode || "",
     })),
   };
 }
@@ -131,7 +131,7 @@ export function ReceivingSection() {
 
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500 border-b border-slate-200"><tr><th className="px-4 py-3.5 font-medium">Mã phiếu</th><th className="px-4 py-3.5 font-medium">Nhà cung cấp / Khách hàng</th><th className="px-4 py-3.5 font-medium">Ngày tạo</th><th className="px-4 py-3.5 text-right font-medium">Giá trị</th><th className="px-4 py-3.5 font-medium">Trạng thái</th><th className="px-4 py-3.5 text-right font-medium">Thao tác</th></tr></thead><tbody className="divide-y divide-slate-200">{loading ? <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-500">Đang tải dữ liệu...</td></tr> : receipts.length === 0 ? <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-500">Chưa có phiếu nhập.</td></tr> : receipts.map((receipt) => <tr key={receipt._id} className="hover:bg-slate-50"><td className="px-4 py-3.5 font-mono text-xs font-semibold text-slate-600">{receipt.receiptCode}{receipt.receiptKind && receipt.receiptKind !== "purchase" && <span className="mt-1 block font-sans font-normal text-cyan-700">{receipt.receiptKind === "buyback" ? "Thu mua lại" : receipt.receiptKind === "sales_cancel" ? "Hủy đơn" : "Trả hàng"} · {receipt.orderCode}</span>}</td><td className="px-4 py-3.5 font-medium text-slate-800">{receipt.supplierName}</td><td className="px-4 py-3.5 text-slate-500">{new Date(receipt.createdAt).toLocaleDateString("vi-VN")}</td><td className="px-4 py-3.5 text-right tabular-nums font-semibold text-slate-900">{money(receipt.subtotal)}</td><td className="px-4 py-3.5"><ReceiptStatus status={receipt.status} /></td><td className="px-4 py-3.5 text-right"><span className="inline-flex gap-1"><button type="button" onClick={() => setViewingReceipt(receipt)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-cyan-700" title="Xem chi tiết phiếu"><Eye className="h-4 w-4" /></button>{receipt.status === "draft" && <><button type="button" onClick={() => void submit(receipt)} className="inline-flex h-8 items-center rounded-md px-2 text-xs font-medium text-amber-700 hover:bg-amber-50" title="Gửi chờ xác nhận">Gửi</button><button type="button" onClick={() => void cancel(receipt)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-rose-600 hover:bg-rose-50" title="Hủy phiếu"><X className="h-4 w-4" /></button></>}{receipt.status === "pending" && <><button type="button" onClick={() => void startReceiving(receipt)} className="inline-flex h-8 items-center rounded-md px-2 text-xs font-medium text-sky-700 hover:bg-sky-50" title="Bắt đầu nhập kho">Nhập kho</button><button type="button" onClick={() => void cancel(receipt)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-rose-600 hover:bg-rose-50" title="Hủy phiếu"><X className="h-4 w-4" /></button></>}{receipt.status === "receiving" && <button type="button" onClick={() => void confirm(receipt)} className="inline-flex h-8 items-center gap-1 rounded-md bg-emerald-600 px-2 text-xs font-medium text-white hover:bg-emerald-700" title="Hoàn thành nhập kho"><Check className="h-3.5 w-3.5" />Hoàn thành</button>}</span></td></tr>)}</tbody></table></div>
+      <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500 border-b border-slate-200"><tr><th className="px-4 py-3.5 font-medium">Mã phiếu</th><th className="px-4 py-3.5 font-medium">Nhà cung cấp / Khách hàng</th><th className="px-4 py-3.5 font-medium">Ngày tạo</th><th className="px-4 py-3.5 text-right font-medium">Giá trị</th><th className="px-4 py-3.5 font-medium">Trạng thái</th><th className="px-4 py-3.5 text-right font-medium">Thao tác</th></tr></thead><tbody className="divide-y divide-slate-200">{loading ? <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-500">Đang tải dữ liệu...</td></tr> : receipts.length === 0 ? <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-500">Chưa có phiếu nhập.</td></tr> : receipts.map((receipt) => <tr key={receipt._id} className="hover:bg-slate-50"><td className="px-4 py-3.5 font-mono text-xs font-semibold text-slate-600">{receipt.receiptCode}{receipt.receiptKind && receipt.receiptKind !== "purchase" && <span className="mt-1 block font-sans font-normal text-cyan-700">{receipt.receiptKind === "buyback" ? "Thu mua lại" : receipt.receiptKind === "sales_cancel" ? "Hủy đơn" : "Trả hàng"} · {receipt.orderCode}</span>}</td><td className="px-4 py-3.5 font-medium text-slate-800">{receipt.supplierName}</td><td className="px-4 py-3.5 text-slate-500">{new Date(receipt.createdAt).toLocaleDateString("vi-VN")}</td><td className="px-4 py-3.5 text-right tabular-nums font-semibold text-slate-900">{money(receipt.subtotal)}</td><td className="px-4 py-3.5"><ReceiptStatus status={receipt.status} /></td><td className="px-4 py-3.5 text-right"><span className="inline-flex gap-1"><button type="button" onClick={() => setViewingReceipt(receipt)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-cyan-700" title="Xem chi tiết phiếu"><Eye className="h-4 w-4" /></button>{receipt.status === "draft" && <><button type="button" onClick={() => { setEditingReceipt(receipt); setViewingReceipt(null); setCreatorOpen(true); }} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-cyan-50 hover:text-cyan-700" title="Sửa phiếu nháp" aria-label={`Sửa phiếu ${receipt.receiptCode}`}><Pencil className="h-4 w-4" /></button><button type="button" onClick={() => void submit(receipt)} className="inline-flex h-8 items-center rounded-md px-2 text-xs font-medium text-amber-700 hover:bg-amber-50" title="Gửi chờ xác nhận">Gửi xác nhận</button><button type="button" onClick={() => void cancel(receipt)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-rose-600 hover:bg-rose-50" title="Hủy phiếu"><X className="h-4 w-4" /></button></>}{receipt.status === "pending" && <><button type="button" onClick={() => void startReceiving(receipt)} className="inline-flex h-8 items-center rounded-md px-2 text-xs font-medium text-sky-700 hover:bg-sky-50" title="Bắt đầu nhập kho">Nhập kho</button><button type="button" onClick={() => void cancel(receipt)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-rose-600 hover:bg-rose-50" title="Hủy phiếu"><X className="h-4 w-4" /></button></>}{receipt.status === "receiving" && <button type="button" onClick={() => void confirm(receipt)} className="inline-flex h-8 items-center gap-1 rounded-md bg-emerald-600 px-2 text-xs font-medium text-white hover:bg-emerald-700" title="Hoàn thành nhập kho"><Check className="h-3.5 w-3.5" />Hoàn thành</button>}</span></td></tr>)}</tbody></table></div>
 
       {creatorOpen && <ReceiptCreatorModal initialReceipt={editingReceipt} onClose={() => { setCreatorOpen(false); setEditingReceipt(null); }} onSaved={async () => { setCreatorOpen(false); setEditingReceipt(null); await load(); }} />}
       {viewingReceipt && <ReceiptDetailModal receipt={viewingReceipt} onClose={() => setViewingReceipt(null)} />}
@@ -143,7 +143,7 @@ function ReceiptStatus({ status }: { status: GoodsReceipt["status"] }) { const d
 function ReceiptActions({ receipt, onView, onSubmit, onStart, onConfirm, onCancel }: { receipt: GoodsReceipt; onView: () => void; onSubmit: () => void; onStart: () => void; onConfirm: () => void; onCancel: () => void }) { return <span className="inline-flex gap-1"><button type="button" onClick={onView} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-cyan-700" title="Xem chi tiết phiếu"><Eye className="h-4 w-4" /></button>{receipt.status === "draft" && <><button type="button" onClick={onSubmit} className="inline-flex h-8 items-center rounded-md px-2 text-xs font-medium text-amber-700 hover:bg-amber-50" title="Gửi chờ xác nhận">Gửi</button><button type="button" onClick={onCancel} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-rose-600 hover:bg-rose-50" title="Hủy phiếu"><X className="h-4 w-4" /></button></>}{receipt.status === "pending" && <><button type="button" onClick={onStart} className="inline-flex h-8 items-center rounded-md px-2 text-xs font-medium text-sky-700 hover:bg-sky-50" title="Bắt đầu nhập kho">Nhập kho</button><button type="button" onClick={onCancel} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-rose-600 hover:bg-rose-50" title="Hủy phiếu"><X className="h-4 w-4" /></button></>}{receipt.status === "receiving" && <button type="button" onClick={onConfirm} className="inline-flex h-8 items-center gap-1 rounded-md bg-emerald-600 px-2 text-xs font-medium text-white hover:bg-emerald-700" title="Hoàn thành nhập kho"><Check className="h-3.5 w-3.5" />Hoàn thành</button>}</span>; }
 
 
-function SearchableSelect({ options, value, onChange, onQueryChange, placeholder, disabled }: { options: { value: string; label: string }[]; value: string; onChange: (val: string) => void; onQueryChange?: (query: string) => void; placeholder: string; disabled?: boolean }) {
+function SearchableSelect({ options, value, onChange, onQueryChange, placeholder, disabled }: { options: { value: string; label: string; sublabel?: string }[]; value: string; onChange: (val: string) => void; onQueryChange?: (query: string) => void; placeholder: string; disabled?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const wrapperRef = React.useRef<HTMLDivElement>(null);
@@ -163,7 +163,7 @@ function SearchableSelect({ options, value, onChange, onQueryChange, placeholder
   const matches = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("vi");
     if (!term) return options;
-    return options.filter((o) => o.label.toLocaleLowerCase("vi").includes(term));
+    return options.filter((o) => `${o.label} ${o.sublabel || ""}`.toLocaleLowerCase("vi").includes(term));
   }, [options, query]);
 
   return (
@@ -173,6 +173,7 @@ function SearchableSelect({ options, value, onChange, onQueryChange, placeholder
         disabled={disabled}
         placeholder={placeholder}
         value={inputValue}
+        title={selected?.label}
         onFocus={() => { setQuery(""); onQueryChange?.(""); setIsOpen(true); }}
         onChange={(e) => { setQuery(e.target.value); onQueryChange?.(e.target.value); setIsOpen(true); }}
         onKeyDown={(e) => {
@@ -185,7 +186,7 @@ function SearchableSelect({ options, value, onChange, onQueryChange, placeholder
         className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600 disabled:bg-slate-50 disabled:text-slate-500"
       />
       {isOpen && !disabled && (
-        <div className="absolute z-50 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+        <div className="absolute left-0 z-50 mt-1 max-h-52 w-max min-w-full max-w-[min(24rem,calc(100vw-3rem))] overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
           {matches.length === 0 ? (
             <div className="px-3 py-2 text-xs text-slate-500">Không tìm thấy kết quả.</div>
           ) : (
@@ -194,9 +195,10 @@ function SearchableSelect({ options, value, onChange, onQueryChange, placeholder
                 key={o.value}
                 type="button"
                 onClick={() => { onChange(o.value); setIsOpen(false); }}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 focus:bg-slate-50 outline-none truncate"
+                className="w-full px-3 py-2 text-left hover:bg-slate-50 focus:bg-slate-50 outline-none"
               >
-                {o.label}
+                <span className="block whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">{o.label}</span>
+                {o.sublabel && <span className="mt-0.5 block whitespace-normal break-words text-xs leading-4 text-slate-500">{o.sublabel}</span>}
               </button>
             ))
           )}
@@ -208,6 +210,10 @@ function SearchableSelect({ options, value, onChange, onQueryChange, placeholder
 
 function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialReceipt?: GoodsReceipt | null; onClose: () => void; onSaved: () => Promise<void> }) {
   const [suppliers, setSuppliers] = useState<SupplierPartnerOption[]>([]);
+  const supplierOptions: DropdownOption<string>[] = useMemo(
+    () => suppliers.map((item) => ({ value: item.supplierId, label: `${item.name} (${item.code})` })),
+    [suppliers],
+  );
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [productDetails, setProductDetails] = useState<Record<string, CatalogProductDetail>>({});
   const [supplierId, setSupplierId] = useState("");
@@ -338,6 +344,20 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
   const selectedDetail = productId ? productDetails[productId] : undefined;
   const variants = selectedDetail?.variants.filter((item) => item.status === "active") || [];
   const selectedVariant = variants.find((item) => item._id === variantId);
+  const selectedProductName = selectedDetail?.name || products.find((item) => item._id === productId)?.name || "Sản phẩm";
+  const variantOptions = variants.map((variant) => {
+    const optionValues = (variant.optionValues || []).map((option) => option.value.trim()).filter(Boolean);
+    const variantName = optionValues.length
+      ? optionValues.join(" · ")
+      : variant.displayName?.trim() && variant.displayName.trim() !== variant.sku
+        ? variant.displayName.trim()
+        : "Biến thể mặc định";
+    return {
+      value: variant._id,
+      label: `${selectedProductName} — ${variantName}`,
+      sublabel: `SKU: ${variant.sku}`,
+    };
+  });
   // Hàng theo dõi từng đơn vị chỉ nhận số nguyên; hàng cân/đong mới cần bước lẻ.
   const quantityStep = !selectedVariant || unitTracked(selectedVariant.trackingMode) ? 1 : 0.001;
   useEffect(() => {
@@ -413,55 +433,19 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
     }));
   };
 
-  const updateUnitBarcodeAt = (key: string, index: number, value: string) => {
+  const updateUnitDetailAt = (key: string, index: number, field: "serialNumber" | "imei1" | "imei2", value: string) => {
     setLines((current) => current.map((line) => {
       if (line.key !== key) return line;
       const normalized = normalizeUnits(line, unitCount(line));
       const unitDetails = [...(normalized.unitDetails || [])];
-      unitDetails[index] = { ...unitDetails[index], internalBarcode: value };
+      unitDetails[index] = { ...unitDetails[index], [field]: value };
       return { ...normalized, unitDetails };
     }));
-  };
-
-  const generateUnitBarcodes = (line: DraftLine) => {
-    const token = line.sku.replace(/[^A-Za-z0-9]+/g, "-").toUpperCase();
-    const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const unitDetails = Array.from({ length: unitCount(line) }, (_, index) => ({
-      ...line.unitDetails?.[index],
-      internalBarcode: `IG-${token}-${date}-${String(index + 1).padStart(6, "0")}`,
-    }));
-    setLines((current) => current.map((item) => item.key === line.key ? { ...item, unitDetails } : item));
   };
 
   const saveReceipt = async () => {
     if (!supplierId || lines.length === 0) {
       toast.error("Chọn nhà cung cấp và ít nhất một sản phẩm.");
-      return;
-    }
-    const invalidSerialLine = lines.filter((line) => line.trackingMode === "serial").find((line) => {
-      const serials = (line.serialNumbers || []).map((serial) => serial.trim());
-      return !Number.isInteger(line.quantity) || serials.length !== line.quantity || serials.some((serial) => !serial) || new Set(serials.map((serial) => serial.toUpperCase())).size !== serials.length;
-    });
-    if (invalidSerialLine) {
-      toast.error(`SKU ${invalidSerialLine.sku} phải có đủ serial duy nhất theo số lượng.`);
-      return;
-    }
-    // Hàng serial được phép bỏ trống mã nội bộ, nhưng đã cấp thì phải cấp đủ và không trùng.
-    const invalidSerialBarcodeLine = lines.filter((line) => line.trackingMode === "serial").find((line) => {
-      const barcodes = (line.unitDetails || []).map((detail) => (detail.internalBarcode || "").trim());
-      if (barcodes.every((barcode) => !barcode)) return false;
-      return barcodes.length !== line.quantity || barcodes.some((barcode) => !barcode) || new Set(barcodes.map((barcode) => barcode.toUpperCase())).size !== barcodes.length;
-    });
-    if (invalidSerialBarcodeLine) {
-      toast.error(`SKU ${invalidSerialBarcodeLine.sku} đã cấp mã vạch nội bộ thì phải cấp đủ cho mọi đơn vị và không trùng nhau.`);
-      return;
-    }
-    const invalidUnitLine = lines.filter((line) => line.trackingMode === "unit_barcode").find((line) => {
-      const details = (line.unitDetails || []).map((detail) => (detail.internalBarcode || "").trim());
-      return !Number.isInteger(line.quantity) || details.length !== line.quantity || details.some((barcode) => !barcode) || new Set(details.map((barcode) => barcode.toUpperCase())).size !== details.length;
-    });
-    if (invalidUnitLine) {
-      toast.error(`SKU ${invalidUnitLine.sku} phải có đủ mã vạch nội bộ duy nhất theo số lượng.`);
       return;
     }
     setSaving(true);
@@ -470,11 +454,10 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
         supplierId,
         notes: notes.trim() || undefined,
         financeTerms: financeEnabled ? financeTerms : null,
-        items: lines.map(({ key: _key, displayName: _displayName, ...line }) => {
-          // Không gửi unitDetails rỗng (hàng serial được phép không cấp mã nội bộ).
-          const unitDetails = (line.unitDetails || []).filter((detail) => (detail.internalBarcode || "").trim());
-          return { ...line, unitDetails: unitDetails.length > 0 ? unitDetails : undefined };
-        }),
+        items: lines.map(({ key: _key, displayName: _displayName, ...line }) => ({
+          ...line,
+          unitDetails: line.unitDetails?.length ? line.unitDetails : undefined,
+        })),
       };
       if (initialReceipt) await inventoryReceivingService.updateReceipt(initialReceipt._id, payload);
       else await inventoryReceivingService.createReceipt(payload);
@@ -493,10 +476,21 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
         <div className="space-y-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">Nhà cung cấp</label>
-            <select aria-label="Nhà cung cấp" value={supplierId} onChange={(event) => setSupplierId(event.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600">
-              <option value="">Chọn nhà cung cấp</option>
-              {suppliers.map((item) => <option key={item._id} value={item.supplierId}>{item.name} ({item.code})</option>)}
-            </select>
+            <Dropdown<string>
+              aria-label="Nhà cung cấp"
+              name="supplierId"
+              value={supplierId}
+              onChange={setSupplierId}
+              options={supplierOptions}
+              placeholder="Chọn nhà cung cấp"
+              variant="form"
+              size="md"
+              searchable
+              searchPlaceholder="Tìm nhà cung cấp..."
+              disabled={suppliers.length === 0}
+              className="w-full"
+              triggerClassName="w-full text-sm"
+            />
             <p className="mt-1.5 text-xs text-slate-500">Thêm hoặc sửa nhà cung cấp tại Quản lý đối tác.</p>
           </div>
 
@@ -513,36 +507,36 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
                 </button>
               )}
             </div>
-            <div className="grid gap-4 sm:grid-cols-12 items-end">
-              <div className="sm:col-span-5">
+            <div className="grid grid-cols-1 items-end gap-4 sm:grid-cols-[minmax(0,4fr)_minmax(0,4fr)_minmax(96px,2fr)_minmax(120px,2fr)_40px]">
+              <div>
                 <label className="mb-1.5 block text-xs font-medium text-slate-700">Sản phẩm</label>
                 <SearchableSelect
                   placeholder="Tìm kiếm sản phẩm..."
                   value={productId}
                   onChange={(id) => { setProductId(id); setVariantId(""); }}
                   onQueryChange={setProductSearch}
-                  options={products.map((p) => ({ value: p._id, label: `${p.name} (${p.productCode})` }))}
+                  options={products.map((p) => ({ value: p._id, label: p.name, sublabel: `Mã SP: ${p.productCode}` }))}
                 />
               </div>
-              <div className="sm:col-span-3">
-                <label className="mb-1.5 block text-xs font-medium text-slate-700">Mã SKU</label>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-700">Phiên bản sản phẩm</label>
                 <SearchableSelect
                   disabled={!productId || variants.length === 0}
-                  placeholder="Chọn SKU..."
+                  placeholder="Chọn phiên bản..."
                   value={variantId}
                   onChange={setVariantId}
-                  options={variants.map((v) => ({ value: v._id, label: `${v.sku}${v.displayName ? ` - ${v.displayName}` : ""}` }))}
+                  options={variantOptions}
                 />
               </div>
-              <div className="sm:col-span-2">
+              <div>
                 <label className="mb-1.5 block text-xs font-medium text-slate-700">Số lượng</label>
                 <input type="number" min={quantityStep} step={quantityStep} value={quantity} onChange={(event) => setQuantity(event.target.value)} className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600 bg-white" />
               </div>
-              <div className="sm:col-span-2">
+              <div>
                 <label className="mb-1.5 block text-xs font-medium text-slate-700">Giá nhập</label>
                 <input type="number" min="0" step="1" value={unitCost} onChange={(event) => setUnitCost(event.target.value)} className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600 bg-white" />
               </div>
-              <div className="sm:col-span-1">
+              <div>
                 <button type="button" onClick={addLine} className="inline-flex h-[38px] w-full items-center justify-center rounded-md bg-cyan-700 text-white hover:bg-cyan-800 focus:outline-none focus:ring-2 focus:ring-cyan-600 focus:ring-offset-1" title="Thêm dòng"><PackagePlus className="h-5 w-5" /></button>
               </div>
             </div>
@@ -581,7 +575,7 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
                     <th className="px-4 py-3 font-medium">Sản phẩm</th>
                     <th className="px-4 py-3 font-medium">SKU</th>
                     <th className="px-4 py-3 text-right font-medium">Số lượng</th>
-                    <th className="px-4 py-3 font-medium">IMEI / serial · Mã vạch nội bộ</th>
+                    <th className="px-4 py-3 font-medium">Serial / IMEI thiết bị</th>
                     <th className="px-4 py-3 text-right font-medium">BH NCC (tháng)</th>
                     <th className="px-4 py-3 text-right font-medium">Đơn giá</th>
                     <th className="px-4 py-3 text-right font-medium">Thành tiền</th>
@@ -647,14 +641,6 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
 
                             <button
                               type="button"
-                              onClick={() => generateUnitBarcodes(line)}
-                              className="text-xs font-medium text-cyan-700 hover:text-cyan-900"
-                            >
-                              Sinh mã nội bộ
-                            </button>
-
-                            <button
-                              type="button"
                               onClick={() =>
                                 setExpandedUnitLines((curr) => ({
                                   ...curr,
@@ -707,21 +693,36 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
                             <td className="px-4 py-2 text-right tabular-nums text-xs text-slate-400">1</td>
                             <td className="px-4 py-2">
                               <div className="flex flex-wrap gap-2">
-                                {line.trackingMode === "serial" && (
+                                {line.trackingMode === "serial" ? (
                                   <input
                                     value={line.serialNumbers?.[index] || ""}
                                     onChange={(event) => updateSerialAt(line.key, index, event.target.value)}
-                                    placeholder={`IMEI/serial ${index + 1}`}
+                                    placeholder={`Serial / IMEI chính ${index + 1}`}
                                     className="w-44 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600"
-                                    aria-label={`IMEI serial ${line.sku} đơn vị ${index + 1}`}
+                                    aria-label={`Serial hoặc IMEI chính ${line.sku} đơn vị ${index + 1}`}
+                                  />
+                                ) : (
+                                  <input
+                                    value={line.unitDetails?.[index]?.serialNumber || ""}
+                                    onChange={(event) => updateUnitDetailAt(line.key, index, "serialNumber", event.target.value)}
+                                    placeholder={`Serial (nếu có) ${index + 1}`}
+                                    className="w-44 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-cyan-600"
+                                    aria-label={`Serial ${line.sku} đơn vị ${index + 1}`}
                                   />
                                 )}
                                 <input
-                                  value={line.unitDetails?.[index]?.internalBarcode || ""}
-                                  onChange={(event) => updateUnitBarcodeAt(line.key, index, event.target.value)}
-                                  placeholder={`Mã vạch nội bộ ${index + 1}`}
-                                  className="w-44 rounded-md border border-cyan-200 bg-cyan-50 px-2 py-1.5 text-xs outline-none focus:border-cyan-600"
-                                  aria-label={`Mã vạch nội bộ ${line.sku} đơn vị ${index + 1}`}
+                                  value={line.unitDetails?.[index]?.imei1 || ""}
+                                  onChange={(event) => updateUnitDetailAt(line.key, index, "imei1", event.target.value)}
+                                  placeholder={`IMEI 1 (nếu có) ${index + 1}`}
+                                  className="w-40 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-cyan-600"
+                                  aria-label={`IMEI 1 ${line.sku} đơn vị ${index + 1}`}
+                                />
+                                <input
+                                  value={line.unitDetails?.[index]?.imei2 || ""}
+                                  onChange={(event) => updateUnitDetailAt(line.key, index, "imei2", event.target.value)}
+                                  placeholder={`IMEI 2 (nếu có) ${index + 1}`}
+                                  className="w-40 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-cyan-600"
+                                  aria-label={`IMEI 2 ${line.sku} đơn vị ${index + 1}`}
                                 />
                               </div>
                             </td>
@@ -856,7 +857,7 @@ function ReceiptCreatorModal({ initialReceipt, onClose, onSaved }: { initialRece
                 Hủy bỏ
               </button>
               <button type="button" disabled={saving || lines.length === 0} onClick={() => void saveReceipt()} className="rounded-md bg-cyan-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-cyan-800 transition-colors disabled:opacity-50">
-                {saving ? "Đang xử lý..." : "Nhập kho"}
+                {saving ? "Đang xử lý..." : initialReceipt ? "Lưu thay đổi" : "Tạo phiếu nháp"}
               </button>
             </div>
           </div>

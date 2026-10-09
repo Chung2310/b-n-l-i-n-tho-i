@@ -10,6 +10,8 @@ export interface CollaboratorPickerProps {
   className?: string;
   label?: string;
   allowCreate?: boolean;
+  extraAction?: React.ReactNode;
+  triggerClassName?: string;
 }
 
 export default function CollaboratorPicker({
@@ -18,6 +20,8 @@ export default function CollaboratorPicker({
   className = "",
   label = "CTV giới thiệu",
   allowCreate = true,
+  extraAction,
+  triggerClassName,
 }: CollaboratorPickerProps) {
   const [items, setItems] = useState<Array<{ _id: string; code: string; name: string }>>([]);
   const [error, setError] = useState("");
@@ -62,18 +66,21 @@ export default function CollaboratorPicker({
   return (
     <div className={`flex flex-col gap-1.5 text-sm ${className}`}>
       <div className="flex items-center justify-between">
-        {label && <span className="font-semibold text-slate-700">{label}</span>}
-        {allowCreate && (
-          <button
-            type="button"
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-cyan-600 hover:text-cyan-700 transition cursor-pointer"
-            title="Tạo trực tiếp cộng tác viên mới"
-          >
-            <UserPlus className="h-3.5 w-3.5" />
-            <span>+ Thêm CTV</span>
-          </button>
-        )}
+        {label && <span className="font-semibold text-slate-700 dark:text-zinc-200">{label}</span>}
+        <div className="flex items-center gap-2">
+          {extraAction}
+          {allowCreate && (
+            <button
+              type="button"
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 transition cursor-pointer"
+              title="Tạo trực tiếp cộng tác viên mới"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              <span>+ Thêm CTV</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <Dropdown<string>
@@ -86,7 +93,10 @@ export default function CollaboratorPicker({
         searchable={items.length > 5}
         searchPlaceholder="Tìm kiếm CTV theo mã hoặc tên..."
         className="w-full"
-        triggerClassName="w-full justify-between py-2.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 text-slate-800 shadow-2xs font-normal"
+        triggerClassName={
+          triggerClassName ||
+          "w-full justify-between py-2.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 text-slate-800 shadow-2xs font-normal"
+        }
         actionButton={
           allowCreate
             ? {

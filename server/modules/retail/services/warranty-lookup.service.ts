@@ -11,7 +11,8 @@ import { getCustomerContact } from "../../customer-management/contracts";
 
 export async function lookupWarranty(scope: RetailScope, code: string, at = new Date()) {
   const normalized = normalizeSerialNumber(code);
-  const unit: any = await SerialUnitModel.findOne({ companyCode: scope.companyCode, $or: [{ normalizedSerialNumber: normalized }, { normalizedInternalBarcode: normalizeInternalBarcode(code) }] }).lean();
+  const internalBarcode = normalizeInternalBarcode(code);
+  const unit: any = await SerialUnitModel.findOne({ companyCode: scope.companyCode, $or: [{ normalizedSerialNumber: normalized }, { normalizedInternalBarcode: internalBarcode }, { normalizedBarcodeAliases: internalBarcode }, { normalizedImeis: normalized }] }).lean();
   if (!unit) return { found: false as const };
   const variant: any = unit.variantId ? await ProductVariantModel.findOne({ _id: unit.variantId, companyCode: scope.companyCode }).select("productId warrantyMonths").lean() : null; const product: any = await ProductCatalogModel.findOne({ _id: unit.productId || variant?.productId, companyCode: scope.companyCode }).select("warrantyMonths").lean(); const promisedMonths = resolveCustomerWarrantyMonths(product?.warrantyMonths, variant?.warrantyMonths); const customerWarranty = effectiveCustomerWarranty(unit, promisedMonths); const coverage = evaluateCoverage({ ...unit, customerWarranty }, at); const promisedEnd = promisedMonths ? computeWarrantyEnd(unit.soldAt || at, promisedMonths) : undefined; const gapMonths = promisedEnd && unit.supplierWarranty?.endAt && unit.supplierWarranty.endAt < promisedEnd ? Math.max(0, Math.ceil((promisedEnd.getTime() - new Date(unit.supplierWarranty.endAt).getTime()) / (30 * 86_400_000))) : 0;
   const customer = unit.customerId ? await getCustomerContact({ companyCode: scope.companyCode }, String(unit.customerId), { includeInactive: true }) : null;

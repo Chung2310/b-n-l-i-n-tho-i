@@ -25,11 +25,7 @@ type ProductBalanceGroup = {
 
 type StockFilterType = "all" | "in_stock" | "low_stock" | "out_of_stock";
 
-export function WarehouseSection({
-  onCreateOutbound,
-}: {
-  onCreateOutbound?: (warehouseId: string, sku: string) => void;
-}) {
+export function WarehouseSection() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [balances, setBalances] = useState<InventoryBalance[]>([]);
   const [warehouseId, setWarehouseId] = useState("");
@@ -56,9 +52,9 @@ export function WarehouseSection({
         : nextWarehouses[0]?._id || "";
       setWarehouseId(selected);
       if (selected) {
-        setBalances(await inventoryReceivingService.listBalances(selected));
+        setBalances(await inventoryReceivingService.listBalances(selected, true));
       } else {
-        setBalances(await inventoryReceivingService.listBalances());
+        setBalances(await inventoryReceivingService.listBalances(undefined, true));
       }
     } catch (error: any) {
       toast.error(error?.message || "Không thể tải số dư kho.");
@@ -75,7 +71,7 @@ export function WarehouseSection({
     if (warehouseId) {
       setLoading(true);
       inventoryReceivingService
-        .listBalances(warehouseId)
+        .listBalances(warehouseId, true)
         .then(setBalances)
         .catch(() => undefined)
         .finally(() => setLoading(false));
@@ -129,7 +125,7 @@ export function WarehouseSection({
     balances.forEach((item) => {
       const avail = Math.max(0, item.quantity - item.reservedQuantity);
       const min = Number(item.minStock || 0);
-      if (avail === 0) outCount++;
+      if (avail === 0 && (item.hasMovementHistory || item.quantity > 0 || item.reservedQuantity > 0)) outCount++;
       else if (min > 0 && avail < min) lowCount++;
     });
     return { outCount, lowCount, warningCount: outCount + lowCount };
@@ -149,7 +145,7 @@ export function WarehouseSection({
           // Stock level filter
           if (stockFilter === "in_stock" && avail <= 0) return false;
           if (stockFilter === "low_stock" && (avail === 0 || min <= 0 || avail >= min)) return false;
-          if (stockFilter === "out_of_stock" && avail > 0) return false;
+          if (stockFilter === "out_of_stock" && (avail > 0 || (!item.hasMovementHistory && item.quantity === 0))) return false;
 
           // Search term filter
           if (q) {
@@ -604,7 +600,7 @@ export function WarehouseSection({
                           const itemTotalValue = item.quantity * item.averageCost;
                           const minStock = Number(item.minStock || 0);
                           const isLow = minStock > 0 && itemAvail < minStock;
-                          const isOut = item.quantity === 0;
+                          const isOut = itemAvail <= 0;
 
                           return (
                             <tr
@@ -635,7 +631,19 @@ export function WarehouseSection({
                                         {copiedSku === item.sku ? "Đã chép SKU" : item.sku}
                                       </button>
 
-                                      {isOut ? (
+                                      {!item.hasMovementHistory && item.quantity === 0 ? (
+                                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 border border-slate-200">
+                                          Chưa nhập
+                                        </span>
+                                      ) : !item.hasMovementHistory && item.quantity > 0 ? (
+                                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-200">
+                                          Tồn đầu kỳ
+                                        </span>
+                                      ) : isOut && item.quantity > 0 ? (
+                                        <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200">
+                                          Đang giữ hết
+                                        </span>
+                                      ) : isOut ? (
                                         <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 border border-rose-200">
                                           Hết hàng
                                         </span>
@@ -700,18 +708,6 @@ export function WarehouseSection({
                                   >
                                     Xem IMEI
                                   </button>
-
-                                  {/* Create Outbound */}
-                                  {itemAvail > 0 && onCreateOutbound && (
-                                    <button
-                                      type="button"
-                                      onClick={() => onCreateOutbound(item.warehouseId, item.sku)}
-                                      className="rounded border border-rose-200 bg-white px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-50 transition-colors shadow-2xs whitespace-nowrap"
-                                      title="Tạo phiếu xuất hàng cho SKU này"
-                                    >
-                                      Xuất kho
-                                    </button>
-                                  )}
 
                                   {/* Set Threshold */}
                                   <button

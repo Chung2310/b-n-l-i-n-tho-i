@@ -9,6 +9,8 @@ import { CompanyModel } from "../../model/company.model";
 import { RolePermissionModel } from "../../model/role-permission.model";
 import { clearModuleCache } from "../../middleware/require-module";
 import { RetailProductService } from "./services/retail-product.service";
+import { RetailOrderService } from "./services/retail-order.service";
+import { CashierShiftService } from "./services/cashier-shift.service";
 
 let server: Server;
 let origin: string;
@@ -22,6 +24,7 @@ const token = (payload = actor) => jwt.sign(payload, secret, { expiresIn: "5m" }
 before(async () => {
   process.env.JWT_ACCESS_SECRET = secret;
   const app = express();
+  app.use(express.json());
   app.use("/api/v1", retailRouter);
   app.get("/api/v1/unrelated", (_req, res) => res.json({ ok: true }));
   server = await new Promise<Server>((resolve) => {
@@ -77,4 +80,71 @@ test("authenticated users still need retail permission", async () => {
 });
 test("retail guards do not intercept other API routes", async () => {
   assert.equal((await fetch(`${origin}/unrelated`)).status, 200);
+});
+
+const cashierRequest = (path: string, method = "GET", body?: any) => fetch(`${origin}/retail${path}`, {
+  method, headers: { Authorization: `Bearer ${token({ ...actor, role: "pos_cashier" })}`, "Content-Type": "application/json" },
+  ...(body ? { body: JSON.stringify(body) } : {}),
+});
+
+test("POS-only cashier can select products without receiving cost prices", async () => {
+  permissions = ["pos:manage"];
+  mock.method(RetailProductService, "search", async () => ({ items: [{ _id: "p1", price: 100, costPrice: 70 }], total: 1 }) as any);
+  const response = await cashierRequest("/orders/products");
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).data.items, [{ _id: "p1", price: 100 }]);
+});
+
+test("cashier cannot use list query parameters to read other cashiers' orders", async () => {
+  permissions = ["pos:manage"];
+  mock.method(RetailOrderService, "list", async (_scope, query) => {
+    assert.equal(query.heldOnly, true);
+    assert.equal(query.ownerId, "u1");
+    return { items: [], total: 0, page: 1, limit: 20 };
+  });
+  assert.equal((await cashierRequest("/orders?heldOnly=false&ownerId=another-cashier")).status, 200);
+});
+
+test("cashier quote and draft responses omit total and line costs", async () => {
+  permissions = ["pos:manage"];
+  const item = { productId: "p1", unitPrice: 100, unitCost: 70 };
+  mock.method(RetailOrderService, "quote", async () => ({ lines: [item], grandTotal: 100, totalCost: 70 }) as any);
+  mock.method(RetailOrderService, "createDraft", async () => ({ _id: "o1", items: [item], totalCost: 70 }) as any);
+  mock.method(RetailOrderService, "updateDraft", async () => ({ _id: "o1", items: [item], totalCost: 70 }) as any);
+  for (const [path, method, lines] of [["/orders/quote", "POST", "lines"], ["/orders", "POST", "items"], ["/orders/o1", "PATCH", "items"]]) {
+    const response = await cashierRequest(path, method, {});
+    assert.ok(response.ok);
+    const data = (await response.json()).data;
+    assert.equal("totalCost" in data, false);
+    assert.equal("unitCost" in data[lines][0], false);
+  }
+});
+
+test("cashier confirmation requires an open session, but completed replays remain recoverable", async () => {
+  permissions = ["pos:manage"];
+  let replay = false;
+  mock.method(RetailOrderService, "idempotency", async () => ({ status: replay ? "completed" : "not_found" }) as any);
+  const operational = mock.method(CashierShiftService, "operational", async () => ({ _id: "s1" }) as any);
+  const confirm = mock.method(RetailOrderService, "confirm", async () => ({ order: { items: [{ unitCost: 70 }], totalCost: 70 }, invoice: {} }) as any);
+  assert.equal((await cashierRequest("/orders/o1/confirm", "POST", { idempotencyKey: "k1" })).status, 409);
+  assert.equal(confirm.mock.callCount(), 0);
+  const request = { idempotencyKey: "k1", posSessionId: "s1" };
+  const response = await cashierRequest("/orders/o1/confirm?terminalId=t1", "POST", request);
+  assert.equal(response.status, 200);
+  const data = (await response.json()).data;
+  assert.equal("totalCost" in data.order, false);
+  assert.equal("unitCost" in data.order.items[0], false);
+  assert.equal(operational.mock.calls[0].arguments[3], "t1");
+  assert.equal(operational.mock.calls[0].arguments[4], "s1");
+  replay = true;
+  assert.equal((await cashierRequest("/orders/o1/confirm", "POST", request)).status, 200);
+  assert.equal(operational.mock.callCount(), 1);
+});
+
+test("POS-only cashier cannot collect unrelated debts or manage shift history", async () => {
+  permissions = ["pos:manage"];
+  for (const path of ["/orders/o1/payments", "/orders/o1/payments/reconcile", "/orders/o1/payments/revoke", "/shifts/s1/reconcile"]) {
+    assert.equal((await cashierRequest(path, "POST", {})).status, 403);
+  }
+  assert.equal((await cashierRequest("/shifts")).status, 403);
 });
