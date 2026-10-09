@@ -21,6 +21,7 @@ import SuperAdminShell from "./pages/super-admin/SuperAdminShell";
 import { isSuperAdminPath } from "./router/superAdminRoute";
 import { resolveEnabledTab } from "./config/modules";
 import { isPartnerPortalProfile } from "./modules/partners/partnerAccess";
+import { handleInternalNavigation } from "./utils/internalNavigation";
 
 const UNREAD_TITLE_PREFIX_RE = /^\(\d+\+?\d*\)\s/;
 
@@ -178,7 +179,7 @@ function AppContent() {
           </Suspense>
         </div>
         <div className="mt-8 text-center text-xs text-slate-400">
-          <a href="/dang-nhap" className="font-semibold text-slate-500 hover:text-blue-600 underline">
+          <a href="/dang-nhap" onClick={(event) => handleInternalNavigation(event, "/dang-nhap")} className="font-semibold text-slate-500 hover:text-blue-600 underline">
             Quay lại trang Đăng nhập
           </a>
         </div>

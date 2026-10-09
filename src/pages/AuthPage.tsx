@@ -4,10 +4,11 @@ import { Mail, Lock, RefreshCw, ArrowRight, Eye, EyeOff, AlertCircle, ArrowLeft 
 import {
   BRAND_LOGO_PATH,
   BRAND_NAME,
-  PRIVACY_POLICY_URL,
-  TERMS_OF_SERVICE_URL,
-  USER_DATA_DELETION_URL,
+  PRIVACY_POLICY_PATH,
+  TERMS_OF_SERVICE_PATH,
+  USER_DATA_DELETION_PATH,
 } from "../config/brand";
+import { handleInternalNavigation } from "../utils/internalNavigation";
 import { parseFirebaseError } from "../utils/firebaseErrorParser";
 
 export default function AuthPage() {
@@ -211,25 +212,22 @@ export default function AuthPage() {
         <div className="border-t border-slate-100 pt-4 text-center text-[11px] text-slate-500">
           <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
             <a
-              href={PRIVACY_POLICY_URL}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={PRIVACY_POLICY_PATH}
+              onClick={(event) => handleInternalNavigation(event, PRIVACY_POLICY_PATH)}
               className="font-semibold text-slate-600 underline underline-offset-2 hover:text-blue-700"
             >
               Privacy Policy
             </a>
             <a
-              href={TERMS_OF_SERVICE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={TERMS_OF_SERVICE_PATH}
+              onClick={(event) => handleInternalNavigation(event, TERMS_OF_SERVICE_PATH)}
               className="font-semibold text-slate-600 underline underline-offset-2 hover:text-blue-700"
             >
               Terms of Service
             </a>
             <a
-              href={USER_DATA_DELETION_URL}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={USER_DATA_DELETION_PATH}
+              onClick={(event) => handleInternalNavigation(event, USER_DATA_DELETION_PATH)}
               className="font-semibold text-slate-600 underline underline-offset-2 hover:text-blue-700"
             >
               Data Deletion

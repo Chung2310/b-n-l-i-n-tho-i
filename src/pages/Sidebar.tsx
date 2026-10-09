@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, FolderOpen, LayoutDashboard, MessageSquare, Package, Settings, Shield, Users, BookOpen, ShoppingCart, Landmark, Megaphone, Wrench, ContactRound, Headphones } from "lucide-react";
-import { BRAND_LOGO_PATH, PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL, USER_DATA_DELETION_URL } from "../config/brand";
+import { BRAND_LOGO_PATH, PRIVACY_POLICY_PATH, TERMS_OF_SERVICE_PATH, USER_DATA_DELETION_PATH } from "../config/brand";
+import { handleInternalNavigation } from "../utils/internalNavigation";
 import type { TabType } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { useIsMobile } from "../hooks/useMediaQuery";
@@ -50,7 +51,7 @@ export default function Sidebar({ activeTab, setActiveTab, mobileOpen, onMobileC
       </nav>
       <div className={`border-t border-slate-100 ${isCollapsed ? "px-2 py-3" : "px-3 py-3"}`}>
         <button type="button" onClick={() => setIsCollapsed((current) => !current)} className="mx-auto flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm" title={isCollapsed ? "Mở rộng" : "Thu gọn"}>{isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}</button>
-        {!isCollapsed && <div className="mt-3 flex flex-wrap justify-center gap-x-3 gap-y-1 px-2 text-[11px] text-slate-400"><a href={PRIVACY_POLICY_URL} target="_blank" rel="noreferrer">Bảo mật</a><span>•</span><a href={TERMS_OF_SERVICE_URL} target="_blank" rel="noreferrer">Điều khoản</a><span>•</span><a href={USER_DATA_DELETION_URL} target="_blank" rel="noreferrer">Xóa dữ liệu</a></div>}
+        {!isCollapsed && <div className="mt-3 flex flex-wrap justify-center gap-x-3 gap-y-1 px-2 text-[11px] text-slate-400"><a href={PRIVACY_POLICY_PATH} onClick={(event) => handleInternalNavigation(event, PRIVACY_POLICY_PATH)}>Bảo mật</a><span>•</span><a href={TERMS_OF_SERVICE_PATH} onClick={(event) => handleInternalNavigation(event, TERMS_OF_SERVICE_PATH)}>Điều khoản</a><span>•</span><a href={USER_DATA_DELETION_PATH} onClick={(event) => handleInternalNavigation(event, USER_DATA_DELETION_PATH)}>Xóa dữ liệu</a></div>}
       </div>
     </aside>
   </>;

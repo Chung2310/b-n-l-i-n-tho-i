@@ -9,7 +9,7 @@ import {
 } from "./production-stepped-load-test.js";
 
 test("exports an immutable production-only profile", () => {
-  assert.equal(PRODUCTION_ORIGIN, "https://erp.igentechsolutions.com");
+  assert.equal(PRODUCTION_ORIGIN, "https://erp.igentechnology.net");
   assert.equal(MAX_PRODUCTION_CONCURRENCY, 10);
   assert.deepEqual(PRODUCTION_STAGES, [
     { ratePerSecond: 2, durationMs: 120_000 },
