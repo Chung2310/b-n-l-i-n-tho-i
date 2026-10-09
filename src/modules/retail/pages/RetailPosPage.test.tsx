@@ -29,7 +29,7 @@ vi.mock("../../customer-management/customerApi", () => ({ customerApi: { billing
 vi.mock("../api/retailProducts.api", () => ({ retailProductsApi: { list: vi.fn(), categories: vi.fn().mockResolvedValue([]) } }));
 vi.mock("../api/retailShifts.api", () => ({ retailShiftsApi: { current: vi.fn().mockResolvedValue({ _id: "s1", shiftCode: "CA-1", cashierId: "u1", cashierName: "Thu ngân", openingFloat: 0, businessDate: "2026-08-10", status: "open" }) } }));
 vi.mock("../../../services/retailWarrantyService", () => ({ retailWarrantyService: { lookup: vi.fn() } }));
-vi.mock("../api/retailOrders.api", () => ({ retailOrdersApi: { list: vi.fn(), quote: vi.fn(), createDraft: vi.fn(), updateDraft: vi.fn(), confirm: vi.fn(), idempotency: vi.fn(), cancel: vi.fn() } }));
+vi.mock("../api/retailOrders.api", () => ({ retailOrdersApi: { list: vi.fn(), quote: vi.fn(), checkout: vi.fn(), createDraft: vi.fn(), updateDraft: vi.fn(), confirm: vi.fn(), idempotency: vi.fn(), cancel: vi.fn() } }));
 vi.mock("../components/pos/HeldDraftsBar", () => ({ default: () => null }));
 vi.mock("../components/pos/BarcodeScannerDialog", () => ({ default: () => null }));
 vi.mock("../components/pos/CustomerPicker", () => ({ default: ({ onChange }: any) => <button onClick={() => onChange({ _id: "c1", customerCode: "KH-1", companyCode: "ACME", type: "vat", name: "An" })}>Chọn khách An</button> }));
@@ -59,6 +59,7 @@ beforeEach(() => {
   vi.mocked(retailOrdersApi.list).mockResolvedValue({ items: [], total: 0, page: 1, limit: 5 });
   vi.mocked(retailOrdersApi.quote).mockResolvedValue({ subtotal: 180_000, grandTotal: 209_000 });
   vi.mocked(retailOrdersApi.createDraft).mockResolvedValue({ ...order, status: "draft" });
+  vi.mocked(retailOrdersApi.checkout).mockResolvedValue({ order, invoice });
   vi.mocked(retailOrdersApi.confirm).mockResolvedValue({ order, invoice });
 });
 
@@ -122,6 +123,7 @@ describe("RetailPosPage", () => {
     render(<RetailPosPage posSessionId="s1" />);
     await userEvent.click(await screen.findByRole("button", { name: "A" }));
     await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Giảm giá" }));
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Chọn mã ưu đãi đã tạo" }), "SALE10");
     expect((screen.getByRole("textbox", { name: "Mã ưu đãi" }) as HTMLInputElement).value).toBe("SALE10");
     await waitFor(() => expect(retailOrdersApi.quote).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ couponCode: "SALE10" })));
@@ -212,19 +214,17 @@ describe("RetailPosPage", () => {
     await userEvent.click(await screen.findByRole("button", { name: /Áo/ }));
     await userEvent.click(screen.getByRole("button", { name: "Chọn khách An" }));
     await userEvent.click(screen.getByRole("button", { name: "Giảm giá Áo" }));
+    await userEvent.click(screen.getByRole("button", { name: "Giảm giá" }));
     await userEvent.click(screen.getByRole("button", { name: "Điều chỉnh đơn" }));
 
-    await waitFor(() => expect(retailOrdersApi.quote).toHaveBeenCalledWith({ companyCode: "ACME", branchId: "B1" }, {
-      items: [{ productId: "p1", quantity: 1, discount: { type: "percent", value: 10 } }], customerId: "c1", billingProfileId: "bp1",
-      orderDiscount: { type: "amount", value: 5_000 }, taxRate: 8, shippingFee: 20_000,
-    }));
+    await waitFor(() => expect(retailOrdersApi.quote).toHaveBeenCalledWith({ companyCode: "ACME", branchId: "B1" }, expect.objectContaining({ items: [expect.objectContaining({ productId: "p1", quantity: 1, discount: { type: "percent", value: 10 } })], customerId: "c1", billingProfileId: "bp1", orderDiscount: { type: "amount", value: 5_000 }, taxRate: 8, shippingFee: 20_000 })));
     await userEvent.click(screen.getByRole("button", { name: "Thanh toán" }));
     await userEvent.click(screen.getByRole("button", { name: "Gửi thanh toán" }));
     expect(await screen.findByRole("dialog", { name: "Thanh toán thành công" })).toBeTruthy();
-    expect(screen.getByText("HD-1")).toBeTruthy();
+    expect(screen.getAllByText("HD-1").length).toBeGreaterThan(0);
   });
 
-  it("creates a customer debt draft with VAT profile and confirms with no collected payments", async () => {
+  it("checks out a customer debt order directly with VAT and no collected payments", async () => {
     render(<RetailPosPage posSessionId="s1" />);
     await userEvent.click(await screen.findByRole("button", { name: "A" }));
     await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
@@ -233,8 +233,8 @@ describe("RetailPosPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Thanh toán" }));
     await userEvent.click(screen.getByRole("button", { name: "Gửi ghi nợ toàn bộ" }));
 
-    await waitFor(() => expect(retailOrdersApi.createDraft).toHaveBeenCalledWith({ companyCode: "ACME", branchId: "B1", userId: "u1" }, expect.objectContaining({ customerId: "c1", billingProfileId: "bp1", dueDate: "2026-09-30" })));
-    expect(retailOrdersApi.confirm).toHaveBeenCalledWith({ companyCode: "ACME", branchId: "B1", userId: "u1" }, "o1", expect.objectContaining({ payments: [], expectedVersion: 1 }));
+    await waitFor(() => expect(retailOrdersApi.checkout).toHaveBeenCalledWith({ companyCode: "ACME", branchId: "B1", userId: "u1" }, expect.objectContaining({ input: expect.objectContaining({ customerId: "c1", billingProfileId: "bp1", dueDate: "2026-09-30" }), payments: [], expectedGrandTotal: 209_000, idempotencyKey: expect.any(String), posSessionId: "s1" })));
+    expect(retailOrdersApi.createDraft).not.toHaveBeenCalled(); expect(retailOrdersApi.confirm).not.toHaveBeenCalled();
   });
 
   it("displays zero-stock products and warns when attempting to add to cart", async () => {
@@ -278,7 +278,7 @@ describe("RetailPosPage", () => {
 });
 
 it.each([new TypeError("network"), Object.assign(new Error("Sai giá"), { status: 409 })])("retains a failed checkout without auto-cancel or deleting its intent: %s", async error => {
-  vi.mocked(retailOrdersApi.confirm).mockRejectedValueOnce(error);
+  vi.mocked(retailOrdersApi.checkout).mockRejectedValueOnce(error);
   render(<RetailPosPage posSessionId="s1" />);
   await userEvent.click(await screen.findByRole("button", { name: "A" }));
   await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));
@@ -302,5 +302,5 @@ it("blocks payment when durable browser storage is unavailable", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Thanh toán" }));
   await userEvent.click(screen.getByRole("button", { name: "Gửi thanh toán" }));
   await waitFor(() => expect(toast.error).toHaveBeenCalled());
-  expect(retailOrdersApi.createDraft).not.toHaveBeenCalled(); expect(retailOrdersApi.confirm).not.toHaveBeenCalled();
+  expect(retailOrdersApi.checkout).not.toHaveBeenCalled(); expect(retailOrdersApi.createDraft).not.toHaveBeenCalled(); expect(retailOrdersApi.confirm).not.toHaveBeenCalled();
 });

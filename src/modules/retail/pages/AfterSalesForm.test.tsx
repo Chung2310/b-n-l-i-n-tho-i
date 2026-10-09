@@ -5,18 +5,23 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { AfterSalesForm } from "./RetailOrdersPageV2";
 import { retailAfterSalesApi } from "../api/retailAfterSales.api";
+import { retailShiftsApi } from "../api/retailShifts.api";
 import type { RetailOrder } from "../types";
 vi.mock("../hooks/useRetailScope", () => ({ useRetailScope: () => ({ scope: { companyCode: "A", branchId: "B" }, userProfile: { uid: "u1" } }) }));
 vi.mock("../api/retailAfterSales.api", () => ({ retailAfterSalesApi: { create: vi.fn(), reconcile: vi.fn(), revoke: vi.fn() } }));
+vi.mock("../api/retailShifts.api", () => ({ retailShiftsApi: { list: vi.fn() } }));
 vi.mock("../../../pages/Toast", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const cashSessionId = "0123456789abcdef01234567";
 const order = { _id: "o1", version: 3, orderCode: "DH1", subtotal: 400, grandTotal: 400, items: [{ productName: "Phone", sku: "PHONE", quantity: 2, lineTotal: 400 }] } as RetailOrder;
-beforeEach(() => { sessionStorage.clear(); localStorage.clear(); Object.defineProperty(navigator, "locks", { configurable: true, value: { request: vi.fn(async (_key, _options, work) => work({ name: _key })) } }); vi.resetAllMocks(); });
+beforeEach(() => { vi.resetAllMocks(); vi.mocked(retailShiftsApi.list).mockResolvedValue({ items: [{ _id: cashSessionId, cashierName: "Test cashier", businessDate: "2026-10-09", status: "open" } as any], total: 1, page: 1, limit: 100 }); sessionStorage.clear(); localStorage.clear(); Object.defineProperty(navigator, "locks", { configurable: true, value: { request: vi.fn(async (_key, _options, work) => work({ name: _key })) } }); });
 afterEach(cleanup);
+const chooseOpenCashSession = async () => { const picker = await screen.findByRole("combobox", { name: /Phi.n thu/ }); await screen.findByRole("option", { name: /Test cashier/ }); await userEvent.selectOptions(picker, cashSessionId); };
 
 it.each(["return", "buyback"] as const)("freezes %s fields and retries the saved request after reopening", async (type) => {
   const user = userEvent.setup(), done = vi.fn();
   vi.mocked(retailAfterSalesApi.create).mockRejectedValueOnce(new Error("network"));
   const view = render(<AfterSalesForm order={order} type={type} close={vi.fn()} done={done} />);
+  await chooseOpenCashSession();
   await user.click(screen.getByRole("checkbox"));
   await user.type(screen.getByPlaceholderText("Nhập lý do đổi trả/thu mua..."), "Unused");
   await user.click(screen.getByRole("button", { name: "Xác nhận" }));

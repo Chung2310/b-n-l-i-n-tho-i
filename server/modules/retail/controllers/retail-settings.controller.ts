@@ -18,7 +18,7 @@ export const retailSettingsController = {
       getResolvedRetailSettings(retailScope),
       CompanyModel.findOne({ code: retailScope.companyCode }).select("name").lean(),
     ]);
-    return res.json({ success: true, data: { invoicePaperSize: settings.invoicePaperSize, invoiceTemplate: settings.invoiceTemplate, storeName: String(company?.name || "") } });
+    return res.json({ success: true, data: { invoicePaperSize: settings.invoicePaperSize, invoiceTemplate: settings.invoiceTemplate, defaultTaxRate: settings.defaultTaxRate, storeName: String(company?.name || "") } });
   },
   update: async (req: Request, res: Response) => res.json({ success: true, data: await updateRetailSettings(scope(req), req.body || {}) }),
 };
