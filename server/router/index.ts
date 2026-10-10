@@ -44,6 +44,7 @@ import { customerRouter } from "../modules/customer-management/router";
 import { marketingRouter } from "../modules/marketing/router";
 import { partnerRouter } from "../modules/partners/router";
 import { cskhRouter } from "../modules/cskh/router";
+import { tikTokShopRouter } from "../integrations/tiktok-shop/router";
 
 export const apiRouter = Router();
 apiRouter.use("/partners", partnerRouter);
@@ -68,6 +69,7 @@ apiRouter.get("/health", (req, res) => {
 
 // Gắn kết router phụ của Google Drive Tích hợp cá nhân
 apiRouter.use("/integrations/google-drive", googleDriveRouter);
+apiRouter.use("/integrations/tiktok-shop", tikTokShopRouter);
 
 // Quản lý tài nguyên — file explorer nội bộ + tài liệu Google Drive
 apiRouter.use("/resources", requireAuth as any, requireModule("resource"), resourceRouter);

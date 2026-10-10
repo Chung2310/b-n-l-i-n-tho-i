@@ -1,12 +1,13 @@
 import React, { useState } from "react";
-import { Sliders, Bell, GraduationCap } from "lucide-react";
+import { Sliders, Bell, GraduationCap, ShoppingBag } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import CompanySmtpSettingsTab from "./CompanySmtpSettingsTab";
 import CompanyPaymentSettingsTab from "./CompanyPaymentSettingsTab";
+import TikTokShopSettingsTab from "./TikTokShopSettingsTab";
 
 export default function ErpConfigTab() {
   const { hasPermission } = useAuth();
-  const [activeTab, setActiveTab] = useState<"general" | "companyModules" >("general");
+  const [activeTab, setActiveTab] = useState<"general" | "companyModules" | "salesChannels">("general");
 
   const canManageSmtp = hasPermission("settings:manage");
   const canManageCompanyModules = canManageSmtp;
@@ -33,6 +34,13 @@ export default function ErpConfigTab() {
               Thanh toán & Email
             </button>
           )}
+          {canManageCompanyModules && (
+            <button type="button" onClick={() => setActiveTab("salesChannels")}
+              className={`flex items-center gap-1.5 shrink-0 whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition cursor-pointer ${activeTab === "salesChannels" ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/10" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+              <ShoppingBag className="h-3.5 w-3.5" />
+              Kênh bán hàng
+            </button>
+          )}
         </div>
       )}
 
@@ -44,6 +52,7 @@ export default function ErpConfigTab() {
           {canManageSmtp && <CompanySmtpSettingsTab />}
         </div>
       )}
+      {activeTab === "salesChannels" && canManageCompanyModules && <TikTokShopSettingsTab />}
       {activeTab === "general" && (
       <>
       <div>
