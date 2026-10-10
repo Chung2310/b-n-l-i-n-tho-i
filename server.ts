@@ -39,7 +39,7 @@ import { apiErrorHandler } from "./server/middleware/api-error-handler";
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3011;
 
 /** Che các tham số nhạy cảm trên URL để chúng không nằm lại trong log. */
-const SENSITIVE_QUERY_KEYS = ["secret", "token", "apikey", "api_key", "password"];
+const SENSITIVE_QUERY_KEYS = ["secret", "token", "apikey", "api_key", "password", "code", "auth_code", "state"];
 function redactSensitiveQuery(url: string): string {
   if (!url.includes("?")) return url;
   const [path, rawQuery] = url.split("?");
