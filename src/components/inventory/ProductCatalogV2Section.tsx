@@ -37,6 +37,7 @@ import {
   statusLabels,
 } from "./catalog/catalogConstants";
 import { ProductViewerModal } from "./catalog/ProductViewerModal";
+import { productDescriptionToText } from "./catalog/productDescription";
 import { ProductEditorModal } from "./catalog/ProductEditorModal";
 import { CatalogSetupModal } from "./catalog/CatalogSetupModal";
 import { Dropdown, type DropdownOption } from "../common/Dropdown";
@@ -538,7 +539,7 @@ export function ProductCatalogV2Section() {
                           {product.name}
                         </p>
                         <p className="mt-0.5 max-w-sm truncate text-xs text-slate-500">
-                          {product.shortDescription || product.description || "Chưa có mô tả"}
+                          {productDescriptionToText(product.shortDescription || product.description) || "Chưa có mô tả"}
                         </p>
                       </td>
                       <td className="px-4 py-3">
