@@ -69,7 +69,7 @@ export async function refreshTikTokShopToken(refreshToken: string) {
 
 export async function callTikTokShopApi(options: {
   path: string;
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "PUT";
   accessToken: string;
   query?: Record<string, string | number | undefined>;
   body?: Record<string, unknown>;

@@ -3,12 +3,14 @@ import { Router } from "express";
 import type { NextFunction, Response } from "express";
 import { requireAuth, requirePermission, type AuthenticatedRequest } from "../../middleware/auth";
 import { TikTokShopService } from "./tiktok-shop.service";
+import "./tiktok-shop.consumer";
 
 export const tikTokShopRouter = Router();
 const read = [requireAuth as any, requirePermission(["settings:manage", "inventory:read"]) as any];
 const manage = [requireAuth as any, requirePermission("settings:manage") as any];
 const company = (req: AuthenticatedRequest) => req.user?.companyCode;
 const actor = (req: AuthenticatedRequest) => String(req.user?.id || "");
+const branch = (req: AuthenticatedRequest) => String(req.body?.branchId || req.user?.branchId || "");
 
 tikTokShopRouter.get("/status", ...read, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try { res.json({ data: await TikTokShopService.status(company(req)) }); } catch (error) { next(error); }
@@ -33,6 +35,12 @@ tikTokShopRouter.get("/callback", async (req: AuthenticatedRequest, res: Respons
 });
 tikTokShopRouter.post("/sync-products", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try { res.json({ data: await TikTokShopService.syncProducts(company(req)) }); } catch (error) { next(error); }
+});
+tikTokShopRouter.post("/import-products", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try { res.json({ data: await TikTokShopService.importProductsToInventory(company(req), branch(req), actor(req)) }); } catch (error) { next(error); }
+});
+tikTokShopRouter.post("/sync-inventory-prices", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try { res.json({ data: await TikTokShopService.syncInventoryAndPrices(company(req)) }); } catch (error) { next(error); }
 });
 tikTokShopRouter.get("/products", ...read, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try { res.json({ data: await TikTokShopService.listProducts(company(req), req.query as any) }); } catch (error) { next(error); }

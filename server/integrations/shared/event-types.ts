@@ -1,4 +1,4 @@
-export type DomainEventType = "retail.order.confirmed" | "retail.order.paid" | "retail.order.cancelled" | "finance.receivable.settled" | "finance.receivable.overdue" | "repair.ticket.received" | "repair.ticket.done" | "repair.ticket.delivered";
+export type DomainEventType = "retail.order.confirmed" | "retail.order.paid" | "retail.order.cancelled" | "finance.receivable.settled" | "finance.receivable.overdue" | "repair.ticket.received" | "repair.ticket.done" | "repair.ticket.delivered" | "inventory.stock.changed" | "inventory.price.changed";
 
 export interface RetailOrderConfirmedPayload { orderId: string; orderCode: string; branchId: string; customerId?: string; customerName?: string; customerPhone?: string; grandTotal: number; paidAmount: number; dueAmount: number; dueDate?: string; financingPartner?: string; }
 export interface RetailOrderPaidPayload { orderId: string; orderCode: string; branchId: string; customerId: string; amount: number; transactionKey: string; occurredAt: string; }
@@ -7,6 +7,7 @@ export interface FinanceReceivableSettledPayload { receivableId: string; sourceT
 export interface FinanceReceivableOverduePayload { receivableId: string; customerId: string; customerPhone?: string; balance: number; daysOverdue: number; sourceCode: string; }
 
 export interface RepairTicketEventPayload { ticketId: string; ticketCode: string; branchId: string; customerId: string; customerName: string; customerPhone: string; deviceName: string; serialNumber?: string; imei?: string; technicianId?: string; technicianName?: string; status: string; totalAmount: number; dueAmount: number; occurredAt: string; }
+export interface InventoryProductChangedPayload { variantId?: string; sku: string; }
 
 export type DomainPayloadMap = {
   "retail.order.confirmed": RetailOrderConfirmedPayload;
@@ -17,6 +18,8 @@ export type DomainPayloadMap = {
   "repair.ticket.received": RepairTicketEventPayload;
   "repair.ticket.done": RepairTicketEventPayload;
   "repair.ticket.delivered": RepairTicketEventPayload;
+  "inventory.stock.changed": InventoryProductChangedPayload;
+  "inventory.price.changed": InventoryProductChangedPayload;
 };
 
 export interface NewDomainEvent<T extends DomainEventType = DomainEventType> {
