@@ -6,6 +6,10 @@ const TikTokSkuSchema = new Schema({
   priceAmount: { type: String, default: "", trim: true },
   currency: { type: String, default: "", trim: true },
   inventoryQuantity: { type: Number, default: 0 },
+  inventory: { type: [new Schema({
+    warehouseId: { type: String, required: true, trim: true },
+    quantity: { type: Number, default: 0, min: 0 },
+  }, { _id: false })], default: [] },
   localProductId: { type: String, default: "", trim: true },
   localVariantId: { type: String, default: "", trim: true },
 }, { _id: false });
@@ -23,6 +27,9 @@ const TikTokShopProductSchema = new Schema({
   tiktokCreateTime: { type: Date, default: null },
   tiktokUpdateTime: { type: Date, default: null },
   lastSeenAt: { type: Date, required: true },
+  lastOutboundSyncAt: { type: Date, default: null },
+  lastOutboundSyncStatus: { type: String, enum: ["never", "success", "failed"], default: "never" },
+  lastOutboundSyncError: { type: String, default: "" },
 }, { timestamps: true });
 
 TikTokShopProductSchema.index({ companyCode: 1, connectionId: 1, shopCipher: 1, tiktokProductId: 1 }, { unique: true });

@@ -1,5 +1,5 @@
 import React from "react";
-import { Link2, Loader2, RefreshCw, ShoppingBag, Trash2 } from "lucide-react";
+import { Download, Link2, Loader2, RefreshCw, ShoppingBag, Trash2 } from "lucide-react";
 import { toast } from "../../pages/Toast";
 import { getApiErrorMessage } from "../../utils/errorMessage";
 import { tiktokShopApi, type TikTokShopProduct, type TikTokShopStatus } from "../../services/tiktokShopService";
@@ -52,6 +52,21 @@ export default function TikTokShopSettingsTab() {
     await load();
   });
 
+  const pushInventoryAndPrices = () => run("push", async () => {
+    const result = await tiktokShopApi.syncInventoryAndPrices();
+    if (result.failed) toast.error(`Đã cập nhật ${result.updated} SKU; ${result.failed} SKU lỗi. Xem chi tiết trong danh sách.`);
+    else toast.success(`Đã đẩy giá và tồn kho của ${result.updated} SKU lên TikTok Shop.`);
+    await load();
+  });
+
+  const importProducts = () => run("import", async () => {
+    const result = await tiktokShopApi.importProducts();
+    const summary = `Đã tạo ${result.createdProducts} sản phẩm, ${result.createdVariants} SKU và nhập ${result.importedStock} đơn vị tồn kho.`;
+    if (result.failed) toast.error(`${summary} Có ${result.failed} sản phẩm lỗi. ${result.errors[0] || ""}`.trim());
+    else toast.success(summary);
+    await load();
+  });
+
   const disconnect = (connectionId: string) => run(`disconnect:${connectionId}`, async () => {
     if (!window.confirm("Ngắt tài khoản seller này và xóa danh mục kênh đã đồng bộ? Sản phẩm nội bộ không bị xóa.")) return;
     await tiktokShopApi.disconnect(connectionId);
@@ -98,12 +113,19 @@ export default function TikTokShopSettingsTab() {
             <button type="button" disabled={Boolean(busy)} onClick={sync} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50">
               {busy === "sync" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Đồng bộ sản phẩm
             </button>
+            <button type="button" disabled={Boolean(busy)} onClick={importProducts} className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-xs font-bold text-white hover:bg-sky-700 disabled:opacity-50">
+              {busy === "import" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Nhập vào kho
+            </button>
+            <button type="button" disabled={Boolean(busy)} onClick={pushInventoryAndPrices} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50">
+              {busy === "push" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Đẩy giá & tồn kho
+            </button>
           </div>
+          <p className="text-[11px] text-slate-500">“Nhập vào kho” tạo các sản phẩm/SKU còn thiếu trong kho mặc định của chi nhánh hiện tại. SKU đã tồn tại chỉ được liên kết, không ghi đè tồn kho. Sau đó giá và tồn khả dụng sẽ tự động đẩy lên TikTok.</p>
           <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">Đã kết nối <strong>{status.connections.length} tài khoản seller</strong> và <strong>{status.shops.length} shop</strong>.</div>
         </>
       )}
 
-      {products.length > 0 && <div className="overflow-x-auto rounded-lg border border-slate-200"><table className="min-w-full divide-y divide-slate-200 text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-2">Sản phẩm TikTok</th><th className="px-3 py-2">SKU</th><th className="px-3 py-2">Trạng thái ghép</th></tr></thead><tbody className="divide-y divide-slate-100">{products.map((product) => <tr key={product._id}><td className="px-3 py-2"><p className="font-semibold text-slate-800">{product.title}</p><p className="text-[10px] text-slate-400">{product.tiktokProductId} · {product.status}</p></td><td className="px-3 py-2 text-slate-600">{product.skus.map((sku) => sku.sellerSku || sku.skuId).filter(Boolean).join(", ") || "—"}</td><td className="px-3 py-2"><span className={product.skus.some((sku) => sku.localVariantId) ? "text-emerald-700" : "text-amber-700"}>{product.skus.some((sku) => sku.localVariantId) ? "Đã ghép SKU nội bộ" : "Chưa ghép"}</span></td></tr>)}</tbody></table></div>}
+      {products.length > 0 && <div className="overflow-x-auto rounded-lg border border-slate-200"><table className="min-w-full divide-y divide-slate-200 text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-2">Sản phẩm TikTok</th><th className="px-3 py-2">SKU</th><th className="px-3 py-2">Trạng thái ghép</th><th className="px-3 py-2">Đẩy dữ liệu</th></tr></thead><tbody className="divide-y divide-slate-100">{products.map((product) => <tr key={product._id}><td className="px-3 py-2"><p className="font-semibold text-slate-800">{product.title}</p><p className="text-[10px] text-slate-400">{product.tiktokProductId} · {product.status}</p></td><td className="px-3 py-2 text-slate-600">{product.skus.map((sku) => sku.sellerSku || sku.skuId).filter(Boolean).join(", ") || "—"}</td><td className="px-3 py-2"><span className={product.skus.some((sku) => sku.localVariantId) ? "text-emerald-700" : "text-amber-700"}>{product.skus.some((sku) => sku.localVariantId) ? "Đã ghép SKU nội bộ" : "Chưa ghép"}</span></td><td className="max-w-xs px-3 py-2"><span className={product.lastOutboundSyncStatus === "failed" ? "text-rose-700" : product.lastOutboundSyncStatus === "success" ? "text-emerald-700" : "text-slate-500"}>{product.lastOutboundSyncStatus === "failed" ? product.lastOutboundSyncError || "Lỗi" : product.lastOutboundSyncStatus === "success" ? "Đã đồng bộ" : "Chưa đồng bộ"}</span></td></tr>)}</tbody></table></div>}
     </section>
   );
 }

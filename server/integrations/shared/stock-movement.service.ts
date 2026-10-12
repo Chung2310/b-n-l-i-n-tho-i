@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { ClientSession } from "mongoose";
 import { inInventoryTransaction } from "../../modules/inventory/inventory-transaction";
 import { InventoryBalanceModel } from "../../model/inventory-balance.model";
@@ -7,6 +8,7 @@ import { StockLogModel } from "../../model/stock-log.model";
 import type { InventoryMovementDirection, InventoryMovementPurpose } from "../../interface/inventory.interface";
 import { ensureDefaultWarehouse } from "../../modules/inventory/warehouse/warehouse.service";
 import { WarehouseModel } from "../../model/warehouse.model";
+import { publishDomainEvent } from "./event-bus";
 
 export interface StockMovementItem {
   productId: string;
@@ -144,6 +146,15 @@ async function writeStockMovementInTransaction(input: WriteStockMovementInput & 
     const created = await InventoryLedgerEntryModel.create(entries, { session: input.session, ordered: true });
     if (input.writeLegacyStockLog !== false) {
       await StockLogModel.create([{ type: input.direction === "out" ? "xuất" : "nhập", title: input.sourceCode ? `${input.sourceCode} - ${input.purpose}` : input.sourceType, items: input.items.map((item, index) => ({ productId: item.productId, variantId: item.variantId, sku: item.sku, productName: item.productName, quantity: item.quantity, unitPrice: item.unitPrice, lineTotal: item.lineTotal, unitCost: Number(entries[index].unitCost), category: item.category })), purpose: input.direction === "out" ? (input.purpose === "sale" ? "bán" : input.purpose === "cancel" ? "hủy" : input.purpose === "transfer" ? "chuyển kho" : "nội bộ") : undefined, operatorName: input.operatorName, status: "Thành công", companyCode, branchId, warehouseId: String(warehouse._id), refType: input.sourceType === "retail-order" ? "retail-order" : input.sourceType === "goods-receipt" ? "goods-receipt" : undefined, refId: input.sourceId, idempotencyKey: input.idempotencyKey, notes: input.reason }], { session: input.session });
+    }
+    const changedSkus = new Map(input.items.map((item) => [String(item.variantId || item.sku), item]));
+    for (const item of changedSkus.values()) {
+      await publishDomainEvent({
+        eventId: randomUUID(), eventType: "inventory.stock.changed", companyCode, branchId,
+        aggregateType: "product-variant", aggregateId: String(item.variantId || item.sku),
+        payload: { ...(item.variantId ? { variantId: item.variantId } : {}), sku: normalizeCode(item.sku) },
+        occurredAt: new Date(), actorId: input.operatorName, actorName: input.operatorName,
+      }, input.session);
     }
     return { warehouseId: String(warehouse._id), entries: created, replayed: false };
 }
