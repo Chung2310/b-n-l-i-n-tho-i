@@ -23,6 +23,7 @@ const TikTokShopProductSchema = new Schema({
   title: { type: String, required: true, trim: true },
   status: { type: String, default: "", trim: true },
   imageUrl: { type: String, default: "", trim: true },
+  imageUrls: { type: [String], default: [] },
   skus: { type: [TikTokSkuSchema], default: [] },
   tiktokCreateTime: { type: Date, default: null },
   tiktokUpdateTime: { type: Date, default: null },

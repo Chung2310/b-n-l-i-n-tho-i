@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Boxes,
@@ -37,6 +37,7 @@ import {
   statusLabels,
 } from "./catalog/catalogConstants";
 import { ProductViewerModal } from "./catalog/ProductViewerModal";
+import { productDescriptionToText } from "./catalog/productDescription";
 import { ProductEditorModal } from "./catalog/ProductEditorModal";
 import { CatalogSetupModal } from "./catalog/CatalogSetupModal";
 import { Dropdown, type DropdownOption } from "../common/Dropdown";
@@ -45,6 +46,7 @@ import { VariantModal } from "./catalog/VariantModal";
 import { BulkVariantModal } from "./catalog/BulkVariantModal";
 
 export function ProductCatalogV2Section() {
+  const handledDeepLink = useRef("");
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [resources, setResources] = useState<Resources>({ categories: [], brands: [], attributes: [] });
   const [query, setQuery] = useState("");
@@ -99,6 +101,20 @@ export function ProductCatalogV2Section() {
   // Tải Master Data đúng 1 lần khi trang mount
   useEffect(() => {
     void loadMasterResources();
+  }, []);
+
+  useEffect(() => {
+    const productId = new URLSearchParams(window.location.search).get("editProduct") || "";
+    if (!productId || handledDeepLink.current === productId) return;
+    handledDeepLink.current = productId;
+    void productCatalogService.getProduct(productId).then((detail) => {
+      setEditor(detail);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("editProduct");
+      window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    }).catch((error) => {
+      toast.error(getApiErrorMessage(error, "Không thể mở sản phẩm cần sửa."));
+    });
   }, []);
 
   // Lắng nghe sự kiện thêm/sửa/xóa resource để tự động cập nhật đúng loại mà không reload sản phẩm
@@ -523,7 +539,7 @@ export function ProductCatalogV2Section() {
                           {product.name}
                         </p>
                         <p className="mt-0.5 max-w-sm truncate text-xs text-slate-500">
-                          {product.shortDescription || product.description || "Chưa có mô tả"}
+                          {productDescriptionToText(product.shortDescription || product.description) || "Chưa có mô tả"}
                         </p>
                       </td>
                       <td className="px-4 py-3">
