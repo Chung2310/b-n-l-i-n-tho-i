@@ -27,12 +27,22 @@ export interface TikTokShopProduct {
   title: string;
   status: string;
   imageUrl?: string;
+  detailsSyncStatus?: "pending" | "complete" | "incomplete" | "failed";
+  detailsSyncedAt?: string;
+  missingInfo?: string[];
+  detailsSyncError?: string;
+  description?: string;
+  categoryName?: string;
   skus: Array<{
     skuId: string;
     sellerSku: string;
+    barcode?: string;
+    displayName?: string;
+    optionValues?: Array<{ code: string; value: string }>;
     priceAmount: string;
     currency: string;
     inventoryQuantity: number;
+    hasInventorySnapshot?: boolean;
     inventory?: Array<{ warehouseId: string; quantity: number }>;
     localProductId?: string;
     localVariantId?: string;
@@ -47,7 +57,7 @@ const unwrap = <T,>(response: { data: T }) => response.data;
 export const tiktokShopApi = {
   status: () => apiFetch<{ data: TikTokShopStatus }>("/integrations/tiktok-shop/status").then(unwrap),
   authorizationUrl: () => apiFetch<{ data: { authUrl: string } }>("/integrations/tiktok-shop/auth-url").then(unwrap),
-  syncProducts: () => apiFetch<{ data: { total: number; matched: number; unmatched: number; connections: number } }>("/integrations/tiktok-shop/sync-products", { method: "POST" }).then(unwrap),
+  syncProducts: () => apiFetch<{ data: { total: number; matched: number; unmatched: number; connections: number; detailsSynced: number; complete: number; incomplete: number; detailFailed: number } }>("/integrations/tiktok-shop/sync-products", { method: "POST" }).then(unwrap),
   importProducts: () => apiFetch<{ data: { products: number; createdProducts: number; createdVariants: number; linkedExisting: number; importedPrices: number; importedStock: number; failed: number; errors: string[] } }>("/integrations/tiktok-shop/import-products", { method: "POST" }).then(unwrap),
   syncInventoryAndPrices: () => apiFetch<{ data: { products: number; skus: number; updated: number; skipped: number; failed: number; errors: string[] } }>("/integrations/tiktok-shop/sync-inventory-prices", { method: "POST" }).then(unwrap),
   products: () => apiFetch<{ data: { items: TikTokShopProduct[]; total: number } }>("/integrations/tiktok-shop/products", { params: { pageSize: 100 } }).then(unwrap),
