@@ -1,5 +1,5 @@
 import React from "react";
-import { Download, Link2, Loader2, RefreshCw, ShoppingBag, Trash2 } from "lucide-react";
+import { Download, Link2, Loader2, Pencil, RefreshCw, ShoppingBag, Trash2 } from "lucide-react";
 import { toast } from "../../pages/Toast";
 import { getApiErrorMessage } from "../../utils/errorMessage";
 import { tiktokShopApi, type TikTokShopProduct, type TikTokShopStatus } from "../../services/tiktokShopService";
@@ -74,6 +74,16 @@ export default function TikTokShopSettingsTab() {
     await load();
   });
 
+  const editProduct = (product: TikTokShopProduct) => {
+    const localProductId = product.skus.find((sku) => sku.localProductId)?.localProductId;
+    if (!localProductId) {
+      toast.error("Sản phẩm chưa được liên kết với kho. Hãy bấm “Nhập vào kho” trước.");
+      return;
+    }
+    window.history.pushState(null, "", `/kho-san-pham?sub=san-pham&editProduct=${encodeURIComponent(localProductId)}`);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  };
+
   if (!status) return <div className="flex min-h-48 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div>;
 
   return (
@@ -125,7 +135,7 @@ export default function TikTokShopSettingsTab() {
         </>
       )}
 
-      {products.length > 0 && <div className="overflow-x-auto rounded-lg border border-slate-200"><table className="min-w-full divide-y divide-slate-200 text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-2">Sản phẩm TikTok</th><th className="px-3 py-2">SKU</th><th className="px-3 py-2">Trạng thái ghép</th><th className="px-3 py-2">Đẩy dữ liệu</th></tr></thead><tbody className="divide-y divide-slate-100">{products.map((product) => <tr key={product._id}><td className="px-3 py-2"><p className="font-semibold text-slate-800">{product.title}</p><p className="text-[10px] text-slate-400">{product.tiktokProductId} · {product.status}</p></td><td className="px-3 py-2 text-slate-600">{product.skus.map((sku) => sku.sellerSku || sku.skuId).filter(Boolean).join(", ") || "—"}</td><td className="px-3 py-2"><span className={product.skus.some((sku) => sku.localVariantId) ? "text-emerald-700" : "text-amber-700"}>{product.skus.some((sku) => sku.localVariantId) ? "Đã ghép SKU nội bộ" : "Chưa ghép"}</span></td><td className="max-w-xs px-3 py-2"><span className={product.lastOutboundSyncStatus === "failed" ? "text-rose-700" : product.lastOutboundSyncStatus === "success" ? "text-emerald-700" : "text-slate-500"}>{product.lastOutboundSyncStatus === "failed" ? product.lastOutboundSyncError || "Lỗi" : product.lastOutboundSyncStatus === "success" ? "Đã đồng bộ" : "Chưa đồng bộ"}</span></td></tr>)}</tbody></table></div>}
+      {products.length > 0 && <div className="overflow-x-auto rounded-lg border border-slate-200"><table className="min-w-full divide-y divide-slate-200 text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-2">Sản phẩm TikTok</th><th className="px-3 py-2">SKU</th><th className="px-3 py-2">Trạng thái ghép</th><th className="px-3 py-2">Đẩy dữ liệu</th><th className="px-3 py-2 text-right">Thao tác</th></tr></thead><tbody className="divide-y divide-slate-100">{products.map((product) => <tr key={product._id}><td className="px-3 py-2"><p className="font-semibold text-slate-800">{product.title}</p><p className="text-[10px] text-slate-400">{product.tiktokProductId} · {product.status}</p></td><td className="px-3 py-2 text-slate-600">{product.skus.map((sku) => sku.sellerSku || sku.skuId).filter(Boolean).join(", ") || "—"}</td><td className="px-3 py-2"><span className={product.skus.some((sku) => sku.localVariantId) ? "text-emerald-700" : "text-amber-700"}>{product.skus.some((sku) => sku.localVariantId) ? "Đã ghép SKU nội bộ" : "Chưa ghép"}</span></td><td className="max-w-xs px-3 py-2"><span className={product.lastOutboundSyncStatus === "failed" ? "text-rose-700" : product.lastOutboundSyncStatus === "success" ? "text-emerald-700" : "text-slate-500"}>{product.lastOutboundSyncStatus === "failed" ? product.lastOutboundSyncError || "Lỗi" : product.lastOutboundSyncStatus === "success" ? "Đã đồng bộ" : "Chưa đồng bộ"}</span></td><td className="px-3 py-2 text-right"><button type="button" onClick={() => editProduct(product)} className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"><Pencil className="h-3.5 w-3.5" /> Sửa sản phẩm</button></td></tr>)}</tbody></table></div>}
     </section>
   );
 }

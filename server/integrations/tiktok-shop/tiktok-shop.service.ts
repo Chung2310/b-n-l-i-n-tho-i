@@ -6,7 +6,7 @@ import { ProductPriceModel } from "../../model/product-price.model";
 import { InventoryBalanceModel } from "../../model/inventory-balance.model";
 import { WarehouseModel } from "../../model/warehouse.model";
 import { ProductCatalogModel } from "../../model/product-catalog.model";
-import { ProductCatalogCategoryModel, UnitOfMeasureModel } from "../../model/product-catalog-resource.model";
+import { ProductCatalogBrandModel, ProductCatalogCategoryModel, UnitOfMeasureModel } from "../../model/product-catalog-resource.model";
 import { runInTransaction } from "../../config/database";
 import { ensureDefaultWarehouse } from "../../modules/inventory/warehouse/warehouse.service";
 import { TikTokShopConnectionModel } from "./tiktok-shop-connection.model";
@@ -246,6 +246,65 @@ function variantDisplayName(sku: any, fallback: string) {
   return (values.join(" / ") || fallback).slice(0, 200);
 }
 
+function imageUrls(images: any) {
+  if (!Array.isArray(images)) return [];
+  return [...new Set(images.map((image: any) => [
+    ...(Array.isArray(image?.urls) ? image.urls : []),
+    image?.url,
+    ...(Array.isArray(image?.thumb_urls) ? image.thumb_urls : []),
+  ].map((value: unknown) => String(value || "").trim()).find((value: string) => /^https?:\/\//i.test(value)) || "").filter(Boolean))];
+}
+
+function skuOptionValues(sku: any) {
+  const attributes = Array.isArray(sku?.sales_attributes) ? sku.sales_attributes : [];
+  return attributes.map((row: any, index: number) => ({
+    code: (`TT-${firstString(row.id, row.name) || `OPTION-${index + 1}`}`).replace(/[^A-Z0-9_-]/gi, "-").toUpperCase().slice(0, 100),
+    value: firstString(row.value_name, row.name, row.value_id),
+  })).filter((row: any) => row.value);
+}
+
+function skuImageUrls(sku: any) {
+  const attributes = Array.isArray(sku?.sales_attributes) ? sku.sales_attributes : [];
+  return imageUrls(attributes.flatMap((row: any) => [row.sku_img, row.image, ...(Array.isArray(row.supplementary_sku_images) ? row.supplementary_sku_images : [])]).filter(Boolean));
+}
+
+function tikTokProductAttributes(detail: any) {
+  const attributes = Array.isArray(detail?.product_attributes) ? detail.product_attributes : [];
+  return attributes.map((attribute: any, index: number) => {
+    const values = Array.isArray(attribute?.values) ? attribute.values.map((value: any) => firstString(value?.name, value?.value_name, value?.value)).filter(Boolean) : [];
+    const name = firstString(attribute?.name, attribute?.local_name, attribute?.attribute_name);
+    const value = firstString(attribute?.value_name, attribute?.value) || values.join(", ");
+    const codePart = firstString(attribute?.id, attribute?.attribute_id, name) || `OPTION-${index + 1}`;
+    const code = (`TT-ATTR-${codePart}`).replace(/[^A-Z0-9_-]/gi, "-").toUpperCase().slice(0, 100);
+    return { code, name, value };
+  }).filter((attribute: any) => attribute.value);
+}
+
+function productAttributeValue(attributes: Array<{ name: string; value: string }>, labels: string[]) {
+  const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("vi-VN");
+  const row = attributes.find((attribute) => {
+    const name = normalize(attribute.name);
+    return labels.some((label) => name.includes(normalize(label)));
+  });
+  return row?.value || "";
+}
+
+function tikTokCategory(detail: any) {
+  const category = detail?.category || {};
+  const id = firstString(category.id, detail?.category_id);
+  return {
+    code: id ? `TT-CAT-${id}`.toUpperCase().slice(0, 100) : TIKTOK_CATEGORY_CODE,
+    name: (firstString(category.local_name, category.name, detail?.category_name, detail?.local_name) || (id ? `TikTok Shop category ${id}` : "Sản phẩm TikTok Shop")).slice(0, 300),
+  };
+}
+
+function tikTokBrand(detail: any) {
+  const brand = detail?.brand || {};
+  const id = firstString(brand.id, detail?.brand_id);
+  const name = firstString(brand.name, brand.brand_name);
+  return id && name ? { code: `TT-BRAND-${id}`.toUpperCase().slice(0, 100), name: name.slice(0, 300) } : null;
+}
+
 function dimensionInMillimeters(value: unknown, unit: unknown) {
   const number = Number(value);
   if (!Number.isFinite(number) || number < 0) return undefined;
@@ -407,45 +466,101 @@ export const TikTokShopService = {
           if (productIds.length > 1) throw new Error("Các SKU TikTok đang thuộc nhiều sản phẩm nội bộ khác nhau; cần xử lý liên kết thủ công.");
 
           const productCode = `TT-${channelProduct.tiktokProductId}`.toUpperCase().slice(0, 100);
+          const category = tikTokCategory(detail);
+          const brand = tikTokBrand(detail);
+          await ProductCatalogCategoryModel.findOneAndUpdate(
+            { companyCode, code: category.code },
+            { $set: { name: category.name, normalizedName: category.name.toLocaleLowerCase("vi-VN"), defaultTrackingMode: "quantity", status: "active", updatedBy: actor }, $setOnInsert: { companyCode, code: category.code, description: "Danh mục được đồng bộ từ TikTok Shop", createdBy: actor } },
+            { upsert: true, returnDocument: "after", setDefaultsOnInsert: true, session },
+          );
+          if (brand) {
+            await ProductCatalogBrandModel.findOneAndUpdate(
+              { companyCode, code: brand.code },
+              { $set: { name: brand.name, normalizedName: brand.name.toLocaleLowerCase("vi-VN"), status: "active", updatedBy: actor }, $setOnInsert: { companyCode, code: brand.code, description: "Thương hiệu được đồng bộ từ TikTok Shop", createdBy: actor } },
+              { upsert: true, returnDocument: "after", setDefaultsOnInsert: true, session },
+            );
+          }
           let localProduct: any = productIds.length
             ? await ProductCatalogModel.findOne({ _id: productIds[0], companyCode }).session(session || null)
             : await ProductCatalogModel.findOne({ companyCode, productCode }).session(session || null);
+          const description = firstString(detail.description).slice(0, 20_000);
+          const title = (firstString(detail.title, channelProduct.title) || `TikTok product ${channelProduct.tiktokProductId}`).slice(0, 300);
+          const mainMediaUrls = [...new Set([
+            ...imageUrls([...(Array.isArray(detail.main_images) ? detail.main_images : []), ...(Array.isArray(detail.images) ? detail.images : [])]),
+            ...(Array.isArray(channelProduct.imageUrls) ? channelProduct.imageUrls : []),
+            channelProduct.imageUrl,
+          ].filter((url: string) => /^https?:\/\//i.test(url)))];
+          const productAttributes = tikTokProductAttributes(detail);
+          const manufacturer = firstString(detail?.manufacturer?.name, detail?.manufacturer_name, productAttributeValue(productAttributes, ["manufacturer", "nhà sản xuất"]));
+          const countryOfOrigin = firstString(detail?.country_of_origin, productAttributeValue(productAttributes, ["country of origin", "country of manufacture", "xuất xứ", "nước sản xuất"]));
           if (!localProduct) {
-            const dimensions = detail.package_dimensions || {};
-            const description = firstString(detail.description).slice(0, 20_000);
-            const title = (firstString(detail.title, channelProduct.title) || `TikTok product ${channelProduct.tiktokProductId}`).slice(0, 300);
             const [created] = await ProductCatalogModel.create([{
               companyCode, productCode, name: title, normalizedName: title.toLocaleLowerCase("vi-VN"), productType: "physical",
-              categoryCode: TIKTOK_CATEGORY_CODE, baseUnitCode: DEFAULT_UNIT_CODE,
+              categoryCode: category.code, brandCode: brand?.code, baseUnitCode: DEFAULT_UNIT_CODE,
               shortDescription: description.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500),
-              description, searchKeywords: ["TikTok Shop", String(channelProduct.tiktokProductId), firstString(detail.category_id)].filter(Boolean),
-              status: "active", mediaIds: [], documentIds: [], createdBy: actor, updatedBy: actor,
+              description, manufacturer: manufacturer || undefined, countryOfOrigin: countryOfOrigin || undefined,
+              attributes: productAttributes.map(({ code, value }) => ({ code, value })),
+              searchKeywords: ["TikTok Shop", String(channelProduct.tiktokProductId), firstString(detail.category_id)].filter(Boolean),
+              status: "active", mediaIds: mainMediaUrls, documentIds: [], createdBy: actor, updatedBy: actor,
             }], { session });
             localProduct = created;
             imported.createdProducts += 1;
+          } else if (localProduct.productCode === productCode) {
+            localProduct.name = title;
+            localProduct.normalizedName = title.toLocaleLowerCase("vi-VN");
+            localProduct.categoryCode = category.code;
+            localProduct.brandCode = brand?.code;
+            localProduct.shortDescription = description.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500);
+            localProduct.description = description;
+            if (manufacturer) localProduct.manufacturer = manufacturer;
+            if (countryOfOrigin) localProduct.countryOfOrigin = countryOfOrigin;
+            if (productAttributes.length) localProduct.attributes = productAttributes.map(({ code, value }) => ({ code, value }));
+            if (mainMediaUrls.length) localProduct.mediaIds = mainMediaUrls;
+            localProduct.updatedBy = actor;
+            await localProduct.save({ session });
           }
 
           const variantBySku = new Map(existingVariants.map((variant: any) => [String(variant.sku).toUpperCase(), variant]));
           const packageDimensions = detail.package_dimensions || {};
           const packageWeight = detail.package_weight || {};
           for (const sourceSku of sourceSkus) {
+            const skuDimensions = sourceSku.sku_dimensions || sourceSku.package_dimensions || packageDimensions;
+            const skuWeight = sourceSku.sku_weight || sourceSku.package_weight || packageWeight;
             let variant: any = variantBySku.get(sourceSku.code);
             const isNew = !variant;
             if (!variant) {
+              const optionValues = skuOptionValues(sourceSku);
+              const variantMediaUrls = skuImageUrls(sourceSku);
               const [createdVariant] = await ProductVariantModel.create([{
                 companyCode, productId: String(localProduct._id), sku: sourceSku.code,
                 displayName: variantDisplayName(sourceSku, sourceSku.code), unitCode: DEFAULT_UNIT_CODE, trackingMode: "quantity",
-                weightGrams: weightInGrams(packageWeight.value, packageWeight.unit),
-                lengthMm: dimensionInMillimeters(packageDimensions.length, packageDimensions.unit),
-                widthMm: dimensionInMillimeters(packageDimensions.width, packageDimensions.unit),
-                heightMm: dimensionInMillimeters(packageDimensions.height, packageDimensions.unit),
-                optionValues: [], attributes: [], mediaIds: [], status: "active", createdBy: actor, updatedBy: actor,
+                weightGrams: weightInGrams(skuWeight.value, skuWeight.unit),
+                lengthMm: dimensionInMillimeters(skuDimensions.length, skuDimensions.unit),
+                widthMm: dimensionInMillimeters(skuDimensions.width, skuDimensions.unit),
+                heightMm: dimensionInMillimeters(skuDimensions.height, skuDimensions.unit),
+                optionValues, attributes: [], mediaIds: variantMediaUrls, status: "active", createdBy: actor, updatedBy: actor,
               }], { session });
               variant = createdVariant;
               variantBySku.set(sourceSku.code, variant);
               imported.createdVariants += 1;
             } else {
               imported.linkedExisting += 1;
+              if (localProduct.productCode === productCode) {
+                const optionValues = skuOptionValues(sourceSku);
+                const variantMediaUrls = skuImageUrls(sourceSku);
+                variant.displayName = variantDisplayName(sourceSku, sourceSku.code);
+                if (optionValues.length) variant.optionValues = optionValues;
+                if (variantMediaUrls.length) variant.mediaIds = variantMediaUrls;
+                variant.weightGrams = weightInGrams(skuWeight.value, skuWeight.unit);
+                variant.lengthMm = dimensionInMillimeters(skuDimensions.length, skuDimensions.unit);
+                variant.widthMm = dimensionInMillimeters(skuDimensions.width, skuDimensions.unit);
+                variant.heightMm = dimensionInMillimeters(skuDimensions.height, skuDimensions.unit);
+                variant.updatedBy = actor;
+                await ProductVariantModel.updateOne({ _id: variant._id, companyCode }, { $set: {
+                  displayName: variant.displayName, optionValues: variant.optionValues, mediaIds: variant.mediaIds,
+                  weightGrams: variant.weightGrams, lengthMm: variant.lengthMm, widthMm: variant.widthMm, heightMm: variant.heightMm, updatedBy: actor,
+                } }, { session, runValidators: true });
+              }
             }
 
             if (isNew) {
@@ -551,7 +666,8 @@ export const TikTokShopService = {
               { companyCode, connectionId: String(connection._id), shopCipher: shop.cipher, tiktokProductId: productId },
               { $set: {
                 shopName: shop.name, title: firstString(product.title, product.product_name) || `TikTok product ${productId}`,
-                status: firstString(product.status), imageUrl: parseImage(product), skus,
+                status: firstString(product.status), imageUrl: parseImage(product),
+                imageUrls: imageUrls([...(Array.isArray(product.main_images) ? product.main_images : []), ...(Array.isArray(product.images) ? product.images : [])]), skus,
                 tiktokCreateTime: product.create_time ? new Date(Number(product.create_time) * 1000) : null,
                 tiktokUpdateTime: product.update_time ? new Date(Number(product.update_time) * 1000) : null,
                 lastSeenAt: seenAt,

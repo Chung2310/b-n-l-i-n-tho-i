@@ -12,6 +12,7 @@ import {
   typeLabels,
 } from "./catalogConstants";
 import { Modal } from "./catalogUi";
+import { sanitizeProductDescriptionHtml } from "./productDescription";
 
 interface ProductViewerModalProps {
   product: CatalogProductDetail;
@@ -22,6 +23,7 @@ interface ProductViewerModalProps {
 export function ProductViewerModal({ product, resources, onClose }: ProductViewerModalProps) {
   const categoryName = getCategoryDisplayName(product.categoryCode, resources.categories);
   const brandName = resources.brands.find((b) => b.code === product.brandCode)?.name || product.brandCode || "Không có";
+  const description = product.description || product.shortDescription || "";
   const [pricesByVariant, setPricesByVariant] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -90,9 +92,14 @@ export function ProductViewerModal({ product, resources, onClose }: ProductViewe
             </div>
             <div className="sm:col-span-2">
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Mô tả</p>
-              <p className="text-sm text-slate-700 bg-slate-50 p-3 rounded-md border border-slate-100 min-h-[60px] whitespace-pre-wrap">
-                {product.description || product.shortDescription || "Chưa có mô tả chi tiết."}
-              </p>
+              {description ? (
+                <div
+                  className="text-sm text-slate-700 bg-slate-50 p-3 rounded-md border border-slate-100 min-h-[60px] break-words leading-relaxed [&_p]:mb-3 [&_p:last-child]:mb-0 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1 [&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:font-semibold [&_a]:text-cyan-700 [&_a]:underline [&_img]:my-2 [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-md [&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:bg-slate-100 [&_th]:p-2 [&_td]:border [&_td]:p-2"
+                  dangerouslySetInnerHTML={{ __html: sanitizeProductDescriptionHtml(description) }}
+                />
+              ) : (
+                <p className="text-sm text-slate-500 bg-slate-50 p-3 rounded-md border border-slate-100 min-h-[60px]">Chưa có mô tả chi tiết.</p>
+              )}
             </div>
           </div>
         </div>
