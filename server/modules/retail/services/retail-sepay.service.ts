@@ -7,6 +7,8 @@ import { legacyRetailPaymentCode, paymentStatusFor, retailPaymentCode } from "./
 import { CashierShiftModel } from "../models/cashier-shift.model";
 import { businessDateInVietnam, emitSessionChange } from "./cashier-shift.service";
 import { emitToUser } from "../../../socket";
+import { decryptSecret } from "../../../security/crypto";
+import crypto from "node:crypto";
 
 export type SePayPayload = {
   id?: string | number; gateway?: string; transactionDate?: string; accountNumber?: string | number;
@@ -15,6 +17,24 @@ export type SePayPayload = {
 };
 
 const text = (value: unknown) => String(value ?? "").trim();
+const safeEqual = (left: string, right: string) => {
+  const a = Buffer.from(left); const b = Buffer.from(right);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+};
+
+export async function matchesCompanySePayApiKey(accountNumber: string, candidate: string) {
+  if (!accountNumber || !candidate) return false;
+  const companies: any[] = await CompanyModel.find({ "vietqrConfig.accountNo": accountNumber })
+    .select("code +vietqrConfig.sepayApiKeyEncrypted")
+    .limit(2)
+    .lean();
+  if (companies.length !== 1) return false;
+  const encryptedKey = companies[0]?.vietqrConfig?.sepayApiKeyEncrypted;
+  if (!encryptedKey) return false;
+  try { return safeEqual(candidate, decryptSecret(encryptedKey)); }
+  catch { return false; }
+}
+
 export const canonicalPaymentCode = (value: unknown) => text(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
 export function parseSePayTransactionDate(value: unknown) {
   const input = text(value);

@@ -54,6 +54,7 @@ const CompanyVietqrConfigSchema = new Schema(
     bankId: { type: String, default: "" },
     accountNo: { type: String, default: "" },
     accountName: { type: String, default: "" },
+    sepayApiKeyEncrypted: { type: String, default: "", select: false },
   },
   { _id: false }
 );
