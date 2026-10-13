@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import {
   AlertCircle,
   Building2,
@@ -49,11 +50,21 @@ export default function RetailInvoicesPageContent() {
   const [paymentQr, setPaymentQr] = React.useState<{ qr: RetailPaymentQr; invoiceId: string } | null>(null);
   const [paymentPrintInvoice, setPaymentPrintInvoice] = React.useState<RetailInvoice | null>(null);
   const [invoicePaperSize, setInvoicePaperSize] = React.useState<RetailSettings["invoicePaperSize"]>("80mm");
+  const printInvoice = paymentPrintInvoice || (canReprint ? selected : null);
+  const printInvoiceIsReprint = paymentPrintInvoice
+    ? Boolean(paymentPrintInvoice.initialPrintedAt)
+    : selectedIsReprint;
   const paymentQrRef = React.useRef(paymentQr);
   paymentQrRef.current = paymentQr;
   const paymentPrintInFlight = React.useRef(new Set<string>());
   const paymentPrintFailed = React.useRef(new Set<string>());
   const paymentPrintErrorShown = React.useRef(new Set<string>());
+
+  React.useLayoutEffect(() => {
+    if (!printInvoice) return;
+    document.body.classList.add("retail-print-isolated");
+    return () => document.body.classList.remove("retail-print-isolated");
+  }, [printInvoice?._id]);
 
   React.useEffect(() => {
     let active = true;
@@ -529,14 +540,11 @@ export default function RetailInvoicesPageContent() {
 
       {/* Payment QR Dialog */}
       {paymentQr && <PaymentQrDialog qr={paymentQr.qr} onClose={() => setPaymentQr(null)} />}
-      {paymentPrintInvoice && (
+      {printInvoice && createPortal(
         <div className="retail-print-staging" style={{ position: "fixed", left: "-10000px", top: 0, width: receiptStagingWidth(invoicePaperSize), visibility: "hidden" }}>
-          <ReceiptPrintView
-            invoice={paymentPrintInvoice}
-            isReprint={Boolean(paymentPrintInvoice.initialPrintedAt)}
-            paperSize={invoicePaperSize}
-          />
-        </div>
+          <ReceiptPrintView invoice={printInvoice} isReprint={printInvoiceIsReprint} paperSize={invoicePaperSize} />
+        </div>,
+        document.body,
       )}
       {scanningInvoice && (
         <BarcodeScannerDialog
@@ -747,8 +755,6 @@ function InvoiceDialog({
           Bằng chữ: <span className="font-semibold text-slate-900">{invoice.snapshot.amountInWords}</span>
         </p>
 
-        {/* Print view */}
-        {canReprint && <div className="retail-print-staging" style={{ position: "fixed", left: "-10000px", top: 0, width: receiptStagingWidth(paperSize), visibility: "hidden" }}><ReceiptPrintView invoice={invoice} isReprint={isReprint} paperSize={paperSize} /></div>}
       </div>
     </div>
   );

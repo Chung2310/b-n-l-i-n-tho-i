@@ -29,7 +29,7 @@ export default function ReceiptPrintView({
     const heightMm = receiptRef.current.getBoundingClientRect().height * 25.4 / 96;
     if (Number.isFinite(heightMm) && heightMm > 0) setPageHeightMm(Math.ceil(heightMm + 2));
   }, [invoice, isReprint, isThermal, paperSize]);
-  const printCss = "@media print { @page { size: " + pageRule + "; margin: " + marginRule + "; } body * { visibility: hidden !important; } .retail-print-staging { position: fixed !important; left: 0 !important; top: 0 !important; width: auto !important; height: auto !important; overflow: visible !important; visibility: visible !important; } #retail-receipt, #retail-receipt * { visibility: visible !important; } #retail-receipt { position: absolute; left: 0; top: 0; width: " + receiptWidth + "; max-width: 100%; padding: " + receiptPadding + "; } }";
+  const printCss = "@media print { @page { size: " + pageRule + "; margin: " + marginRule + "; } body.retail-print-isolated > *:not(.retail-print-staging) { display: none !important; } body.retail-print-isolated > .retail-print-staging { display: block !important; } body * { visibility: hidden !important; } .retail-print-staging { position: fixed !important; left: 0 !important; top: 0 !important; width: auto !important; height: auto !important; overflow: visible !important; visibility: visible !important; } #retail-receipt, #retail-receipt * { visibility: visible !important; } #retail-receipt { position: absolute; left: 0; top: 0; width: " + receiptWidth + "; max-width: 100%; padding: " + receiptPadding + "; } }";
   const barcode = encodeCode128(invoice.invoiceNo);
   const branchName = snapshot.store?.branchName?.trim() || "";
   const showBranchName = Boolean(branchName) && !isHeadOfficeName(branchName);
