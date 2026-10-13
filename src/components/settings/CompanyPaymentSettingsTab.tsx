@@ -4,7 +4,14 @@ import { companyPaymentApi } from "../../services/companyPaymentService";
 import { toast } from "../../pages/Toast";
 import { SearchableSelect } from "../inventory/SearchableSelect";
 
-const empty = { bankId: "", accountNo: "", accountName: "" };
+const empty = {
+  bankId: "",
+  accountNo: "",
+  accountName: "",
+  sepayApiKey: "",
+  sepayApiKeyConfigured: false,
+  clearSePayApiKey: false,
+};
 
 export default function CompanyPaymentSettingsTab() {
   const [form, setForm] = React.useState<any>(empty);
@@ -16,8 +23,9 @@ export default function CompanyPaymentSettingsTab() {
     companyPaymentApi.getVietqr()
       .then((data) => {
         if (data) {
-          setForm(data);
-          setOriginalForm(data);
+          const safeForm = { ...empty, ...data, sepayApiKey: "", clearSePayApiKey: false };
+          setForm(safeForm);
+          setOriginalForm(safeForm);
         }
       })
       .catch((e) => toast.error(e.message));
@@ -25,23 +33,26 @@ export default function CompanyPaymentSettingsTab() {
     fetch("https://api.vietqr.io/v2/banks")
       .then(res => res.json())
       .then(res => {
-        if (res.code === "00" && Array.isArray(res.data)) {
-          setBanks(res.data);
-        }
+        if (res.code === "00" && Array.isArray(res.data)) setBanks(res.data);
       })
       .catch(console.error);
   }, []);
 
-  const update = (key: string, value: any) =>
-    setForm((current: any) => ({ ...current, [key]: value }));
+  const update = (key: string, value: any) => setForm((current: any) => ({
+    ...current,
+    [key]: value,
+    ...(key === "sepayApiKey" && value ? { clearSePayApiKey: false } : {}),
+  }));
 
   const act = async (name: string, fn: () => Promise<any>, message: string) => {
     setBusy(name);
     try {
-      await fn();
+      const result = await fn();
       toast.success(message);
       if (name === "save") {
-        setOriginalForm(form);
+        const safeForm = { ...form, ...result, sepayApiKey: "", clearSePayApiKey: false };
+        setForm(safeForm);
+        setOriginalForm(safeForm);
       }
     } catch (e: any) {
       toast.error(e.message);
@@ -63,7 +74,7 @@ export default function CompanyPaymentSettingsTab() {
           Thanh toán SePay doanh nghiệp
         </h2>
         <p className="text-xs text-slate-500 mt-1">
-          Tài khoản ngân hàng dùng chung để nhận thanh toán tự động qua SePay.
+          Tài khoản ngân hàng và API key dùng để nhận, xác thực thanh toán tự động qua SePay.
         </p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -89,33 +100,50 @@ export default function CompanyPaymentSettingsTab() {
           placeholder="VI DU TEN TAI KHOAN"
           onChange={(v: string) => update("accountName", v)}
         />
+        <Field
+          label="API key SePay"
+          value={form.sepayApiKey}
+          placeholder={form.sepayApiKeyConfigured ? "Đã lưu key; nhập key mới để thay thế" : "Nhập API key trong cấu hình webhook SePay"}
+          type="password"
+          autoComplete="new-password"
+          onChange={(v: string) => update("sepayApiKey", v)}
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
+        <span>{form.sepayApiKeyConfigured ? "API key đã được lưu mã hóa." : "Chưa lưu API key SePay."}</span>
+        {form.sepayApiKeyConfigured && (
+          <label className="inline-flex items-center gap-2">
+            <input type="checkbox" checked={form.clearSePayApiKey} onChange={(e) => update("clearSePayApiKey", e.target.checked)} />
+            Xóa API key đã lưu
+          </label>
+        )}
       </div>
       <div className="flex flex-wrap gap-2">
         <Action
           icon={Save}
           busy={busy === "save"}
           label="Lưu cấu hình"
-          onClick={() =>
-            act("save", () => companyPaymentApi.saveVietqr(form), "Đã lưu tài khoản SePay doanh nghiệp.")
-          }
+          onClick={() => act("save", () => companyPaymentApi.saveVietqr({
+            bankId: form.bankId,
+            accountNo: form.accountNo,
+            accountName: form.accountName,
+            sepayApiKey: form.sepayApiKey,
+            clearSePayApiKey: form.clearSePayApiKey,
+          }), "Đã lưu cấu hình thanh toán SePay.")}
         />
-        <Action
-          icon={Undo2}
-          label="Khôi phục"
-          secondary
-          onClick={handleReset}
-        />
+        <Action icon={Undo2} label="Khôi phục" secondary onClick={handleReset} />
       </div>
     </section>
   );
 }
 
-function Field({ label, value, placeholder, onChange, type = "text" }: any) {
+function Field({ label, value, placeholder, onChange, type = "text", autoComplete }: any) {
   return (
     <label className="space-y-1 text-xs font-semibold text-slate-600">
       <span>{label}</span>
       <input
         type={type}
+        autoComplete={autoComplete}
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}

@@ -85,9 +85,50 @@ function firstString(...values: unknown[]) {
 
 function quantityFromSku(sku: any) {
   if (Number.isFinite(Number(sku?.inventory?.quantity))) return Number(sku.inventory.quantity);
+  if (sku?.inventory_quantity !== undefined && sku?.inventory_quantity !== null && Number.isFinite(Number(sku.inventory_quantity))) return Number(sku.inventory_quantity);
   if (Array.isArray(sku?.inventory)) return sku.inventory.reduce((sum: number, row: any) => sum + Number(row?.quantity || 0), 0);
   if (Array.isArray(sku?.inventory?.warehouse_inventory)) return sku.inventory.warehouse_inventory.reduce((sum: number, row: any) => sum + Number(row?.quantity || 0), 0);
   return 0;
+}
+
+function hasSkuInventorySnapshot(sku: any) {
+  const inventory = sku?.inventory;
+  if (Array.isArray(inventory) && inventory.length) return true;
+  if (Array.isArray(inventory?.warehouse_inventory) && inventory.warehouse_inventory.length) return true;
+  if (inventory && typeof inventory === "object" && !Array.isArray(inventory)
+    && inventory.quantity !== undefined && inventory.quantity !== null && Number.isFinite(Number(inventory.quantity))) return true;
+  return sku?.inventory_quantity !== undefined && sku?.inventory_quantity !== null && Number.isFinite(Number(sku.inventory_quantity));
+}
+
+export function missingTikTokProductInfo(input: {
+  description?: string;
+  categoryId?: string;
+  categoryName?: string;
+  imageUrls?: string[];
+  skus: Array<{ skuId?: string; priceAmount?: string; currency?: string; hasInventorySnapshot?: boolean }>;
+}) {
+  const missing: string[] = [];
+  if (!String(input.description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()) missing.push("Mô tả");
+  if (!firstString(input.categoryId, input.categoryName)) missing.push("Danh mục");
+  if (!input.imageUrls?.length) missing.push("Ảnh sản phẩm");
+  if (!input.skus.length || input.skus.some((sku) => !firstString(sku.skuId))) missing.push("SKU");
+  if (input.skus.length && input.skus.some((sku) => !firstString(sku.priceAmount) || !firstString(sku.currency))) missing.push("Giá SKU");
+  if (input.skus.length && input.skus.some((sku) => !sku.hasInventorySnapshot)) missing.push("Tồn kho SKU");
+  return missing;
+}
+
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T, index: number) => Promise<R>) {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(items.length, Math.max(1, Math.trunc(concurrency)));
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= items.length) return;
+      results[index] = await mapper(items[index], index);
+    }
+  }));
+  return results;
 }
 
 function inventoryFromSku(sku: any) {
@@ -620,7 +661,7 @@ export const TikTokShopService = {
     const companyCode = normalizeCompany(companyCodeInput);
     const connections = await connectionsWithSecrets(companyCode);
     if (!connections.length) throw Object.assign(new Error("Doanh nghiệp chưa kết nối TikTok Shop."), { statusCode: 409 });
-    const aggregate = { total: 0, matched: 0, unmatched: 0, connections: connections.length };
+    const aggregate = { total: 0, matched: 0, unmatched: 0, connections: connections.length, detailsSynced: 0, complete: 0, incomplete: 0, detailFailed: 0 };
     for (const connection of connections) {
       try {
       const accessToken = await validAccessToken(connection);
@@ -639,37 +680,143 @@ export const TikTokShopService = {
             body: { status: "ALL", locale: "vi-VN", include_live_quick_products: false },
           });
           const products = Array.isArray(data?.products) ? data.products : [];
-          const sellerSkus = products.flatMap((product: any) => (Array.isArray(product.skus) ? product.skus : [])).map((sku: any) => firstString(sku.seller_sku, sku.sellerSku)).filter(Boolean);
-          const localVariants = sellerSkus.length ? await ProductVariantModel.find({ companyCode, sku: { $in: sellerSkus.map((sku: string) => sku.toUpperCase()) } }).select("_id productId sku").lean() : [];
+          const pageProducts = products.map((summary: any) => ({ summary, productId: firstString(summary.id, summary.product_id) })).filter((row: any) => row.productId);
+          const productIds = pageProducts.map((row: any) => row.productId);
+          const cachedProducts: any[] = productIds.length ? await TikTokShopProductModel.find({
+            companyCode, connectionId: String(connection._id), shopCipher: shop.cipher, tiktokProductId: { $in: productIds },
+          }).lean() : [];
+          const cachedByProductId = new Map(cachedProducts.map((cached: any) => [String(cached.tiktokProductId), cached]));
+          const detailedProducts = await mapWithConcurrency(pageProducts, 3, async (row: any) => {
+            const cached = cachedByProductId.get(row.productId);
+            try {
+              const detailData: any = await callTikTokShopApi({
+                path: `/product/202309/products/${encodeURIComponent(row.productId)}`,
+                accessToken,
+                query: { shop_cipher: shop.cipher },
+              });
+              return { ...row, cached, detail: detailData?.product || detailData || {}, detailError: "" };
+            } catch (error: any) {
+              return { ...row, cached, detail: null, detailError: String(error?.message || "Không tải được chi tiết sản phẩm TikTok.").slice(0, 500) };
+            }
+          });
+
+          const skuCodes = detailedProducts.flatMap((row: any) => {
+            const summarySkus = Array.isArray(row.summary.skus) ? row.summary.skus : [];
+            const detailSkus = Array.isArray(row.detail?.skus) ? row.detail.skus : [];
+            const skuIds = [...new Set([...summarySkus, ...detailSkus].map((sku: any) => firstString(sku.id, sku.sku_id)).filter(Boolean))];
+            const summaryById = new Map(summarySkus.map((sku: any) => [firstString(sku.id, sku.sku_id), sku]));
+            const detailById = new Map(detailSkus.map((sku: any) => [firstString(sku.id, sku.sku_id), sku]));
+            const cachedById = new Map((row.cached?.skus || []).map((sku: any) => [String(sku.skuId), sku]));
+            return skuIds.map((skuId) => {
+              const summarySku: any = summaryById.get(skuId) || {};
+              const detailSku: any = detailById.get(skuId) || {};
+              const cachedSku: any = cachedById.get(skuId) || {};
+              return importedSkuCode({
+                sellerSku: firstString(detailSku.seller_sku, detailSku.sellerSku, summarySku.seller_sku, summarySku.sellerSku, cachedSku.sellerSku),
+                skuId,
+              }).toUpperCase();
+            });
+          });
+          const localVariants = skuCodes.length ? await ProductVariantModel.find({ companyCode, sku: { $in: [...new Set(skuCodes)] } }).select("_id productId sku").lean() : [];
           const variantBySku = new Map(localVariants.map((variant: any) => [String(variant.sku).toUpperCase(), variant]));
-          for (const product of products) {
-            const productId = firstString(product.id, product.product_id);
-            if (!productId) continue;
+
+          for (const row of detailedProducts) {
+            const { summary: product, productId, cached, detail, detailError } = row;
+            const summarySkus = Array.isArray(product.skus) ? product.skus : [];
+            const detailSkus = Array.isArray(detail?.skus) ? detail.skus : [];
+            const summaryById = new Map(summarySkus.map((sku: any) => [firstString(sku.id, sku.sku_id), sku]));
+            const detailById = new Map(detailSkus.map((sku: any) => [firstString(sku.id, sku.sku_id), sku]));
+            const cachedById = new Map((cached?.skus || []).map((sku: any) => [String(sku.skuId), sku]));
+            const skuIds = [...new Set([...summarySkus, ...detailSkus].map((sku: any) => firstString(sku.id, sku.sku_id)).filter(Boolean))];
             let productMatched = false;
-            const skus = (Array.isArray(product.skus) ? product.skus : []).map((sku: any) => {
-              const sellerSku = firstString(sku.seller_sku, sku.sellerSku);
-              const local = variantBySku.get(sellerSku.toUpperCase());
+            const skus = skuIds.map((skuId) => {
+              const summarySku: any = summaryById.get(skuId) || {};
+              const detailSku: any = detailById.get(skuId) || {};
+              const cachedSku: any = cachedById.get(skuId) || {};
+              const sellerSku = firstString(detailSku.seller_sku, detailSku.sellerSku, summarySku.seller_sku, summarySku.sellerSku, cachedSku.sellerSku);
+              const code = importedSkuCode({ sellerSku, skuId }).toUpperCase();
+              const local: any = variantBySku.get(code);
               if (local) productMatched = true;
-              const price = sku.price || sku.sales_price || {};
+              const price = detailSku.price || detailSku.sales_price || summarySku.price || summarySku.sales_price || {};
+              const detailInventory = inventoryFromSku(detailSku);
+              const summaryInventory = inventoryFromSku(summarySku);
+              const inventory = detailInventory.length ? detailInventory : summaryInventory.length ? summaryInventory : (cachedSku.inventory || []);
+              const inventorySource = hasSkuInventorySnapshot(detailSku) ? detailSku
+                : hasSkuInventorySnapshot(summarySku) ? summarySku : null;
+              const optionValues = skuOptionValues(detailSku);
+              const skuMedia = skuImageUrls(detailSku);
+              const packageDimensions = detail?.package_dimensions || {};
+              const skuDimensions = detailSku.sku_dimensions || detailSku.package_dimensions || packageDimensions;
+              const skuWeight = detailSku.sku_weight || detailSku.package_weight || detail?.package_weight || {};
               return {
-                skuId: firstString(sku.id, sku.sku_id), sellerSku,
-                priceAmount: firstString(price.amount, price.tax_exclusive_price, sku.price_amount),
-                currency: firstString(price.currency, sku.currency),
-                inventoryQuantity: quantityFromSku(sku),
-                inventory: inventoryFromSku(sku),
+                skuId,
+                sellerSku,
+                barcode: firstString(detailSku.identifier_code, detailSku.barcode, detailSku.barcode_value, cachedSku.barcode),
+                displayName: optionValues.length ? variantDisplayName(detailSku, code) : firstString(cachedSku.displayName, code),
+                optionValues: optionValues.length ? optionValues : (cachedSku.optionValues || []),
+                imageUrls: skuMedia.length ? skuMedia : (cachedSku.imageUrls || []),
+                weightGrams: weightInGrams(skuWeight.value, skuWeight.unit) ?? cachedSku.weightGrams,
+                lengthMm: dimensionInMillimeters(skuDimensions.length, skuDimensions.unit) ?? cachedSku.lengthMm,
+                widthMm: dimensionInMillimeters(skuDimensions.width, skuDimensions.unit) ?? cachedSku.widthMm,
+                heightMm: dimensionInMillimeters(skuDimensions.height, skuDimensions.unit) ?? cachedSku.heightMm,
+                priceAmount: firstString(price.amount, price.tax_exclusive_price, price.sale_price, detailSku.price_amount, summarySku.price_amount, cachedSku.priceAmount),
+                currency: firstString(price.currency, detailSku.currency, summarySku.currency, cachedSku.currency),
+                inventoryQuantity: inventorySource ? quantityFromSku(inventorySource) : Number(cachedSku.inventoryQuantity || 0),
+                hasInventorySnapshot: Boolean(inventorySource) || Boolean(cachedSku.hasInventorySnapshot) || Boolean(cachedSku.inventory?.length),
+                inventory,
                 localProductId: local ? String(local.productId) : "",
                 localVariantId: local ? String(local._id) : "",
               };
             });
             if (productMatched) matched += 1;
+
+            const detailImages = imageUrls([...(Array.isArray(detail?.main_images) ? detail.main_images : []), ...(Array.isArray(detail?.images) ? detail.images : [])]);
+            const summaryImages = imageUrls([...(Array.isArray(product.main_images) ? product.main_images : []), ...(Array.isArray(product.images) ? product.images : [])]);
+            const productImageUrls = detailImages.length ? detailImages : summaryImages.length ? summaryImages : (cached?.imageUrls || []);
+            const description = firstString(detail?.description, cached?.description);
+            const categoryId = firstString(detail?.category?.id, detail?.category_id, cached?.categoryId);
+            const categoryName = firstString(detail?.category?.local_name, detail?.category?.name, detail?.category_name, detail?.local_name, cached?.categoryName);
+            const brandId = firstString(detail?.brand?.id, detail?.brand_id, cached?.brandId);
+            const brandName = firstString(detail?.brand?.name, detail?.brand?.brand_name, cached?.brandName);
+            const productAttributes = tikTokProductAttributes(detail).length ? tikTokProductAttributes(detail) : (cached?.productAttributes || []);
+            const manufacturer = firstString(detail?.manufacturer?.name, detail?.manufacturer_name, productAttributeValue(productAttributes, ["manufacturer", "nhà sản xuất"]), cached?.manufacturer);
+            const countryOfOrigin = firstString(detail?.country_of_origin, productAttributeValue(productAttributes, ["country of origin", "country of manufacture", "xuất xứ", "nước sản xuất"]), cached?.countryOfOrigin);
+            const packageDimensions = detail?.package_dimensions || {};
+            const packageWeight = detail?.package_weight || {};
+            const missingInfo = missingTikTokProductInfo({ description, categoryId, categoryName, imageUrls: productImageUrls, skus });
+            const detailsSyncStatus = detailError ? "failed" : missingInfo.length ? "incomplete" : "complete";
+            if (detailError) aggregate.detailFailed += 1;
+            else aggregate.detailsSynced += 1;
+            if (!detailError && missingInfo.length) aggregate.incomplete += 1;
+            if (!detailError && !missingInfo.length) aggregate.complete += 1;
+
             await TikTokShopProductModel.updateOne(
               { companyCode, connectionId: String(connection._id), shopCipher: shop.cipher, tiktokProductId: productId },
               { $set: {
-                shopName: shop.name, title: firstString(product.title, product.product_name) || `TikTok product ${productId}`,
-                status: firstString(product.status), imageUrl: parseImage(product),
-                imageUrls: imageUrls([...(Array.isArray(product.main_images) ? product.main_images : []), ...(Array.isArray(product.images) ? product.images : [])]), skus,
-                tiktokCreateTime: product.create_time ? new Date(Number(product.create_time) * 1000) : null,
-                tiktokUpdateTime: product.update_time ? new Date(Number(product.update_time) * 1000) : null,
+                shopName: shop.name,
+                title: firstString(detail?.title, product.title, product.product_name, cached?.title) || `TikTok product ${productId}`,
+                status: firstString(product.status, detail?.status, cached?.status),
+                imageUrl: firstString(parseImage(detail), parseImage(product), cached?.imageUrl, productImageUrls[0]),
+                imageUrls: productImageUrls,
+                description,
+                categoryId,
+                categoryName,
+                brandId,
+                brandName,
+                manufacturer,
+                countryOfOrigin,
+                productAttributes,
+                packageWeightGrams: weightInGrams(packageWeight.value, packageWeight.unit) ?? cached?.packageWeightGrams,
+                packageLengthMm: dimensionInMillimeters(packageDimensions.length, packageDimensions.unit) ?? cached?.packageLengthMm,
+                packageWidthMm: dimensionInMillimeters(packageDimensions.width, packageDimensions.unit) ?? cached?.packageWidthMm,
+                packageHeightMm: dimensionInMillimeters(packageDimensions.height, packageDimensions.unit) ?? cached?.packageHeightMm,
+                detailsSyncStatus,
+                detailsSyncedAt: detailError ? (cached?.detailsSyncedAt || null) : seenAt,
+                missingInfo,
+                detailsSyncError: detailError,
+                skus,
+                tiktokCreateTime: product.create_time ? new Date(Number(product.create_time) * 1000) : (cached?.tiktokCreateTime || null),
+                tiktokUpdateTime: product.update_time ? new Date(Number(product.update_time) * 1000) : (cached?.tiktokUpdateTime || null),
                 lastSeenAt: seenAt,
               }, $setOnInsert: { companyCode, connectionId: String(connection._id), shopCipher: shop.cipher, tiktokProductId: productId } },
               { upsert: true, runValidators: true },

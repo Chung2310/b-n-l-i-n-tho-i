@@ -3,9 +3,12 @@ import { CompanyModel } from "../../../model/company.model";
 import { RetailOrderModel } from "../models/retail-order.model";
 import { RetailSePayTransactionModel } from "../models/retail-sepay-transaction.model";
 import { publishRetailOrderEvent } from "./retail-order-events";
-import { paymentStatusFor, retailPaymentCode } from "./retail-order.service";
+import { legacyRetailPaymentCode, paymentStatusFor, retailPaymentCode } from "./retail-order.service";
 import { CashierShiftModel } from "../models/cashier-shift.model";
 import { businessDateInVietnam, emitSessionChange } from "./cashier-shift.service";
+import { emitToUser } from "../../../socket";
+import { decryptSecret } from "../../../security/crypto";
+import crypto from "node:crypto";
 
 export type SePayPayload = {
   id?: string | number; gateway?: string; transactionDate?: string; accountNumber?: string | number;
@@ -14,6 +17,24 @@ export type SePayPayload = {
 };
 
 const text = (value: unknown) => String(value ?? "").trim();
+const safeEqual = (left: string, right: string) => {
+  const a = Buffer.from(left); const b = Buffer.from(right);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+};
+
+export async function matchesCompanySePayApiKey(accountNumber: string, candidate: string) {
+  if (!accountNumber || !candidate) return false;
+  const companies: any[] = await CompanyModel.find({ "vietqrConfig.accountNo": accountNumber })
+    .select("code +vietqrConfig.sepayApiKeyEncrypted")
+    .limit(2)
+    .lean();
+  if (companies.length !== 1) return false;
+  const encryptedKey = companies[0]?.vietqrConfig?.sepayApiKeyEncrypted;
+  if (!encryptedKey) return false;
+  try { return safeEqual(candidate, decryptSecret(encryptedKey)); }
+  catch { return false; }
+}
+
 export const canonicalPaymentCode = (value: unknown) => text(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
 export function parseSePayTransactionDate(value: unknown) {
   const input = text(value);
@@ -47,8 +68,8 @@ export async function buildRetailPaymentQr(companyCode: string, orderId: string)
   if (!order || !order.orderCode || order.status === "draft" || order.status === "cancelled") throw new Error("Đơn hàng không thể thanh toán bằng QR.");
   const config = company?.vietqrConfig;
   if (!config?.bankId || !config.accountNo) throw new Error("Doanh nghiệp chưa cấu hình tài khoản VietQR.");
-  const paymentCode = order.paymentCode || retailPaymentCode(order.orderCode);
-  if (!order.paymentCode) await RetailOrderModel.updateOne({ _id: order._id, companyCode }, { $set: { paymentCode } });
+  const paymentCode = retailPaymentCode(order.orderCode);
+  if (order.paymentCode !== paymentCode) await RetailOrderModel.updateOne({ _id: order._id, companyCode }, { $set: { paymentCode } });
   const params = new URLSearchParams({ acc: config.accountNo, bank: config.bankId, amount: String(order.dueAmount), des: paymentCode });
   return { orderId: String(order._id), orderCode: order.orderCode, paymentCode, amount: order.dueAmount, paymentStatus: order.paymentStatus, accountNumber: config.accountNo, accountName: config.accountName, bankId: config.bankId, qrUrl: `https://vietqr.app/img?${params}` };
 }
@@ -59,6 +80,9 @@ export async function processRetailSePayTransaction(payload: SePayPayload) {
   if (!Number.isSafeInteger(receivedAmount) || receivedAmount <= 0) throw Object.assign(new Error("Số tiền SePay không hợp lệ."), { status: 400 });
   const accountNumber = text(payload.accountNumber);
   const paymentCode = extractPaymentCode(payload);
+  const legacyPaymentCode = paymentCode.startsWith("AKM") ? paymentCode.slice(3) : paymentCode;
+  const prefixedPaymentCode = paymentCode.startsWith("AKM") ? paymentCode : `AKM${paymentCode}`;
+  const paymentCodeCandidates = [...new Set([paymentCode, legacyPaymentCode, prefixedPaymentCode].filter(Boolean))];
   if (!accountNumber || !paymentCode) throw Object.assign(new Error("Webhook thiếu tài khoản nhận hoặc mã thanh toán."), { status: 400 });
   const companies = await CompanyModel.find({ "vietqrConfig.accountNo": accountNumber }).select("code").limit(2).lean();
   if (companies.length !== 1) throw Object.assign(new Error(companies.length ? "Tài khoản nhận đang được cấu hình cho nhiều doanh nghiệp." : "Không tìm thấy doanh nghiệp theo tài khoản nhận."), { status: companies.length ? 409 : 404 });
@@ -75,8 +99,16 @@ export async function processRetailSePayTransaction(payload: SePayPayload) {
       changedShift = null;
       const duplicate = await RetailSePayTransactionModel.findOne({ provider: "sepay", transactionId }).session(session).lean();
       if (duplicate) { result = { duplicate: true, orderId: duplicate.orderId, appliedAmount: duplicate.appliedAmount }; return; }
-      const order: any = await RetailOrderModel.findOne({ companyCode: company.code, $or: [{ paymentCode }, { orderCode: text(payload.code) }], status: "confirmed", dueAmount: { $gt: 0 } }).session(session);
-      if (!order) throw Object.assign(new Error("Không tìm thấy đơn còn nợ theo mã thanh toán."), { status: 404 });
+      const candidateOrders: any[] = await RetailOrderModel.find({ companyCode: company.code, $or: [{ paymentCode: { $in: paymentCodeCandidates } }, { orderCode: text(payload.code) }], status: "confirmed", dueAmount: { $gt: 0 } }).session(session);
+      const matches = candidateOrders.filter((candidate) => {
+        const orderCode = text(candidate.orderCode);
+        return retailPaymentCode(orderCode) === paymentCode
+          || legacyRetailPaymentCode(orderCode) === paymentCode
+          || orderCode === text(payload.code);
+      });
+      if (!matches.length) throw Object.assign(new Error("Không tìm thấy đơn còn nợ theo mã thanh toán."), { status: 404 });
+      if (matches.length > 1) throw Object.assign(new Error("Mã thanh toán khớp nhiều đơn hàng."), { status: 409 });
+      const order: any = matches[0];
       const appliedAmount = Math.min(receivedAmount, Number(order.dueAmount));
       const paidAt = parseSePayTransactionDate(payload.transactionDate);
       const recordedAt = new Date();
@@ -92,11 +124,19 @@ export async function processRetailSePayTransaction(payload: SePayPayload) {
       await publishRetailOrderEvent("paid", { companyCode: order.companyCode, branchId: order.branchId }, order, { id: "sepay", displayName: "SePay webhook" }, { session, amount: appliedAmount, transactionKey: transactionId, occurredAt: paidAt });
       result = { duplicate: false, orderId: String(order._id), orderCode: order.orderCode, appliedAmount, excessAmount: receivedAmount - appliedAmount, paymentStatus: order.paymentStatus, status: order.status };
     });
-    if (changedShift) emitSessionChange("pos:session:updated", changedShift);
-    else if (result?.orderId) {
-      const order = await RetailOrderModel.findById(result.orderId).select("companyCode branchId shiftId salespersonId").lean();
-      if (order?.shiftId) emitSessionChange("pos:session:updated", { ...order, _id: order.shiftId, cashierId: order.salespersonId });
+    const eventOrder: any = result?.orderId
+      ? await RetailOrderModel.findById(result.orderId).select("companyCode branchId shiftId salespersonId createdBy").lean()
+      : null;
+    if (result?.duplicate !== true && result?.paymentStatus === "paid" && eventOrder?.createdBy) {
+      emitToUser(String(eventOrder.createdBy), "retail:payment_received", {
+        companyCode: String(eventOrder.companyCode),
+        branchId: String(eventOrder.branchId),
+        orderId: String(result.orderId),
+        transactionKey: transactionId,
+      });
     }
+    if (changedShift) emitSessionChange("pos:session:updated", changedShift);
+    else if (eventOrder?.shiftId) emitSessionChange("pos:session:updated", { ...eventOrder, _id: eventOrder.shiftId, cashierId: eventOrder.salespersonId });
     return result;
   } finally { await session.endSession(); }
 }

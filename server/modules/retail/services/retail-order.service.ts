@@ -239,8 +239,12 @@ const monthlyScope = (businessDate: string) => businessDate.replace("-", "").sli
 export function formatRetailDocumentCode(prefix: string, branchCode: string, scope: string, seq: number) {
   return `${prefix.trim().toUpperCase()}-${branchCode.trim().toUpperCase()}-${scope}-${String(seq).padStart(6, "0")}`;
 }
-export function retailPaymentCode(orderCode: string) {
+export function legacyRetailPaymentCode(orderCode: string) {
   return orderCode.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+export function retailPaymentCode(orderCode: string) {
+  const normalized = legacyRetailPaymentCode(orderCode);
+  return normalized.startsWith("AKM") ? normalized : `AKM${normalized}`;
 }
 const duplicate = (error: any) => error?.code === 11000;
 

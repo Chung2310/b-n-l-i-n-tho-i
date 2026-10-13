@@ -36,6 +36,7 @@ export interface ICompanyVietqrConfig {
   bankId: string;
   accountNo: string;
   accountName: string;
+  sepayApiKeyEncrypted?: string;
 }
 
 export interface ICompany extends Document {

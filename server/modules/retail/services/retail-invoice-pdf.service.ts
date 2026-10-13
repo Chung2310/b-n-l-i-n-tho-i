@@ -44,7 +44,9 @@ export async function renderRetailInvoicePdf(
   isReprint = false,
 ): Promise<RetailInvoicePdfResult> {
   const compact = paperSize === "80mm" || paperSize === "58mm";
-  const doc = new PDFDocument({ size: invoicePdfPageSize(paperSize) as any, margin: compact ? 14 : 40, compress: true });
+  const pageSize = invoicePdfPageSize(paperSize);
+  if (compact && Array.isArray(pageSize)) pageSize[1] = 12_000;
+  const doc = new PDFDocument({ size: pageSize as any, margin: compact ? 14 : 40, compress: true });
   const chunks: Buffer[] = [];
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));
   const completed = new Promise<Buffer>((resolve, reject) => {
@@ -110,7 +112,7 @@ export async function renderRetailInvoicePdf(
   const barcode = encodeCode128(invoice.invoiceNo);
   const barcodeHeight = compact ? 28 : 36;
   const barcodeWidth = Math.min(doc.page.width - doc.page.margins.left - doc.page.margins.right, compact ? 156 : 170);
-  if (doc.y + barcodeHeight + 22 > doc.page.height - doc.page.margins.bottom) doc.addPage();
+  if (!compact && doc.y + barcodeHeight + 22 > doc.page.height - doc.page.margins.bottom) doc.addPage();
   const barcodeY = doc.y + 2;
   const barcodeX = (doc.page.width - barcodeWidth) / 2;
   const moduleWidth = barcodeWidth / barcode.width;
@@ -120,6 +122,12 @@ export async function renderRetailInvoicePdf(
   }
   doc.y = barcodeY + barcodeHeight + 3;
   doc.font("Roboto-Bold").fontSize(compact ? 8 : 10).text(invoice.invoiceNo, { align: "center" });
+  if (compact) {
+    const page = doc.page as any;
+    const contentHeight = Math.ceil(doc.y + page.margins.bottom);
+    page.height = contentHeight;
+    page.dictionary.data.MediaBox = [0, 0, page.width, contentHeight];
+  }
   doc.end();
   return { buffer: await completed, filename: invoicePdfFilename(invoice.invoiceNo) };
 }

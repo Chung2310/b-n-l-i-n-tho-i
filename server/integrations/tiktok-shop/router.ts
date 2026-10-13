@@ -3,11 +3,13 @@ import { Router } from "express";
 import type { NextFunction, Response } from "express";
 import { requireAuth, requirePermission, type AuthenticatedRequest } from "../../middleware/auth";
 import { TikTokShopService } from "./tiktok-shop.service";
+import { cleanupTikTokImportedProducts } from "./tiktok-shop-import-cleanup.service";
 import "./tiktok-shop.consumer";
 
 export const tikTokShopRouter = Router();
 const read = [requireAuth as any, requirePermission(["settings:manage", "inventory:read"]) as any];
 const manage = [requireAuth as any, requirePermission("settings:manage") as any];
+const cleanup = [...manage, requirePermission("inventory:manage") as any];
 const company = (req: AuthenticatedRequest) => req.user?.companyCode;
 const actor = (req: AuthenticatedRequest) => String(req.user?.id || "");
 const branch = (req: AuthenticatedRequest) => String(req.body?.branchId || req.user?.branchId || "");
@@ -38,6 +40,23 @@ tikTokShopRouter.post("/sync-products", ...manage, async (req: AuthenticatedRequ
 });
 tikTokShopRouter.post("/import-products", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try { res.json({ data: await TikTokShopService.importProductsToInventory(company(req), branch(req), actor(req)) }); } catch (error) { next(error); }
+});
+tikTokShopRouter.post("/cleanup-imported-products", ...cleanup, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json({ data: await cleanupTikTokImportedProducts({
+      companyCode: company(req),
+      tiktokProductIds: req.body?.tiktokProductIds,
+      dryRun: req.body?.dryRun,
+      confirm: req.body?.confirm,
+    }) });
+  } catch (problem: any) {
+    return res.status(Number(problem?.statusCode) || 500).json({
+      success: false,
+      ...(problem?.code ? { code: problem.code } : {}),
+      message: problem?.message || "Không thể dọn sản phẩm TikTok đã nhập.",
+      ...(problem?.references ? { references: problem.references } : {}),
+    });
+  }
 });
 tikTokShopRouter.post("/sync-inventory-prices", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try { res.json({ data: await TikTokShopService.syncInventoryAndPrices(company(req)) }); } catch (error) { next(error); }

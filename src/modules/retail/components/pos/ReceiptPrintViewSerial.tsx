@@ -1,3 +1,5 @@
+import React from "react";
+import { createPortal } from "react-dom";
 import type { RetailInvoice, RetailSettings } from "../../types";
 import { invoicePaymentRows } from "./invoicePaymentDisplay";
 import { encodeCode128 } from "../../../../../shared/code128";
@@ -10,26 +12,36 @@ export default function ReceiptPrintView({
   invoice,
   isReprint = false,
   paperSize = "80mm",
+  printTarget = false,
 }: {
   invoice: RetailInvoice;
   isReprint?: boolean;
   paperSize?: RetailSettings["invoicePaperSize"];
+  printTarget?: boolean;
 }) {
   const snapshot = invoice.snapshot;
   const isThermal = paperSize === "80mm" || paperSize === "58mm";
-  const pageRule = paperSize === "58mm" ? "58mm 210mm" : paperSize === "80mm" ? "80mm 210mm" : paperSize;
+  const [pageHeightMm, setPageHeightMm] = React.useState(210);
+  const receiptRef = React.useRef<HTMLElement | null>(null);
+  const pageRule = isThermal ? `${paperSize} ${pageHeightMm}mm` : paperSize;
   const marginRule = "0";
   const receiptWidth = isThermal ? paperSize : "100%";
   const receiptPadding = paperSize === "58mm" ? "5mm" : paperSize === "80mm" ? "4mm" : "14mm";
-  const printCss = "@media print { @page { size: " + pageRule + "; margin: " + marginRule + "; } body * { visibility: hidden !important; } #retail-receipt, #retail-receipt * { visibility: visible !important; } #retail-receipt { position: absolute; left: 0; top: 0; width: " + receiptWidth + "; max-width: 100%; padding: " + receiptPadding + "; } }";
+  React.useLayoutEffect(() => {
+    if (!isThermal || !receiptRef.current) return;
+    const heightMm = receiptRef.current.getBoundingClientRect().height * 25.4 / 96;
+    if (Number.isFinite(heightMm) && heightMm > 0) setPageHeightMm(Math.ceil(heightMm + 2));
+  }, [invoice, isReprint, isThermal, paperSize]);
+  const printCss = "@page { size: " + pageRule + "; margin: " + marginRule + "; } @media print { body.retail-print-isolated > *:not(.retail-print-staging) { display: none !important; } body.retail-print-isolated > .retail-print-staging { display: block !important; } body * { visibility: hidden !important; } .retail-print-staging { position: fixed !important; left: 0 !important; top: 0 !important; width: auto !important; height: auto !important; overflow: visible !important; visibility: visible !important; } #retail-receipt, #retail-receipt * { visibility: visible !important; } #retail-receipt { position: absolute; left: 0; top: 0; width: " + receiptWidth + "; max-width: 100%; padding: " + receiptPadding + "; } }";
   const barcode = encodeCode128(invoice.invoiceNo);
   const branchName = snapshot.store?.branchName?.trim() || "";
   const showBranchName = Boolean(branchName) && !isHeadOfficeName(branchName);
   const salespersonName = snapshot.salespersonName || snapshot.cashierName;
 
   return (
-    <article id="retail-receipt" className={"mx-auto w-full bg-white p-4 text-sm text-slate-900 " + (isThermal ? "max-w-sm" : "max-w-3xl")}>
-      <style>{printCss}</style>
+    <>
+      {createPortal(<style media="print">{printCss}</style>, document.head)}
+      <article ref={receiptRef} id={printTarget ? "retail-receipt" : "retail-receipt-preview"} style={isThermal ? { width: receiptWidth, maxWidth: receiptWidth, padding: receiptPadding } : undefined} className={"mx-auto w-full bg-white p-4 text-sm text-slate-900 " + (isThermal ? "max-w-sm" : "max-w-3xl")}>
       {isReprint && <p className="mb-2 text-center text-lg font-black tracking-[0.25em] text-rose-700">IN LẠI</p>}
       <header className="border-b border-dashed pb-3 text-center">
         <div className="mb-1 flex flex-col items-center">
@@ -74,7 +86,8 @@ export default function ReceiptPrintView({
         <p className="mt-1 text-[10px] font-semibold">{"Qu\u00e9t m\u00e3 ho\u1eb7c nh\u1eadp s\u1ed1 h\u00f3a \u0111\u01a1n"}</p>
         <p className="font-mono text-xs font-bold tracking-wide">{invoice.invoiceNo}</p>
       </footer>
-    </article>
+      </article>
+    </>
   );
 }
 

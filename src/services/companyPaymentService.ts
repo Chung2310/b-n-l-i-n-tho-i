@@ -18,11 +18,20 @@ export interface VietqrConfig {
   bankId: string;
   accountNo: string;
   accountName: string;
+  sepayApiKeyConfigured?: boolean;
+}
+
+export interface VietqrConfigInput {
+  bankId: string;
+  accountNo: string;
+  accountName: string;
+  sepayApiKey?: string;
+  clearSePayApiKey?: boolean;
 }
 
 export const companyPaymentApi = {
   getVietqr: () => request<VietqrConfig>("/vietqr"),
-  saveVietqr: (data: VietqrConfig) =>
+  saveVietqr: (data: VietqrConfigInput) =>
     request<VietqrConfig>("/vietqr", {
       method: "PUT",
       body: JSON.stringify(data),

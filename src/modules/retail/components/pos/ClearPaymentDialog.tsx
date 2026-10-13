@@ -4,10 +4,8 @@ import {
   Building2,
   Calendar,
   CheckCircle2,
-  CreditCard,
   Plus,
   Receipt,
-  Smartphone,
   Trash2,
   Wallet,
   X,
@@ -17,6 +15,10 @@ import type { RetailInstallment, RetailPaymentInput } from "../../types";
 import CurrencyInput from "./CurrencyInput";
 import { Dropdown } from "../../../../components/common/Dropdown";
 import { getApiErrorMessage } from "../../../../utils/errorMessage";
+import {
+  companyPaymentApi,
+  type VietqrConfig,
+} from "../../../../services/companyPaymentService";
 
 const money = (value: number) =>
   new Intl.NumberFormat("vi-VN").format(value) + " ₫";
@@ -68,16 +70,6 @@ const paymentMethodOptions = [
     label: "Chuyển khoản",
     icon: <Building2 className="h-4 w-4 text-cyan-600" />,
   },
-  {
-    value: "card",
-    label: "Thẻ POS",
-    icon: <CreditCard className="h-4 w-4 text-blue-600" />,
-  },
-  {
-    value: "ewallet",
-    label: "Ví điện tử",
-    icon: <Smartphone className="h-4 w-4 text-violet-600" />,
-  },
 ];
 
 export default function ClearPaymentDialog({
@@ -96,6 +88,32 @@ export default function ClearPaymentDialog({
   const [payments, setPayments] = React.useState<RetailPaymentInput[]>(() => installment ? [{ method: "cash", amount: Math.round(total * installment.prepayPercent / 100), tenderedAmount: Math.round(total * installment.prepayPercent / 100) }] : fullCash());
   const [dueDate, setDueDate] = React.useState("");
   const [error, setError] = React.useState("");
+  const [vietqrConfig, setVietqrConfig] = React.useState<VietqrConfig | null>(null);
+  const [vietqrLoading, setVietqrLoading] = React.useState(false);
+  const [vietqrError, setVietqrError] = React.useState("");
+  const hasTransferPayment = mode !== "debt" && payments.some((payment) => payment.method === "transfer");
+
+  React.useEffect(() => {
+    if (!hasTransferPayment) return;
+
+    let active = true;
+    setVietqrLoading(true);
+    setVietqrError("");
+    companyPaymentApi.getVietqr()
+      .then((config) => {
+        if (active) setVietqrConfig(config);
+      })
+      .catch((cause) => {
+        if (active) setVietqrError(getApiErrorMessage(cause, "Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c c\u00e0i \u0111\u1eb7t t\u00e0i kho\u1ea3n nh\u1eadn ti\u1ec1n."));
+      })
+      .finally(() => {
+        if (active) setVietqrLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [hasTransferPayment]);
 
   const submitted =
     mode === "debt" ? [] : payments.filter((item) => item.amount > 0);
@@ -428,6 +446,15 @@ export default function ClearPaymentDialog({
                   </div>
                 </div>
 
+                {payment.method === "transfer" && (
+                  <TransferPaymentQr
+                    config={vietqrConfig}
+                    amount={showAmountInput ? payment.amount : total}
+                    loading={vietqrLoading}
+                    loadError={vietqrError}
+                  />
+                )}
+
                 {/* Quick cash denomination chips in dedicated balanced row */}
                 {payment.method === "cash" && (
                   <div className="mt-3 pt-2.5 border-t border-slate-200/60 flex items-center gap-1.5 flex-wrap">
@@ -603,6 +630,72 @@ export default function ClearPaymentDialog({
           <CheckCircle2 className="h-5 w-5" />
           <span>Xác nhận thanh toán</span>
         </button>
+      </div>
+    </div>
+  );
+}
+
+function TransferPaymentQr({
+  config,
+  amount,
+  loading,
+  loadError,
+}: {
+  config: VietqrConfig | null;
+  amount: number;
+  loading: boolean;
+  loadError: string;
+}) {
+  const [imageFailed, setImageFailed] = React.useState(false);
+  const hasBankDetails = Boolean(config?.bankId && config.accountNo);
+  const accountName = config?.accountName?.trim() ?? "";
+  const imageUrl = React.useMemo(() => {
+    if (!config || !hasBankDetails || amount <= 0) return "";
+
+    const params = new URLSearchParams({ amount: String(Math.round(amount)) });
+    if (accountName) params.set("accountName", accountName);
+    return `https://img.vietqr.io/image/${encodeURIComponent(config.bankId)}-${encodeURIComponent(config.accountNo)}-compact2.png?${params.toString()}`;
+  }, [accountName, amount, config, hasBankDetails]);
+
+  React.useEffect(() => setImageFailed(false), [imageUrl]);
+
+  if (loading) {
+    return <p className="mt-3 rounded-xl border border-cyan-100 bg-cyan-50 p-3 text-sm text-cyan-800">&#272;ang t&#7843;i c&#224;i &#273;&#7863;t t&#224;i kho&#7843;n ng&#226;n h&#224;ng...</p>;
+  }
+
+  if (loadError) {
+    return <p role="alert" className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{loadError}</p>;
+  }
+
+  if (!hasBankDetails) {
+    return <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Ch&#432;a c&#243; t&#224;i kho&#7843;n nh&#7853;n ti&#7873;n. H&#227;y c&#7845;u h&#236;nh ng&#226;n h&#224;ng v&#224; s&#7889; t&#224;i kho&#7843;n trong C&#224;i &#273;&#7863;t &#8594; Thanh to&#225;n &amp; Email.</p>;
+  }
+
+  if (amount <= 0) {
+    return <p className="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600">Nh&#7853;p s&#7889; ti&#7873;n chuy&#7875;n kho&#7843;n &#273;&#7875; t&#7841;o m&#227; QR.</p>;
+  }
+
+  return (
+    <div className="mt-3 flex min-w-0 flex-col items-center gap-3 rounded-xl border border-cyan-100 bg-white p-3 sm:flex-row sm:items-start">
+      {imageFailed ? (
+        <div className="flex h-40 w-40 shrink-0 items-center justify-center rounded-lg bg-slate-50 px-3 text-center text-xs text-slate-500">
+          Kh&#244;ng t&#7843;i &#273;&#432;&#7907;c m&#227; QR. Ki&#7875;m tra k&#7871;t n&#7889;i m&#7841;ng ho&#7863;c chuy&#7875;n kho&#7843;n th&#7911; c&#244;ng.
+        </div>
+      ) : (
+        <img
+          key={imageUrl}
+          src={imageUrl}
+          alt={`M\u00e3 VietQR chuy\u1ec3n ${money(amount)} \u0111\u1ebfn t\u00e0i kho\u1ea3n ${config!.accountNo}`}
+          referrerPolicy="no-referrer"
+          className="h-40 w-40 shrink-0 rounded-lg object-contain"
+          onError={() => setImageFailed(true)}
+        />
+      )}
+      <div className="min-w-0 text-center sm:text-left">
+        <p className="text-sm font-bold text-slate-800">Qu&#233;t m&#227; QR &#273;&#7875; chuy&#7875;n {money(amount)}</p>
+        {accountName && <p className="mt-1 break-words text-sm text-slate-600">{accountName}</p>}
+        <p className="mt-1 break-all font-mono text-sm font-semibold text-slate-700">STK: {config!.accountNo}</p>
+        <p className="mt-1 text-xs text-slate-500">M&#227; QR &#273;&#227; &#273;i&#7873;n s&#7861;n s&#7889; ti&#7873;n thanh to&#225;n.</p>
       </div>
     </div>
   );
