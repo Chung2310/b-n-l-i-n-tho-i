@@ -2,6 +2,7 @@ import { readPosCart, savePosCart } from "../offline/posCartRecovery";
 import { resolveCheckoutIntent, resolveCheckoutIntentLocked } from "../offline/resolveCheckoutIntent";
 import { checkoutWithPersistedIntent, PendingCheckoutError } from "../offline/checkoutIntent";
 import React from "react";
+import { createPortal } from "react-dom";
 import { confirmOfflineOrderLocked } from "../offline/confirmOfflineOrder";
 import { RetailCheckoutLockBusyError, withRetailCheckoutLock } from "../offline/draftCreationRequest";
 import {
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 import BarcodeScannerDialog from "../components/pos/BarcodeScannerDialog";
 import CheckoutSuccessDialog from "../components/pos/CheckoutSuccessDialog";
+import ReceiptPrintView from "../components/pos/ReceiptPrintViewSerial";
 import PaymentDialog from "../components/pos/PaymentDialog";
 import PosShortcutHelp from "../components/pos/PosShortcutHelp";
 import ScanFeedback, {
@@ -81,6 +83,9 @@ const money = (value: number) =>
   new Intl.NumberFormat("vi-VN").format(value) + " ₫";
 
 type PosCategoryTab = "popular" | "phones" | "tablets" | "accessories" | "all";
+
+const receiptStagingWidth = (paperSize: RetailSettings["invoicePaperSize"]) =>
+  paperSize === "58mm" || paperSize === "80mm" ? paperSize : paperSize === "A5" ? "148mm" : "210mm";
 
 export interface RetailPosPageProps {
   posSessionId?: string;
@@ -180,6 +185,12 @@ export default function RetailPosPage({
     }
     return () => { active = false; };
   }, [scope?.companyCode, scope?.branchId]);
+
+  React.useLayoutEffect(() => {
+    if (!completed) return;
+    document.body.classList.add("retail-print-isolated");
+    return () => document.body.classList.remove("retail-print-isolated");
+  }, [completed?.invoice._id]);
 
   const searchRef = React.useRef<HTMLInputElement>(null);
   const queueRef = React.useRef(
@@ -977,6 +988,12 @@ export default function RetailPosPage({
           onNewOrder={newOrder}
           onClose={() => setCompleted(null)}
         />
+      )}
+      {completed && createPortal(
+        <div className="retail-print-staging" style={{ position: "fixed", left: "-10000px", top: 0, width: receiptStagingWidth(invoicePaperSize), visibility: "hidden" }}>
+          <ReceiptPrintView invoice={completed.invoice} paperSize={invoicePaperSize} printTarget />
+        </div>,
+        document.body,
       )}
 
       {help && <PosShortcutHelp onClose={() => setHelp(false)} />}
