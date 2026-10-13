@@ -11,10 +11,12 @@ export default function ReceiptPrintView({
   invoice,
   isReprint = false,
   paperSize = "80mm",
+  printTarget = false,
 }: {
   invoice: RetailInvoice;
   isReprint?: boolean;
   paperSize?: RetailSettings["invoicePaperSize"];
+  printTarget?: boolean;
 }) {
   const snapshot = invoice.snapshot;
   const isThermal = paperSize === "80mm" || paperSize === "58mm";
@@ -36,7 +38,7 @@ export default function ReceiptPrintView({
   const salespersonName = snapshot.salespersonName || snapshot.cashierName;
 
   return (
-    <article ref={receiptRef} id="retail-receipt" style={isThermal ? { width: receiptWidth, maxWidth: receiptWidth, padding: receiptPadding } : undefined} className={"mx-auto w-full bg-white p-4 text-sm text-slate-900 " + (isThermal ? "max-w-sm" : "max-w-3xl")}>
+    <article ref={receiptRef} id={printTarget ? "retail-receipt" : "retail-receipt-preview"} style={isThermal ? { width: receiptWidth, maxWidth: receiptWidth, padding: receiptPadding } : undefined} className={"mx-auto w-full bg-white p-4 text-sm text-slate-900 " + (isThermal ? "max-w-sm" : "max-w-3xl")}>
       <style>{printCss}</style>
       {isReprint && <p className="mb-2 text-center text-lg font-black tracking-[0.25em] text-rose-700">IN LẠI</p>}
       <header className="border-b border-dashed pb-3 text-center">

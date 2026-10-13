@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertCircle,
   AlertTriangle,
@@ -28,6 +29,9 @@ import ReceiptPrintView from "../components/pos/ReceiptPrintViewSerial";
 import { getApiErrorMessage } from "../../../utils/errorMessage";
 import { toast } from "../../../pages/Toast";
 
+const receiptStagingWidth = (paperSize: RetailSettings["invoicePaperSize"]) =>
+  paperSize === "58mm" || paperSize === "80mm" ? paperSize : paperSize === "A5" ? "148mm" : "210mm";
+
 export default function RetailSettingsPage() {
   const { userProfile } = useAuth();
   const { activeBranchId, activeBranch } = useBranch();
@@ -49,6 +53,12 @@ export default function RetailSettingsPage() {
       })
       .catch((cause) => setError(getApiErrorMessage(cause, "Không tải được cài đặt.")));
   }, [companyCode, activeBranchId]);
+
+  React.useLayoutEffect(() => {
+    if (!testInvoice) return;
+    document.body.classList.add("retail-print-isolated");
+    return () => document.body.classList.remove("retail-print-isolated");
+  }, [testInvoice?._id]);
 
   const hasChanges = useMemo(() => {
     if (!settings || !initialSettings) return false;
@@ -585,6 +595,12 @@ export default function RetailSettingsPage() {
             </footer>
           </div>
         </div>
+      )}
+      {testInvoice && createPortal(
+        <div className="retail-print-staging" style={{ position: "fixed", left: "-10000px", top: 0, width: receiptStagingWidth(settings.invoicePaperSize), visibility: "hidden" }}>
+          <ReceiptPrintView invoice={testInvoice} paperSize={settings.invoicePaperSize} printTarget />
+        </div>,
+        document.body,
       )}
 
       {/* Floating / Sticky Save Bar when changes detected */}

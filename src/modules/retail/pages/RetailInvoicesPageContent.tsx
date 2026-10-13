@@ -542,7 +542,7 @@ export default function RetailInvoicesPageContent() {
       {paymentQr && <PaymentQrDialog qr={paymentQr.qr} onClose={() => setPaymentQr(null)} />}
       {printInvoice && createPortal(
         <div className="retail-print-staging" style={{ position: "fixed", left: "-10000px", top: 0, width: receiptStagingWidth(invoicePaperSize), visibility: "hidden" }}>
-          <ReceiptPrintView invoice={printInvoice} isReprint={printInvoiceIsReprint} paperSize={invoicePaperSize} />
+          <ReceiptPrintView invoice={printInvoice} isReprint={printInvoiceIsReprint} paperSize={invoicePaperSize} printTarget />
         </div>,
         document.body,
       )}
