@@ -53,8 +53,8 @@ test("settings validation accepts approved boundaries and normalizes prefixes", 
   });
 });
 
-test("invoice print settings default to A4 and the standard template", () => {
-  assert.equal(DEFAULT_RETAIL_SETTINGS.invoicePaperSize, "A4");
+test("invoice print settings default to 80mm and the standard template", () => {
+  assert.equal(DEFAULT_RETAIL_SETTINGS.invoicePaperSize, "80mm");
   assert.equal(DEFAULT_RETAIL_SETTINGS.invoiceTemplate, "standard");
 });
 

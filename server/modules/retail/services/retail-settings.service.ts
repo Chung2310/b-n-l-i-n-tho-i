@@ -16,7 +16,7 @@ export const DEFAULT_RETAIL_SETTINGS: RetailSettingsValues = Object.freeze({
   varianceReasonThreshold: 0,
   orderPrefix: "DH",
   invoicePrefix: "HD",
-  invoicePaperSize: "A4",
+  invoicePaperSize: "80mm",
   invoiceTemplate: "standard",
   debtReminders: { enabled: false, frequencyHours: 24, overdueDays: 0, recipientUserIds: [], recipientRoles: ["admin", "manager"], emailEnabled: false, maxAttempts: 3 },
 });
