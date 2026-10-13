@@ -67,6 +67,35 @@ async function projectInvoiceSalespersons(invoices: any[]) {
   });
 }
 
+async function projectInvoicePayments(invoices: any[]) {
+  const orderIds = [...new Set(invoices.map((invoice) => String(invoice?.orderId || "")).filter(Boolean))];
+  if (!orderIds.length) return invoices;
+  const orders = await RetailOrderModel.find({ _id: { $in: orderIds } })
+    .select("paidAmount dueAmount paymentStatus payments")
+    .lean();
+  const ordersById = new Map(orders.map((order: any) => [String(order._id), order]));
+  return invoices.map((invoice) => {
+    const order: any = ordersById.get(String(invoice.orderId));
+    if (!order) return invoice;
+    return {
+      ...invoice,
+      snapshot: {
+        ...invoice.snapshot,
+        paidAmount: Number(order.paidAmount || 0),
+        dueAmount: Number(order.dueAmount || 0),
+        paymentStatus: order.paymentStatus,
+        payments: (order.payments || []).map(({ method, amount, tenderedAmount, changeAmount, reference }: any) => ({
+          method,
+          amount,
+          tenderedAmount,
+          changeAmount,
+          reference,
+        })),
+      },
+    };
+  });
+}
+
 export async function issueRetailInvoice(order: IRetailOrder & { _id: unknown }, prefix: string, branchCode: string, scope: string, actor: any, session: ClientSession) {
   const [company, branch] = await Promise.all([
     CompanyModel.findOne({ code: order.companyCode }).session(session).lean(),
@@ -94,12 +123,46 @@ export const RetailInvoiceService = {
       RetailInvoiceModel.find(filter).sort({ issuedAt: -1 }).skip(skip).limit(limit).lean(),
       RetailInvoiceModel.countDocuments(filter),
     ]);
-    return { items: await projectInvoiceSalespersons(await projectInvoiceCashiers(items)), total, page, limit };
+    return { items: await projectInvoiceSalespersons(await projectInvoicePayments(await projectInvoiceCashiers(items))), total, page, limit };
   },
   async detail(scope: RetailBranchScope, id: string) {
     const invoice = await RetailInvoiceModel.findOne({ _id: id, ...scope }).lean();
     if (!invoice) throw new Error("Không tìm thấy hóa đơn.");
-    return (await projectInvoiceSalespersons(await projectInvoiceCashiers([invoice])))[0];
+    return (await projectInvoiceSalespersons(await projectInvoicePayments(await projectInvoiceCashiers([invoice]))))[0];
+  },
+  async registerSePayPaymentPrint(scope: RetailBranchScope, id: string, transactionKey: string, actor: any) {
+    const key = String(transactionKey || "").trim();
+    const actorId = invoiceActorId(actor);
+    if (!key || key.length > 200) throw invoiceFlowError("Mã giao dịch SePay không hợp lệ.", 400, "INVOICE_PAYMENT_PRINT_KEY_INVALID");
+    if (!actorId) throw invoiceFlowError("Không xác định được nhân viên in hóa đơn.", 401, "INVOICE_PRINT_ACTOR_REQUIRED");
+
+    const invoice = await RetailInvoiceModel.findOne({ _id: id, ...scope, status: "issued" }).lean();
+    if (!invoice) throw new Error("Không tìm thấy hóa đơn đang phát hành.");
+    const order: any = await RetailOrderModel.findOne({ _id: invoice.orderId, ...scope }).lean();
+    if (!order || order.paymentStatus !== "paid" || Number(order.dueAmount) !== 0) {
+      throw invoiceFlowError("Đơn hàng chưa được thanh toán đủ.", 409, "INVOICE_PAYMENT_NOT_COMPLETE");
+    }
+    const matchedPayment = (order.payments || []).some((payment: any) =>
+      payment.method === "transfer" && payment.reference === key && payment.receivedBy === "sepay",
+    );
+    if (!matchedPayment) throw invoiceFlowError("Không tìm thấy giao dịch SePay hoàn tất cho hóa đơn này.", 409, "INVOICE_PAYMENT_TRANSACTION_NOT_FOUND");
+
+    const result = await RetailInvoiceModel.updateOne(
+      { _id: id, ...scope, status: "issued", "paymentPrintLog.transactionKey": { $ne: key } },
+      { $push: { paymentPrintLog: { transactionKey: key, at: new Date(), by: actorId, byName: invoiceActorName(actor) } } },
+    );
+    const recorded = result.modifiedCount > 0;
+    const alreadyLogged = !recorded && Boolean(await RetailInvoiceModel.exists({
+      _id: id,
+      ...scope,
+      "paymentPrintLog.transactionKey": key,
+    }));
+    if (!recorded && !alreadyLogged) throw invoiceFlowError("Không ghi nhận được lượt in hóa đơn.", 409, "INVOICE_PAYMENT_PRINT_NOT_RECORDED");
+
+    const updatedInvoice = await RetailInvoiceModel.findOne({ _id: id, ...scope, status: "issued" }).lean();
+    if (!updatedInvoice) throw new Error("Không tìm thấy hóa đơn đang phát hành.");
+    const [projectedInvoice] = await projectInvoicePayments([updatedInvoice]);
+    return { invoice: projectedInvoice, alreadyPrinted: alreadyLogged };
   },
   async registerPosPrint(scope: RetailBranchScope, id: string, actor: any) {
     const actorId = invoiceActorId(actor);

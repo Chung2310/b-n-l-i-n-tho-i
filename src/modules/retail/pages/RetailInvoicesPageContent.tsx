@@ -27,6 +27,7 @@ import type { RetailInvoice, RetailPaymentQr, RetailSettings } from "../types";
 import { invoicePaymentRows, invoicePaymentSummary } from "../components/pos/invoicePaymentDisplay";
 import { getApiErrorMessage } from "../../../utils/errorMessage";
 import { toast } from "../../../pages/Toast";
+import { socketService } from "../../../services/socketService";
 
 const money = (value: number) => new Intl.NumberFormat("vi-VN").format(value) + " ₫";
 
@@ -42,8 +43,14 @@ export default function RetailInvoicesPageContent() {
   const [selectedIsReprint, setSelectedIsReprint] = React.useState(false);
   const [downloadingId, setDownloadingId] = React.useState("");
   const [reprintingId, setReprintingId] = React.useState("");
-  const [paymentQr, setPaymentQr] = React.useState<RetailPaymentQr | null>(null);
+  const [paymentQr, setPaymentQr] = React.useState<{ qr: RetailPaymentQr; invoiceId: string } | null>(null);
+  const [paymentPrintInvoice, setPaymentPrintInvoice] = React.useState<RetailInvoice | null>(null);
   const [invoicePaperSize, setInvoicePaperSize] = React.useState<RetailSettings["invoicePaperSize"]>("80mm");
+  const paymentQrRef = React.useRef(paymentQr);
+  paymentQrRef.current = paymentQr;
+  const paymentPrintInFlight = React.useRef(new Set<string>());
+  const paymentPrintFailed = React.useRef(new Set<string>());
+  const paymentPrintErrorShown = React.useRef(new Set<string>());
 
   React.useEffect(() => {
     let active = true;
@@ -55,22 +62,6 @@ export default function RetailInvoicesPageContent() {
     }
     return () => { active = false; };
   }, [scope?.companyCode, scope?.branchId]);
-
-  // Poll payment status if QR modal is active
-  React.useEffect(() => {
-    if (!scope || !paymentQr) return;
-    const timer = window.setInterval(() => {
-      void retailOrdersApi.detail(scope, paymentQr.orderId).then((order) => {
-        if (order.paymentStatus === "paid") {
-          window.clearInterval(timer);
-          setPaymentQr(null);
-          toast.success("Đã nhận thanh toán qua SePay.");
-          void loadInvoices();
-        }
-      }).catch(() => undefined);
-    }, 3000);
-    return () => window.clearInterval(timer);
-  }, [scope?.companyCode, scope?.branchId, paymentQr?.orderId]);
 
   const loadInvoices = React.useCallback(async () => {
     if (!scope) return;
@@ -91,6 +82,80 @@ export default function RetailInvoicesPageContent() {
     }, 250);
     return () => clearTimeout(timer);
   }, [loadInvoices]);
+
+  const finishSePayPayment = React.useCallback(async (orderId: string, transactionKey?: string) => {
+    const activeQr = paymentQrRef.current;
+    if (!scope || !activeQr || activeQr.qr.orderId !== orderId || paymentPrintInFlight.current.has(orderId) || paymentPrintFailed.current.has(orderId)) return;
+
+    paymentPrintInFlight.current.add(orderId);
+    let printRequestStarted = false;
+    try {
+      const order = await retailOrdersApi.detail(scope, orderId);
+      if (order.paymentStatus !== "paid" || paymentQrRef.current?.qr.orderId !== orderId) return;
+
+      const payments = (order as typeof order & {
+        payments?: Array<{ method: string; reference?: string; receivedBy?: string }>;
+      }).payments || [];
+      const sepayPayment = transactionKey
+        ? payments.find((payment) => payment.method === "transfer" && payment.reference === transactionKey && payment.receivedBy === "sepay")
+        : [...payments].reverse().find((payment) => payment.method === "transfer" && payment.reference && payment.receivedBy === "sepay");
+      const verifiedTransactionKey = transactionKey || sepayPayment?.reference;
+      if (!verifiedTransactionKey || !sepayPayment) return;
+
+      printRequestStarted = true;
+      const printResult = await retailInvoicesApi.registerSePayPaymentPrint(scope, activeQr.invoiceId, verifiedTransactionKey);
+
+      setPaymentQr((current) => current?.qr.orderId === orderId ? null : current);
+      setSelected(null);
+      void loadInvoices();
+      if (printResult.alreadyPrinted) {
+        toast.info("Hóa đơn cho giao dịch này đã được in ở cửa sổ khác.");
+        return;
+      }
+
+      paymentPrintFailed.current.delete(orderId);
+      paymentPrintErrorShown.current.delete(orderId);
+      setPaymentPrintInvoice(printResult.invoice);
+      toast.success("Đã nhận thanh toán qua SePay. Đang in hóa đơn.");
+    } catch (cause) {
+      if (printRequestStarted) paymentPrintFailed.current.add(orderId);
+      if (!paymentPrintErrorShown.current.has(orderId)) {
+        paymentPrintErrorShown.current.add(orderId);
+        toast.error(getApiErrorMessage(cause, "Đã nhận thanh toán nhưng không in được hóa đơn."));
+      }
+    } finally {
+      paymentPrintInFlight.current.delete(orderId);
+    }
+  }, [scope, loadInvoices]);
+
+  React.useEffect(() => {
+    if (!scope || !paymentQr) return;
+    const timer = window.setInterval(() => {
+      void finishSePayPayment(paymentQr.qr.orderId);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [scope?.companyCode, scope?.branchId, paymentQr?.qr.orderId, finishSePayPayment]);
+
+  React.useEffect(() => {
+    if (!scope) return;
+    return socketService.on("retail:payment_received", (event: { companyCode?: string; branchId?: string; orderId?: string; transactionKey?: string }) => {
+      if (event.companyCode !== scope.companyCode || event.branchId !== scope.branchId || !event.orderId) return;
+      void finishSePayPayment(event.orderId, event.transactionKey);
+    });
+  }, [scope?.companyCode, scope?.branchId, finishSePayPayment]);
+
+  React.useEffect(() => {
+    if (!paymentPrintInvoice) return;
+    const clear = () => setPaymentPrintInvoice(null);
+    const fallbackTimer = window.setTimeout(clear, 60_000);
+    window.addEventListener("afterprint", clear);
+    const printTimer = window.setTimeout(() => window.print(), 0);
+    return () => {
+      window.clearTimeout(printTimer);
+      window.clearTimeout(fallbackTimer);
+      window.removeEventListener("afterprint", clear);
+    };
+  }, [paymentPrintInvoice]);
 
   if (!scope) {
     return (
@@ -140,9 +205,12 @@ export default function RetailInvoicesPageContent() {
     }
   };
 
-  const showPaymentQr = async (orderId: string) => {
+  const showPaymentQr = async (invoice: RetailInvoice) => {
     try {
-      setPaymentQr(await retailOrdersApi.paymentQr(scope, orderId));
+      paymentPrintFailed.current.delete(invoice.orderId);
+      paymentPrintErrorShown.current.delete(invoice.orderId);
+      const qr = await retailOrdersApi.paymentQr(scope, invoice.orderId);
+      setPaymentQr({ qr, invoiceId: invoice._id });
     } catch (cause) {
       toast.error(getApiErrorMessage(cause, "Không tạo được QR thanh toán."));
     }
@@ -409,7 +477,7 @@ export default function RetailInvoicesPageContent() {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                void showPaymentQr(invoice.orderId);
+                                void showPaymentQr(invoice);
                               }}
                               className="inline-flex h-7 items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-2 text-[11px] font-semibold text-cyan-700 transition hover:bg-cyan-100 active:scale-95 cursor-pointer"
                               title="Tạo mã QR thu nợ SePay"
@@ -440,7 +508,7 @@ export default function RetailInvoicesPageContent() {
           onDownload={() => void download(selected._id)}
           onReprint={() => void reprint(selected._id)}
           onClose={() => setSelected(null)}
-          onShowQr={() => void showPaymentQr(selected.orderId)}
+          onShowQr={() => void showPaymentQr(selected)}
         />
       )}
 
@@ -449,7 +517,7 @@ export default function RetailInvoicesPageContent() {
         <button
           type="button"
           className="fixed bottom-6 right-6 z-[60] flex items-center gap-2 rounded-full bg-cyan-600 px-5 py-3 font-bold text-white shadow-xl shadow-cyan-600/30 transition hover:bg-cyan-700 hover:shadow-cyan-600/40 active:scale-95"
-          onClick={() => void showPaymentQr(selected.orderId)}
+          onClick={() => void showPaymentQr(selected)}
         >
           <QrCode className="h-5 w-5" />
           QR thanh toán
@@ -457,7 +525,16 @@ export default function RetailInvoicesPageContent() {
       )}
 
       {/* Payment QR Dialog */}
-      {paymentQr && <PaymentQrDialog qr={paymentQr} onClose={() => setPaymentQr(null)} />}
+      {paymentQr && <PaymentQrDialog qr={paymentQr.qr} onClose={() => setPaymentQr(null)} />}
+      {paymentPrintInvoice && (
+        <div className="hidden print:block">
+          <ReceiptPrintView
+            invoice={paymentPrintInvoice}
+            isReprint={Boolean(paymentPrintInvoice.initialPrintedAt)}
+            paperSize={invoicePaperSize}
+          />
+        </div>
+      )}
       {scanningInvoice && (
         <BarcodeScannerDialog
           title="Quét mã hóa đơn"
