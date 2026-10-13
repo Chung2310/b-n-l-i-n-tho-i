@@ -186,11 +186,21 @@ export default function RetailPosPage({
     return () => { active = false; };
   }, [scope?.companyCode, scope?.branchId]);
 
-  React.useLayoutEffect(() => {
-    if (!completed) return;
-    document.body.classList.add("retail-print-isolated");
-    return () => document.body.classList.remove("retail-print-isolated");
-  }, [completed?.invoice._id]);
+  React.useEffect(() => {
+    const isolateReceipt = () => {
+      if (document.querySelector(".retail-print-staging #retail-receipt")) {
+        document.body.classList.add("retail-print-isolated");
+      }
+    };
+    const restorePage = () => document.body.classList.remove("retail-print-isolated");
+    window.addEventListener("beforeprint", isolateReceipt);
+    window.addEventListener("afterprint", restorePage);
+    return () => {
+      window.removeEventListener("beforeprint", isolateReceipt);
+      window.removeEventListener("afterprint", restorePage);
+      restorePage();
+    };
+  }, []);
 
   const searchRef = React.useRef<HTMLInputElement>(null);
   const queueRef = React.useRef(

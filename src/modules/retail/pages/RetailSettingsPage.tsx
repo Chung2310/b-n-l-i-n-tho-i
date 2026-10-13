@@ -54,12 +54,6 @@ export default function RetailSettingsPage() {
       .catch((cause) => setError(getApiErrorMessage(cause, "Không tải được cài đặt.")));
   }, [companyCode, activeBranchId]);
 
-  React.useLayoutEffect(() => {
-    if (!testInvoice) return;
-    document.body.classList.add("retail-print-isolated");
-    return () => document.body.classList.remove("retail-print-isolated");
-  }, [testInvoice?._id]);
-
   const hasChanges = useMemo(() => {
     if (!settings || !initialSettings) return false;
     return JSON.stringify(settings) !== JSON.stringify(initialSettings);
