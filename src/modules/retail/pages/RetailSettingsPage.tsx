@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertCircle,
   AlertTriangle,
@@ -27,6 +28,9 @@ import type { RetailInvoice, RetailSettings } from "../types";
 import ReceiptPrintView from "../components/pos/ReceiptPrintViewSerial";
 import { getApiErrorMessage } from "../../../utils/errorMessage";
 import { toast } from "../../../pages/Toast";
+
+const receiptStagingWidth = (paperSize: RetailSettings["invoicePaperSize"]) =>
+  paperSize === "58mm" || paperSize === "80mm" ? paperSize : paperSize === "A5" ? "148mm" : "210mm";
 
 export default function RetailSettingsPage() {
   const { userProfile } = useAuth();
@@ -158,6 +162,82 @@ export default function RetailSettingsPage() {
         amountInWords: "Mười ba triệu ba trăm nghìn đồng",
       },
     });
+  };
+
+  const printTestReceipt = async () => {
+    const receipt = document.querySelector<HTMLElement>(".retail-print-staging #retail-receipt");
+    if (!receipt) {
+      toast.error("Chưa dựng được hóa đơn mẫu để in.");
+      return;
+    }
+    const printWindow = window.open("about:blank", "_blank");
+    if (!printWindow) {
+      toast.error("Trình duyệt đang chặn cửa sổ in hóa đơn.");
+      return;
+    }
+
+    const paperSize = settings.invoicePaperSize;
+    const isThermal = paperSize === "80mm" || paperSize === "58mm";
+    const receiptWidth = isThermal ? paperSize : "100%";
+    const receiptPadding = paperSize === "58mm" ? "5mm" : paperSize === "80mm" ? "4mm" : "14mm";
+    const contentHeightMm = receipt.getBoundingClientRect().height * 25.4 / 96;
+    const pageRule = isThermal ? `${paperSize} ${Math.ceil(contentHeightMm + 2)}mm` : paperSize;
+    const printDocument = printWindow.document;
+    printDocument.open();
+    printDocument.write("<!doctype html><html><head><meta charset=\"utf-8\"><title></title></head><body></body></html>");
+    printDocument.close();
+    printDocument.title = "";
+    const base = printDocument.createElement("base");
+    base.href = `${window.location.origin}/`;
+    printDocument.head.appendChild(base);
+
+    const stylesheetLoads: Promise<void>[] = [];
+    document.head.querySelectorAll<HTMLStyleElement | HTMLLinkElement>('style, link[rel="stylesheet"]').forEach((node) => {
+      const copy = node.cloneNode(true) as HTMLStyleElement | HTMLLinkElement;
+      if (copy instanceof HTMLLinkElement && node instanceof HTMLLinkElement) {
+        copy.href = node.href;
+        stylesheetLoads.push(new Promise((resolve) => {
+          copy.addEventListener("load", () => resolve(), { once: true });
+          copy.addEventListener("error", () => resolve(), { once: true });
+        }));
+      }
+      printDocument.head.appendChild(copy);
+    });
+
+    const printStyle = printDocument.createElement("style");
+    printStyle.media = "print";
+    printStyle.textContent = `@page { size: ${pageRule}; margin: 0; } @media print { html, body { margin: 0 !important; padding: 0 !important; } }`;
+    printDocument.head.appendChild(printStyle);
+    printDocument.body.className = "retail-print-isolated";
+    const staging = printDocument.createElement("div");
+    staging.className = "retail-print-staging";
+    staging.style.position = "fixed";
+    staging.style.left = "-10000px";
+    staging.style.top = "0";
+    staging.style.visibility = "hidden";
+    staging.style.width = receiptWidth;
+    staging.appendChild(receipt.cloneNode(true));
+    printDocument.body.appendChild(staging);
+
+    try {
+      await Promise.race([
+        Promise.all(stylesheetLoads),
+        new Promise<void>((resolve) => window.setTimeout(resolve, 2500)),
+      ]);
+      await printDocument.fonts.ready;
+      await Promise.all(Array.from(printDocument.images, (image) =>
+        image.complete ? Promise.resolve() : new Promise<void>((resolve) => {
+          image.addEventListener("load", () => resolve(), { once: true });
+          image.addEventListener("error", () => resolve(), { once: true });
+        }),
+      ));
+      printWindow.addEventListener("afterprint", () => printWindow.close(), { once: true });
+      printWindow.focus();
+      printWindow.print();
+    } catch {
+      printWindow.close();
+      toast.error("Không mở được nội dung hóa đơn để in.");
+    }
   };
 
   return (
@@ -581,10 +661,16 @@ export default function RetailSettingsPage() {
             </div>
             <footer className="flex justify-end gap-2 border-t border-slate-100 bg-white px-5 py-4">
               <button type="button" onClick={() => setTestInvoice(null)} className="min-h-10 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Đóng</button>
-              <button type="button" onClick={() => window.print()} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-cyan-700 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-800"><Printer className="h-4 w-4" />In thử</button>
+              <button type="button" onClick={() => void printTestReceipt()} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-cyan-700 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-800"><Printer className="h-4 w-4" />In thử</button>
             </footer>
           </div>
         </div>
+      )}
+      {testInvoice && createPortal(
+        <div className="retail-print-staging" style={{ position: "fixed", left: "-10000px", top: 0, width: receiptStagingWidth(settings.invoicePaperSize), visibility: "hidden" }}>
+          <ReceiptPrintView invoice={testInvoice} paperSize={settings.invoicePaperSize} printTarget />
+        </div>,
+        document.body,
       )}
 
       {/* Floating / Sticky Save Bar when changes detected */}
