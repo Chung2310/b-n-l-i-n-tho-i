@@ -132,7 +132,7 @@ export async function processRetailSePayTransaction(payload: SePayPayload) {
         companyCode: String(eventOrder.companyCode),
         branchId: String(eventOrder.branchId),
         orderId: String(result.orderId),
-        transactionKey,
+        transactionKey: transactionId,
       });
     }
     if (changedShift) emitSessionChange("pos:session:updated", changedShift);
