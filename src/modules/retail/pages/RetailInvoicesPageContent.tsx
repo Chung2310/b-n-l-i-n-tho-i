@@ -29,6 +29,9 @@ import { getApiErrorMessage } from "../../../utils/errorMessage";
 import { toast } from "../../../pages/Toast";
 import { socketService } from "../../../services/socketService";
 
+const receiptStagingWidth = (paperSize: RetailSettings["invoicePaperSize"]) =>
+  paperSize === "58mm" || paperSize === "80mm" ? paperSize : paperSize === "A5" ? "148mm" : "210mm";
+
 const money = (value: number) => new Intl.NumberFormat("vi-VN").format(value) + " ₫";
 
 export default function RetailInvoicesPageContent() {
@@ -527,7 +530,7 @@ export default function RetailInvoicesPageContent() {
       {/* Payment QR Dialog */}
       {paymentQr && <PaymentQrDialog qr={paymentQr.qr} onClose={() => setPaymentQr(null)} />}
       {paymentPrintInvoice && (
-        <div className="hidden print:block">
+        <div className="retail-print-staging" style={{ position: "fixed", left: "-10000px", top: 0, width: receiptStagingWidth(invoicePaperSize), visibility: "hidden" }}>
           <ReceiptPrintView
             invoice={paymentPrintInvoice}
             isReprint={Boolean(paymentPrintInvoice.initialPrintedAt)}
@@ -745,7 +748,7 @@ function InvoiceDialog({
         </p>
 
         {/* Print view */}
-        {canReprint && <div className="hidden print:block"><ReceiptPrintView invoice={invoice} isReprint={isReprint} paperSize={paperSize} /></div>}
+        {canReprint && <div className="retail-print-staging" style={{ position: "fixed", left: "-10000px", top: 0, width: receiptStagingWidth(paperSize), visibility: "hidden" }}><ReceiptPrintView invoice={invoice} isReprint={isReprint} paperSize={paperSize} /></div>}
       </div>
     </div>
   );
