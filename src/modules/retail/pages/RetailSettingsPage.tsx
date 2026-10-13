@@ -170,6 +170,31 @@ export default function RetailSettingsPage() {
     });
   };
 
+  const openTestReceiptPdf = async () => {
+    const previewWindow = window.open("about:blank", "_blank");
+    if (!previewWindow) {
+      toast.error("Trình duyệt đang chặn cửa sổ xem PDF hóa đơn.");
+      return;
+    }
+    try {
+      const pdf = await retailSettingsApi.printPreviewPdf(
+        { companyCode, branchId: activeBranchId },
+        settings.invoicePaperSize,
+      );
+      const pdfUrl = URL.createObjectURL(pdf);
+      previewWindow.location.replace(pdfUrl);
+      const cleanupTimer = window.setInterval(() => {
+        if (previewWindow.closed) {
+          window.clearInterval(cleanupTimer);
+          URL.revokeObjectURL(pdfUrl);
+        }
+      }, 1000);
+    } catch (cause) {
+      previewWindow.close();
+      toast.error(getApiErrorMessage(cause, "Không tạo được PDF hóa đơn mẫu."));
+    }
+  };
+
   return (
     <div className="w-full space-y-6 pb-12">
       {/* Top Header Card */}
@@ -591,7 +616,7 @@ export default function RetailSettingsPage() {
             </div>
             <footer className="flex justify-end gap-2 border-t border-slate-100 bg-white px-5 py-4">
               <button type="button" onClick={() => setTestInvoice(null)} className="min-h-10 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Đóng</button>
-              <button type="button" onClick={() => window.print()} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-cyan-700 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-800"><Printer className="h-4 w-4" />In thử</button>
+              <button type="button" onClick={() => void openTestReceiptPdf()} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-cyan-700 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-800"><Printer className="h-4 w-4" />Mở PDF để in</button>
             </footer>
           </div>
         </div>
