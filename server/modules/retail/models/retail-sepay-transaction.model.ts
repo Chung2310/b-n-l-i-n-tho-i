@@ -10,7 +10,8 @@ const RetailSePayTransactionSchema = new Schema({
   orderCode: { type: String, required: true },
   accountNumber: { type: String, required: true },
   receivedAmount: { type: Number, required: true, min: 1 },
-  appliedAmount: { type: Number, required: true, min: 1 },
+  appliedAmount: { type: Number, required: true, min: 0 },
+  alreadyRecorded: { type: Boolean, default: false },
   transactionDate: Date,
 }, { timestamps: true });
 
