@@ -52,6 +52,41 @@ export interface TikTokShopProduct {
   lastOutboundSyncError?: string;
 }
 
+export interface TikTokCatalogProduct {
+  _id: string;
+  productCode: string;
+  name: string;
+  description: string;
+  mediaIds: string[];
+  manufacturer: string;
+  countryOfOrigin: string;
+  attributes: Array<{ code: string; value: string; unitCode?: string }>;
+  variants: Array<{
+    _id: string;
+    sku: string;
+    barcode: string;
+    displayName: string;
+    optionValues: Array<{ code: string; value: string }>;
+    weightGrams: number;
+    lengthMm: number;
+    widthMm: number;
+    heightMm: number;
+    imageUrls: string[];
+    stock: number;
+    sellingPrice: number;
+    priceConflict: boolean;
+  }>;
+}
+
+export interface TikTokListingAttribute {
+  id: string;
+  name: string;
+  required: boolean;
+  isSales: boolean;
+  inputType: string;
+  values: Array<{ id: string; name: string }>;
+}
+
 const unwrap = <T,>(response: { data: T }) => response.data;
 
 export const tiktokShopApi = {
@@ -61,5 +96,10 @@ export const tiktokShopApi = {
   importProducts: () => apiFetch<{ data: { products: number; createdProducts: number; createdVariants: number; linkedExisting: number; importedPrices: number; importedStock: number; failed: number; errors: string[] } }>("/integrations/tiktok-shop/import-products", { method: "POST" }).then(unwrap),
   syncInventoryAndPrices: () => apiFetch<{ data: { products: number; skus: number; updated: number; skipped: number; failed: number; errors: string[] } }>("/integrations/tiktok-shop/sync-inventory-prices", { method: "POST" }).then(unwrap),
   products: () => apiFetch<{ data: { items: TikTokShopProduct[]; total: number } }>("/integrations/tiktok-shop/products", { params: { pageSize: 100 } }).then(unwrap),
+  catalogProducts: () => apiFetch<{ data: { items: TikTokCatalogProduct[] } }>("/integrations/tiktok-shop/catalog-products").then(unwrap),
+  listingCategories: (connectionId: string, shopCipher: string) => apiFetch<{ data: { categories: Array<{ id: string; name: string; parentId: string }>; categoryVersion: string; currency: string; shop: { cipher: string; name: string; region: string } } }>("/integrations/tiktok-shop/listing/categories", { params: { connectionId, shopCipher } }).then(unwrap),
+  listingWarehouses: (connectionId: string, shopCipher: string) => apiFetch<{ data: { warehouses: Array<{ id: string; name: string; type?: string }> } }>("/integrations/tiktok-shop/listing/warehouses", { params: { connectionId, shopCipher } }).then(unwrap),
+  listingAttributes: (connectionId: string, shopCipher: string, categoryId: string) => apiFetch<{ data: { attributes: TikTokListingAttribute[] } }>(`/integrations/tiktok-shop/listing/categories/${encodeURIComponent(categoryId)}/attributes`, { params: { connectionId, shopCipher } }).then(unwrap),
+  publishProduct: (input: Record<string, unknown>) => apiFetch<{ data: { created: boolean; linked: boolean; productId: string; status?: string; skus?: number; message?: string } }>("/integrations/tiktok-shop/listing/products", { method: "POST", body: JSON.stringify(input) }).then(unwrap),
   disconnect: (connectionId: string) => apiFetch<{ data: { disconnected: boolean } }>(`/integrations/tiktok-shop/connections/${encodeURIComponent(connectionId)}`, { method: "DELETE" }).then(unwrap),
 };

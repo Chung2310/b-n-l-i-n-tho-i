@@ -12,7 +12,7 @@ import { ensureDefaultWarehouse } from "../../modules/inventory/warehouse/wareho
 import { TikTokShopConnectionModel } from "./tiktok-shop-connection.model";
 import { TikTokShopOAuthStateModel } from "./tiktok-shop-oauth-state.model";
 import { TikTokShopProductModel } from "./tiktok-shop-product.model";
-import { callTikTokShopApi, exchangeTikTokShopCode, getTikTokShopConfig, refreshTikTokShopToken } from "./tiktok-shop.client";
+import { callTikTokShopApi, exchangeTikTokShopCode, getTikTokShopConfig, refreshTikTokShopToken, uploadTikTokShopProductImage } from "./tiktok-shop.client";
 
 const normalizeCompany = (value: unknown) => {
   const companyCode = String(value || "").trim().toUpperCase();
@@ -30,6 +30,15 @@ const tokenExpiry = (value: unknown, fallbackSeconds: number) => {
 
 const tokenExpiresAt = (data: any) => tokenExpiry(data.access_token_expire_time ?? data.access_token_expire_in ?? data.access_token_expires_in, 24 * 60 * 60);
 const refreshExpiresAt = (data: any) => tokenExpiry(data.refresh_token_expire_time ?? data.refresh_token_expire_in ?? data.refresh_token_expires_in, 30 * 24 * 60 * 60);
+const tiktokFlag = (value: unknown) => value === true || value === 1 || /^(true|1|yes)$/i.test(String(value || "").trim());
+function isValidGtin(input: unknown) {
+  const code = String(input || "").trim();
+  if (!/^(\d{8}|\d{12}|\d{13}|\d{14})$/.test(code)) return false;
+  const digits = [...code].map(Number);
+  const checkDigit = digits.pop()!;
+  const sum = digits.reverse().reduce((total, digit, index) => total + digit * (index % 2 === 0 ? 3 : 1), 0);
+  return (10 - (sum % 10)) % 10 === checkDigit;
+}
 
 function publicConnection(connection: any) {
   return {
@@ -60,6 +69,89 @@ function normalizedShops(data: any) {
 
 async function connectionsWithSecrets(companyCode: string) {
   return TikTokShopConnectionModel.find({ companyCode }).select("+accessTokenEncrypted +refreshTokenEncrypted");
+}
+
+async function authorizedShop(companyCode: string, connectionIdInput: unknown, shopCipherInput: unknown) {
+  const connectionId = String(connectionIdInput || "").trim();
+  const shopCipher = String(shopCipherInput || "").trim();
+  if (!connectionId || !shopCipher) throw Object.assign(new Error("Chưa chọn tài khoản và shop TikTok."), { statusCode: 400 });
+  const connection: any = await TikTokShopConnectionModel.findOne({ _id: connectionId, companyCode }).select("+accessTokenEncrypted +refreshTokenEncrypted");
+  const shop = connection?.shops?.find((item: any) => String(item.cipher) === shopCipher);
+  if (!connection || !shop) throw Object.assign(new Error("Shop TikTok không thuộc kết nối của công ty này."), { statusCode: 404 });
+  return { connection, shop, accessToken: await validAccessToken(connection) };
+}
+
+function categoryVersionForRegion(regionInput: unknown) {
+  const region = String(regionInput || "").trim().toUpperCase();
+  return ["US", "GB", "UK", "EU", "DE", "FR", "IT", "ES", "IE", "NL", "BE", "PT", "AT", "FI", "GR", "EE", "LV", "LT", "LU", "MT", "CY", "SI", "SK", "HR", "PL", "CZ", "RO", "HU", "SE", "DK", "BG", "MY", "TH", "ID", "PH", "SG", "VN"].includes(region) ? "v2" : "v1";
+}
+
+function currencyForRegion(regionInput: unknown) {
+  const region = String(regionInput || "").trim().toUpperCase();
+  const currencies: Record<string, string> = {
+    VN: "VND", TH: "THB", SG: "SGD", MY: "MYR", ID: "IDR", PH: "PHP", US: "USD", GB: "GBP", UK: "GBP",
+    EU: "EUR", DE: "EUR", FR: "EUR", IT: "EUR", ES: "EUR", IE: "EUR", NL: "EUR", BE: "EUR", PT: "EUR", AT: "EUR", FI: "EUR", GR: "EUR", EE: "EUR", LV: "EUR", LT: "EUR", LU: "EUR", MT: "EUR", CY: "EUR", SI: "EUR", SK: "EUR", HR: "EUR", BG: "EUR",
+    PL: "PLN", CZ: "CZK", RO: "RON", HU: "HUF", SE: "SEK", DK: "DKK", JP: "JPY", MX: "MXN", BR: "BRL",
+  };
+  const currency = currencies[region];
+  if (!currency) throw Object.assign(new Error(`Chưa cấu hình tiền tệ cho khu vực TikTok Shop ${region || "không xác định"}.`), { statusCode: 400 });
+  return currency;
+}
+
+function normalizeTikTokAttributes(data: any) {
+  const sources = [
+    ...(Array.isArray(data?.attributes) ? data.attributes : []),
+    ...(Array.isArray(data?.product_attributes) ? data.product_attributes : []),
+    ...(Array.isArray(data?.sales_attributes) ? data.sales_attributes : []),
+  ];
+  const unique = new Map<string, any>();
+  for (const row of sources) {
+    const id = firstString(row?.id, row?.attribute_id);
+    if (!id) continue;
+    const values = row?.values || row?.value_list || row?.options || row?.value_info?.values || [];
+    const isSales = tiktokFlag(row?.is_sales_attribute ?? row?.is_sale_attribute ?? row?.is_sale_prop)
+      || /SALE|SKU/i.test(String(row?.type || row?.attribute_type || row?.property_type || ""));
+    unique.set(`${isSales ? "sales" : "product"}:${id}`, {
+      id,
+      name: firstString(row?.name, row?.attribute_name, row?.local_name) || id,
+      required: tiktokFlag(row?.is_required ?? row?.is_mandatory ?? row?.required),
+      isSales,
+      values: Array.isArray(values) ? values.map((value: any) => ({
+        id: firstString(value?.id, value?.value_id),
+        name: firstString(value?.name, value?.value_name, value?.local_name),
+      })).filter((value: any) => value.id || value.name) : [],
+      inputType: firstString(row?.input_type, row?.input_type_name, row?.type),
+    });
+  }
+  return [...unique.values()];
+}
+
+function trustedProductImageUrl(input: unknown) {
+  const value = String(input || "").trim();
+  let url: URL;
+  try { url = new URL(value); } catch { throw new Error("Ảnh sản phẩm phải là URL hợp lệ."); }
+  const cloudName = String(process.env.CLOUDINARY_CLOUD_NAME || "").trim();
+  if (url.protocol !== "https:" || url.hostname !== "res.cloudinary.com" || !cloudName || url.pathname.split("/")[1] !== cloudName) {
+    throw new Error("Ảnh cần được tải lên Cloudinary của hệ thống trước khi đăng TikTok.");
+  }
+  return url;
+}
+
+async function uploadCatalogImageToTikTok(urlValue: unknown, accessToken: string, shopCipher: string, fileName: string) {
+  const url = trustedProductImageUrl(urlValue);
+  const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(20_000) });
+  if (!response.ok) throw new Error("Không tải được ảnh sản phẩm đã lưu.");
+  const mimeType = String(response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+  if (!["image/jpeg", "image/png", "image/webp"].includes(mimeType)) throw new Error("Ảnh TikTok phải ở định dạng JPG, PNG hoặc WEBP.");
+  const declaredLength = Number(response.headers.get("content-length") || 0);
+  if (declaredLength > 10 * 1024 * 1024) throw new Error("Ảnh TikTok không được vượt quá 10 MB.");
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (!bytes.length || bytes.length > 10 * 1024 * 1024) throw new Error("Ảnh TikTok rỗng hoặc vượt quá 10 MB.");
+  const data: any = await uploadTikTokShopProductImage({ path: "/product/202309/images/upload", accessToken, query: { shop_cipher: shopCipher }, data: bytes, fileName, mimeType });
+  const image = data?.image || data?.images?.[0] || data;
+  const uri = firstString(image?.uri, image?.image_uri, data?.uri);
+  if (!uri) throw new Error("TikTok không trả về URI ảnh sản phẩm.");
+  return uri;
 }
 
 async function validAccessToken(connection: any) {
@@ -375,6 +467,291 @@ export const TikTokShopService = {
       connections: connections.map(publicConnection),
       shops: connections.flatMap((connection: any) => connection.shops || []),
     };
+  },
+
+  async listPublishableProducts(companyCodeInput: unknown) {
+    const companyCode = normalizeCompany(companyCodeInput);
+    const products: any[] = await ProductCatalogModel.find({ companyCode, status: "active", productType: "physical" }).sort({ updatedAt: -1 }).limit(200).lean();
+    if (!products.length) return { items: [] };
+    const productIds = products.map((product) => String(product._id));
+    const [variants, channelProducts] = await Promise.all([
+      ProductVariantModel.find({ companyCode, productId: { $in: productIds }, status: "active", trackingMode: { $in: ["quantity", "serial", "unit_barcode", "lot"] } }).sort({ sku: 1 }).lean(),
+      TikTokShopProductModel.find({ companyCode }).select("skus.localVariantId").lean(),
+    ]);
+    const linkedVariantIds = new Set(channelProducts.flatMap((product: any) => (product.skus || []).map((sku: any) => String(sku.localVariantId || "")).filter(Boolean)));
+    const variantsByCandidateProduct = new Map<string, any[]>();
+    for (const variant of variants as any[]) {
+      const rows = variantsByCandidateProduct.get(String(variant.productId)) || [];
+      rows.push(variant);
+      variantsByCandidateProduct.set(String(variant.productId), rows);
+    }
+    const publishableProducts = products.filter((product) => {
+      const productVariants = variantsByCandidateProduct.get(String(product._id)) || [];
+      return productVariants.length > 0 && productVariants.every((variant) => !linkedVariantIds.has(String(variant._id)));
+    });
+    const publishableProductIds = new Set(publishableProducts.map((product) => String(product._id)));
+    const publishableVariants = (variants as any[]).filter((variant) => publishableProductIds.has(String(variant.productId)));
+    const variantIds = publishableVariants.map((variant: any) => String(variant._id));
+    if (!variantIds.length) return { items: [] };
+    const [values, prices] = await Promise.all([
+      localValues(companyCode, variantIds),
+      ProductPriceModel.find({ companyCode, variantId: { $in: variantIds }, status: "active" }).select("variantId sellingPrice").lean(),
+    ]);
+    const pricesByVariant = new Map<string, Set<number>>();
+    for (const row of prices as any[]) {
+      const set = pricesByVariant.get(String(row.variantId)) || new Set<number>();
+      set.add(Number(row.sellingPrice));
+      pricesByVariant.set(String(row.variantId), set);
+    }
+    const variantsByProduct = new Map<string, any[]>();
+    for (const variant of publishableVariants as any[]) {
+      const rows = variantsByProduct.get(String(variant.productId)) || [];
+      const priceSet = pricesByVariant.get(String(variant._id));
+      rows.push({
+        _id: String(variant._id), sku: variant.sku, barcode: variant.barcode || "", displayName: variant.displayName || "",
+        optionValues: variant.optionValues || [], weightGrams: Number(variant.weightGrams || 0),
+        lengthMm: Number(variant.lengthMm || 0), widthMm: Number(variant.widthMm || 0), heightMm: Number(variant.heightMm || 0),
+        imageUrls: variant.mediaIds || [], stock: values.stockByVariant.get(String(variant._id)) || 0,
+        sellingPrice: priceSet?.size === 1 ? [...priceSet][0] : 0,
+        priceConflict: Boolean(priceSet && priceSet.size > 1),
+      });
+      variantsByProduct.set(String(variant.productId), rows);
+    }
+    return {
+      items: products.filter((product) => variantsByProduct.has(String(product._id))).map((product) => ({
+        _id: String(product._id), productCode: product.productCode, name: product.name, description: product.description || product.shortDescription || "",
+        mediaIds: [...new Set([...(product.mediaIds || []), ...((variantsByCandidateProduct.get(String(product._id)) || []).flatMap((variant: any) => variant.mediaIds || []))])], manufacturer: product.manufacturer || "", countryOfOrigin: product.countryOfOrigin || "",
+        attributes: product.attributes || [], brandCode: product.brandCode || "", variants: variantsByProduct.get(String(product._id)) || [],
+      })),
+    };
+  },
+
+  async listingCategories(companyCodeInput: unknown, connectionId: unknown, shopCipher: unknown) {
+    const companyCode = normalizeCompany(companyCodeInput);
+    const { connection, shop, accessToken } = await authorizedShop(companyCode, connectionId, shopCipher);
+    const categoryVersion = categoryVersionForRegion(shop.region);
+    const data: any = await callTikTokShopApi({
+      path: "/product/202309/categories", accessToken,
+      query: { shop_cipher: shop.cipher, category_version: categoryVersion, locale: "vi-VN" },
+    });
+    const rawCategories = Array.isArray(data?.categories) ? data.categories : [];
+    const categories = rawCategories.flatMap((category: any) => {
+      const isLeaf = Boolean(category?.is_leaf ?? category?.isLeaf);
+      const permissions = Array.isArray(category?.permission_statuses) ? category.permission_statuses.map((value: unknown) => String(value).toUpperCase()) : [];
+      if (!isLeaf || (permissions.length && !permissions.includes("AVAILABLE"))) return [];
+      return [{ id: firstString(category?.id, category?.category_id), name: firstString(category?.local_name, category?.name, category?.category_name), parentId: firstString(category?.parent_id), permissionStatuses: permissions }];
+    }).filter((category: any) => category.id && category.name);
+    return { categories, categoryVersion, currency: currencyForRegion(shop.region), shop: { cipher: shop.cipher, name: shop.name, region: shop.region }, connectionId: String(connection._id) };
+  },
+
+  async listingWarehouses(companyCodeInput: unknown, connectionId: unknown, shopCipher: unknown) {
+    const companyCode = normalizeCompany(companyCodeInput);
+    const { accessToken, shop } = await authorizedShop(companyCode, connectionId, shopCipher);
+    const data: any = await callTikTokShopApi({ path: "/logistics/202309/warehouses", accessToken, query: { shop_cipher: shop.cipher } });
+    const raw = Array.isArray(data?.warehouses) ? data.warehouses : Array.isArray(data?.warehouse_list) ? data.warehouse_list : [];
+    return { warehouses: raw.map((row: any) => ({ id: firstString(row?.id, row?.warehouse_id), name: firstString(row?.name, row?.warehouse_name, row?.id, row?.warehouse_id), type: firstString(row?.type, row?.warehouse_type), isEnabled: row?.is_enabled ?? row?.enabled ?? true })).filter((row: any) => row.id && row.isEnabled !== false) };
+  },
+
+  async listingAttributes(companyCodeInput: unknown, connectionId: unknown, shopCipher: unknown, categoryIdInput: unknown) {
+    const companyCode = normalizeCompany(companyCodeInput);
+    const categoryId = String(categoryIdInput || "").trim();
+    if (!categoryId) throw Object.assign(new Error("Cần chọn danh mục TikTok."), { statusCode: 400 });
+    const { accessToken, shop } = await authorizedShop(companyCode, connectionId, shopCipher);
+    const data: any = await callTikTokShopApi({
+      path: `/product/202309/categories/${encodeURIComponent(categoryId)}/attributes`, accessToken,
+      query: { shop_cipher: shop.cipher, category_version: categoryVersionForRegion(shop.region), locale: "vi-VN" },
+    });
+    return { attributes: normalizeTikTokAttributes(data).filter((attribute) => !attribute.isSales) };
+  },
+
+  async publishCatalogProduct(companyCodeInput: unknown, input: any) {
+    const companyCode = normalizeCompany(companyCodeInput);
+    const { connection, shop, accessToken } = await authorizedShop(companyCode, input?.connectionId, input?.shopCipher);
+    const productId = String(input?.productId || "").trim();
+    const categoryId = String(input?.categoryId || "").trim();
+    const warehouseId = String(input?.warehouseId || "").trim();
+    if (!productId || !categoryId || !warehouseId) throw Object.assign(new Error("Sản phẩm, danh mục và kho TikTok là bắt buộc."), { statusCode: 400 });
+
+    await this.syncProducts(companyCode).catch(() => undefined);
+    const product: any = await ProductCatalogModel.findOne({ _id: productId, companyCode, status: "active", productType: "physical" }).lean();
+    if (!product) throw Object.assign(new Error("Không tìm thấy sản phẩm đang kinh doanh trong kho nội bộ."), { statusCode: 404 });
+    const variants: any[] = await ProductVariantModel.find({ companyCode, productId, status: "active", trackingMode: { $in: ["quantity", "serial", "unit_barcode", "lot"] } }).sort({ sku: 1 }).lean();
+    const region = String(shop.region || "").toUpperCase();
+    const maxSkus = ["BR", "EU", "JP", "MX", "UK", "GB", "US", "DE", "FR", "IT", "ES", "IE", "NL", "BE", "PT", "AT", "FI", "GR", "EE", "LV", "LT", "LU", "MT", "CY", "SI", "SK", "HR"].includes(region) ? 300 : 100;
+    if (!variants.length || variants.length > maxSkus) throw Object.assign(new Error(`Sản phẩm cần có từ 1 đến ${maxSkus} SKU đang hoạt động để đăng TikTok.`), { statusCode: 400 });
+    const productImages = [...new Set([...(product.mediaIds || []), ...variants.flatMap((variant) => variant.mediaIds || [])].map((value: unknown) => String(value || "").trim()).filter(Boolean))].slice(0, 9);
+    const existingTikTokProduct: any = await TikTokShopProductModel.findOne({
+      companyCode, connectionId: String(connection._id), shopCipher: shop.cipher,
+      $or: [
+        { "skus.localVariantId": { $in: variants.map((variant) => String(variant._id)) } },
+        { "skus.sellerSku": { $in: variants.map((variant) => String(variant.sku || "").trim().toUpperCase()) } },
+      ],
+    }).select("tiktokProductId title").lean();
+    if (existingTikTokProduct) throw Object.assign(new Error(`SKU của sản phẩm này đã có trên TikTok Shop (${existingTikTokProduct.title || existingTikTokProduct.tiktokProductId}). Hãy đồng bộ TikTok để liên kết, tránh tạo trùng.`), { statusCode: 409 });
+    if (!productImages.length) throw Object.assign(new Error("Thêm ít nhất một ảnh sản phẩm trước khi đăng TikTok."), { statusCode: 400 });
+    const title = String(input?.title ?? product.name ?? "").trim();
+    const titleMinLength = ["DE", "ES", "FR", "IE", "IT", "JP", "UK", "GB", "US", "MX"].includes(region) ? 1 : 25;
+    const titleMaxLength = region === "MX" ? 300 : 255;
+    if (title.length < titleMinLength || title.length > titleMaxLength) throw Object.assign(new Error(`Tên sản phẩm TikTok cần từ ${titleMinLength} đến ${titleMaxLength} ký tự.`), { statusCode: 400 });
+    const description = String(input?.description ?? product.description ?? product.shortDescription ?? "").trim().slice(0, 10_000);
+    if (!description) throw Object.assign(new Error("Sản phẩm cần có mô tả trước khi đăng TikTok."), { statusCode: 400 });
+    const categoryVersion = categoryVersionForRegion(shop.region);
+    const [categoryListData, warehouseData, categoryData] = await Promise.all([
+      callTikTokShopApi({ path: "/product/202309/categories", accessToken, query: { shop_cipher: shop.cipher, category_version: categoryVersion, locale: "vi-VN" } }),
+      callTikTokShopApi({ path: "/logistics/202309/warehouses", accessToken, query: { shop_cipher: shop.cipher } }),
+      callTikTokShopApi({ path: `/product/202309/categories/${encodeURIComponent(categoryId)}/attributes`, accessToken, query: { shop_cipher: shop.cipher, category_version: categoryVersion, locale: "vi-VN" } }),
+    ]);
+    const remoteCategories = Array.isArray((categoryListData as any)?.categories) ? (categoryListData as any).categories : [];
+    const eligibleCategory = remoteCategories.find((category: any) => {
+      const permissions = Array.isArray(category?.permission_statuses) ? category.permission_statuses.map((value: unknown) => String(value).toUpperCase()) : [];
+      return firstString(category?.id, category?.category_id) === categoryId && Boolean(category?.is_leaf ?? category?.isLeaf) && (!permissions.length || permissions.includes("AVAILABLE"));
+    });
+    if (!eligibleCategory) throw Object.assign(new Error("Danh mục TikTok không còn khả dụng hoặc không phải danh mục lá."), { statusCode: 400 });
+    const remoteWarehouses = Array.isArray((warehouseData as any)?.warehouses) ? (warehouseData as any).warehouses : Array.isArray((warehouseData as any)?.warehouse_list) ? (warehouseData as any).warehouse_list : [];
+    if (!remoteWarehouses.some((warehouse: any) => firstString(warehouse?.id, warehouse?.warehouse_id) === warehouseId && (warehouse?.is_enabled ?? warehouse?.enabled ?? true) !== false)) {
+      throw Object.assign(new Error("Kho TikTok đã chọn không còn khả dụng."), { statusCode: 400 });
+    }
+    const categoryAttributes = normalizeTikTokAttributes(categoryData);
+    const requiredAttributes = categoryAttributes.filter((attribute) => !attribute.isSales && attribute.required);
+    const selectedAttributes = Array.isArray(input?.productAttributes) ? input.productAttributes : [];
+    const categoryAttributesById = new Map<string, (typeof categoryAttributes)[number]>();
+    for (const attribute of categoryAttributes) if (!attribute.isSales) categoryAttributesById.set(attribute.id, attribute);
+    const missingAttributes = requiredAttributes.filter((attribute) => {
+      const selected = selectedAttributes.find((row: any) => String(row?.id || "") === attribute.id);
+      const valueId = String(selected?.valueId || "").trim();
+      const valueName = String(selected?.valueName || "").trim();
+      const allowedValueIds = attribute.values.map((value) => value.id).filter(Boolean);
+      return !selected || (!valueId && !valueName) || valueName.length > 50 || (allowedValueIds.length > 0 && (!valueId || !allowedValueIds.includes(valueId)));
+    });
+    if (missingAttributes.length) throw Object.assign(new Error(`TikTok yêu cầu các thuộc tính: ${missingAttributes.map((attribute) => attribute.name).join(", ")}.`), { statusCode: 400 });
+    if (selectedAttributes.some((attribute: any) => !categoryAttributesById.has(String(attribute?.id || "")))) throw Object.assign(new Error("Thuộc tính sản phẩm không khớp danh mục TikTok đã chọn."), { statusCode: 400 });
+
+    const variantIds = variants.map((variant) => String(variant._id));
+    const [values, prices] = await Promise.all([
+      localValues(companyCode, variantIds),
+      ProductPriceModel.find({ companyCode, variantId: { $in: variantIds }, status: "active" }).select("variantId sellingPrice").lean(),
+    ]);
+    const pricesByVariant = new Map<string, Set<number>>();
+    for (const row of prices as any[]) {
+      const set = pricesByVariant.get(String(row.variantId)) || new Set<number>();
+      set.add(Number(row.sellingPrice));
+      pricesByVariant.set(String(row.variantId), set);
+    }
+    const requestedPrices = new Map<string, number>();
+    for (const row of Array.isArray(input?.prices) ? input.prices : []) requestedPrices.set(String(row.variantId), Number(row.amount));
+    const currency = currencyForRegion(shop.region);
+    const skuRows: any[] = [];
+    for (const variant of variants) {
+      const sku = String(variant.sku || "").trim().toUpperCase();
+      const priceSet = pricesByVariant.get(String(variant._id));
+      const price = requestedPrices.get(String(variant._id)) ?? (priceSet?.size === 1 ? [...priceSet][0] : 0);
+      if (!sku || !Number.isFinite(price) || price <= 0) throw Object.assign(new Error(`Cần nhập giá bán hợp lệ cho SKU ${sku || variant._id}.`), { statusCode: 400 });
+      const options = Array.isArray(variant.optionValues) ? variant.optionValues.filter((row: any) => row?.code && row?.value) : [];
+      if (options.length > 3 || new Set(options.map((option: any) => String(option.code).trim().toUpperCase())).size !== options.length) {
+        throw Object.assign(new Error(`SKU ${sku} có thuộc tính phân loại không hợp lệ. TikTok hỗ trợ tối đa 3 thuộc tính duy nhất.`), { statusCode: 400 });
+      }
+      skuRows.push({ variant, sku, price, options, quantity: Math.max(0, Math.trunc(values.stockByVariant.get(String(variant._id)) || 0)) });
+    }
+    const salesCodes = [...new Set(skuRows.flatMap((row) => row.options.map((option: any) => String(option.code).trim().toUpperCase())))];
+    if (skuRows.length > 1 && !salesCodes.length) {
+      for (const row of skuRows) row.options = [{ code: "VARIANT", value: row.variant.displayName || row.sku }];
+      salesCodes.push("VARIANT");
+    }
+    if (salesCodes.length > 3) throw Object.assign(new Error("TikTok hỗ trợ tối đa 3 thuộc tính phân loại cho mỗi sản phẩm."), { statusCode: 400 });
+    if (skuRows.length > 1 && skuRows.some((row) => salesCodes.some((code) => !row.options.some((option: any) => String(option.code).trim().toUpperCase() === code && String(option.value).trim())))) {
+      throw Object.assign(new Error("Các SKU cần có cùng nhóm thuộc tính phân loại và mỗi thuộc tính phải có giá trị."), { statusCode: 400 });
+    }
+    const salesNames = new Map<string, string>();
+    for (const row of Array.isArray(input?.salesAttributes) ? input.salesAttributes : []) salesNames.set(String(row.code || "").trim().toUpperCase(), String(row.name || "").trim());
+    if (salesCodes.some((code) => {
+      const name = salesNames.get(code) || code;
+      return name.length > 50 || skuRows.some((row) => row.options.some((option: any) => String(option.code).trim().toUpperCase() === code && String(option.value).trim().length > 50));
+    })) throw Object.assign(new Error("Tên thuộc tính và giá trị phân loại không được vượt quá 50 ký tự."), { statusCode: 400 });
+    if (skuRows.length > 1) {
+      const salesSignatures = skuRows.map((row) => salesCodes.map((code) => row.options.find((option: any) => String(option.code).trim().toUpperCase() === code)?.value).join("\u001f"));
+      if (new Set(salesSignatures).size !== salesSignatures.length) throw Object.assign(new Error("Mỗi SKU cần có một tổ hợp thuộc tính phân loại riêng."), { statusCode: 400 });
+    }
+    const salesByCode = new Map<string, string>();
+    for (const code of salesCodes) salesByCode.set(code, salesNames.get(code) || code.slice(0, 20));
+    const imageUris: string[] = [];
+    for (let index = 0; index < productImages.length; index += 1) {
+      imageUris.push(await uploadCatalogImageToTikTok(productImages[index], accessToken, shop.cipher, `${String(product.productCode || "product")}-${index + 1}.jpg`));
+    }
+    const packageWeightGrams = Number(input?.packageWeightGrams || Math.max(...variants.map((variant) => Number(variant.weightGrams || 0))));
+    if (!Number.isFinite(packageWeightGrams) || packageWeightGrams <= 0) throw Object.assign(new Error("Nhập trọng lượng gói hàng lớn hơn 0 gram."), { statusCode: 400 });
+    const dimensions = input?.packageDimensions || {};
+    const packageDimensions = { length: Number(dimensions.lengthCm || 0), width: Number(dimensions.widthCm || 0), height: Number(dimensions.heightCm || 0) };
+    const hasPackageDimensions = Object.values(packageDimensions).some((value) => value > 0);
+    if (hasPackageDimensions && Object.values(packageDimensions).some((value) => !Number.isFinite(value) || value <= 0)) throw Object.assign(new Error("Nếu nhập kích thước gói hàng, hãy điền đủ dài, rộng và cao lớn hơn 0."), { statusCode: 400 });
+    const salesAttributesForSku = (row: any) => row.options.map((option: any) => ({ name: salesByCode.get(String(option.code).trim().toUpperCase()), value_name: String(option.value).trim() }));
+    const requestBody: any = {
+      title,
+      description,
+      category_id: categoryId,
+      main_images: imageUris.map((uri) => ({ uri })),
+      package_weight: { value: String(packageWeightGrams / 1000), unit: "KILOGRAM" },
+      category_version: categoryVersionForRegion(shop.region),
+      product_attributes: selectedAttributes.map((attribute: any) => ({ id: String(attribute.id), values: [{ ...(attribute.valueId ? { id: String(attribute.valueId) } : {}), ...(attribute.valueName ? { name: String(attribute.valueName) } : {}) }] })),
+      skus: skuRows.map((row) => ({
+        seller_sku: row.sku,
+        external_sku_id: String(row.variant._id),
+        price: { amount: String(row.price), currency },
+        inventory: [{ warehouse_id: warehouseId, quantity: row.quantity }],
+        ...(row.options.length ? { sales_attributes: salesAttributesForSku(row) } : {}),
+        ...(isValidGtin(row.variant.barcode) ? { identifier_code: { code: String(row.variant.barcode), type: "GTIN" } } : {}),
+      })),
+    };
+    if (hasPackageDimensions) requestBody.package_dimensions = { ...Object.fromEntries(Object.entries(packageDimensions).map(([key, value]) => [key, String(value)])), unit: "CENTIMETER" };
+    if (String(input?.brandId || "").trim()) requestBody.brand_id = String(input.brandId).trim();
+    const createData: any = await callTikTokShopApi({ path: "/product/202309/products", method: "POST", accessToken, query: { shop_cipher: shop.cipher }, body: requestBody });
+    const remoteProductId = firstString(createData?.product_id, createData?.productId, createData?.id, createData?.product?.id);
+    if (!remoteProductId) {
+      await this.syncProducts(companyCode).catch(() => undefined);
+      const synced: any = await TikTokShopProductModel.findOne({ companyCode, connectionId: String(connection._id), shopCipher: shop.cipher, "skus.sellerSku": { $in: skuRows.map((row) => row.sku) } }).lean();
+      const syncedBySeller = new Map<string, any>();
+      for (const sku of synced?.skus || []) syncedBySeller.set(String(sku.sellerSku || "").toUpperCase(), sku);
+      const linked = skuRows.every((row) => {
+        const sku = syncedBySeller.get(row.sku);
+        return Boolean(sku?.skuId && String(sku.localVariantId) === String(row.variant._id));
+      });
+      return { created: true, linked, productId: synced?.tiktokProductId || "", message: linked ? "Đã đăng sản phẩm và liên kết SKU." : "TikTok đã nhận sản phẩm. Hãy đồng bộ danh sách TikTok để hoàn tất liên kết SKU." };
+    }
+    const returnedSkus = Array.isArray(createData?.skus) ? createData.skus : Array.isArray(createData?.product?.skus) ? createData.product.skus : [];
+    const returnedSkuBySeller = new Map<string, string>();
+    for (const row of returnedSkus) returnedSkuBySeller.set(firstString(row?.seller_sku, row?.sellerSku), firstString(row?.id, row?.sku_id, row?.skuId));
+    const returnedAllSkuIds = skuRows.every((row) => Boolean(returnedSkuBySeller.get(row.sku)));
+    await TikTokShopProductModel.findOneAndUpdate(
+      { companyCode, connectionId: String(connection._id), shopCipher: shop.cipher, tiktokProductId: remoteProductId },
+      { $set: {
+        companyCode, connectionId: String(connection._id), shopCipher: shop.cipher, shopName: shop.name, tiktokProductId: remoteProductId,
+        title: requestBody.title, status: firstString(createData?.status, createData?.product_status, "PENDING"),
+        imageUrl: productImages[0], imageUrls: productImages, description, categoryId, categoryName: String(input?.categoryName || ""),
+        brandId: String(input?.brandId || ""), manufacturer: product.manufacturer || "", countryOfOrigin: product.countryOfOrigin || "",
+        productAttributes: selectedAttributes.map((attribute: any) => ({ code: String(attribute.id), name: String(attribute.name || attribute.id), value: String(attribute.valueName || "") })),
+        packageWeightGrams,
+        ...(hasPackageDimensions ? { packageLengthMm: packageDimensions.length * 10, packageWidthMm: packageDimensions.width * 10, packageHeightMm: packageDimensions.height * 10 } : {}),
+        skus: skuRows.map((row) => ({
+          skuId: returnedSkuBySeller.get(row.sku) || "", sellerSku: row.sku, barcode: row.variant.barcode || "", displayName: row.variant.displayName || row.sku,
+          optionValues: row.variant.optionValues || [], priceAmount: String(row.price), currency, inventoryQuantity: row.quantity, hasInventorySnapshot: true,
+          inventory: [{ warehouseId, quantity: row.quantity }], localProductId: String(product._id), localVariantId: String(row.variant._id),
+        })),
+        detailsSyncStatus: "complete", detailsSyncedAt: new Date(), missingInfo: [], detailsSyncError: "", lastSeenAt: new Date(),
+        lastOutboundSyncAt: returnedAllSkuIds ? new Date() : null, lastOutboundSyncStatus: returnedAllSkuIds ? "success" : "never", lastOutboundSyncError: "",
+      } },
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
+    );
+    let linked = returnedAllSkuIds;
+    if (!linked) {
+      await this.syncProducts(companyCode).catch(() => undefined);
+      const synced: any = await TikTokShopProductModel.findOne({ companyCode, connectionId: String(connection._id), shopCipher: shop.cipher, tiktokProductId: remoteProductId }).lean();
+      const syncedBySeller = new Map<string, any>();
+      for (const sku of synced?.skus || []) syncedBySeller.set(String(sku.sellerSku || "").toUpperCase(), sku);
+      linked = skuRows.every((row) => {
+        const sku: any = syncedBySeller.get(row.sku);
+        return Boolean(sku?.skuId && String(sku.localVariantId) === String(row.variant._id));
+      });
+    }
+    return { created: true, linked, productId: remoteProductId, status: firstString(createData?.status, createData?.product_status, "PENDING"), skus: skuRows.length };
   },
 
   async createAuthorizationUrl(companyCodeInput: unknown, userId: string) {
