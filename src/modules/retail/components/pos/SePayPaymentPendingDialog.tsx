@@ -1,7 +1,8 @@
 import React from "react";
 import { CheckCircle2, LoaderCircle, X } from "lucide-react";
 import { retailOrdersApi } from "../../api/retailOrders.api";
-import type { RetailOrder, RetailPaymentQr, RetailScope } from "../../types";
+import type { RetailOrderPaymentStatus, RetailPaymentQr, RetailScope } from "../../types";
+import { getApiErrorMessage } from "../../../../utils/errorMessage";
 
 const money = (value: number) => new Intl.NumberFormat("vi-VN").format(value) + " ₫";
 
@@ -12,7 +13,7 @@ type Props = {
   paymentCode: string;
   amount: number;
   paidAmountBeforeTransfer: number;
-  onPaid: (order: RetailOrder) => void | Promise<void>;
+  onPaid: (order: RetailOrderPaymentStatus) => void | Promise<void>;
   onDismiss: () => void;
 };
 
@@ -35,7 +36,7 @@ export default function SePayPaymentPendingDialog({
     let active = true;
     retailOrdersApi.paymentQr(scope, orderId)
       .then((value) => { if (active) setQr(value); })
-      .catch(() => { if (active) setQrError("Không tải được mã QR. Đơn hàng đã được lưu; hãy mở lại đơn để lấy QR thanh toán."); });
+      .catch((error) => { if (active) setQrError(getApiErrorMessage(error, "Không tải được mã QR. Đơn hàng đã được lưu; hãy kiểm tra cấu hình tài khoản nhận tiền hoặc tải lại đơn để thử lại.")); });
     return () => { active = false; };
   }, [scope.companyCode, scope.branchId, orderId]);
 
@@ -44,7 +45,7 @@ export default function SePayPaymentPendingDialog({
     let timer: ReturnType<typeof setTimeout> | undefined;
     const poll = async () => {
       try {
-        const order = await retailOrdersApi.detail(scope, orderId);
+        const order = await retailOrdersApi.paymentStatus(scope, orderId);
         if (!active) return;
         if (Number(order.paidAmount) >= paidAmountBeforeTransfer + amount) {
           await onPaidRef.current(order);

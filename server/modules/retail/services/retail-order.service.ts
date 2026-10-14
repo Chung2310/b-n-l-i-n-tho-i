@@ -596,6 +596,20 @@ export const RetailOrderService = {
     return { status: "completed" as const, ...await confirmedResult(scope, attempt) };
   },
   async detail(scope: RetailBranchScope, id: string, actor?: any, canManage = false) { if (!Types.ObjectId.isValid(id)) throw new Error("Mã đơn không hợp lệ."); const order: any = await RetailOrderModel.findOne({ _id: id, ...scope }).lean(); if (!order) throw new Error("Không tìm thấy đơn hàng."); if (order.status === "draft" && actor) assertHeldDraftAccess(String(order.createdBy), actorId(actor), canManage); return (await attachAfterSaleHistory(scope, [order]))[0]; },
+  async paymentStatus(scope: RetailBranchScope, id: string, actor: any, canManage = false) {
+    if (!Types.ObjectId.isValid(id)) throw retailError("Mã đơn không hợp lệ.", "ORDER_ID_INVALID", 400);
+    const order: any = await RetailOrderModel.findOne({ _id: id, ...scope })
+      .select("_id orderCode createdBy paidAmount dueAmount pendingTransferAmount paymentStatus status version payments")
+      .lean();
+    if (!order) throw retailError("Không tìm thấy đơn hàng.", "ORDER_NOT_FOUND", 404);
+    if (!canManage && String(order.createdBy) !== actorId(actor)) throw retailError("Bạn không được xem trạng thái thanh toán của đơn này.", "ORDER_FORBIDDEN", 403);
+    return {
+      _id: String(order._id), orderCode: order.orderCode, paidAmount: Number(order.paidAmount || 0),
+      dueAmount: Number(order.dueAmount || 0), pendingTransferAmount: Number(order.pendingTransferAmount || 0),
+      paymentStatus: order.paymentStatus, status: order.status, version: Number(order.version || 0),
+      payments: (order.payments || []).map(({ method, amount, tenderedAmount, changeAmount, reference }: any) => ({ method, amount, tenderedAmount, changeAmount, reference })),
+    };
+  },
   async createDraft(scope: RetailBranchScope, input: any, actor: any) {
     const currentBusinessDate = businessDateInVietnam(new Date());
     await expireHeldDrafts(scope, currentBusinessDate);

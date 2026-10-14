@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import type { Request, Response } from "express";
+import { requireRetailBranch, retailScopeFromRequest } from "../contracts";
 import { buildRetailPaymentQr, matchesCompanySePayApiKey, processRetailSePayTransaction } from "../services/retail-sepay.service";
 
 const safeEqual = (left: string, right: string) => {
@@ -26,8 +27,12 @@ async function authenticate(req: Request) {
 
 export const retailSePayController = {
   qr: async (req: Request, res: Response) => {
-    try { res.json({ success: true, data: await buildRetailPaymentQr(String((req as any).user?.companyCode || ""), req.params.id) }); }
-    catch (error: any) { res.status(400).json({ success: false, error: error.message }); }
+    try {
+      const actor = (req as any).user || {};
+      const scope = requireRetailBranch(retailScopeFromRequest(actor, { companyCode: req.query.companyCode, branchId: req.query.branchId }));
+      res.json({ success: true, data: await buildRetailPaymentQr(scope.companyCode, scope.branchId, req.params.id) });
+    }
+    catch (error: any) { res.status(error.status || 400).json({ success: false, error: error.message }); }
   },
   webhook: async (req: Request, res: Response) => {
     if (!(await authenticate(req))) return res.status(401).json({ success: false, message: "Unauthorized" });

@@ -6,6 +6,7 @@ import { RETAIL_MANAGER_PERMISSION, RETAIL_OPERATE_PERMISSION } from "../permiss
 export const retailOrderRoutes = Router(); const operate = requirePermission([RETAIL_OPERATE_PERMISSION, RETAIL_MANAGER_PERMISSION]) as any;
 const manage = requirePermission(RETAIL_MANAGER_PERMISSION) as any;
 const read = requirePermission(["retail:read", RETAIL_MANAGER_PERMISSION]) as any;
+const paymentAccess = requirePermission(["retail:read", RETAIL_OPERATE_PERMISSION, RETAIL_MANAGER_PERMISSION]) as any;
 retailOrderRoutes.post("/checkout/reconcile", operate, retailOrderController.reconcileCheckout as any);
 retailOrderRoutes.post("/checkout/revoke", operate, retailOrderController.revokeCheckout as any);
 retailOrderRoutes.post("/checkout", operate, retailOrderController.checkout as any);
@@ -19,7 +20,8 @@ retailOrderRoutes.get("/idempotency/:key", manage, retailOrderController.idempot
 retailOrderRoutes.get("/", operate, retailOrderController.list as any);
 retailOrderRoutes.post("/", operate, retailOrderController.create as any);
 retailOrderRoutes.get("/:id", read, retailOrderController.detail as any);
-retailOrderRoutes.get("/:id/payment-qr", read, retailSePayController.qr as any);
+retailOrderRoutes.get("/:id/payment-status", paymentAccess, retailOrderController.paymentStatus as any);
+retailOrderRoutes.get("/:id/payment-qr", paymentAccess, retailSePayController.qr as any);
 retailOrderRoutes.patch("/:id", operate, retailOrderController.update as any);
 retailOrderRoutes.post("/:id/confirm", operate, retailOrderController.confirm as any);
 retailOrderRoutes.post("/:id/payments", manage, retailOrderController.collect as any);
