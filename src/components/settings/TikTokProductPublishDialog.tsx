@@ -48,7 +48,10 @@ export default function TikTokProductPublishDialog({ connections, onClose, onPub
   const [packageWidthCm, setPackageWidthCm] = React.useState("");
   const [packageHeightCm, setPackageHeightCm] = React.useState("");
   const [catalogLoading, setCatalogLoading] = React.useState(true);
-  const [shopLoading, setShopLoading] = React.useState(false);
+  const [categoriesLoading, setCategoriesLoading] = React.useState(false);
+  const [warehousesLoading, setWarehousesLoading] = React.useState(false);
+  const [warehouseLoadError, setWarehouseLoadError] = React.useState(false);
+  const [warehouseRetry, setWarehouseRetry] = React.useState(0);
   const [attributesLoading, setAttributesLoading] = React.useState(false);
   const [attributesLoadError, setAttributesLoadError] = React.useState(false);
   const [attributesRetry, setAttributesRetry] = React.useState(0);
@@ -72,32 +75,50 @@ export default function TikTokProductPublishDialog({ connections, onClose, onPub
   React.useEffect(() => {
     if (!selectedShop) {
       setCategories([]);
-      setWarehouses([]);
       setCategoryId("");
-      setWarehouseId("");
+      setAttributes([]);
+      setAttributeValues({});
+      setCategoriesLoading(false);
       return;
     }
     let active = true;
-    setShopLoading(true);
+    setCategoriesLoading(true);
     setCategories([]);
-    setWarehouses([]);
     setCategoryId("");
-    setWarehouseId("");
     setAttributes([]);
     setAttributeValues({});
-    void Promise.all([
-      tiktokShopApi.listingCategories(selectedShop.connectionId, selectedShop.shop.cipher),
-      tiktokShopApi.listingWarehouses(selectedShop.connectionId, selectedShop.shop.cipher),
-    ]).then(([categoryResult, warehouseResult]) => {
-      if (!active) return;
-      setCategories(categoryResult.categories);
-      setWarehouses(warehouseResult.warehouses);
-      setWarehouseId(warehouseResult.warehouses[0]?.id || "");
+    void tiktokShopApi.listingCategories(selectedShop.connectionId, selectedShop.shop.cipher).then((result) => {
+      if (active) setCategories(result.categories);
     }).catch((error) => {
-      if (active) toast.error(getApiErrorMessage(error, "Không thể tải danh mục hoặc kho TikTok."));
-    }).finally(() => { if (active) setShopLoading(false); });
+      if (active) toast.error(getApiErrorMessage(error, "Không thể tải danh mục TikTok."));
+    }).finally(() => { if (active) setCategoriesLoading(false); });
     return () => { active = false; };
   }, [selectedShopKey, selectedShop?.connectionId, selectedShop?.shop.cipher]);
+
+  React.useEffect(() => {
+    if (!selectedShop) {
+      setWarehouses([]);
+      setWarehouseId("");
+      setWarehouseLoadError(false);
+      setWarehousesLoading(false);
+      return;
+    }
+    let active = true;
+    setWarehousesLoading(true);
+    setWarehouseLoadError(false);
+    setWarehouses([]);
+    setWarehouseId("");
+    void tiktokShopApi.listingWarehouses(selectedShop.connectionId, selectedShop.shop.cipher).then((result) => {
+      if (!active) return;
+      setWarehouses(result.warehouses);
+      setWarehouseId(result.warehouses[0]?.id || "");
+    }).catch((error) => {
+      if (!active) return;
+      setWarehouseLoadError(true);
+      toast.error(getApiErrorMessage(error, "Không thể tải danh sách kho TikTok."));
+    }).finally(() => { if (active) setWarehousesLoading(false); });
+    return () => { active = false; };
+  }, [selectedShopKey, selectedShop?.connectionId, selectedShop?.shop.cipher, warehouseRetry]);
 
   React.useEffect(() => {
     if (!selectedProduct) return;
@@ -310,8 +331,8 @@ export default function TikTokProductPublishDialog({ connections, onClose, onPub
                         setCategorySearch("");
                       }
                     }}
-                    placeholder={shopLoading ? "Đang tải danh mục…" : "Tìm hoặc chọn danh mục TikTok"}
-                    disabled={shopLoading || !categories.length}
+                    placeholder={categoriesLoading ? "Đang tải danh mục…" : "Tìm hoặc chọn danh mục TikTok"}
+                    disabled={categoriesLoading || !categories.length}
                   />
                   <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   {categoryOpen && <div className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
@@ -332,11 +353,13 @@ export default function TikTokProductPublishDialog({ connections, onClose, onPub
               {matchingCategories.length > filteredCategories.length && <p className="mt-1 text-[11px] text-slate-500">Đang hiện tối đa 300 kết quả phù hợp; nhập thêm từ khóa để lọc.</p>}
             </div>
             <label className={labelClass}>Kho TikTok nhận tồn
-              <select className={fieldClass} value={warehouseId} onChange={(event) => setWarehouseId(event.target.value)} required disabled={shopLoading || !warehouses.length}>
-                <option value="">{shopLoading ? "Đang tải kho…" : "Chọn kho TikTok"}</option>
+              <select className={fieldClass} value={warehouseId} onChange={(event) => setWarehouseId(event.target.value)} required disabled={warehousesLoading || !warehouses.length}>
+                <option value="">{warehousesLoading ? "Đang tải kho…" : "Chọn kho TikTok"}</option>
                 {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}{warehouse.type ? ` · ${warehouse.type}` : ""}</option>)}
               </select>
-              {!shopLoading && !warehouses.length && <p className="mt-1 text-[11px] text-amber-700">Shop chưa có kho khả dụng. Hãy tạo kho trong Seller Center trước.</p>}
+              {!warehousesLoading && !warehouses.length && (warehouseLoadError
+                ? <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-rose-700">Không tải được danh sách kho từ TikTok. <button type="button" onClick={() => setWarehouseRetry((current) => current + 1)} className="font-bold underline">Thử tải lại</button></p>
+                : <p className="mt-1 text-[11px] text-amber-700">Shop chưa có kho khả dụng. Hãy tạo kho trong Seller Center trước.</p>)}
             </label>
           </div>
 
@@ -381,7 +404,7 @@ export default function TikTokProductPublishDialog({ connections, onClose, onPub
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
             <p className="max-w-xl text-[11px] text-slate-500">TikTok sẽ xét duyệt thông tin sản phẩm sau khi nhận. Ảnh cần là ảnh đã tải lên Cloudinary của hệ thống.</p>
-            <div className="flex gap-2"><button type="button" disabled={submitting} onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Hủy</button><button type="submit" disabled={submitting || catalogLoading || shopLoading || attributesLoading} className="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-bold text-white hover:bg-pink-700 disabled:opacity-50">{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackagePlus className="h-4 w-4" />}Gửi lên TikTok</button></div>
+            <div className="flex gap-2"><button type="button" disabled={submitting} onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Hủy</button><button type="submit" disabled={submitting || catalogLoading || categoriesLoading || warehousesLoading || attributesLoading} className="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-bold text-white hover:bg-pink-700 disabled:opacity-50">{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackagePlus className="h-4 w-4" />}Gửi lên TikTok</button></div>
           </div>
         </form>
       </section>
