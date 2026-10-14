@@ -17,6 +17,21 @@ const branch = (req: AuthenticatedRequest) => String(req.body?.branchId || req.u
 tikTokShopRouter.get("/status", ...read, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try { res.json({ data: await TikTokShopService.status(company(req)) }); } catch (error) { next(error); }
 });
+tikTokShopRouter.get("/catalog-products", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try { res.json({ data: await TikTokShopService.listPublishableProducts(company(req)) }); } catch (error) { next(error); }
+});
+tikTokShopRouter.get("/listing/categories", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try { res.json({ data: await TikTokShopService.listingCategories(company(req), req.query.connectionId, req.query.shopCipher) }); } catch (error) { next(error); }
+});
+tikTokShopRouter.get("/listing/warehouses", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try { res.json({ data: await TikTokShopService.listingWarehouses(company(req), req.query.connectionId, req.query.shopCipher) }); } catch (error) { next(error); }
+});
+tikTokShopRouter.get("/listing/categories/:categoryId/attributes", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try { res.json({ data: await TikTokShopService.listingAttributes(company(req), req.query.connectionId, req.query.shopCipher, req.params.categoryId) }); } catch (error) { next(error); }
+});
+tikTokShopRouter.post("/listing/products", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try { res.json({ data: await TikTokShopService.publishCatalogProduct(company(req), req.body) }); } catch (error) { next(error); }
+});
 tikTokShopRouter.get("/auth-url", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try { res.json({ data: { authUrl: await TikTokShopService.createAuthorizationUrl(company(req), actor(req)) } }); } catch (error) { next(error); }
 });

@@ -92,3 +92,32 @@ export async function callTikTokShopApi(options: {
   });
   return parseResponse(response);
 }
+
+export async function uploadTikTokShopProductImage(options: {
+  path: string;
+  accessToken: string;
+  query?: Record<string, string | number | undefined>;
+  data: Uint8Array;
+  fileName: string;
+  mimeType: string;
+}) {
+  const config = getTikTokShopConfig();
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const params: Record<string, string> = { app_key: config.appKey, timestamp };
+  for (const [key, value] of Object.entries(options.query || {})) {
+    if (value !== undefined && value !== "") params[key] = String(value);
+  }
+  // TikTok signs multipart uploads without the encoded multipart body.
+  params.sign = signTikTokShopRequest(options.path, params, "", config.appSecret);
+  const url = new URL(options.path, config.apiBaseUrl);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+  const form = new FormData();
+  form.append("data", new Blob([options.data], { type: options.mimeType }), options.fileName);
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "x-tts-access-token": options.accessToken },
+    body: form,
+    signal: AbortSignal.timeout(30_000),
+  });
+  return parseResponse(response);
+}
