@@ -3,6 +3,7 @@ import { Link2, Loader2, Pencil, ShoppingBag, Trash2 } from "lucide-react";
 import { toast } from "../../pages/Toast";
 import { getApiErrorMessage } from "../../utils/errorMessage";
 import { tiktokShopApi, type TikTokShopProduct, type TikTokShopStatus } from "../../services/tiktokShopService";
+import { ConfirmDialog } from "../common/ConfirmDialog";
 
 const pendingReviewStatuses = new Set(["PENDING", "PENDING_REVIEW", "PENDING_APPROVAL", "WAITING_FOR_REVIEW", "UNDER_REVIEW", "IN_REVIEW"]);
 const hasOrderReadScope = (scopes: string[]) => scopes.some((scope) => {
@@ -25,6 +26,7 @@ export default function TikTokShopSettingsTab() {
   const [orderBranches, setOrderBranches] = React.useState<Array<{ _id: string; code: string; name: string }>>([]);
   const [defaultOrderBranchId, setDefaultOrderBranchId] = React.useState("");
   const [busy, setBusy] = React.useState("");
+  const [disconnectTarget, setDisconnectTarget] = React.useState<{ id: string; label: string } | null>(null);
 
   const load = React.useCallback(async () => {
     const next = await tiktokShopApi.status();
@@ -71,12 +73,18 @@ export default function TikTokShopSettingsTab() {
     if (!popup) throw new Error("Trình duyệt đã chặn cửa sổ kết nối. Hãy cho phép popup rồi thử lại.");
   });
 
-  const disconnect = (connectionId: string) => run(`disconnect:${connectionId}`, async () => {
-    if (!window.confirm("Ngắt tài khoản seller này và xóa danh mục kênh đã đồng bộ? Sản phẩm nội bộ không bị xóa.")) return;
-    await tiktokShopApi.disconnect(connectionId);
-    toast.success("Đã ngắt kết nối TikTok Shop.");
-    await load();
-  });
+  const disconnect = (connectionId: string, label: string) => setDisconnectTarget({ id: connectionId, label });
+
+  const confirmDisconnect = async () => {
+    if (!disconnectTarget) return;
+    const target = disconnectTarget;
+    await run(`disconnect:${target.id}`, async () => {
+      await tiktokShopApi.disconnect(target.id);
+      setDisconnectTarget(null);
+      toast.success("Đã ngắt kết nối TikTok Shop.");
+      await load();
+    });
+  };
 
   const assignOrderBranch = (branchId: string) => run("order-branch", async () => {
     if (!branchId) return;
@@ -126,7 +134,7 @@ export default function TikTokShopSettingsTab() {
             {status.connections.map((connection, index) => <div key={connection.id} className="rounded-lg border border-slate-200 p-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div><p className="text-sm font-bold text-slate-800">Tài khoản seller {index + 1}</p><p className="mt-0.5 text-[10px] text-slate-400">Seller ID: {connection.openId}</p></div>
-                <button type="button" disabled={Boolean(busy)} onClick={() => disconnect(connection.id)} className="inline-flex items-center gap-1 rounded-md border border-rose-200 px-2 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
+                <button type="button" disabled={Boolean(busy)} onClick={() => disconnect(connection.id, connection.shops.map((shop) => shop.name).join(", ") || `Seller ${index + 1}`)} className="inline-flex items-center gap-1 rounded-md border border-rose-200 px-2 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
                   {busy === `disconnect:${connection.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Ngắt
                 </button>
               </div>
@@ -155,6 +163,19 @@ export default function TikTokShopSettingsTab() {
       )}
 
       {products.length > 0 && <div className="overflow-x-auto rounded-lg border border-slate-200"><table className="min-w-full divide-y divide-slate-200 text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-2">Sản phẩm TikTok</th><th className="px-3 py-2">SKU</th><th className="px-3 py-2">Trạng thái ghép</th><th className="px-3 py-2">Kiểm tra thông tin</th><th className="px-3 py-2">Đẩy dữ liệu</th><th className="px-3 py-2 text-right">Thao tác</th></tr></thead><tbody className="divide-y divide-slate-100">{products.map((product) => <tr key={product._id}><td className="px-3 py-2"><p className="font-semibold text-slate-800">{product.title}</p><p className="text-[10px] text-slate-400">{product.tiktokProductId}</p><span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${isPendingReview(product.status) ? "bg-amber-100 text-amber-800" : ["LIVE", "ACTIVE", "SELLING", "ACTIVATE"].includes(String(product.status || "").toUpperCase()) ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{listingStatusLabel(product.status)}</span>{isPendingReview(product.status) && <p className="mt-1 text-[10px] text-amber-800">Chưa mở bán trên TikTok Shop · đồng bộ giá/tồn tạm khóa</p>}</td><td className="px-3 py-2 text-slate-600">{product.skus.map((sku) => sku.sellerSku || sku.skuId).filter(Boolean).join(", ") || "—"}</td><td className="px-3 py-2"><span className={product.skus.some((sku) => sku.localVariantId) ? "text-emerald-700" : "text-amber-700"}>{product.skus.some((sku) => sku.localVariantId) ? "Đã ghép SKU nội bộ" : "Chưa ghép"}</span></td><td className="max-w-xs px-3 py-2"><span className={product.detailsSyncStatus === "complete" ? "text-emerald-700" : product.detailsSyncStatus === "failed" ? "text-rose-700" : "text-amber-700"}>{product.detailsSyncStatus === "complete" ? "Đủ thông tin" : product.detailsSyncStatus === "failed" ? `Lỗi tải: ${product.detailsSyncError || "không tải được chi tiết"}` : product.missingInfo?.length ? `Thiếu: ${product.missingInfo.join(", ")}` : "Chưa kiểm tra chi tiết"}</span></td><td className="max-w-xs px-3 py-2"><span className={product.lastOutboundSyncStatus === "failed" ? "text-rose-700" : product.lastOutboundSyncStatus === "success" ? "text-emerald-700" : "text-slate-500"}>{product.lastOutboundSyncStatus === "failed" ? product.lastOutboundSyncError || "Lỗi" : product.lastOutboundSyncStatus === "success" ? "Đã đồng bộ" : "Chưa đồng bộ"}</span></td><td className="px-3 py-2 text-right"><button type="button" onClick={() => editProduct(product)} className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"><Pencil className="h-3.5 w-3.5" /> Sửa sản phẩm</button></td></tr>)}</tbody></table></div>}
+      <ConfirmDialog
+        isOpen={Boolean(disconnectTarget)}
+        title="Ngắt kết nối TikTok Shop?"
+        description={disconnectTarget ? `Ngắt ${disconnectTarget.label} và xóa dữ liệu TikTok đã đồng bộ của tài khoản này? Sản phẩm trong kho nội bộ vẫn được giữ.` : ""}
+        confirmLabel="Ngắt kết nối"
+        cancelLabel="Hủy"
+        tone="danger"
+        isSubmitting={Boolean(disconnectTarget && busy === `disconnect:${disconnectTarget.id}`)}
+        onClose={() => {
+          if (!busy) setDisconnectTarget(null);
+        }}
+        onConfirm={confirmDisconnect}
+      />
     </section>
   );
 }
