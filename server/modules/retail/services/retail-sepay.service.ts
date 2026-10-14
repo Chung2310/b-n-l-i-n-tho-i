@@ -70,7 +70,7 @@ export async function buildRetailPaymentQr(companyCode: string, orderId: string)
   if (!config?.bankId || !config.accountNo) throw new Error("Doanh nghiệp chưa cấu hình tài khoản VietQR.");
   const paymentCode = retailPaymentCode(order.orderCode);
   if (order.paymentCode !== paymentCode) await RetailOrderModel.updateOne({ _id: order._id, companyCode }, { $set: { paymentCode } });
-  const transferContent = order.orderCode;
+  const transferContent = paymentCode;
   const params = new URLSearchParams({ acc: config.accountNo, bank: config.bankId, amount: String(order.dueAmount), des: transferContent });
   return { orderId: String(order._id), orderCode: order.orderCode, paymentCode, transferContent, amount: order.dueAmount, paymentStatus: order.paymentStatus, accountNumber: config.accountNo, accountName: config.accountName, bankId: config.bankId, qrUrl: `https://vietqr.app/img?${params}` };
 }
