@@ -16,6 +16,7 @@ import {
   type CskhBranch,
 } from "../api/cskh.api";
 import { toast } from "../../../pages/Toast";
+import { useConfirmation } from "../../../context/ConfirmationContext";
 
 interface Props {
   isOpen: boolean;
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export default function ZaloSettingsModal({ isOpen, onClose }: Props) {
+  const requestConfirmation = useConfirmation();
   const [branches, setBranches] = useState<CskhBranch[]>([]);
   const [configs, setConfigs] = useState<CskhZaloConfig[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<string>("ALL");
@@ -124,7 +126,7 @@ export default function ZaloSettingsModal({ isOpen, onClose }: Props) {
 
   // Ngắt kết nối
   const handleDisconnect = async () => {
-    if (!window.confirm(`Bạn có chắc chắn muốn ngắt kết nối Zalo OA của ${currentBranchName}?`)) {
+    if (!await requestConfirmation({ title: "Ngắt kết nối Zalo OA?", description: `Bạn có chắc chắn muốn ngắt kết nối Zalo OA của ${currentBranchName}?`, confirmLabel: "Ngắt kết nối", tone: "danger" })) {
       return;
     }
     setDisconnecting(true);

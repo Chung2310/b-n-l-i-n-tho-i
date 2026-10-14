@@ -4,8 +4,10 @@ import { marketingApi, type MarketingCampaign } from "../api/marketing.api";
 import HolidayCampaignModal from "./HolidayCampaignModal";
 
 import { toast } from "../../../pages/Toast";
+import { useConfirmation } from "../../../context/ConfirmationContext";
 
 export default function HolidayCampaignsSection({ canManage }: { canManage: boolean }) {
+  const requestConfirmation = useConfirmation();
   const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [openModal, setOpenModal] = useState(false);
@@ -36,7 +38,7 @@ export default function HolidayCampaignsSection({ canManage }: { canManage: bool
   };
 
   const remove = async (campaign: MarketingCampaign) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xoá chiến dịch "${campaign.name}"?`)) return;
+    if (!await requestConfirmation({ title: "Xóa chiến dịch?", description: `Bạn có chắc chắn muốn xóa chiến dịch “${campaign.name}”?`, confirmLabel: "Xóa chiến dịch", tone: "danger" })) return;
     try {
       await marketingApi.deleteCampaign(campaign._id);
       await load();

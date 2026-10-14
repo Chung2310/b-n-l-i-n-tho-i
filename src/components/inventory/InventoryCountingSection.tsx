@@ -12,6 +12,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useBranchOptional } from "../../context/BranchContext";
 
 import { InventoryCountPendingPanel } from "./InventoryCountPendingPanel";
+import { useConfirmation } from "../../context/ConfirmationContext";
 
 const BarcodeScannerDialog = React.lazy(() => import("./InventoryBarcodeScannerDialog"));
 
@@ -60,6 +61,7 @@ function InventoryCountingContent({
   onApplied?: () => void;
 }) {
   const { user, hasPermission } = useAuth();
+  const requestConfirmation = useConfirmation();
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const isCurrent = () => alive.current && queueScope.isCurrent?.() !== false;
@@ -226,12 +228,15 @@ function InventoryCountingContent({
     if (action === "approve") {
       if (!canApprove) { toast.error("Cần người duyệt độc lập có quyền duyệt kiểm kê."); return; }
       if (!reviewReady) { toast.error("Hãy xác nhận chênh lệch và đối chiếu đủ các mã ngoài dự kiến."); return; }
-      const confirmApprove = window.confirm(
-        `XÁC NHẬN CÂN BẰNG TỒN KHO:\n\nPhiếu ${count.countCode} sẽ được duyệt.\nTồn kho thực tế trong hệ thống sẽ được tự động điều chỉnh theo số lượng đã đếm.\nCác máy IMEI không tìm thấy sẽ được ghi nhận thất lạc.\n\nBạn có chắc chắn muốn duyệt?`
-      );
+      const confirmApprove = await requestConfirmation({
+        title: "Xác nhận cân bằng tồn kho?",
+        description: `Phiếu ${count.countCode} sẽ được duyệt. Tồn kho thực tế sẽ được tự động điều chỉnh theo số lượng đã đếm. Các máy IMEI không tìm thấy sẽ được ghi nhận thất lạc.`,
+        confirmLabel: "Duyệt và cân bằng",
+        tone: "danger",
+      });
       if (!confirmApprove) return;
     } else if (action === "cancel") {
-      const confirmCancel = window.confirm(`Bạn có chắc chắn muốn hủy phiếu kiểm kê ${count.countCode}?`);
+      const confirmCancel = await requestConfirmation({ title: "Hủy phiếu kiểm kê?", description: `Bạn có chắc chắn muốn hủy phiếu kiểm kê ${count.countCode}?`, confirmLabel: "Hủy phiếu", tone: "danger" });
       if (!confirmCancel) return;
     }
 
@@ -281,7 +286,7 @@ function InventoryCountingContent({
 
   const handleRecreate = async () => {
     if (!count || count.status !== "conflict" || !hasPermission("inventory:manage")) return;
-    if (!window.confirm("Tạo phiếu kiểm kê mới theo tồn hiện tại? Bạn cần nhập lại số đếm và quét lại từng máy. Phiếu cũ được giữ nguyên để đối chiếu.")) return;
+    if (!await requestConfirmation({ title: "Tạo phiếu kiểm kê thay thế?", description: "Phiếu mới dùng tồn hiện tại. Bạn cần nhập lại số đếm và quét lại từng máy; phiếu cũ được giữ nguyên để đối chiếu.", confirmLabel: "Tạo phiếu mới", tone: "warning" })) return;
     setProcessingAction("recreate");
     try {
       const next = await inventoryCountService.recreate(count._id);
@@ -309,7 +314,7 @@ function InventoryCountingContent({
   };
 
   const handleReload = async () => {
-    if (!count || !window.confirm("Tải lại sẽ bỏ các số lượng chưa lưu và bản chờ đồng bộ của phiếu này. Bạn đã ghi lại số cần đối chiếu chưa?")) return;
+    if (!count || !await requestConfirmation({ title: "Tải lại phiếu kiểm kê?", description: "Các số lượng chưa lưu và bản chờ đồng bộ của phiếu này sẽ bị bỏ. Bạn đã ghi lại số cần đối chiếu chưa?", confirmLabel: "Tải lại phiếu", tone: "warning" })) return;
     setProcessingAction("reload");
     try {
       const latest = await inventoryCountService.reload(count._id, scopedQueue);

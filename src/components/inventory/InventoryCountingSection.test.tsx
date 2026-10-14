@@ -11,9 +11,12 @@ vi.mock("./InventoryCountPendingPanel", () => ({ InventoryCountPendingPanel: () 
 vi.mock("../../pages/Toast", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 const auth = vi.hoisted(() => ({ user: { id: "approver" }, userProfile: { companyCode: "IGEN", branchId: "b" }, hasPermission: vi.fn() }));
 vi.mock("../../context/AuthContext", () => ({ useAuth: () => auth }));
+const confirmation = vi.hoisted(() => ({ confirm: vi.fn(async () => true) }));
+vi.mock("../../context/ConfirmationContext", () => ({ useConfirmation: () => confirmation.confirm }));
 const fixture = { _id: "c", version: 3, countCode: "KK-1", warehouseId: "w", status: "counting" as const, createdAt: "2026-09-29", items: [{ _id: "i", productId: "p", sku: "SKU-1", productName: "Phone", systemQuantity: 10, countedQuantity: 10, quantityDelta: 0 }] };
 beforeEach(() => {
   vi.clearAllMocks();
+  confirmation.confirm.mockResolvedValue(true);
   auth.user.id = "approver";
   auth.userProfile.branchId = "b";
   auth.hasPermission.mockReturnValue(false);
@@ -27,7 +30,6 @@ describe("count edit conflict UI", () => {
     vi.mocked(inventoryCountService.list).mockResolvedValue([{ ...fixture, status: "pending_approval", createdById: "creator", items: [{ ...fixture.items[0], countedQuantity: 8, quantityDelta: -2 }], unexpectedScans: [{ code: "EXTRA", reason: "unknown", scannedAt: "2026-09-29" }] }]);
     vi.mocked(inventoryCountService.approve).mockResolvedValue({ ...fixture, status: "completed", version: 4 });
     auth.hasPermission.mockReturnValue(true);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<InventoryCountingModal warehouseId="w" onClose={() => {}} />);
     const approve = await screen.findByRole("button", { name: "Duyệt & Cân bằng tồn kho thực tế" });
     expect((approve as HTMLButtonElement).disabled).toBe(true);
@@ -43,12 +45,12 @@ describe("count edit conflict UI", () => {
     vi.mocked(inventoryCountService.list).mockResolvedValue([{ ...fixture, status: "conflict" }]);
     vi.mocked(inventoryCountService.recreate).mockResolvedValue({ ...fixture, _id: "new", countCode: "KK-NEW", status: "draft", recreatedFromId: "c", items: [{ ...fixture.items[0], countedQuantity: 0, quantityDelta: -10 }] });
     auth.hasPermission.mockImplementation((permission) => permission === "inventory:manage");
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    confirmation.confirm.mockResolvedValueOnce(false);
     render(<InventoryCountingModal warehouseId="w" onClose={() => {}} />);
     const button = await screen.findByRole("button", { name: "Tạo lại phiếu kiểm kê" });
     fireEvent.click(button);
     expect(inventoryCountService.recreate).not.toHaveBeenCalled();
-    confirm.mockReturnValue(true); fireEvent.click(button);
+    confirmation.confirm.mockResolvedValueOnce(true); fireEvent.click(button);
     await waitFor(() => expect(inventoryCountService.recreate).toHaveBeenCalledWith("c"));
     await screen.findByRole("button", { name: "Xem phiếu xung đột gốc" });
     expect((screen.getByRole("spinbutton") as HTMLInputElement).value).toBe("0");
@@ -64,7 +66,6 @@ describe("count edit conflict UI", () => {
     vi.mocked(inventoryCountService.approve).mockRejectedValue({ status: 409, message: "Stock changed" });
     vi.mocked(inventoryCountService.get).mockResolvedValue({ ...fixture, status: "conflict" });
     auth.hasPermission.mockReturnValue(true);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<InventoryCountingModal warehouseId="w" onClose={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "Duyệt & Cân bằng tồn kho thực tế" }));
     await screen.findByRole("button", { name: "Tạo lại phiếu kiểm kê" });
@@ -98,13 +99,13 @@ describe("count edit conflict UI", () => {
     expect(inventoryCountService.reload).not.toHaveBeenCalled();
   });
   it("requires confirmation before replacing edits with the reloaded count", async () => {
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    confirmation.confirm.mockResolvedValueOnce(false);
     vi.mocked(inventoryCountService.reload).mockResolvedValue({ ...fixture, version: 9, items: [{ ...fixture.items[0], countedQuantity: 12 }] });
     render(<InventoryCountingModal warehouseId="w" onClose={() => {}} />);
     const reload = await screen.findByRole("button", { name: "Tải lại phiếu" });
     fireEvent.click(reload);
     expect(inventoryCountService.reload).not.toHaveBeenCalled();
-    confirm.mockReturnValue(true);
+    confirmation.confirm.mockResolvedValueOnce(true);
     fireEvent.click(reload);
     await waitFor(() => expect(inventoryCountService.reload).toHaveBeenCalledWith("c", expect.objectContaining({ branchId: "b" })));
     await waitFor(() => expect((screen.getByRole("spinbutton") as HTMLInputElement).value).toBe("12"));
@@ -117,7 +118,6 @@ describe("count queue scope changes", () => {
     let complete!: (value: any) => void;
     const pending = new Promise<any>(resolve => { complete = resolve; });
     vi.mocked(operation === "update" ? inventoryCountService.updateItem : inventoryCountService.reload).mockReturnValueOnce(pending);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     const { rerender } = render(<InventoryCountingModal warehouseId="w" onClose={() => {}} />);
     const input = await screen.findByRole("spinbutton");
     if (operation === "update") { fireEvent.change(input, { target: { value: "7" } }); fireEvent.blur(input); }

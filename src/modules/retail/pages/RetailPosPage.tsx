@@ -3,6 +3,7 @@ import { resolveCheckoutIntent, resolveCheckoutIntentLocked } from "../offline/r
 import { checkoutWithPersistedIntent, PendingCheckoutError } from "../offline/checkoutIntent";
 import React from "react";
 import { createPortal } from "react-dom";
+import { useConfirmation } from "../../../context/ConfirmationContext";
 import { confirmOfflineOrderLocked } from "../offline/confirmOfflineOrder";
 import { RetailCheckoutLockBusyError, withRetailCheckoutLock } from "../offline/draftCreationRequest";
 import {
@@ -103,6 +104,7 @@ export default function RetailPosPage({
   onLeavePos,
   onLogout,
 }: RetailPosPageProps = {}) {
+  const requestConfirmation = useConfirmation();
   const { fullscreen, toggleFullscreen } = useRetailFullscreen();
   const { scope, userProfile, branchName, activeBranch } = useRetailScope() as any;
   const branchDisplayName =
@@ -126,10 +128,10 @@ export default function RetailPosPage({
     try { savePosCart(recoveryKey, cart); }
     catch { if (!recoveryErrorShown.current) { recoveryErrorShown.current = true; toast.error("Không lưu được giỏ trên thiết bị."); } }
   }, [recoveryKey, cart, recoveryBlocked]);
-  const leaveWithCart = (callback?: () => void, label = "rời POS") => {
+  const leaveWithCart = async (callback?: () => void, label = "rời POS") => {
     if (!callback || busy) return;
     if (recoveryBlocked) { callback(); return; }
-    if (cart.lines.length && !window.confirm(`Giỏ chưa thanh toán sẽ được giữ trên máy này. Bạn muốn ${label}?`)) return;
+    if (cart.lines.length && !await requestConfirmation({ title: "Rời màn hình bán hàng?", description: `Giỏ chưa thanh toán sẽ được giữ trên máy này. Bạn muốn ${label}?`, confirmLabel: label, tone: "warning" })) return;
     try { savePosCart(recoveryKey, cart); callback(); }
     catch { toast.error("Không lưu được giỏ trên thiết bị."); }
   };
@@ -550,7 +552,7 @@ export default function RetailPosPage({
 
   const resolvePendingCheckout = async (id: string, revoke: boolean) => {
     if (!offlineScope) return;
-    if (revoke && !window.confirm("Thu hồi yêu cầu thanh toán cũ? Yêu cầu chưa ghi nhận sẽ bị khóa; đơn đã thanh toán không bị hủy hoặc hoàn tiền.")) return;
+    if (revoke && !await requestConfirmation({ title: "Thu hồi yêu cầu thanh toán?", description: "Yêu cầu chưa ghi nhận sẽ bị khóa; đơn đã thanh toán không bị hủy hoặc hoàn tiền.", confirmLabel: "Thu hồi yêu cầu", tone: "danger" })) return;
     try {
       const result = await resolveCheckoutIntent(offlineScope, queueRef.current, id, revoke);
       if (mounted.current && liveRequestScope.current === scopeToken) {
@@ -829,8 +831,8 @@ export default function RetailPosPage({
         fullscreen ? "fixed inset-0 z-[45] h-dvh overflow-hidden" : "h-dvh max-h-screen overflow-hidden"
       }`}
     >
-      {recoveryBlocked && <div role="alert" className="z-[95] rounded-xl bg-rose-50 p-4 text-sm text-rose-800"><p>{recovered.error}</p><button type="button" className="mt-2 rounded-lg border px-3 py-2" onClick={() => {
-        if (!window.confirm("Bỏ giỏ đang lỗi để bắt đầu giỏ mới? Bản gốc sẽ được sao lưu trên máy này.")) return;
+      {recoveryBlocked && <div role="alert" className="z-[95] rounded-xl bg-rose-50 p-4 text-sm text-rose-800"><p>{recovered.error}</p><button type="button" className="mt-2 rounded-lg border px-3 py-2" onClick={async () => {
+        if (!await requestConfirmation({ title: "Bỏ giỏ lỗi và tạo giỏ mới?", description: "Bản gốc sẽ được sao lưu trên máy này.", confirmLabel: "Tạo giỏ mới", tone: "danger" })) return;
         try { const raw = localStorage.getItem(recoveryKey); if (raw) localStorage.setItem(`${recoveryKey}:backup:${Date.now()}`, raw); localStorage.removeItem(recoveryKey); resetCart(); setRecoveryBlocked(false); }
         catch { toast.error("Không sao lưu được giỏ. Hãy kiểm tra bộ nhớ trình duyệt."); }
       }}>Sao lưu giỏ lỗi và bắt đầu giỏ mới</button></div>}
@@ -858,10 +860,10 @@ export default function RetailPosPage({
         onOpenShortcuts={() => setHelp(true)}
         onRefreshCatalog={() => void refreshCatalog()}
         reloading={reloading}
-        onCloseShift={() => leaveWithCart(onCloseShift, "Đóng phiên")}
+        onCloseShift={() => { void leaveWithCart(onCloseShift, "Đóng phiên"); }}
         canLeavePos={canLeavePos}
-        onLeavePos={() => leaveWithCart(onLeavePos)}
-        onLogout={() => leaveWithCart(onLogout, "Đăng xuất")}
+        onLeavePos={() => { void leaveWithCart(onLeavePos); }}
+        onLogout={() => { void leaveWithCart(onLogout, "Đăng xuất"); }}
       />
 
       {/* MAIN BODY: Product Catalog on LEFT, Cart & Payment on RIGHT */}

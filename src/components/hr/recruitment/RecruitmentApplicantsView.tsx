@@ -42,6 +42,7 @@ import {
   validateRecruitmentFile,
 } from "./recruitmentFile";
 import { applicantOutcomeLabels } from "./recruitmentLabels";
+import { useConfirmation } from "../../../context/ConfirmationContext";
 
 const outcomeBadgeStyles: Record<string, { bg: string; text: string; dot: string }> = {
   active: { bg: "bg-blue-50 border-blue-200", text: "text-blue-700", dot: "bg-blue-500" },
@@ -478,6 +479,7 @@ function ApplicantForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const requestConfirmation = useConfirmation();
   const [form, setForm] = useState<any>(
     applicant
       ? {
@@ -566,11 +568,12 @@ function ApplicantForm({
           confirmDuplicate,
         });
         if (result.duplicateWarning) {
-          if (
-            confirm(
-              "Đã có hồ sơ trùng email hoặc điện thoại trong chi nhánh. Vẫn tạo hồ sơ mới?"
-            )
-          )
+          if (await requestConfirmation({
+            title: "Hồ sơ có thể bị trùng",
+            description: "Đã có hồ sơ trùng email hoặc điện thoại trong chi nhánh. Vẫn tạo hồ sơ mới?",
+            confirmLabel: "Vẫn tạo hồ sơ",
+            tone: "warning",
+          }))
             return submit(e, true);
           return;
         }

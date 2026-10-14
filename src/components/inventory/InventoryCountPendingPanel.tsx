@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { inventoryCountService, countQueueChangedEvent, type CountQueueScope, type CountQueueInspection, type InventoryCount, type PendingUpdate } from "../../services/inventoryCountService";
+import { useConfirmation } from "../../context/ConfirmationContext";
 
 const versionLabel = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : "Thiếu hoặc không hợp lệ";
 
 export function InventoryCountPendingPanel({ scope }: { scope: CountQueueScope }) {
+  const requestConfirmation = useConfirmation();
   const [inspection, setInspection] = useState<CountQueueInspection | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -46,7 +48,7 @@ export function InventoryCountPendingPanel({ scope }: { scope: CountQueueScope }
     } finally { if (ticket === generation.current) setBusy(false); }
   };
   const revoke = async (entry: PendingUpdate) => {
-    if (!window.confirm("Thu hồi vĩnh viễn yêu cầu kiểm kê này? Máy chủ sẽ chặn lần gửi muộn nếu yêu cầu chưa ghi nhận. Nếu đã ghi nhận, hệ thống chỉ đối chiếu và giữ nguyên phiếu.")) return;
+    if (!await requestConfirmation({ title: "Thu hồi yêu cầu kiểm kê?", description: "Máy chủ sẽ chặn lần gửi muộn nếu yêu cầu chưa ghi nhận. Nếu đã ghi nhận, hệ thống chỉ đối chiếu và giữ nguyên phiếu.", confirmLabel: "Thu hồi yêu cầu", tone: "danger" })) return;
     const ticket = ++generation.current;
     setBusy(true); setError(""); setComparison(null);
     try {
