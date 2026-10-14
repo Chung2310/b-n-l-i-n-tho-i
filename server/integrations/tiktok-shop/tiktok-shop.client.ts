@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- TikTok response envelopes vary by API version. */
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 const API_BASE_URL = "https://open-api.tiktokglobalshop.com";
 const TOKEN_BASE_URL = "https://auth.tiktok-shops.com";
@@ -29,6 +29,20 @@ export function getTikTokShopConfig() {
     tokenBaseUrl: String(process.env.TIKTOK_SHOP_TOKEN_BASE_URL || TOKEN_BASE_URL).replace(/\/$/, ""),
     authorizationUrl: String(process.env.TIKTOK_SHOP_AUTHORIZATION_URL || "https://services.tiktokshop.com/open/authorize").trim(),
   };
+}
+
+export function getTikTokShopWebhookConfig() {
+  const appKey = String(process.env.TIKTOK_SHOP_APP_KEY || "").trim();
+  const appSecret = String(process.env.TIKTOK_SHOP_APP_SECRET || "").trim();
+  if (!appKey || !appSecret) throw Object.assign(new Error("TikTok Shop webhook cần cấu hình APP_KEY và APP_SECRET trên máy chủ."), { statusCode: 503 });
+  return { appKey, appSecret };
+}
+
+export function verifyTikTokShopWebhookSignature(rawBody: Buffer, authorization: string, appKey: string, appSecret: string) {
+  const received = String(authorization || "").trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(received)) return false;
+  const expected = createHmac("sha256", appSecret).update(appKey).update(rawBody).digest("hex");
+  return timingSafeEqual(Buffer.from(received, "ascii"), Buffer.from(expected, "ascii"));
 }
 
 export function signTikTokShopRequest(path: string, params: Record<string, string>, body: string, appSecret: string): string {

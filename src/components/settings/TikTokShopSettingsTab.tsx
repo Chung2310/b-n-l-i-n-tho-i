@@ -18,14 +18,24 @@ const listingStatusLabel = (status: string) => {
 export default function TikTokShopSettingsTab() {
   const [status, setStatus] = React.useState<TikTokShopStatus | null>(null);
   const [products, setProducts] = React.useState<TikTokShopProduct[]>([]);
+  const [orderBranches, setOrderBranches] = React.useState<Array<{ _id: string; code: string; name: string }>>([]);
+  const [defaultOrderBranchId, setDefaultOrderBranchId] = React.useState("");
   const [busy, setBusy] = React.useState("");
   const [publishDialogOpen, setPublishDialogOpen] = React.useState(false);
 
   const load = React.useCallback(async () => {
     const next = await tiktokShopApi.status();
     setStatus(next);
-    if (next.connected) setProducts((await tiktokShopApi.products()).items);
-    else setProducts([]);
+    if (next.connected) {
+      const [productResult, branches, orderBranch] = await Promise.all([tiktokShopApi.products(), tiktokShopApi.orderBranches(), tiktokShopApi.orderBranch()]);
+      setProducts(productResult.items);
+      setOrderBranches(branches);
+      setDefaultOrderBranchId(orderBranch.branchId);
+    } else {
+      setProducts([]);
+      setOrderBranches([]);
+      setDefaultOrderBranchId("");
+    }
   }, []);
 
   React.useEffect(() => {
@@ -89,6 +99,14 @@ export default function TikTokShopSettingsTab() {
     await load();
   });
 
+  const assignOrderBranch = (branchId: string) => run("order-branch", async () => {
+    if (!branchId) return;
+    const saved = await tiktokShopApi.setOrderBranch(branchId);
+    setDefaultOrderBranchId(saved.branchId);
+    toast.success("Đã lưu chi nhánh mặc định cho tất cả shop TikTok.");
+    await load();
+  });
+
   const editProduct = (product: TikTokShopProduct) => {
     const localProductId = product.skus.find((sku) => sku.localProductId)?.localProductId;
     if (!localProductId) {
@@ -130,6 +148,18 @@ export default function TikTokShopSettingsTab() {
               <div className="mt-2 grid gap-2 sm:grid-cols-2">{connection.shops.map((shop) => <div key={shop.cipher} className="rounded-md bg-slate-50 p-2"><p className="text-xs font-semibold text-slate-800">{shop.name}</p><p className="mt-0.5 text-[10px] text-slate-500">{shop.code || shop.id || "Shop đã ủy quyền"}{shop.region ? ` · ${shop.region}` : ""}</p></div>)}</div>
               {connection.sync?.error ? <p className="mt-2 text-xs text-rose-600">{connection.sync.error}</p> : null}
             </div>)}
+          </div>
+          <label className="block rounded-lg border border-slate-200 p-3 text-[11px] font-semibold text-slate-700">Chi nhánh mặc định nhận đơn và xuất hóa đơn cho tất cả shop TikTok
+            <select value={defaultOrderBranchId} disabled={Boolean(busy) || !orderBranches.length} onChange={(event) => void assignOrderBranch(event.target.value)} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-xs text-slate-700 disabled:bg-slate-100">
+              <option value="">Chọn chi nhánh mặc định</option>
+              {orderBranches.map((branch) => <option key={branch._id} value={branch._id}>{branch.code} · {branch.name}</option>)}
+            </select>
+          </label>
+          <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-[11px] text-indigo-900">
+            <p className="font-bold">Đồng bộ đơn TikTok Shop</p>
+            <p className="mt-1">Cấu hình callback HTTPS này trong TikTok Partner Center và đăng ký sự kiện <strong>ORDER_STATUS_CHANGE</strong>:</p>
+            <code className="mt-1 block break-all">{window.location.origin}/api/v1/webhook/tiktok-shop/order-status</code>
+            <p className="mt-1">Cấp quyền API <strong>Order Information</strong>. Hệ thống chỉ lập đơn và hóa đơn khi TikTok báo <strong>AWAITING_SHIPMENT</strong>; UNPAID/ON_HOLD chưa được lập hóa đơn và COD được ghi nhận chưa thu tiền.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={Boolean(busy)} onClick={connect} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
