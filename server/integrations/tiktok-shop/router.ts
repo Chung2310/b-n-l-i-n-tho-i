@@ -16,6 +16,7 @@ import "./tiktok-shop.consumer";
 export const tikTokShopRouter = Router();
 const read = [requireAuth as any, requirePermission(["settings:manage", "inventory:read"]) as any];
 const manage = [requireAuth as any, requirePermission("settings:manage") as any];
+const orderManage = [requireAuth as any, requirePermission(["settings:manage", "retail:manage"]) as any];
 const cleanup = [...manage, requirePermission("inventory:manage") as any];
 const company = (req: AuthenticatedRequest) => req.user?.companyCode;
 const actor = (req: AuthenticatedRequest) => String(req.user?.id || "");
@@ -69,7 +70,7 @@ tikTokShopRouter.get("/callback", async (req: AuthenticatedRequest, res: Respons
 tikTokShopRouter.post("/sync-products", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try { res.json({ data: await TikTokShopService.syncProducts(company(req)) }); } catch (error) { next(error); }
 });
-tikTokShopRouter.post("/sync-orders", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+tikTokShopRouter.post("/sync-orders", ...orderManage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const companyCode = String(company(req) || "").trim().toUpperCase();
     const branchId = await getTikTokShopOrderBranch(companyCode);
@@ -149,7 +150,7 @@ tikTokShopRouter.post("/sync-orders", ...manage, async (req: AuthenticatedReques
     res.json({ data: { batchId, shopsScanned, queued, errors } });
   } catch (error) { next(error); }
 });
-tikTokShopRouter.get("/sync-orders/:batchId", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+tikTokShopRouter.get("/sync-orders/:batchId", ...orderManage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const batchId = String(req.params.batchId || "").trim();
     const events: any[] = await DomainEventModel.find({
@@ -206,7 +207,7 @@ tikTokShopRouter.post("/cleanup-imported-products", ...cleanup, async (req: Auth
   }
 });
 tikTokShopRouter.post("/sync-inventory-prices", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  try { res.json({ data: await TikTokShopService.syncInventoryAndPrices(company(req)) }); } catch (error) { next(error); }
+  try { res.json({ data: await TikTokShopService.syncInventoryAndPrices(company(req), { branchId: branch(req) || undefined }) }); } catch (error) { next(error); }
 });
 tikTokShopRouter.get("/products", ...read, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try { res.json({ data: await TikTokShopService.listProducts(company(req), req.query as any) }); } catch (error) { next(error); }
