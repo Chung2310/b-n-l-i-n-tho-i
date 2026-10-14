@@ -207,7 +207,7 @@ tikTokShopRouter.post("/cleanup-imported-products", ...cleanup, async (req: Auth
   }
 });
 tikTokShopRouter.post("/sync-inventory-prices", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  try { res.json({ data: await TikTokShopService.syncInventoryAndPrices(company(req)) }); } catch (error) { next(error); }
+  try { res.json({ data: await TikTokShopService.syncInventoryAndPrices(company(req), { branchId: branch(req) || undefined }) }); } catch (error) { next(error); }
 });
 tikTokShopRouter.get("/products", ...read, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try { res.json({ data: await TikTokShopService.listProducts(company(req), req.query as any) }); } catch (error) { next(error); }

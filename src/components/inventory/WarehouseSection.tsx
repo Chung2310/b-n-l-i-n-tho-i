@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Download, Loader2, Plus, RefreshCw } from "lucide-react";
 import {
   inventoryReceivingService,
   type InventoryBalance,
@@ -9,6 +10,10 @@ import { Dropdown, type DropdownOption } from "../common/Dropdown";
 import { MetricBar } from "../common/MetricBar";
 import { InventoryCountingModal } from "./InventoryCountingSection";
 import { WarehouseSerialDetailModal } from "./WarehouseSerialDetailModal";
+import { useBranch } from "../../context/BranchContext";
+import { getApiErrorMessage } from "../../utils/errorMessage";
+import { tiktokShopApi, type TikTokShopStatus } from "../../services/tiktokShopService";
+import TikTokProductPublishDialog from "../settings/TikTokProductPublishDialog";
 
 const money = (value: number) => new Intl.NumberFormat("vi-VN").format(Math.round(value || 0)) + " ₫";
 const number = (value: number) => Number(value || 0).toLocaleString("vi-VN");
@@ -26,6 +31,7 @@ type ProductBalanceGroup = {
 type StockFilterType = "all" | "in_stock" | "low_stock" | "out_of_stock";
 
 export function WarehouseSection() {
+  const { activeBranchId } = useBranch();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [balances, setBalances] = useState<InventoryBalance[]>([]);
   const [warehouseId, setWarehouseId] = useState("");
@@ -38,6 +44,9 @@ export function WarehouseSection() {
   const [detailBalance, setDetailBalance] = useState<InventoryBalance | null>(null);
   const [thresholdBalance, setThresholdBalance] = useState<InventoryBalance | null>(null);
   const [copiedSku, setCopiedSku] = useState<string | null>(null);
+  const [tiktokStatus, setTiktokStatus] = useState<TikTokShopStatus | null>(null);
+  const [tiktokBusy, setTiktokBusy] = useState("");
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
 
   const pageSize = 12;
 
@@ -66,6 +75,47 @@ export function WarehouseSection() {
   useEffect(() => {
     void load();
   }, []);
+
+  const loadTikTokStatus = useCallback(async () => {
+    setTiktokStatus(await tiktokShopApi.status());
+  }, []);
+
+  useEffect(() => {
+    void loadTikTokStatus().catch((error) => toast.error(getApiErrorMessage(error, "Không thể tải trạng thái TikTok Shop.")));
+  }, [loadTikTokStatus]);
+
+  const runTikTokAction = async (name: string, action: () => Promise<void>) => {
+    setTiktokBusy(name);
+    try {
+      await action();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Không thể xử lý yêu cầu TikTok Shop."));
+    } finally {
+      setTiktokBusy("");
+    }
+  };
+
+  const syncTikTokProducts = () => runTikTokAction("sync", async () => {
+    const result = await tiktokShopApi.syncProducts();
+    const summary = `Đã đồng bộ ${result.total} sản phẩm; ghép được ${result.matched} sản phẩm với SKU nội bộ. Chi tiết: đủ ${result.complete}, thiếu ${result.incomplete}, lỗi tải ${result.detailFailed}.`;
+    if (result.detailFailed || result.incomplete) toast.error(summary);
+    else toast.success(summary);
+  });
+
+  const importTikTokProducts = () => runTikTokAction("import", async () => {
+    const result = await tiktokShopApi.importProducts(activeBranchId || undefined);
+    const summary = `Đã tạo ${result.createdProducts} sản phẩm, ${result.createdVariants} SKU và nhập ${result.importedStock} đơn vị tồn kho.`;
+    if (result.failed) toast.error(`${summary} Có ${result.failed} sản phẩm lỗi. ${result.errors[0] || ""}`.trim());
+    else toast.success(summary);
+    await load();
+  });
+
+  const pushTikTokInventoryAndPrices = () => runTikTokAction("push", async () => {
+    const result = await tiktokShopApi.syncInventoryAndPrices(activeBranchId || undefined);
+    if (result.failed) toast.error(`Đã cập nhật ${result.updated} SKU; ${result.failed} SKU lỗi. Xem chi tiết trong danh sách.`);
+    else if (result.pendingReviewSkipped) toast.success(`Đã đẩy giá và tồn kho của ${result.updated} SKU; bỏ qua ${result.pendingReviewSkipped} SKU đang chờ TikTok Shop duyệt.`);
+    else toast.success(`Đã đẩy giá và tồn kho của ${result.updated} SKU lên TikTok Shop.`);
+  });
 
   useEffect(() => {
     if (warehouseId) {
@@ -348,6 +398,28 @@ export function WarehouseSection() {
           </button>
         </div>
       </div>
+
+      {tiktokStatus?.connected && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-2.5">
+          <span className="mr-1 text-xs font-bold text-slate-600">TikTok Shop</span>
+          <button type="button" disabled={Boolean(tiktokBusy)} onClick={() => void syncTikTokProducts()} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50">
+            {tiktokBusy === "sync" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Đồng bộ sản phẩm
+          </button>
+          <button type="button" disabled={Boolean(tiktokBusy) || !activeBranchId} onClick={() => void importTikTokProducts()} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-sky-700 disabled:opacity-50">
+            {tiktokBusy === "import" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Nhập vào kho
+          </button>
+          <button type="button" disabled={Boolean(tiktokBusy)} onClick={() => setPublishDialogOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-pink-700 disabled:opacity-50">
+            <Plus className="h-3.5 w-3.5" /> Đăng sản phẩm mới
+          </button>
+          <button type="button" disabled={Boolean(tiktokBusy) || !activeBranchId} onClick={() => void pushTikTokInventoryAndPrices()} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50">
+            {tiktokBusy === "push" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Đẩy giá & tồn kho
+          </button>
+        </div>
+      )}
+
+      {publishDialogOpen && tiktokStatus?.connected && (
+        <TikTokProductPublishDialog connections={tiktokStatus.connections} onClose={() => setPublishDialogOpen(false)} onPublished={loadTikTokStatus} />
+      )}
 
       {/* 2. Compact Sleek Metric Bar */}
       <MetricBar
