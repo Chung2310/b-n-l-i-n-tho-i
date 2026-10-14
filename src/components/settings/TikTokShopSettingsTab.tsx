@@ -2,7 +2,7 @@ import React from "react";
 import { Download, Link2, Loader2, Pencil, Plus, RefreshCw, ShoppingBag, Trash2 } from "lucide-react";
 import { toast } from "../../pages/Toast";
 import { getApiErrorMessage } from "../../utils/errorMessage";
-import { tiktokShopApi, type TikTokShopProduct, type TikTokShopStatus } from "../../services/tiktokShopService";
+import { tiktokShopApi, type TikTokOrderSyncBatch, type TikTokOrderSyncProgress, type TikTokShopProduct, type TikTokShopStatus } from "../../services/tiktokShopService";
 import TikTokProductPublishDialog from "./TikTokProductPublishDialog";
 
 const pendingReviewStatuses = new Set(["PENDING", "PENDING_REVIEW", "PENDING_APPROVAL", "WAITING_FOR_REVIEW", "UNDER_REVIEW", "IN_REVIEW"]);
@@ -22,6 +22,9 @@ export default function TikTokShopSettingsTab() {
   const [defaultOrderBranchId, setDefaultOrderBranchId] = React.useState("");
   const [busy, setBusy] = React.useState("");
   const [publishDialogOpen, setPublishDialogOpen] = React.useState(false);
+  const [orderSyncBatch, setOrderSyncBatch] = React.useState<TikTokOrderSyncBatch | null>(null);
+  const [orderSyncProgress, setOrderSyncProgress] = React.useState<TikTokOrderSyncProgress | null>(null);
+  const orderSyncRunning = Boolean(orderSyncBatch && (!orderSyncProgress || orderSyncProgress.pending > 0));
 
   const load = React.useCallback(async () => {
     const next = await tiktokShopApi.status();
@@ -57,6 +60,33 @@ export default function TikTokShopSettingsTab() {
     };
   }, [load]);
 
+  React.useEffect(() => {
+    if (!orderSyncBatch?.batchId) return;
+    let stopped = false;
+    let timer: number | undefined;
+    const poll = async () => {
+      try {
+        const progress = await tiktokShopApi.orderSyncProgress(orderSyncBatch.batchId);
+        if (stopped) return;
+        setOrderSyncProgress(progress);
+        if (progress.pending > 0) {
+          timer = window.setTimeout(() => void poll(), 2000);
+        } else if (progress.failed > 0) {
+          toast.error(`Đồng bộ xong: đã có hóa đơn cho ${progress.invoicesCreated}/${progress.total} đơn; ${progress.failed} đơn cần xử lý lại.`);
+        } else {
+          toast.success(`Đồng bộ xong ${progress.total} đơn; đã có hóa đơn cho ${progress.invoicesCreated} đơn.`);
+        }
+      } catch {
+        if (!stopped) timer = window.setTimeout(() => void poll(), 4000);
+      }
+    };
+    void poll();
+    return () => {
+      stopped = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [orderSyncBatch?.batchId]);
+
   const run = async (name: string, action: () => Promise<void>) => {
     setBusy(name);
     try { await action(); } catch (error) { toast.error(getApiErrorMessage(error, "Không thể xử lý yêu cầu TikTok Shop.")); } finally { setBusy(""); }
@@ -74,6 +104,21 @@ export default function TikTokShopSettingsTab() {
     if (result.detailFailed || result.incomplete) toast.error(summary);
     else toast.success(summary);
     await load();
+  });
+
+  const syncOrders = () => run("orders", async () => {
+    const batch = await tiktokShopApi.syncOrders();
+    if (batch.queued === 0) {
+      setOrderSyncBatch(null);
+      setOrderSyncProgress(null);
+      if (batch.errors.length) toast.error(`Không lấy được đơn ở ${batch.errors.length} shop. ${batch.errors[0]}`);
+      else toast.success("Không có đơn TikTok nào đang chờ giao cần đồng bộ.");
+      return;
+    }
+    setOrderSyncProgress(null);
+    setOrderSyncBatch(batch);
+    if (batch.errors.length) toast.error(`Đã nhận ${batch.queued} đơn; có ${batch.errors.length} shop chưa đồng bộ được.`);
+    else toast.success(`Đã nhận ${batch.queued} đơn đang chờ giao. Hệ thống đang tạo hóa đơn.`);
   });
 
   const pushInventoryAndPrices = () => run("push", async () => {
@@ -161,12 +206,16 @@ export default function TikTokShopSettingsTab() {
             <code className="mt-1 block break-all">{window.location.origin}/api/v1/webhook/tiktok-shop/order-status</code>
             <p className="mt-1">Cấp quyền API <strong>Order Information</strong>. Hệ thống chỉ lập đơn và hóa đơn khi TikTok báo <strong>AWAITING_SHIPMENT</strong>; UNPAID/ON_HOLD chưa được lập hóa đơn và COD được ghi nhận chưa thu tiền.</p>
           </div>
+          <p className="mb-2 text-[11px] text-slate-600">Đồng bộ đơn cũ sẽ lấy đơn hiện đang AWAITING_SHIPMENT; đơn đã giao hoặc đã hủy không được nhập lại. Hệ thống tạo hóa đơn tại chi nhánh mặc định.</p>
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={Boolean(busy)} onClick={connect} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
               {busy === "connect" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />} Thêm tài khoản seller
             </button>
             <button type="button" disabled={Boolean(busy)} onClick={sync} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50">
               {busy === "sync" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Đồng bộ sản phẩm
+            </button>
+            <button type="button" disabled={Boolean(busy) || !defaultOrderBranchId || orderSyncRunning} onClick={syncOrders} className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-50">
+              {busy === "orders" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Đồng bộ đơn cũ
             </button>
             <button type="button" disabled={Boolean(busy)} onClick={importProducts} className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-xs font-bold text-white hover:bg-sky-700 disabled:opacity-50">
               {busy === "import" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Nhập vào kho
@@ -184,6 +233,11 @@ export default function TikTokShopSettingsTab() {
       )}
 
       {products.length > 0 && <div className="overflow-x-auto rounded-lg border border-slate-200"><table className="min-w-full divide-y divide-slate-200 text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-2">Sản phẩm TikTok</th><th className="px-3 py-2">SKU</th><th className="px-3 py-2">Trạng thái ghép</th><th className="px-3 py-2">Kiểm tra thông tin</th><th className="px-3 py-2">Đẩy dữ liệu</th><th className="px-3 py-2 text-right">Thao tác</th></tr></thead><tbody className="divide-y divide-slate-100">{products.map((product) => <tr key={product._id}><td className="px-3 py-2"><p className="font-semibold text-slate-800">{product.title}</p><p className="text-[10px] text-slate-400">{product.tiktokProductId}</p><span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${isPendingReview(product.status) ? "bg-amber-100 text-amber-800" : ["LIVE", "ACTIVE", "SELLING", "ACTIVATE"].includes(String(product.status || "").toUpperCase()) ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{listingStatusLabel(product.status)}</span>{isPendingReview(product.status) && <p className="mt-1 text-[10px] text-amber-800">Chưa mở bán trên TikTok Shop · đồng bộ giá/tồn tạm khóa</p>}</td><td className="px-3 py-2 text-slate-600">{product.skus.map((sku) => sku.sellerSku || sku.skuId).filter(Boolean).join(", ") || "—"}</td><td className="px-3 py-2"><span className={product.skus.some((sku) => sku.localVariantId) ? "text-emerald-700" : "text-amber-700"}>{product.skus.some((sku) => sku.localVariantId) ? "Đã ghép SKU nội bộ" : "Chưa ghép"}</span></td><td className="max-w-xs px-3 py-2"><span className={product.detailsSyncStatus === "complete" ? "text-emerald-700" : product.detailsSyncStatus === "failed" ? "text-rose-700" : "text-amber-700"}>{product.detailsSyncStatus === "complete" ? "Đủ thông tin" : product.detailsSyncStatus === "failed" ? `Lỗi tải: ${product.detailsSyncError || "không tải được chi tiết"}` : product.missingInfo?.length ? `Thiếu: ${product.missingInfo.join(", ")}` : "Chưa kiểm tra chi tiết"}</span></td><td className="max-w-xs px-3 py-2"><span className={product.lastOutboundSyncStatus === "failed" ? "text-rose-700" : product.lastOutboundSyncStatus === "success" ? "text-emerald-700" : "text-slate-500"}>{product.lastOutboundSyncStatus === "failed" ? product.lastOutboundSyncError || "Lỗi" : product.lastOutboundSyncStatus === "success" ? "Đã đồng bộ" : "Chưa đồng bộ"}</span></td><td className="px-3 py-2 text-right"><button type="button" onClick={() => editProduct(product)} className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"><Pencil className="h-3.5 w-3.5" /> Sửa sản phẩm</button></td></tr>)}</tbody></table></div>}
+      {orderSyncBatch && <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs text-violet-950">
+        <p className="font-bold">Đồng bộ đơn cũ {orderSyncProgress && orderSyncProgress.pending > 0 ? "đang chạy" : orderSyncProgress ? "đã hoàn tất" : "đã bắt đầu"}</p>
+        <p className="mt-1">Đã xếp hàng {orderSyncBatch.queued} đơn ở {orderSyncBatch.shopsScanned} shop. {orderSyncProgress ? `Đã xử lý ${orderSyncProgress.processed}/${orderSyncProgress.total}; đã có hóa đơn cho ${orderSyncProgress.invoicesCreated} đơn; lỗi ${orderSyncProgress.failed}.` : "Hệ thống đang lập đơn và hóa đơn."}</p>
+        {[...orderSyncBatch.errors, ...(orderSyncProgress?.errors || [])].slice(0, 3).map((error, index) => <p key={`${index}:${error}`} className="mt-1 text-rose-700">{error}</p>)}
+      </div>}
       {publishDialogOpen && status.connected && <TikTokProductPublishDialog connections={status.connections} onClose={() => setPublishDialogOpen(false)} onPublished={load} />}
     </section>
   );
