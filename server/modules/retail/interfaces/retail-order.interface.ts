@@ -8,6 +8,7 @@ export interface RetailOrderRefund { method: RetailPaymentMethod; amount: number
 export interface RetailOrderCustomerSnapshot { customerId: string; customerCode?: string; name: string; phone?: string }
 export interface RetailOrderBillingSnapshot { legalName: string; taxId: string; address: string; invoiceEmail: string; contactName?: string }
 export interface IRetailOrder {
+  salesChannel?: "tiktok-shop"; externalOrderId?: string; externalShopId?: string; externalShopCipher?: string; externalOrderStatus?: string;
   note?: string; installment?: { partner: string; months: number; prepayPercent: number; upfrontAmount?: number; financedAmount?: number }; cancelledByName?: string;
   afterSaleStatus?: string; restockReceiptId?: string; restockReceiptCode?: string;
   couponCode?: string; couponSnapshot?: { id: string; code: string; name: string; amount: number; version: number } | null;

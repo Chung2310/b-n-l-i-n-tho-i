@@ -6,6 +6,7 @@ import { ProductPriceModel } from "../../model/product-price.model";
 import { InventoryBalanceModel } from "../../model/inventory-balance.model";
 import { WarehouseModel } from "../../model/warehouse.model";
 import { ProductCatalogModel } from "../../model/product-catalog.model";
+import { BranchModel } from "../../model/branch.model";
 import { ProductCatalogBrandModel, ProductCatalogCategoryModel, UnitOfMeasureModel } from "../../model/product-catalog-resource.model";
 import { runInTransaction } from "../../config/database";
 import { ensureDefaultWarehouse } from "../../modules/inventory/warehouse/warehouse.service";
@@ -66,6 +67,7 @@ function normalizedShops(data: any) {
     code: String(shop.code || shop.shop_code || ""),
     name: String(shop.name || shop.shop_name || shop.code || shop.shop_code || "TikTok Shop"),
     region: String(shop.region || shop.region_code || ""),
+    retailBranchId: "",
   })).filter((shop: any) => shop.cipher);
 }
 
@@ -170,6 +172,10 @@ async function validAccessToken(connection: any) {
   connection.scopes = Array.isArray(data.granted_scopes) ? data.granted_scopes : connection.scopes;
   await connection.save();
   return String(data.access_token);
+}
+
+export async function validTikTokShopAccessToken(connection: any) {
+  return validAccessToken(connection);
 }
 
 function firstString(...values: unknown[]) {
@@ -512,6 +518,28 @@ export const TikTokShopService = {
     };
   },
 
+  async activeBranches(companyCodeInput: unknown) {
+    const companyCode = normalizeCompany(companyCodeInput);
+    return BranchModel.find({ companyCode, isActive: true }).select("_id code name").sort({ code: 1 }).lean();
+  },
+
+  async setOrderBranch(companyCodeInput: unknown, connectionIdInput: unknown, shopCipherInput: unknown, branchIdInput: unknown) {
+    const companyCode = normalizeCompany(companyCodeInput);
+    const connectionId = String(connectionIdInput || "").trim();
+    const shopCipher = String(shopCipherInput || "").trim();
+    const branchId = String(branchIdInput || "").trim();
+    if (!connectionId || !shopCipher || !branchId) throw Object.assign(new Error("Chọn shop TikTok và chi nhánh nhận đơn."), { statusCode: 400 });
+    const branchExists = await BranchModel.exists({ _id: branchId, companyCode, isActive: true });
+    if (!branchExists) throw Object.assign(new Error("Chi nhánh nhận đơn không tồn tại hoặc đã ngừng hoạt động."), { statusCode: 400 });
+    const connection: any = await TikTokShopConnectionModel.findOneAndUpdate(
+      { _id: connectionId, companyCode, "shops.cipher": shopCipher },
+      { $set: { "shops.$.retailBranchId": branchId } },
+      { returnDocument: "after" },
+    ).lean();
+    if (!connection) throw Object.assign(new Error("Không tìm thấy shop TikTok trong kết nối này."), { statusCode: 404 });
+    return publicConnection(connection);
+  },
+
   async listPublishableProducts(companyCodeInput: unknown) {
     const companyCode = normalizeCompany(companyCodeInput);
     const products: any[] = await ProductCatalogModel.find({ companyCode, status: "active", productType: "physical" }).sort({ updatedAt: -1 }).limit(200).lean();
@@ -818,6 +846,9 @@ export const TikTokShopService = {
     const shopsData = await callTikTokShopApi({ path: "/authorization/202309/shops", accessToken: String(data.access_token) });
     const shops = normalizedShops(shopsData);
     if (!shops.length) throw new Error("Tài khoản TikTok Shop chưa cấp quyền cho shop nào.");
+    const previous = await TikTokShopConnectionModel.findOne({ companyCode: stateDoc.companyCode, openId }).select("shops").lean();
+    const savedBranchByCipher = new Map((previous?.shops || []).map((shop: any) => [String(shop.cipher), String(shop.retailBranchId || "")]));
+    for (const shop of shops) shop.retailBranchId = savedBranchByCipher.get(shop.cipher) || "";
     const connection = await TikTokShopConnectionModel.findOneAndUpdate(
       { companyCode: stateDoc.companyCode, openId },
       { $set: {

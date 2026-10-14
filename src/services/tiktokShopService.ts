@@ -3,7 +3,7 @@ import { apiFetch } from "../modules/shared/lib/apiFetch";
 export interface TikTokShopStatus {
   connected: boolean;
   connections: TikTokShopConnection[];
-  shops: Array<{ cipher: string; id?: string; code?: string; name: string; region?: string }>;
+  shops: Array<{ cipher: string; id?: string; code?: string; name: string; region?: string; retailBranchId?: string }>;
 }
 
 export interface TikTokShopConnection {
@@ -91,6 +91,8 @@ const unwrap = <T,>(response: { data: T }) => response.data;
 
 export const tiktokShopApi = {
   status: () => apiFetch<{ data: TikTokShopStatus }>("/integrations/tiktok-shop/status").then(unwrap),
+  orderBranches: () => apiFetch<{ data: Array<{ _id: string; code: string; name: string }> }>("/integrations/tiktok-shop/order-branches").then(unwrap),
+  setOrderBranch: (connectionId: string, shopCipher: string, branchId: string) => apiFetch<{ data: TikTokShopConnection }>("/integrations/tiktok-shop/order-branch", { method: "PATCH", body: JSON.stringify({ connectionId, shopCipher, branchId }) }).then(unwrap),
   authorizationUrl: () => apiFetch<{ data: { authUrl: string } }>("/integrations/tiktok-shop/auth-url").then(unwrap),
   syncProducts: () => apiFetch<{ data: { total: number; matched: number; unmatched: number; connections: number; detailsSynced: number; complete: number; incomplete: number; detailFailed: number } }>("/integrations/tiktok-shop/sync-products", { method: "POST" }).then(unwrap),
   importProducts: () => apiFetch<{ data: { products: number; createdProducts: number; createdVariants: number; linkedExisting: number; importedPrices: number; importedStock: number; failed: number; errors: string[] } }>("/integrations/tiktok-shop/import-products", { method: "POST" }).then(unwrap),

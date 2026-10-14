@@ -17,6 +17,14 @@ const branch = (req: AuthenticatedRequest) => String(req.body?.branchId || req.u
 tikTokShopRouter.get("/status", ...read, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try { res.json({ data: await TikTokShopService.status(company(req)) }); } catch (error) { next(error); }
 });
+tikTokShopRouter.get("/order-branches", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try { res.json({ data: await TikTokShopService.activeBranches(company(req)) }); } catch (error) { next(error); }
+});
+tikTokShopRouter.patch("/order-branch", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json({ data: await TikTokShopService.setOrderBranch(company(req), req.body?.connectionId, req.body?.shopCipher, req.body?.branchId) });
+  } catch (error) { next(error); }
+});
 tikTokShopRouter.get("/catalog-products", ...manage, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try { res.json({ data: await TikTokShopService.listPublishableProducts(company(req)) }); } catch (error) { next(error); }
 });
