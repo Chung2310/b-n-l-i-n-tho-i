@@ -159,11 +159,12 @@ export function summarizeShift(shift: any, orders: any[]) {
   const movementsIn = legacyMovements.filter((movement: any) => movement.type === "in").reduce((sum: number, movement: any) => sum + movement.amount, 0);
   const movementsOut = legacyMovements.filter((movement: any) => movement.type === "out").reduce((sum: number, movement: any) => sum + movement.amount, 0);
   const cash = methodTotals.find((item) => item.method === "cash");
+  const debtBalance = (order: any) => Math.max(0, Number(order.dueAmount || 0) - Number(order.pendingTransferAmount || 0));
   return {
     grossSales: sold.reduce((sum, order) => sum + order.grandTotal, 0),
-    newDebtAmount: sold.reduce((sum, order) => sum + order.dueAmount, 0),
-    customerDebtAmount: sold.filter((order) => !order.installment).reduce((sum, order) => sum + order.dueAmount, 0),
-    financingDebtAmount: sold.filter((order) => order.installment).reduce((sum, order) => sum + order.dueAmount, 0),
+    newDebtAmount: sold.reduce((sum, order) => sum + debtBalance(order), 0),
+    customerDebtAmount: sold.filter((order) => !order.installment).reduce((sum, order) => sum + debtBalance(order), 0),
+    financingDebtAmount: sold.filter((order) => order.installment).reduce((sum, order) => sum + debtBalance(order), 0),
     methodTotals,
     collectedAmount,
     refundedAmount,
@@ -177,13 +178,16 @@ export function summarizeShift(shift: any, orders: any[]) {
 function ordersAtCutoff(orders: any[], at: Date) {
   const cutoff = at.getTime();
   return orders.map((source) => {
-    const payments = (source.payments || []).filter((payment: any) => new Date(payment.recordedAt || payment.paidAt).getTime() < cutoff);
+    const allPayments = source.payments || [];
+    const payments = allPayments.filter((payment: any) => new Date(payment.recordedAt || payment.paidAt).getTime() < cutoff);
+    const pendingTransferAmount = Number(source.pendingTransferAmount || 0) + allPayments.reduce((sum: number, payment: any) =>
+      new Date(payment.recordedAt || payment.paidAt).getTime() >= cutoff ? sum + Number(payment.pendingTransferAppliedAmount || 0) : sum, 0);
     const refunds = (source.refunds || []).filter((refund: any) => new Date(refund.refundedAt).getTime() < cutoff);
     const paidAmount = payments.reduce((sum: number, payment: any) => sum + payment.amount, 0);
     const refundedAmount = refunds.reduce((sum: number, refund: any) => sum + refund.amount, 0);
     const cancelled = source.status === "cancelled" && source.cancelledAt && new Date(source.cancelledAt).getTime() < cutoff;
     const status = cancelled ? "cancelled" : source.status === "draft" ? "draft" : paidAmount >= source.grandTotal ? "completed" : "confirmed";
-    return { ...source, payments, refunds, paidAmount, refundedAmount, dueAmount: Math.max(0, source.grandTotal - paidAmount), status,
+    return { ...source, payments, refunds, paidAmount, refundedAmount, dueAmount: Math.max(0, source.grandTotal - paidAmount), pendingTransferAmount, status,
       paymentStatus: refundedAmount >= source.grandTotal && refundedAmount > 0 ? "refunded" : paidAmount >= source.grandTotal ? "paid" : paidAmount > 0 ? "partial" : "unpaid",
       ...(!cancelled ? { cancelledAt: undefined, cancelReason: undefined, cancelledByName: undefined } : {}),
     };

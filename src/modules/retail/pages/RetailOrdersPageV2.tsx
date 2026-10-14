@@ -524,22 +524,23 @@ function OrderDialog({
         <AfterSaleHistory order={order} />
 
         {/* Financial Metrics */}
-        <div className="mt-5 grid grid-cols-3 gap-3">
+        <div className={`mt-5 grid gap-3 ${Number(order.pendingTransferAmount || 0) > 0 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
           <Metric label="Tổng cộng" value={order.grandTotal} />
           <Metric label="Đã thu" value={order.paidAmount} />
-          <Metric label={order.installment ? "Chờ đối tác thanh toán" : "Còn nợ"} value={order.dueAmount} />
+          {Number(order.pendingTransferAmount || 0) > 0 && <Metric label="Chờ chuyển khoản" value={Number(order.pendingTransferAmount)} />}
+          <Metric label={order.installment ? "Chờ đối tác thanh toán" : "Còn nợ"} value={Math.max(0, order.dueAmount - Number(order.pendingTransferAmount || 0))} />
         </div>
 
         {/* Action Buttons */}
         <div className="mt-6 flex flex-wrap items-center gap-2.5 pt-4 border-t border-slate-100">
-          {(order.status === "confirmed" || order.status === "completed" || order.status === "cancelled") && (
+          {((order.status === "confirmed" && order.dueAmount > Number(order.pendingTransferAmount || 0)) || order.status === "completed" || order.status === "cancelled") && (
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-cyan-700 active:scale-95"
               onClick={onCollect}
             >
               <Banknote className="h-4 w-4" />
-              {order.status === "confirmed" && order.dueAmount > 0 ? "Thu công nợ" : "Kiểm tra khoản thu đang chờ"}
+              {order.status === "confirmed" && order.dueAmount > Number(order.pendingTransferAmount || 0) ? "Thu công nợ" : "Kiểm tra khoản thu đang chờ"}
             </button>
           )}
 

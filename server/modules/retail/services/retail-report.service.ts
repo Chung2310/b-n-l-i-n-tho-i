@@ -47,6 +47,7 @@ export function buildRetailReportOrderPipeline(scope: RetailScope, range: Report
         totalCost: 1,
         refundedAmount: 1,
         dueAmount: 1,
+        pendingTransferAmount: 1,
         "payments.method": 1,
         "payments.amount": 1,
         customerId: 1,
