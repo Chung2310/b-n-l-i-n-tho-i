@@ -206,10 +206,10 @@ async function getListingWarehouses(accessToken: string, shopCipher: string) {
   })).filter((row: any) => row.id && row.isEnabled !== false);
 }
 
-async function getListingCategoryAttributes(accessToken: string, categoryId: string, categoryVersion: string) {
+async function getListingCategoryAttributes(accessToken: string, shopCipher: string, categoryId: string, categoryVersion: string) {
   return callTikTokShopApi({
     path: `/product/202309/categories/${encodeURIComponent(categoryId)}/attributes`, accessToken,
-    query: { category_version: categoryVersion, locale: "vi-VN" },
+    query: { shop_cipher: shopCipher, category_version: categoryVersion, locale: "vi-VN" },
   });
 }
 
@@ -595,7 +595,7 @@ export const TikTokShopService = {
     const categoryId = String(categoryIdInput || "").trim();
     if (!categoryId) throw Object.assign(new Error("Cần chọn danh mục TikTok."), { statusCode: 400 });
     const { accessToken, shop } = await authorizedShop(companyCode, connectionId, shopCipher);
-    const data: any = await getListingCategoryAttributes(accessToken, categoryId, categoryVersionForRegion(shop.region));
+    const data: any = await getListingCategoryAttributes(accessToken, shop.cipher, categoryId, categoryVersionForRegion(shop.region));
     return { attributes: normalizeTikTokAttributes(data).filter((attribute) => !attribute.isSales) };
   },
 
@@ -642,7 +642,7 @@ export const TikTokShopService = {
     if (!remoteWarehouses.some((warehouse: any) => warehouse.id === warehouseId)) {
       throw Object.assign(new Error("Kho TikTok đã chọn không còn khả dụng."), { statusCode: 400 });
     }
-    const categoryData = await getListingCategoryAttributes(accessToken, categoryId, categoryVersion);
+    const categoryData = await getListingCategoryAttributes(accessToken, shop.cipher, categoryId, categoryVersion);
     const categoryAttributes = normalizeTikTokAttributes(categoryData);
     const requiredAttributes = categoryAttributes.filter((attribute) => !attribute.isSales && attribute.required);
     const selectedAttributes = Array.isArray(input?.productAttributes) ? input.productAttributes : [];
