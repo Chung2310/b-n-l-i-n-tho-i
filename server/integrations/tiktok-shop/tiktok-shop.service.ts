@@ -553,8 +553,8 @@ export const TikTokShopService = {
 
   async listingWarehouses(companyCodeInput: unknown, connectionId: unknown, shopCipher: unknown) {
     const companyCode = normalizeCompany(companyCodeInput);
-    const { accessToken } = await authorizedShop(companyCode, connectionId, shopCipher);
-    const data: any = await callTikTokShopApi({ path: "/logistics/202309/warehouses", accessToken });
+    const { accessToken, shop } = await authorizedShop(companyCode, connectionId, shopCipher);
+    const data: any = await callTikTokShopApi({ path: "/logistics/202309/warehouses", accessToken, query: { shop_cipher: shop.cipher } });
     const raw = Array.isArray(data?.warehouses) ? data.warehouses : Array.isArray(data?.warehouse_list) ? data.warehouse_list : [];
     return { warehouses: raw.map((row: any) => ({ id: firstString(row?.id, row?.warehouse_id), name: firstString(row?.name, row?.warehouse_name, row?.id, row?.warehouse_id), type: firstString(row?.type, row?.warehouse_type), isEnabled: row?.is_enabled ?? row?.enabled ?? true })).filter((row: any) => row.id && row.isEnabled !== false) };
   },
@@ -605,7 +605,7 @@ export const TikTokShopService = {
     const categoryVersion = categoryVersionForRegion(shop.region);
     const [categoryListData, warehouseData, categoryData] = await Promise.all([
       callTikTokShopApi({ path: "/product/202309/categories", accessToken, query: { category_version: categoryVersion, locale: "vi-VN" } }),
-      callTikTokShopApi({ path: "/logistics/202309/warehouses", accessToken }),
+      callTikTokShopApi({ path: "/logistics/202309/warehouses", accessToken, query: { shop_cipher: shop.cipher } }),
       callTikTokShopApi({ path: `/product/202309/categories/${encodeURIComponent(categoryId)}/attributes`, accessToken, query: { category_version: categoryVersion, locale: "vi-VN" } }),
     ]);
     const remoteCategories = Array.isArray((categoryListData as any)?.categories) ? (categoryListData as any).categories : [];
