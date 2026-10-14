@@ -362,14 +362,16 @@ function directCheckoutIdentity(scope: RetailBranchScope, input: any, actor: any
   const orderInput = input?.input;
   const posSessionId = String(input?.posSessionId || "");
   const expectedGrandTotal = Number(input?.expectedGrandTotal);
+  const requestedPaymentCode = input?.paymentCode === undefined ? undefined : String(input.paymentCode).trim().toUpperCase();
   if (!key.trim() || key !== key.trim() || !actorId(actor) || !posSessionId || !orderInput || typeof orderInput !== "object" || Array.isArray(orderInput)) throw replayConflict();
   if (!Number.isSafeInteger(expectedGrandTotal) || expectedGrandTotal < 0) throw retailError("Tổng tiền xác nhận không hợp lệ.", "ORDER_TOTAL_INVALID", 400);
+  if (requestedPaymentCode !== undefined && !/^AKM[A-Z0-9]{6,29}$/.test(requestedPaymentCode)) throw retailError("Mã thanh toán QR không hợp lệ.", "PAYMENT_CODE_INVALID", 400);
   const normalized = normalizePayments(input.payments || [], expectedGrandTotal);
   const requestFingerprint = createHash("sha256").update(JSON.stringify(checkoutCanonical({
     version: 1, operation: "checkout-order", ...scope, actorId: actorId(actor), posSessionId,
-    input: orderInput, expectedGrandTotal, payments: normalized.payments,
+    input: orderInput, expectedGrandTotal, payments: normalized.payments, paymentCode: requestedPaymentCode,
   }))).digest("hex");
-  return { key, orderInput, posSessionId, expectedGrandTotal, normalized, requestFingerprint };
+  return { key, orderInput, posSessionId, expectedGrandTotal, normalized, paymentCode: requestedPaymentCode, requestFingerprint };
 }
 function checkoutIdentity(scope: RetailBranchScope, input: any, actor: any) {
   const key = input?.idempotencyKey, payload = input?.payload;
@@ -678,7 +680,7 @@ export const RetailOrderService = {
   },
   async checkout(scope: RetailBranchScope, input: any, actor: any, shift: any = undefined, canManage = false) {
     const identity = directCheckoutIdentity(scope, input, actor);
-    const { key, orderInput, posSessionId, expectedGrandTotal, normalized, requestFingerprint } = identity;
+    const { key, orderInput, posSessionId, expectedGrandTotal, normalized, paymentCode: requestedPaymentCode, requestFingerprint } = identity;
     const keyFilter = { companyCode: scope.companyCode, key };
     const replay = async (attempt: any, activeSession?: mongoose.ClientSession) => {
       if (attempt.branchId !== scope.branchId || attempt.operation !== "checkout-order" || attempt.requestFingerprint !== requestFingerprint) throw replayConflict();
@@ -715,7 +717,7 @@ export const RetailOrderService = {
         const scopeKey = monthlyScope(businessDate);
         const counter = await RetailOrderCounterModel.findOneAndUpdate({ ...scope, scope: scopeKey }, { $inc: { seq: 1 } }, { returnDocument: "after", upsert: true, session });
         const orderCode = formatRetailDocumentCode(settings.orderPrefix, branch.code, scopeKey, counter!.seq);
-        const paymentCode = retailPaymentCode(orderCode);
+        const paymentCode = requestedPaymentCode || retailPaymentCode(orderCode);
         if (pricing.couponSnapshot) await consumeCoupon(scope, pricing.couponSnapshot, session, orderInput.customerId);
         const stockSnapshot = await applyOrderStockOut(scope, String(orderId), orderCode, pricing.lines, actorName(actor), settings.allowNegativeStock, session);
         pricing.lines = stockSnapshot.items;

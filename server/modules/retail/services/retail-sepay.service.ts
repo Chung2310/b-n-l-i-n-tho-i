@@ -68,7 +68,7 @@ export async function buildRetailPaymentQr(companyCode: string, orderId: string)
   if (!order || !order.orderCode || order.status === "draft" || order.status === "cancelled") throw new Error("Đơn hàng không thể thanh toán bằng QR.");
   const config = company?.vietqrConfig;
   if (!config?.bankId || !config.accountNo) throw new Error("Doanh nghiệp chưa cấu hình tài khoản VietQR.");
-  const paymentCode = retailPaymentCode(order.orderCode);
+  const paymentCode = text(order.paymentCode) || retailPaymentCode(order.orderCode);
   if (order.paymentCode !== paymentCode) await RetailOrderModel.updateOne({ _id: order._id, companyCode }, { $set: { paymentCode } });
   const transferContent = paymentCode;
   const params = new URLSearchParams({ acc: config.accountNo, bank: config.bankId, amount: String(order.dueAmount), des: transferContent });
@@ -103,7 +103,8 @@ export async function processRetailSePayTransaction(payload: SePayPayload) {
       const candidateOrders: any[] = await RetailOrderModel.find({ companyCode: company.code, $or: [{ paymentCode: { $in: paymentCodeCandidates } }, { orderCode: text(payload.code) }], status: "confirmed", dueAmount: { $gt: 0 } }).session(session);
       const matches = candidateOrders.filter((candidate) => {
         const orderCode = text(candidate.orderCode);
-        return retailPaymentCode(orderCode) === paymentCode
+        return canonicalPaymentCode(candidate.paymentCode) === paymentCode
+          || retailPaymentCode(orderCode) === paymentCode
           || legacyRetailPaymentCode(orderCode) === paymentCode
           || orderCode === text(payload.code);
       });
