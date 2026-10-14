@@ -11,6 +11,7 @@ import { ProductCatalogBrandModel, ProductCatalogCategoryModel, UnitOfMeasureMod
 import { runInTransaction } from "../../config/database";
 import { ensureDefaultWarehouse } from "../../modules/inventory/warehouse/warehouse.service";
 import { TikTokShopConnectionModel } from "./tiktok-shop-connection.model";
+import { TikTokShopSettingsModel } from "./tiktok-shop-settings.model";
 import { TikTokShopOAuthStateModel } from "./tiktok-shop-oauth-state.model";
 import { TikTokShopProductModel } from "./tiktok-shop-product.model";
 import { callTikTokShopApi, exchangeTikTokShopCode, getTikTokShopConfig, refreshTikTokShopToken, uploadTikTokShopProductImage } from "./tiktok-shop.client";
@@ -176,6 +177,19 @@ async function validAccessToken(connection: any) {
 
 export async function validTikTokShopAccessToken(connection: any) {
   return validAccessToken(connection);
+}
+
+export async function getTikTokShopOrderBranch(companyCodeInput: unknown) {
+  const companyCode = normalizeCompany(companyCodeInput);
+  const settings: any = await TikTokShopSettingsModel.findOne({ companyCode }).select("orderBranchId").lean();
+  let branchId = String(settings?.orderBranchId || "").trim();
+  if (!branchId) {
+    const legacyConnection: any = await TikTokShopConnectionModel.findOne({ companyCode, shops: { $elemMatch: { retailBranchId: { $exists: true, $nin: ["", null] } } } })
+      .sort({ connectedAt: 1 }).select("shops").lean();
+    branchId = String(legacyConnection?.shops?.find((shop: any) => String(shop.retailBranchId || "").trim())?.retailBranchId || "").trim();
+  }
+  if (!branchId || !await BranchModel.exists({ _id: branchId, companyCode, isActive: true })) return "";
+  return branchId;
 }
 
 function firstString(...values: unknown[]) {
@@ -523,21 +537,22 @@ export const TikTokShopService = {
     return BranchModel.find({ companyCode, isActive: true }).select("_id code name").sort({ code: 1 }).lean();
   },
 
-  async setOrderBranch(companyCodeInput: unknown, connectionIdInput: unknown, shopCipherInput: unknown, branchIdInput: unknown) {
+  async orderBranch(companyCodeInput: unknown) {
+    return { branchId: await getTikTokShopOrderBranch(companyCodeInput) };
+  },
+
+  async setDefaultOrderBranch(companyCodeInput: unknown, branchIdInput: unknown) {
     const companyCode = normalizeCompany(companyCodeInput);
-    const connectionId = String(connectionIdInput || "").trim();
-    const shopCipher = String(shopCipherInput || "").trim();
     const branchId = String(branchIdInput || "").trim();
-    if (!connectionId || !shopCipher || !branchId) throw Object.assign(new Error("Chọn shop TikTok và chi nhánh nhận đơn."), { statusCode: 400 });
+    if (!branchId) throw Object.assign(new Error("Chọn chi nhánh nhận đơn TikTok Shop."), { statusCode: 400 });
     const branchExists = await BranchModel.exists({ _id: branchId, companyCode, isActive: true });
     if (!branchExists) throw Object.assign(new Error("Chi nhánh nhận đơn không tồn tại hoặc đã ngừng hoạt động."), { statusCode: 400 });
-    const connection: any = await TikTokShopConnectionModel.findOneAndUpdate(
-      { _id: connectionId, companyCode, "shops.cipher": shopCipher },
-      { $set: { "shops.$.retailBranchId": branchId } },
-      { returnDocument: "after" },
+    const settings: any = await TikTokShopSettingsModel.findOneAndUpdate(
+      { companyCode },
+      { $set: { orderBranchId: branchId }, $setOnInsert: { companyCode } },
+      { returnDocument: "after", upsert: true, runValidators: true },
     ).lean();
-    if (!connection) throw Object.assign(new Error("Không tìm thấy shop TikTok trong kết nối này."), { statusCode: 404 });
-    return publicConnection(connection);
+    return { branchId: String(settings.orderBranchId || "") };
   },
 
   async listPublishableProducts(companyCodeInput: unknown) {

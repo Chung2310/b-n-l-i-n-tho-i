@@ -17,7 +17,7 @@ import { businessDateInVietnam } from "../../modules/retail/services/cashier-shi
 import { TikTokShopConnectionModel } from "./tiktok-shop-connection.model";
 import { TikTokShopProductModel } from "./tiktok-shop-product.model";
 import { callTikTokShopApi } from "./tiktok-shop.client";
-import { validTikTokShopAccessToken } from "./tiktok-shop.service";
+import { getTikTokShopOrderBranch, validTikTokShopAccessToken } from "./tiktok-shop.service";
 
 const actor = { id: "tiktok-shop", displayName: "TikTok Shop" };
 const normalizedSku = (value: unknown) => String(value || "").trim().toUpperCase();
@@ -102,8 +102,8 @@ export async function syncTikTokShopOrderStatusChange(event: any) {
   const connection: any = await TikTokShopConnectionModel.findOne({ openId: String(payload.sellerOpenId) }).select("+accessTokenEncrypted +refreshTokenEncrypted");
   const shop = connection?.shops?.find((item: any) => String(item.cipher) === String(payload.shopCipher) && (!payload.shopId || String(item.id) === String(payload.shopId)));
   if (!connection || !shop) throw new Error("TikTok seller or shop connection could not be resolved.");
-  const branchId = String(shop.retailBranchId || "").trim();
-  if (!branchId) throw new Error(`TikTok shop ${shop.name || shop.id} has no retail branch configured.`);
+  const branchId = await getTikTokShopOrderBranch(connection.companyCode);
+  if (!branchId) throw new Error("TikTok Shop default retail branch is not configured.");
   const scope = { companyCode: String(connection.companyCode), branchId };
   const existing = await RetailOrderModel.findOne({ ...scope, salesChannel: "tiktok-shop", externalShopCipher: shop.cipher, externalOrderId: String(payload.orderId) }).lean();
   if (existing) return { ignored: true, reason: "already-imported", orderId: String(existing._id) };

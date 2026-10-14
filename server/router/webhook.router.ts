@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { retailSePayController } from '../modules/retail/controllers/retail-sepay.controller';
 import { TikTokShopConnectionModel } from '../integrations/tiktok-shop/tiktok-shop-connection.model';
 import { getTikTokShopWebhookConfig, verifyTikTokShopWebhookSignature } from '../integrations/tiktok-shop/tiktok-shop.client';
+import { getTikTokShopOrderBranch } from '../integrations/tiktok-shop/tiktok-shop.service';
 import { publishDomainEvent } from '../integrations/shared/event-bus';
 
 export const webhookRouter = Router();
@@ -38,7 +39,8 @@ webhookRouter.post('/tiktok-shop/order-status', async (req, res, next) => {
     }
 
     const { connection, shop } = matches[0];
-    if (!String(shop.retailBranchId || '').trim()) return res.status(503).send('TikTok shop has no retail branch configured');
+    const orderBranchId = await getTikTokShopOrderBranch(connection.companyCode);
+    if (!orderBranchId) return res.status(503).send('TikTok Shop default retail branch is not configured');
     const eventTimestamp = Number(body.timestamp || data.update_time || Math.floor(Date.now() / 1000));
     const notificationId = String(body.tts_notification_id || createHash('sha256').update(rawBody).digest('hex'));
     try {
@@ -46,7 +48,7 @@ webhookRouter.post('/tiktok-shop/order-status', async (req, res, next) => {
         eventId: `tiktok-shop:${notificationId}`,
         eventType: 'tiktok.order.status.changed',
         companyCode: String(connection.companyCode),
-        branchId: String(shop.retailBranchId || '') || undefined,
+        branchId: orderBranchId,
         aggregateType: 'TikTokShopOrder',
         aggregateId: `${String(shop.cipher)}:${orderId}`,
         occurredAt: new Date(eventTimestamp * 1000),
