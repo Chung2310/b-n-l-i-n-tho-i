@@ -1,13 +1,15 @@
 import React from "react";
-import { Download, Link2, Loader2, Pencil, RefreshCw, ShoppingBag, Trash2 } from "lucide-react";
+import { Download, Link2, Loader2, Pencil, Plus, RefreshCw, ShoppingBag, Trash2 } from "lucide-react";
 import { toast } from "../../pages/Toast";
 import { getApiErrorMessage } from "../../utils/errorMessage";
 import { tiktokShopApi, type TikTokShopProduct, type TikTokShopStatus } from "../../services/tiktokShopService";
+import TikTokProductPublishDialog from "./TikTokProductPublishDialog";
 
 export default function TikTokShopSettingsTab() {
   const [status, setStatus] = React.useState<TikTokShopStatus | null>(null);
   const [products, setProducts] = React.useState<TikTokShopProduct[]>([]);
   const [busy, setBusy] = React.useState("");
+  const [publishDialogOpen, setPublishDialogOpen] = React.useState(false);
 
   const load = React.useCallback(async () => {
     const next = await tiktokShopApi.status();
@@ -128,6 +130,9 @@ export default function TikTokShopSettingsTab() {
             <button type="button" disabled={Boolean(busy)} onClick={importProducts} className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-xs font-bold text-white hover:bg-sky-700 disabled:opacity-50">
               {busy === "import" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Nhập vào kho
             </button>
+            <button type="button" disabled={Boolean(busy)} onClick={() => setPublishDialogOpen(true)} className="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-xs font-bold text-white hover:bg-pink-700 disabled:opacity-50">
+              <Plus className="h-4 w-4" /> Đăng sản phẩm mới
+            </button>
             <button type="button" disabled={Boolean(busy)} onClick={pushInventoryAndPrices} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50">
               {busy === "push" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Đẩy giá & tồn kho
             </button>
@@ -138,6 +143,7 @@ export default function TikTokShopSettingsTab() {
       )}
 
       {products.length > 0 && <div className="overflow-x-auto rounded-lg border border-slate-200"><table className="min-w-full divide-y divide-slate-200 text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-2">Sản phẩm TikTok</th><th className="px-3 py-2">SKU</th><th className="px-3 py-2">Trạng thái ghép</th><th className="px-3 py-2">Kiểm tra thông tin</th><th className="px-3 py-2">Đẩy dữ liệu</th><th className="px-3 py-2 text-right">Thao tác</th></tr></thead><tbody className="divide-y divide-slate-100">{products.map((product) => <tr key={product._id}><td className="px-3 py-2"><p className="font-semibold text-slate-800">{product.title}</p><p className="text-[10px] text-slate-400">{product.tiktokProductId} · {product.status}</p></td><td className="px-3 py-2 text-slate-600">{product.skus.map((sku) => sku.sellerSku || sku.skuId).filter(Boolean).join(", ") || "—"}</td><td className="px-3 py-2"><span className={product.skus.some((sku) => sku.localVariantId) ? "text-emerald-700" : "text-amber-700"}>{product.skus.some((sku) => sku.localVariantId) ? "Đã ghép SKU nội bộ" : "Chưa ghép"}</span></td><td className="max-w-xs px-3 py-2"><span className={product.detailsSyncStatus === "complete" ? "text-emerald-700" : product.detailsSyncStatus === "failed" ? "text-rose-700" : "text-amber-700"}>{product.detailsSyncStatus === "complete" ? "Đủ thông tin" : product.detailsSyncStatus === "failed" ? `Lỗi tải: ${product.detailsSyncError || "không tải được chi tiết"}` : product.missingInfo?.length ? `Thiếu: ${product.missingInfo.join(", ")}` : "Chưa kiểm tra chi tiết"}</span></td><td className="max-w-xs px-3 py-2"><span className={product.lastOutboundSyncStatus === "failed" ? "text-rose-700" : product.lastOutboundSyncStatus === "success" ? "text-emerald-700" : "text-slate-500"}>{product.lastOutboundSyncStatus === "failed" ? product.lastOutboundSyncError || "Lỗi" : product.lastOutboundSyncStatus === "success" ? "Đã đồng bộ" : "Chưa đồng bộ"}</span></td><td className="px-3 py-2 text-right"><button type="button" onClick={() => editProduct(product)} className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"><Pencil className="h-3.5 w-3.5" /> Sửa sản phẩm</button></td></tr>)}</tbody></table></div>}
+      {publishDialogOpen && status.connected && <TikTokProductPublishDialog connections={status.connections} onClose={() => setPublishDialogOpen(false)} onPublished={load} />}
     </section>
   );
 }
