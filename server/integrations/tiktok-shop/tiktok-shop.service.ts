@@ -20,6 +20,8 @@ const normalizeCompany = (value: unknown) => {
   return companyCode;
 };
 
+const TIKTOK_REVIEW_PENDING_STATUSES = new Set(["PENDING", "PENDING_REVIEW", "PENDING_APPROVAL", "WAITING_FOR_REVIEW", "UNDER_REVIEW", "IN_REVIEW"]);
+
 const tokenExpiry = (value: unknown, fallbackSeconds: number) => {
   const number = Number(value);
   if (!Number.isFinite(number) || number <= 0) return new Date(Date.now() + fallbackSeconds * 1000);
@@ -281,17 +283,22 @@ async function pushOperationalData(companyCode: string, target?: { variantId?: s
   else if (target?.sku) filter["skus.sellerSku"] = String(target.sku).trim().toUpperCase();
   const products: any[] = await TikTokShopProductModel.find(filter);
   const variantIds = [...new Set(products.flatMap((product) => product.skus.map((sku: any) => String(sku.localVariantId || "")).filter(Boolean)))];
-  if (!variantIds.length) return { products: 0, skus: 0, updated: 0, skipped: 0, failed: 0, errors: [] as string[] };
+  if (!variantIds.length) return { products: 0, skus: 0, updated: 0, skipped: 0, pendingReviewSkipped: 0, failed: 0, errors: [] as string[] };
 
   const { stockByVariant, pricesByVariant } = await localValues(companyCode, variantIds, target?.branchId);
   const connections = await connectionsWithSecrets(companyCode);
   const connectionById = new Map(connections.map((connection: any) => [String(connection._id), connection]));
   const tokenByConnection = new Map<string, string>();
-  const result = { products: products.length, skus: 0, updated: 0, skipped: 0, failed: 0, errors: [] as string[] };
+  const result = { products: products.length, skus: 0, updated: 0, skipped: 0, pendingReviewSkipped: 0, failed: 0, errors: [] as string[] };
 
   for (const product of products) {
     const linkedSkus = product.skus.filter((sku: any) => sku.localVariantId && (!target?.variantId || sku.localVariantId === target.variantId) && (!target?.sku || String(sku.sellerSku).toUpperCase() === String(target.sku).toUpperCase()));
     result.skus += linkedSkus.length;
+    if (TIKTOK_REVIEW_PENDING_STATUSES.has(String(product.status || "").trim().toUpperCase())) {
+      result.skipped += linkedSkus.length;
+      result.pendingReviewSkipped += linkedSkus.length;
+      continue;
+    }
     const connection: any = connectionById.get(String(product.connectionId));
     const errors: string[] = [];
     try {
@@ -714,7 +721,14 @@ export const TikTokShopService = {
         const sku = syncedBySeller.get(row.sku);
         return Boolean(sku?.skuId && String(sku.localVariantId) === String(row.variant._id));
       });
-      return { created: true, linked, productId: synced?.tiktokProductId || "", message: linked ? "Đã đăng sản phẩm và liên kết SKU." : "TikTok đã nhận sản phẩm. Hãy đồng bộ danh sách TikTok để hoàn tất liên kết SKU." };
+      return {
+        created: true,
+        linked,
+        productId: synced?.tiktokProductId || "",
+        status: firstString(synced?.status, createData?.status, createData?.product_status, createData?.product?.status, createData?.product?.product_status, "PENDING"),
+        skus: skuRows.length,
+        message: linked ? "Đã đăng sản phẩm và liên kết SKU." : "TikTok đã nhận sản phẩm. Hãy đồng bộ danh sách TikTok để hoàn tất liên kết SKU.",
+      };
     }
     const returnedSkus = Array.isArray(createData?.skus) ? createData.skus : Array.isArray(createData?.product?.skus) ? createData.product.skus : [];
     const returnedSkuBySeller = new Map<string, string>();
@@ -724,7 +738,7 @@ export const TikTokShopService = {
       { companyCode, connectionId: String(connection._id), shopCipher: shop.cipher, tiktokProductId: remoteProductId },
       { $set: {
         companyCode, connectionId: String(connection._id), shopCipher: shop.cipher, shopName: shop.name, tiktokProductId: remoteProductId,
-        title: requestBody.title, status: firstString(createData?.status, createData?.product_status, "PENDING"),
+        title: requestBody.title, status: firstString(createData?.status, createData?.product_status, createData?.product?.status, createData?.product?.product_status, "PENDING"),
         imageUrl: productImages[0], imageUrls: productImages, description, categoryId, categoryName: String(input?.categoryName || ""),
         brandId: String(input?.brandId || ""), manufacturer: product.manufacturer || "", countryOfOrigin: product.countryOfOrigin || "",
         productAttributes: selectedAttributes.map((attribute: any) => ({ code: String(attribute.id), name: String(attribute.name || attribute.id), value: String(attribute.valueName || "") })),
@@ -751,7 +765,7 @@ export const TikTokShopService = {
         return Boolean(sku?.skuId && String(sku.localVariantId) === String(row.variant._id));
       });
     }
-    return { created: true, linked, productId: remoteProductId, status: firstString(createData?.status, createData?.product_status, "PENDING"), skus: skuRows.length };
+    return { created: true, linked, productId: remoteProductId, status: firstString(createData?.status, createData?.product_status, createData?.product?.status, createData?.product?.product_status, "PENDING"), skus: skuRows.length };
   },
 
   async createAuthorizationUrl(companyCodeInput: unknown, userId: string) {

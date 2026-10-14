@@ -605,7 +605,7 @@ function PaymentQrDialog({ qr, onClose }: { qr: RetailPaymentQr; onClose: () => 
         <div className="mt-2 rounded-xl bg-slate-50 p-3 text-left text-sm border border-slate-100">
           <p className="text-xs text-slate-400 uppercase font-semibold">Nội dung chuyển khoản:</p>
           <p className="mt-0.5 font-mono text-base font-bold text-slate-900">
-            {qr.paymentCode}
+            {qr.transferContent || qr.orderCode}
           </p>
         </div>
 
