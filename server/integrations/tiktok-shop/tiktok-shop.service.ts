@@ -139,7 +139,7 @@ function trustedProductImageUrl(input: unknown) {
   return url;
 }
 
-async function uploadCatalogImageToTikTok(urlValue: unknown, accessToken: string, shopCipher: string, fileName: string) {
+async function uploadCatalogImageToTikTok(urlValue: unknown, accessToken: string, fileName: string) {
   const url = trustedProductImageUrl(urlValue);
   const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(20_000) });
   if (!response.ok) throw new Error("Không tải được ảnh sản phẩm đã lưu.");
@@ -149,7 +149,7 @@ async function uploadCatalogImageToTikTok(urlValue: unknown, accessToken: string
   if (declaredLength > 10 * 1024 * 1024) throw new Error("Ảnh TikTok không được vượt quá 10 MB.");
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (!bytes.length || bytes.length > 10 * 1024 * 1024) throw new Error("Ảnh TikTok rỗng hoặc vượt quá 10 MB.");
-  const data: any = await uploadTikTokShopProductImage({ path: "/product/202309/images/upload", accessToken, query: { shop_cipher: shopCipher }, data: bytes, fileName, mimeType });
+  const data: any = await uploadTikTokShopProductImage({ path: "/product/202309/images/upload", accessToken, data: bytes, fileName, mimeType });
   const image = data?.image || data?.images?.[0] || data;
   const uri = firstString(image?.uri, image?.image_uri, data?.uri);
   if (!uri) throw new Error("TikTok không trả về URI ảnh sản phẩm.");
@@ -539,7 +539,7 @@ export const TikTokShopService = {
     const categoryVersion = categoryVersionForRegion(shop.region);
     const data: any = await callTikTokShopApi({
       path: "/product/202309/categories", accessToken,
-      query: { shop_cipher: shop.cipher, category_version: categoryVersion, locale: "vi-VN" },
+      query: { category_version: categoryVersion, locale: "vi-VN" },
     });
     const rawCategories = Array.isArray(data?.categories) ? data.categories : [];
     const categories = rawCategories.flatMap((category: any) => {
@@ -566,7 +566,7 @@ export const TikTokShopService = {
     const { accessToken, shop } = await authorizedShop(companyCode, connectionId, shopCipher);
     const data: any = await callTikTokShopApi({
       path: `/product/202309/categories/${encodeURIComponent(categoryId)}/attributes`, accessToken,
-      query: { shop_cipher: shop.cipher, category_version: categoryVersionForRegion(shop.region), locale: "vi-VN" },
+      query: { category_version: categoryVersionForRegion(shop.region), locale: "vi-VN" },
     });
     return { attributes: normalizeTikTokAttributes(data).filter((attribute) => !attribute.isSales) };
   },
@@ -604,9 +604,9 @@ export const TikTokShopService = {
     if (!description) throw Object.assign(new Error("Sản phẩm cần có mô tả trước khi đăng TikTok."), { statusCode: 400 });
     const categoryVersion = categoryVersionForRegion(shop.region);
     const [categoryListData, warehouseData, categoryData] = await Promise.all([
-      callTikTokShopApi({ path: "/product/202309/categories", accessToken, query: { shop_cipher: shop.cipher, category_version: categoryVersion, locale: "vi-VN" } }),
+      callTikTokShopApi({ path: "/product/202309/categories", accessToken, query: { category_version: categoryVersion, locale: "vi-VN" } }),
       callTikTokShopApi({ path: "/logistics/202309/warehouses", accessToken, query: { shop_cipher: shop.cipher } }),
-      callTikTokShopApi({ path: `/product/202309/categories/${encodeURIComponent(categoryId)}/attributes`, accessToken, query: { shop_cipher: shop.cipher, category_version: categoryVersion, locale: "vi-VN" } }),
+      callTikTokShopApi({ path: `/product/202309/categories/${encodeURIComponent(categoryId)}/attributes`, accessToken, query: { category_version: categoryVersion, locale: "vi-VN" } }),
     ]);
     const remoteCategories = Array.isArray((categoryListData as any)?.categories) ? (categoryListData as any).categories : [];
     const eligibleCategory = remoteCategories.find((category: any) => {
@@ -682,7 +682,7 @@ export const TikTokShopService = {
     for (const code of salesCodes) salesByCode.set(code, salesNames.get(code) || code.slice(0, 20));
     const imageUris: string[] = [];
     for (let index = 0; index < productImages.length; index += 1) {
-      imageUris.push(await uploadCatalogImageToTikTok(productImages[index], accessToken, shop.cipher, `${String(product.productCode || "product")}-${index + 1}.jpg`));
+      imageUris.push(await uploadCatalogImageToTikTok(productImages[index], accessToken, `${String(product.productCode || "product")}-${index + 1}.jpg`));
     }
     const packageWeightGrams = Number(input?.packageWeightGrams || Math.max(...variants.map((variant) => Number(variant.weightGrams || 0))));
     if (!Number.isFinite(packageWeightGrams) || packageWeightGrams <= 0) throw Object.assign(new Error("Nhập trọng lượng gói hàng lớn hơn 0 gram."), { statusCode: 400 });

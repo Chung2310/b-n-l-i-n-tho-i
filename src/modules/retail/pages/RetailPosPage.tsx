@@ -147,6 +147,7 @@ export default function RetailPosPage({
   React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const [paying, setPaying] = React.useState(false);
+  const [paymentCode, setPaymentCode] = React.useState("");
   const [billingProfiles, setBillingProfiles] = React.useState<any[]>([]);
   const [scanning, setScanning] = React.useState(false);
   const [pendingProduct, setPendingProduct] = React.useState<RetailProduct | null>(null);
@@ -214,6 +215,7 @@ export default function RetailPosPage({
 
   const openPayment = () => {
     if (recoveryBlocked || !cart.quote || cart.quoteDirty) return;
+    setPaymentCode(`AKMP${crypto.randomUUID().replace(/-/g, "").slice(0, 26).toUpperCase()}`);
     setPaying(true);
   };
 
@@ -469,7 +471,8 @@ export default function RetailPosPage({
     setBusy(true);
     try {
     if (!scope || !offlineScope || typeof indexedDB === "undefined") throw new Error("Không có bộ nhớ bền để lưu yêu cầu thanh toán. Chưa gửi thanh toán.");
-      const result = await checkoutWithPersistedIntent(offlineScope, queueRef.current, { ...buildRetailOrderInput(cart), dueDate }, payments, cart.quote.grandTotal, posSessionId);
+      const transferCode = payments.some((payment) => payment.method === "transfer" && payment.amount > 0) ? paymentCode : undefined;
+      const result = await checkoutWithPersistedIntent(offlineScope, queueRef.current, { ...buildRetailOrderInput(cart), dueDate }, payments, cart.quote.grandTotal, posSessionId, undefined, transferCode);
       if (current()) { finish(result); setPaying(false); }
       try {
         await retailInvoicesApi.registerPosPrint(scope, result.invoice._id);
@@ -944,6 +947,7 @@ export default function RetailPosPage({
           installment={cart.installment}
           busy={busy}
           customerId={cart.customer?._id}
+          transferContent={paymentCode}
           onClose={() => setPaying(false)}
           onSubmit={checkout}
         />
