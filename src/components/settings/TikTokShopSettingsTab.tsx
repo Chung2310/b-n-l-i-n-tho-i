@@ -5,6 +5,11 @@ import { getApiErrorMessage } from "../../utils/errorMessage";
 import { tiktokShopApi, type TikTokShopProduct, type TikTokShopStatus } from "../../services/tiktokShopService";
 
 const pendingReviewStatuses = new Set(["PENDING", "PENDING_REVIEW", "PENDING_APPROVAL", "WAITING_FOR_REVIEW", "UNDER_REVIEW", "IN_REVIEW"]);
+const hasOrderReadScope = (scopes: string[]) => scopes.some((scope) => {
+  const normalized = String(scope || "").toLowerCase();
+  return normalized === "seller.order.info"
+    || (normalized.startsWith("seller.fs.order&") && normalized.endsWith(".management"));
+});
 const isPendingReview = (status: string) => pendingReviewStatuses.has(String(status || "").trim().toUpperCase());
 const listingStatusLabel = (status: string) => {
   const normalized = String(status || "").trim().toUpperCase();
@@ -111,6 +116,12 @@ export default function TikTokShopSettingsTab() {
         </button>
       ) : (
         <>
+          {status.connections.some((connection) => !hasOrderReadScope(connection.scopes || [])) && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+              <p className="font-bold">Chưa có quyền đọc đơn TikTok</p>
+              <p className="mt-1">Trong TikTok Shop Partner Center, bật quyền <strong>Order Information (seller.order.info)</strong> tại App &amp; Service → ứng dụng → Manage API. Sau đó bấm “Ủy quyền lại seller” và chấp nhận quyền mới.</p>
+            </div>
+          )}
           <div className="space-y-3">
             {status.connections.map((connection, index) => <div key={connection.id} className="rounded-lg border border-slate-200 p-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -120,6 +131,7 @@ export default function TikTokShopSettingsTab() {
                 </button>
               </div>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">{connection.shops.map((shop) => <div key={shop.cipher} className="rounded-md bg-slate-50 p-2"><p className="text-xs font-semibold text-slate-800">{shop.name}</p><p className="mt-0.5 text-[10px] text-slate-500">{shop.code || shop.id || "Shop đã ủy quyền"}{shop.region ? ` · ${shop.region}` : ""}</p></div>)}</div>
+              <p className="mt-2 break-words text-[10px] text-slate-500">Quyền đã cấp: {connection.scopes?.length ? connection.scopes.join(", ") : "TikTok chưa trả danh sách quyền"}</p>
               {connection.sync?.error ? <p className="mt-2 text-xs text-rose-600">{connection.sync.error}</p> : null}
             </div>)}
           </div>
@@ -135,7 +147,7 @@ export default function TikTokShopSettingsTab() {
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={Boolean(busy)} onClick={connect} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-              {busy === "connect" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />} Thêm tài khoản seller
+              {busy === "connect" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />} Ủy quyền lại seller / thêm tài khoản
             </button>
           </div>
           <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">Đã kết nối <strong>{status.connections.length} tài khoản seller</strong> và <strong>{status.shops.length} shop</strong>.</div>
