@@ -862,7 +862,7 @@ export const TikTokShopService = {
     const shops = normalizedShops(shopsData);
     if (!shops.length) throw new Error("Tài khoản TikTok Shop chưa cấp quyền cho shop nào.");
     const previous = await TikTokShopConnectionModel.findOne({ companyCode: stateDoc.companyCode, openId }).select("shops").lean();
-    const savedBranchByCipher = new Map((previous?.shops || []).map((shop: any) => [String(shop.cipher), String(shop.retailBranchId || "")]));
+    const savedBranchByCipher = new Map<string, string>((previous?.shops || []).map((shop: any): [string, string] => [String(shop.cipher), String(shop.retailBranchId || "")]));
     for (const shop of shops) shop.retailBranchId = savedBranchByCipher.get(shop.cipher) || "";
     const connection = await TikTokShopConnectionModel.findOneAndUpdate(
       { companyCode: stateDoc.companyCode, openId },

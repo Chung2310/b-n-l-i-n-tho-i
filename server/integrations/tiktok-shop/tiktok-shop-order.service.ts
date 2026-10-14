@@ -123,14 +123,16 @@ export async function syncTikTokShopOrderStatusChange(event: any) {
   const productIds = [...new Set(lines.map((line: any) => stringValue(line.product_id, line.productId)).filter(Boolean))];
   const skuIds = [...new Set(lines.map((line: any) => stringValue(line.sku_id, line.skuId)).filter(Boolean))];
   const sellerSkus = [...new Set(lines.map((line: any) => normalizedSku(stringValue(line.seller_sku, line.sellerSku))).filter(Boolean))];
-  const cachedProducts = await TikTokShopProductModel.find({
+  const productMatchFilters: any[] = [];
+  if (productIds.length) productMatchFilters.push({ tiktokProductId: { $in: productIds } });
+  if (skuIds.length) productMatchFilters.push({ "skus.skuId": { $in: skuIds } });
+  if (sellerSkus.length) productMatchFilters.push({ "skus.sellerSku": { $in: sellerSkus } });
+  if (!productMatchFilters.length) throw new Error("TikTok order line items do not contain product or SKU identifiers.");
+  const productFilter: any = {
     companyCode: scope.companyCode, connectionId: String(connection._id), shopCipher: shop.cipher,
-    $or: [
-      ...(productIds.length ? [{ tiktokProductId: { $in: productIds } }] : []),
-      ...(skuIds.length ? [{ "skus.skuId": { $in: skuIds } }] : []),
-      ...(sellerSkus.length ? [{ "skus.sellerSku": { $in: sellerSkus } }] : []),
-    ],
-  }).lean();
+    $or: productMatchFilters,
+  };
+  const cachedProducts = await TikTokShopProductModel.find(productFilter).lean();
   const linkedVariantIds = [...new Set(cachedProducts.flatMap((product: any) => (product.skus || []).map((sku: any) => String(sku.localVariantId || "")).filter(Boolean)))];
   const variants: any[] = await ProductVariantModel.find({ _id: { $in: linkedVariantIds }, companyCode: scope.companyCode, status: "active" }).lean();
   const catalogIds = [...new Set(variants.map((variant) => String(variant.productId)))];
