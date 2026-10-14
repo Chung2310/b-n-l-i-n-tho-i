@@ -71,8 +71,9 @@ export async function buildRetailPaymentQr(companyCode: string, orderId: string)
   const paymentCode = text(order.paymentCode) || retailPaymentCode(order.orderCode);
   if (order.paymentCode !== paymentCode) await RetailOrderModel.updateOne({ _id: order._id, companyCode }, { $set: { paymentCode } });
   const transferContent = paymentCode;
-  const params = new URLSearchParams({ acc: config.accountNo, bank: config.bankId, amount: String(order.dueAmount), des: transferContent });
-  return { orderId: String(order._id), orderCode: order.orderCode, paymentCode, transferContent, amount: order.dueAmount, paymentStatus: order.paymentStatus, accountNumber: config.accountNo, accountName: config.accountName, bankId: config.bankId, qrUrl: `https://vietqr.app/img?${params}` };
+  const amount = Number(order.pendingTransferAmount) > 0 ? Number(order.pendingTransferAmount) : Number(order.dueAmount);
+  const params = new URLSearchParams({ acc: config.accountNo, bank: config.bankId, amount: String(amount), des: transferContent });
+  return { orderId: String(order._id), orderCode: order.orderCode, paymentCode, transferContent, amount, paymentStatus: order.paymentStatus, accountNumber: config.accountNo, accountName: config.accountName, bankId: config.bankId, qrUrl: `https://vietqr.app/img?${params}` };
 }
 
 export async function processRetailSePayTransaction(payload: SePayPayload) {
@@ -131,16 +132,19 @@ export async function processRetailSePayTransaction(payload: SePayPayload) {
       const appliedAmount = Math.min(receivedAmount, Number(order.dueAmount));
       const paidAt = parseSePayTransactionDate(payload.transactionDate);
       const recordedAt = new Date();
+      const pendingTransferAppliedAmount = Math.min(Number(order.pendingTransferAmount || 0), appliedAmount);
+      const debtAppliedAmount = appliedAmount - pendingTransferAppliedAmount;
+      order.pendingTransferAmount = Math.max(0, Number(order.pendingTransferAmount || 0) - pendingTransferAppliedAmount);
       changedShift = order.shiftId ? await CashierShiftModel.findOneAndUpdate({ _id: order.shiftId, companyCode: order.companyCode, branchId: order.branchId, status: "open", operationalEndsAt: { $gte: recordedAt }, openedAt: { $lte: paidAt } },
         { $inc: { activityVersion: 1 }, $set: { lastActivityAt: recordedAt } }, { session, returnDocument: "after" }) : null;
-      order.payments.push({ method: "transfer", amount: appliedAmount, reference: transactionId, paidAt, recordedAt, receivedBy: "sepay", receivedByName: "SePay webhook", shiftId: changedShift ? String(changedShift._id) : undefined, settlementStatus: changedShift ? "assigned" : "unassigned", businessDate: businessDateInVietnam(paidAt) });
+      order.payments.push({ method: "transfer", amount: appliedAmount, pendingTransferAppliedAmount, reference: transactionId, paidAt, recordedAt, receivedBy: "sepay", receivedByName: "SePay webhook", shiftId: changedShift ? String(changedShift._id) : undefined, settlementStatus: changedShift ? "assigned" : "unassigned", businessDate: businessDateInVietnam(paidAt) });
       order.paidAmount += appliedAmount; order.dueAmount = order.grandTotal - order.paidAmount;
       order.paymentStatus = paymentStatusFor(order.paidAmount, order.grandTotal, order.refundedAmount);
       if (order.dueAmount === 0) { order.status = "completed"; order.completedAt = paidAt; }
       order.version += 1;
       await order.save({ session });
       await RetailSePayTransactionModel.create([{ provider: "sepay", transactionId, referenceCode: text(payload.referenceCode), companyCode: order.companyCode, branchId: order.branchId, orderId: String(order._id), orderCode: order.orderCode, accountNumber, receivedAmount, appliedAmount, transactionDate: paidAt }], { session });
-      await publishRetailOrderEvent("paid", { companyCode: order.companyCode, branchId: order.branchId }, order, { id: "sepay", displayName: "SePay webhook" }, { session, amount: appliedAmount, transactionKey: transactionId, occurredAt: paidAt });
+      if (debtAppliedAmount > 0 && order.customerId) await publishRetailOrderEvent("paid", { companyCode: order.companyCode, branchId: order.branchId }, order, { id: "sepay", displayName: "SePay webhook" }, { session, amount: debtAppliedAmount, transactionKey: transactionId, occurredAt: paidAt });
       result = { duplicate: false, orderId: String(order._id), orderCode: order.orderCode, appliedAmount, excessAmount: receivedAmount - appliedAmount, paymentStatus: order.paymentStatus, status: order.status };
     });
     const eventOrder: any = result?.orderId

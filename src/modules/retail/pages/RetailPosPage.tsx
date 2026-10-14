@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import BarcodeScannerDialog from "../components/pos/BarcodeScannerDialog";
 import CheckoutSuccessDialog from "../components/pos/CheckoutSuccessDialog";
+import SePayPaymentPendingDialog from "../components/pos/SePayPaymentPendingDialog";
 import ReceiptPrintView from "../components/pos/ReceiptPrintViewSerial";
 import PaymentDialog from "../components/pos/PaymentDialog";
 import PosShortcutHelp from "../components/pos/PosShortcutHelp";
@@ -155,6 +156,7 @@ export default function RetailPosPage({
   const [completed, setCompleted] = React.useState<RetailOrderResult | null>(
     null,
   );
+  const [awaitingPayment, setAwaitingPayment] = React.useState<{ result: RetailOrderResult; amount: number } | null>(null);
   const [invoicePaperSize, setInvoicePaperSize] = React.useState<RetailSettings["invoicePaperSize"]>("80mm");
   const [help, setHelp] = React.useState(false);
   const [scanFeedback, setScanFeedback] = React.useState<{
@@ -471,14 +473,20 @@ export default function RetailPosPage({
     setBusy(true);
     try {
     if (!scope || !offlineScope || typeof indexedDB === "undefined") throw new Error("Không có bộ nhớ bền để lưu yêu cầu thanh toán. Chưa gửi thanh toán.");
-      const transferCode = payments.some((payment) => payment.method === "transfer" && payment.amount > 0) ? paymentCode : undefined;
-      const result = await checkoutWithPersistedIntent(offlineScope, queueRef.current, { ...buildRetailOrderInput(cart), dueDate }, payments, cart.quote.grandTotal, posSessionId, undefined, transferCode);
-      if (current()) { finish(result); setPaying(false); }
-      try {
-        await retailInvoicesApi.registerPosPrint(scope, result.invoice._id);
-        if (current()) window.requestAnimationFrame(() => { if (current()) window.print(); });
-      } catch {
-        if (current()) toast.error("Đơn đã thanh toán nhưng chưa in được hóa đơn. Vui lòng nhờ quản lý in lại.");
+      const pendingTransferAmount = payments.reduce((sum, payment) => sum + (payment.method === "transfer" ? payment.amount : 0), 0);
+      const transferCode = pendingTransferAmount > 0 ? paymentCode : undefined;
+      const confirmedPayments = payments.filter((payment) => payment.method !== "transfer");
+      const result = await checkoutWithPersistedIntent(offlineScope, queueRef.current, { ...buildRetailOrderInput(cart), dueDate }, confirmedPayments, cart.quote.grandTotal, posSessionId, undefined, transferCode, pendingTransferAmount);
+      if (current()) {
+        if (pendingTransferAmount > 0) {
+          resetCart();
+          setAwaitingPayment({ result, amount: pendingTransferAmount });
+          setPaying(false);
+        } else {
+          finish(result);
+          setPaying(false);
+          await printCheckoutInvoice(result, current);
+        }
       }
     } catch (error) {
       if (current()) {
@@ -501,6 +509,27 @@ export default function RetailPosPage({
   const finish = (result: RetailOrderResult) => {
     setCompleted(result);
     resetCart();
+  };
+
+  const printCheckoutInvoice = async (result: RetailOrderResult, isCurrent: () => boolean) => {
+    if (!scope) return;
+    try {
+      await retailInvoicesApi.registerPosPrint(scope, result.invoice._id);
+      if (isCurrent()) window.requestAnimationFrame(() => { if (isCurrent()) window.print(); });
+    } catch {
+      if (isCurrent()) toast.error("Đơn đã thanh toán nhưng chưa in được hóa đơn. Vui lòng nhờ quản lý in lại.");
+    }
+  };
+
+  const completeAwaitingPayment = async (order: import("../types").RetailOrder) => {
+    if (!scope || !awaitingPayment) return;
+    const current = () => mounted.current && liveRequestScope.current === scopeToken;
+    const invoice = await retailInvoicesApi.detail(scope, awaitingPayment.result.invoice._id).catch(() => awaitingPayment.result.invoice);
+    if (!current()) return;
+    const result = { order, invoice };
+    setAwaitingPayment(null);
+    setCompleted(result);
+    await printCheckoutInvoice(result, current);
   };
 
   const newOrder = () => {
@@ -948,8 +977,25 @@ export default function RetailPosPage({
           busy={busy}
           customerId={cart.customer?._id}
           transferContent={paymentCode}
+          deferTransferQr
           onClose={() => setPaying(false)}
           onSubmit={checkout}
+        />
+      )}
+
+      {awaitingPayment && scope && (
+        <SePayPaymentPendingDialog
+          scope={scope}
+          orderId={awaitingPayment.result.order._id}
+          orderCode={awaitingPayment.result.order.orderCode || awaitingPayment.result.invoice.orderCode}
+          paymentCode={awaitingPayment.result.order.paymentCode || paymentCode}
+          amount={awaitingPayment.amount}
+          paidAmountBeforeTransfer={awaitingPayment.result.order.paidAmount}
+          onPaid={completeAwaitingPayment}
+          onDismiss={() => {
+            setAwaitingPayment(null);
+            toast.info("Đơn vẫn được lưu và chờ thanh toán. Có thể theo dõi trạng thái trong danh sách đơn hàng.");
+          }}
         />
       )}
 

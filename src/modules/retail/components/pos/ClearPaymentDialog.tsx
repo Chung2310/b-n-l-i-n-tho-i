@@ -30,6 +30,7 @@ type Props = {
   busy: boolean;
   customerId?: string;
   transferContent?: string;
+  deferTransferQr?: boolean;
   onClose: () => void;
   onSubmit: (payments: RetailPaymentInput[], dueDate?: string) => Promise<void>;
 };
@@ -78,6 +79,7 @@ export default function ClearPaymentDialog({
   busy,
   customerId,
   transferContent,
+  deferTransferQr = false,
   onClose,
   onSubmit,
   installment,
@@ -96,7 +98,7 @@ export default function ClearPaymentDialog({
   const hasTransferPayment = mode !== "debt" && payments.some((payment) => payment.method === "transfer");
 
   React.useEffect(() => {
-    if (!hasTransferPayment) return;
+    if (!hasTransferPayment || deferTransferQr) return;
 
     let active = true;
     setVietqrLoading(true);
@@ -115,7 +117,7 @@ export default function ClearPaymentDialog({
     return () => {
       active = false;
     };
-  }, [hasTransferPayment]);
+  }, [hasTransferPayment, deferTransferQr]);
 
   const submitted =
     mode === "debt" ? [] : payments.filter((item) => item.amount > 0);
@@ -449,13 +451,19 @@ export default function ClearPaymentDialog({
                 </div>
 
                 {payment.method === "transfer" && (
-                  <TransferPaymentQr
-                    config={vietqrConfig}
-                    amount={showAmountInput ? payment.amount : total}
-                    transferContent={transferContent}
-                    loading={vietqrLoading}
-                    loadError={vietqrError}
-                  />
+                  deferTransferQr ? (
+                    <p className="mt-3 rounded-xl border border-cyan-100 bg-cyan-50 p-3 text-sm text-cyan-800">
+                      Xác nhận để lưu đơn hàng trước. Mã QR sẽ xuất hiện sau đó và hệ thống sẽ chờ SePay báo tiền về.
+                    </p>
+                  ) : (
+                    <TransferPaymentQr
+                      config={vietqrConfig}
+                      amount={showAmountInput ? payment.amount : total}
+                      transferContent={transferContent}
+                      loading={vietqrLoading}
+                      loadError={vietqrError}
+                    />
+                  )
                 )}
 
                 {/* Quick cash denomination chips in dedicated balanced row */}
@@ -631,7 +639,7 @@ export default function ClearPaymentDialog({
           onClick={() => void submit()}
         >
           <CheckCircle2 className="h-5 w-5" />
-          <span>Xác nhận thanh toán</span>
+          <span>{hasTransferPayment && deferTransferQr ? "Tạo đơn và chờ chuyển khoản" : "Xác nhận thanh toán"}</span>
         </button>
       </div>
     </div>
