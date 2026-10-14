@@ -5,7 +5,9 @@ const API_BASE_URL = "https://open-api.tiktokglobalshop.com";
 const TOKEN_BASE_URL = "https://auth.tiktok-shops.com";
 
 export class TikTokShopApiError extends Error {
-  statusCode = 502;
+  // Keep TikTok failures as API JSON responses. Returning 502 makes Cloudflare
+  // replace the useful upstream error with its generic HTML gateway page.
+  statusCode = 424;
   constructor(message: string, readonly apiCode?: number | string, readonly requestId?: string) {
     super(message);
     this.name = "TikTokShopApiError";
@@ -40,9 +42,21 @@ export function signTikTokShopRequest(path: string, params: Record<string, strin
 
 async function parseResponse(response: Response) {
   const payload: any = await response.json().catch(() => null);
-  if (!response.ok) throw new TikTokShopApiError(`TikTok Shop HTTP ${response.status}.`);
+  const apiCode = payload?.code ?? payload?.error_code ?? payload?.error?.code;
+  const requestId = payload?.request_id ?? payload?.log_id;
+  const apiMessage = [payload?.message, payload?.error?.message, typeof payload?.error === "string" ? payload.error : ""]
+    .find((value) => typeof value === "string" && value.trim())?.trim();
+  const describeFailure = (status: number, fallback: string) => {
+    const parts = [`TikTok Shop HTTP ${status}`];
+    if (apiCode !== undefined && apiCode !== null && String(apiCode)) parts.push(`mã ${String(apiCode).slice(0, 80)}`);
+    if (apiMessage) parts.push(apiMessage.slice(0, 400));
+    else parts.push(fallback);
+    if (requestId) parts.push(`request_id ${String(requestId).slice(0, 100)}`);
+    return parts.join(": ");
+  };
+  if (!response.ok) throw new TikTokShopApiError(describeFailure(response.status, "TikTok Shop từ chối yêu cầu."), apiCode, requestId);
   if (!payload || Number(payload.code) !== 0) {
-    throw new TikTokShopApiError(payload?.message || "TikTok Shop trả về phản hồi không hợp lệ.", payload?.code, payload?.request_id);
+    throw new TikTokShopApiError(describeFailure(response.status, "TikTok Shop trả về phản hồi không hợp lệ."), apiCode, requestId);
   }
   return payload.data ?? {};
 }
