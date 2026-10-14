@@ -172,7 +172,8 @@ export default function TikTokProductPublishDialog({ connections, onClose, onPub
   const salesCodes = selectedProduct
     ? [...new Set(selectedProduct.variants.flatMap((variant) => variant.optionValues.map((option) => option.code.trim().toUpperCase()).filter(Boolean)))].slice(0, 3)
     : [];
-  const requiredAttributes = attributes.filter((attribute) => attribute.required);
+  const productAttributes = attributes.filter((attribute) => !attribute.isSales);
+  const requiredAttributes = productAttributes.filter((attribute) => attribute.required);
   const matchingCategories = categories.filter((category) => category.name.toLocaleLowerCase("vi-VN").includes(categorySearch.trim().toLocaleLowerCase("vi-VN")));
   const filteredCategories = matchingCategories.slice(0, 300);
   const region = String(selectedShop?.shop.region || "").toUpperCase();
@@ -364,14 +365,14 @@ export default function TikTokProductPublishDialog({ connections, onClose, onPub
           </div>
 
           {categoryId && <section className="space-y-3 rounded-xl border border-slate-200 p-4">
-            <div><h3 className="text-sm font-bold text-slate-800">Thuộc tính danh mục</h3><p className="mt-1 text-[11px] text-slate-500">Điền các thuộc tính bắt buộc do TikTok cung cấp cho danh mục đã chọn.</p></div>
-            {attributesLoading ? <Loader2 className="h-4 w-4 animate-spin text-slate-400" /> : attributesLoadError ? <p className="flex flex-wrap items-center gap-2 text-xs text-rose-700">Không tải được thuộc tính danh mục. <button type="button" onClick={() => setAttributesRetry((current) => current + 1)} className="font-bold underline">Thử tải lại</button></p> : requiredAttributes.length ? <div className="grid gap-3 sm:grid-cols-2">{requiredAttributes.map((attribute) => <label key={attribute.id} className={labelClass}>{attribute.name} <span className="text-rose-600">*</span>
-              {attribute.values.some((value) => value.id) ? <select className={fieldClass} required value={attributeValues[attribute.id]?.valueId || ""} onChange={(event) => {
+            <div><h3 className="text-sm font-bold text-slate-800">Thuộc tính danh mục</h3><p className="mt-1 text-[11px] text-slate-500">Các thuộc tính do TikTok cung cấp cho danh mục đã chọn. Trường có dấu * là bắt buộc.</p></div>
+            {attributesLoading ? <Loader2 className="h-4 w-4 animate-spin text-slate-400" /> : attributesLoadError ? <p className="flex flex-wrap items-center gap-2 text-xs text-rose-700">Không tải được thuộc tính danh mục. <button type="button" onClick={() => setAttributesRetry((current) => current + 1)} className="font-bold underline">Thử tải lại</button></p> : productAttributes.length ? <div className="grid gap-3 sm:grid-cols-2">{productAttributes.map((attribute) => <label key={attribute.id} className={labelClass}>{attribute.name}{attribute.required && <span className="text-rose-600"> *</span>}
+              {attribute.values.some((value) => value.id) ? <select className={fieldClass} required={attribute.required} value={attributeValues[attribute.id]?.valueId || ""} onChange={(event) => {
                 const option = attribute.values.find((value) => value.id === event.target.value);
                 setAttributeValues((current) => ({ ...current, [attribute.id]: { valueId: event.target.value, valueName: option?.name || "" } }));
-              }}><option value="">Chọn {attribute.name.toLowerCase()}</option>{attribute.values.filter((value) => value.id).map((value) => <option key={value.id} value={value.id}>{value.name}</option>)}</select>
-                : <input className={fieldClass} required maxLength={50} value={attributeValues[attribute.id]?.valueName || ""} onChange={(event) => setAttributeValues((current) => ({ ...current, [attribute.id]: { valueName: event.target.value } }))} placeholder={`Nhập ${attribute.name.toLowerCase()}`} />}
-            </label>)}</div> : <p className="text-xs text-slate-500">Danh mục này không có thuộc tính bắt buộc.</p>}
+              }}><option value="">{`Chọn ${attribute.name.toLowerCase()}${attribute.required ? " *" : " (nếu có)"}`}</option>{attribute.values.filter((value) => value.id).map((value) => <option key={value.id} value={value.id}>{value.name}</option>)}</select>
+                : <input className={fieldClass} required={attribute.required} maxLength={50} value={attributeValues[attribute.id]?.valueName || ""} onChange={(event) => setAttributeValues((current) => ({ ...current, [attribute.id]: { valueName: event.target.value } }))} placeholder={attribute.required ? `Nhập ${attribute.name.toLowerCase()}` : `Nhập ${attribute.name.toLowerCase()} (nếu có)`} />}
+            </label>)}</div> : <p className="text-xs text-slate-500">TikTok không trả về thuộc tính cho danh mục này.</p>}
           </section>}
 
           {!!salesCodes.length && <section className="space-y-3 rounded-xl border border-slate-200 p-4">
