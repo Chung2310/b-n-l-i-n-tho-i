@@ -21,7 +21,7 @@ const vietqrSchema = Joi.object({
 companyPaymentRouter.get("/vietqr", async (req: any, res) => {
   try {
     const company: any = await CompanyModel.findOne({ code: companyCode(req) })
-      .select("vietqrConfig +vietqrConfig.sepayApiKeyEncrypted")
+      .select("vietqrConfig.bankId vietqrConfig.accountNo vietqrConfig.accountName +vietqrConfig.sepayApiKeyEncrypted")
       .lean();
     const config = company?.vietqrConfig || {};
     return res.json({ data: {
