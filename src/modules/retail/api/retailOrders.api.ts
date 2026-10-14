@@ -1,5 +1,5 @@
 import { apiFetch } from "../../shared/lib/apiFetch";
-import type { RetailOrder, RetailOrderResult, RetailPaymentInput, RetailPaymentQr, RetailScope } from "../types";
+import type { RetailOrder, RetailOrderPaymentStatus, RetailOrderResult, RetailPaymentInput, RetailPaymentQr, RetailScope } from "../types";
 export const retailOrdersApi = {
   async reconcileDraftRequest(scope: RetailScope, input: unknown) {
     const response = await apiFetch<{ success: true; data: any }>("/retail/orders/draft-requests/reconcile", { method: "POST", params: scope, body: JSON.stringify(input) }); return response.data;
@@ -15,6 +15,7 @@ export const retailOrdersApi = {
   },
   async list(scope: RetailScope, query: Record<string, string | number | boolean | undefined> = {}) { const response = await apiFetch<{ success: true; data: { items: RetailOrder[]; total: number; page: number; limit: number } }>("/retail/orders", { params: { ...scope, ...query } }); return response.data; },
   async detail(scope: RetailScope, id: string) { const response = await apiFetch<{ success: true; data: RetailOrder }>(`/retail/orders/${id}`, { params: scope }); return response.data; },
+  async paymentStatus(scope: RetailScope, id: string) { const response = await apiFetch<{ success: true; data: RetailOrderPaymentStatus }>(`/retail/orders/${id}/payment-status`, { params: scope }); return response.data; },
   async paymentQr(scope: RetailScope, id: string) { const response = await apiFetch<{ success: true; data: RetailPaymentQr }>(`/retail/orders/${id}/payment-qr`, { params: scope }); return response.data; },
   async quote(scope: RetailScope, input: unknown) { const response = await apiFetch<{ success: true; data: any }>("/retail/orders/quote", { method: "POST", params: scope, body: JSON.stringify(input) }); return response.data; },
   async checkout(scope: RetailScope, input: unknown) { const response = await apiFetch<{ success: true; data: RetailOrderResult }>("/retail/orders/checkout", { method: "POST", params: scope, body: JSON.stringify(input) }); return response.data; },

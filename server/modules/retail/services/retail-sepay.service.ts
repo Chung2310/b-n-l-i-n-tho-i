@@ -60,10 +60,10 @@ export function extractPaymentCode(payload: SePayPayload) {
   return candidates.map(canonicalPaymentCode).find((value) => value.length >= 6) || "";
 }
 
-export async function buildRetailPaymentQr(companyCode: string, orderId: string) {
+export async function buildRetailPaymentQr(companyCode: string, branchId: string, orderId: string) {
   const [company, order] = await Promise.all([
     CompanyModel.findOne({ code: companyCode }).select("vietqrConfig").lean(),
-    RetailOrderModel.findOne({ _id: orderId, companyCode }).lean(),
+    RetailOrderModel.findOne({ _id: orderId, companyCode, branchId }).lean(),
   ]);
   if (!order || !order.orderCode || order.status === "draft" || order.status === "cancelled") throw new Error("Đơn hàng không thể thanh toán bằng QR.");
   const config = company?.vietqrConfig;

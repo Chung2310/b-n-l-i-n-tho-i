@@ -98,6 +98,15 @@ export const retailOrderController = {
       res.status(400).json({ success: false, error: error.message });
     }
   },
+  paymentStatus: async (req: Request, res: Response) => {
+    try {
+      const actor = (req as any).user || {};
+      const manager = await hasEffectiveRetailCapability(actor, "manager");
+      res.json({ success: true, data: await RetailOrderService.paymentStatus(scope(req), req.params.id, actor, manager) });
+    } catch (error: any) {
+      res.status(error.status || 400).json({ success: false, error: error.message, code: error.code });
+    }
+  },
   create: async (req: Request, res: Response) => {
     try {
       const manager = await hasEffectiveRetailCapability((req as any).user || {}, "manager");

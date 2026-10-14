@@ -521,11 +521,22 @@ export default function RetailPosPage({
     }
   };
 
-  const completeAwaitingPayment = async (order: import("../types").RetailOrder) => {
+  const completeAwaitingPayment = async (paymentStatus: import("../types").RetailOrderPaymentStatus) => {
     if (!scope || !awaitingPayment) return;
     const current = () => mounted.current && liveRequestScope.current === scopeToken;
-    const invoice = await retailInvoicesApi.detail(scope, awaitingPayment.result.invoice._id).catch(() => awaitingPayment.result.invoice);
+    const order = { ...awaitingPayment.result.order, ...paymentStatus };
+    const latestInvoice = await retailInvoicesApi.detail(scope, awaitingPayment.result.invoice._id).catch(() => awaitingPayment.result.invoice);
     if (!current()) return;
+    const invoice = {
+      ...latestInvoice,
+      snapshot: {
+        ...latestInvoice.snapshot,
+        paidAmount: paymentStatus.paidAmount,
+        dueAmount: paymentStatus.dueAmount,
+        paymentStatus: paymentStatus.paymentStatus,
+        payments: paymentStatus.payments,
+      },
+    };
     const result = { order, invoice };
     setAwaitingPayment(null);
     setCompleted(result);
