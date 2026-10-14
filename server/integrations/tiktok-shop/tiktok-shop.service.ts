@@ -177,6 +177,21 @@ function firstString(...values: unknown[]) {
   return "";
 }
 
+async function getListingCategories(accessToken: string, shopCipher: string, categoryVersion: string) {
+  const path = "/product/202309/categories";
+  try {
+    return await callTikTokShopApi({
+      path, accessToken,
+      query: { shop_cipher: shopCipher, category_version: categoryVersion, locale: "vi-VN" },
+    });
+  } catch (error) {
+    const apiCode = String((error as any)?.apiCode || "");
+    const message = error instanceof Error ? error.message : String(error || "");
+    if (apiCode !== "36009004" || !/shop_cipher.*not required/i.test(message)) throw error;
+    return callTikTokShopApi({ path, accessToken, query: { category_version: categoryVersion, locale: "vi-VN" } });
+  }
+}
+
 function quantityFromSku(sku: any) {
   if (Number.isFinite(Number(sku?.inventory?.quantity))) return Number(sku.inventory.quantity);
   if (sku?.inventory_quantity !== undefined && sku?.inventory_quantity !== null && Number.isFinite(Number(sku.inventory_quantity))) return Number(sku.inventory_quantity);
@@ -537,10 +552,7 @@ export const TikTokShopService = {
     const companyCode = normalizeCompany(companyCodeInput);
     const { connection, shop, accessToken } = await authorizedShop(companyCode, connectionId, shopCipher);
     const categoryVersion = categoryVersionForRegion(shop.region);
-    const data: any = await callTikTokShopApi({
-      path: "/product/202309/categories", accessToken,
-      query: { category_version: categoryVersion, locale: "vi-VN" },
-    });
+    const data: any = await getListingCategories(accessToken, shop.cipher, categoryVersion);
     const rawCategories = Array.isArray(data?.categories) ? data.categories : [];
     const categories = rawCategories.flatMap((category: any) => {
       const isLeaf = Boolean(category?.is_leaf ?? category?.isLeaf);
@@ -604,7 +616,7 @@ export const TikTokShopService = {
     if (!description) throw Object.assign(new Error("Sản phẩm cần có mô tả trước khi đăng TikTok."), { statusCode: 400 });
     const categoryVersion = categoryVersionForRegion(shop.region);
     const [categoryListData, warehouseData, categoryData] = await Promise.all([
-      callTikTokShopApi({ path: "/product/202309/categories", accessToken, query: { category_version: categoryVersion, locale: "vi-VN" } }),
+      getListingCategories(accessToken, shop.cipher, categoryVersion),
       callTikTokShopApi({ path: "/logistics/202309/warehouses", accessToken, query: { shop_cipher: shop.cipher } }),
       callTikTokShopApi({ path: `/product/202309/categories/${encodeURIComponent(categoryId)}/attributes`, accessToken, query: { category_version: categoryVersion, locale: "vi-VN" } }),
     ]);
