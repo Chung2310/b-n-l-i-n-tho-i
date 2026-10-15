@@ -25,6 +25,12 @@ import { handleInternalNavigation } from "./utils/internalNavigation";
 
 const UNREAD_TITLE_PREFIX_RE = /^\(\d+\+?\d*\)\s/;
 
+const subscribeToPathname = (onChange: () => void) => {
+  window.addEventListener("popstate", onChange);
+  return () => window.removeEventListener("popstate", onChange);
+};
+const getPathnameSnapshot = () => window.location.pathname;
+
 const AuthPage = lazy(() => import("./pages/AuthPage"));
 const PartnerPortal = lazy(() => import("./modules/partners/PartnerPortal"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
@@ -37,13 +43,10 @@ const RetailPosEntry = lazy(() => import("./modules/retail/pages/RetailPosEntry"
 function AppContent() {
   const { user, userProfile, loading } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
-  const [pathname, setPathname] = React.useState(window.location.pathname);
-  React.useEffect(() => {
-    const syncPath = () => setPathname(window.location.pathname);
-    window.addEventListener("popstate", syncPath);
-    return () => window.removeEventListener("popstate", syncPath);
-  }, []);
-  const currentPath = normalizePublicPath(pathname);
+  const pathname = React.useSyncExternalStore(subscribeToPathname, getPathnameSnapshot, getPathnameSnapshot);
+  const requestedPath = normalizePublicPath(pathname);
+  const isPosOnly = userProfile?.role === "pos_cashier";
+  const currentPath = isPosOnly ? "/pos" : requestedPath;
   const isLandingPage = currentPath === "/" || currentPath === "/landing" || currentPath === "/landing.html";
   const isLandingGuestPage = isLandingPage && !(user && userProfile);
   const isPrivacyPage = currentPath === "/privacy-policy" || currentPath === "/privacy-policy.html";
@@ -51,7 +54,6 @@ function AppContent() {
   const isDeletionPage = currentPath === "/user-data-deletion" || currentPath === "/user-data-deletion.html";
   const isLegalPublicPage = isPrivacyPage || isTermsPage || isDeletionPage;
   const isPublicPage = isLandingGuestPage || isLegalPublicPage;
-  const isPosOnly = userProfile?.role === "pos_cashier";
   const isPosRoute = currentPath === "/pos" || isPosOnly;
 
   const { activeTab, setActiveTab } = useTabRouter({
@@ -64,11 +66,10 @@ function AppContent() {
   }, [activeTab, resolvedActiveTab, setActiveTab]);
 
   React.useEffect(() => {
-    if (isPosOnly && currentPath !== "/pos") {
+    if (isPosOnly && requestedPath !== "/pos") {
       window.history.replaceState(null, "", "/pos");
-      setPathname("/pos");
     }
-  }, [isPosOnly, currentPath]);
+  }, [isPosOnly, requestedPath]);
 
   React.useEffect(() => {
     const handleCskhOpen = () => {

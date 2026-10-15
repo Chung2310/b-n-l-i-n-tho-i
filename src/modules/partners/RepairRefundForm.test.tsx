@@ -24,7 +24,8 @@ it("uses the remaining discounted allocation and submits a fixed branch scope on
   let finish!: (value: any) => void;
   vi.mocked(apiFetch).mockReturnValue(new Promise(resolve => { finish = resolve; }));
   show(); fill(); fireEvent.click(submit()); fireEvent.click(submit());
-  expect(apiFetch).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+  expect(confirmation.confirm).toHaveBeenCalledTimes(1);
   const options = vi.mocked(apiFetch).mock.calls[0][1]!;
   expect(options.params).toEqual({ companyCode: "C", branchId: "B" });
   expect(JSON.parse(String(options.body))).toMatchObject({ amount: 600, laborAmount: 300, reference: "PC1" });
@@ -125,6 +126,7 @@ it("unlocks corrected input only after the server durably revokes the pending ke
   let finish!: (value: any) => void;
   vi.mocked(apiFetch).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
   show(); fireEvent.click(screen.getByRole("button", { name: "Hủy yêu cầu đang chờ" }));
+  await waitFor(() => expect(apiFetch).toHaveBeenCalledOnce());
   expect(vi.mocked(apiFetch).mock.calls[0][0]).toBe("/repair/tickets/r1/refunds/revoke");
   expect(JSON.parse(String(vi.mocked(apiFetch).mock.calls[0][1]?.body))).toEqual(pending);
   expect(localStorage.getItem(storageKey)).not.toBeNull();

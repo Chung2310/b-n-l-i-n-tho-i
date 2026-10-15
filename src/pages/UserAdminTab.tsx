@@ -23,7 +23,7 @@ import { CompanyEditFormState, CompanyFormState } from "../components/user-admin
 import { UserFormModal } from "../components/user-admin/UserFormModal";
 import { RoleModal } from "../components/user-admin/RoleModal";
 import { ConfirmDialog } from "../components/common/ConfirmDialog";
-import { DEFAULT_MODULE_KEYS, MODULE_KEYS } from "../config/modules";
+import { DEFAULT_MODULE_KEYS, DEFAULT_RETAIL_MODULE_KEYS, MODULE_KEYS } from "../config/modules";
 import { DEFAULT_SYSTEM_PERMISSIONS, getPermissionLabel, getRoleDisplayName } from "../utils/permissionUtils";
 import { UserActivityTimeline } from "./super-admin/users/UserActivityTimeline";
 
@@ -84,7 +84,7 @@ export default function UserAdminTab() {
   const [submittingCompany, setSubmittingCompany] = useState(false);
   const [isEditCompanyModalOpen, setIsEditCompanyModalOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<CompanyEditFormState | null>(null);
-  const [selectedModules, setSelectedModules] = useState<string[]>([...DEFAULT_MODULE_KEYS]);
+  const [selectedModules, setSelectedModules] = useState<string[]>([...DEFAULT_RETAIL_MODULE_KEYS]);
 
   // Register User Modal States
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -139,6 +139,28 @@ export default function UserAdminTab() {
   const [rolePermissionsList, setRolePermissionsList] = useState<RolePermission[]>([]);
   const [systemPermissions, setSystemPermissions] = useState<Permission[]>([]);
   const [roleLoading, setRoleLoading] = useState(false);
+
+  const resolveCashierBranch = (companyCode: string) => {
+    const candidates = branches.filter((branch) => branch.companyCode === companyCode && branch.isActive);
+    return candidates.find((branch) => branch._id === activeBranchId) ?? (candidates.length === 1 ? candidates[0] : undefined);
+  };
+
+  const handleUserRoleChange = (role: string) => {
+    setUserRole(role);
+    if (role !== "pos_cashier") return;
+    const branchIsValid = branches.some((branch) => branch._id === userBranchId && branch.companyCode === userCompanyCode && branch.isActive);
+    if (!branchIsValid) {
+      const defaultBranch = resolveCashierBranch(userCompanyCode);
+      if (defaultBranch) setUserBranchId(defaultBranch._id);
+    }
+  };
+
+  const handleUserCompanyChange = (companyCode: string) => {
+    setUserCompanyCode(companyCode);
+    if (userRole !== "pos_cashier") return;
+    const defaultBranch = resolveCashierBranch(companyCode);
+    setUserBranchId(defaultBranch?._id ?? "");
+  };
 
   // Add / Edit Role Modal States
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
@@ -458,7 +480,7 @@ export default function UserAdminTab() {
       setOwnerName("");
       setOwnerEmail("");
       setOwnerPassword("");
-      setSelectedModules([...DEFAULT_MODULE_KEYS]);
+      setSelectedModules([...DEFAULT_RETAIL_MODULE_KEYS]);
       // Refresh lists
       await fetchUsers();
       await fetchCompanies();
@@ -995,9 +1017,9 @@ export default function UserAdminTab() {
         userPassword={userPassword}
         setUserPassword={setUserPassword}
         userRole={userRole}
-        setUserRole={setUserRole}
+        setUserRole={handleUserRoleChange}
         userCompanyCode={userCompanyCode}
-        setUserCompanyCode={setUserCompanyCode}
+        setUserCompanyCode={handleUserCompanyChange}
         userBranchId={userBranchId}
         setUserBranchId={setUserBranchId}
         userParentId={userParentId}

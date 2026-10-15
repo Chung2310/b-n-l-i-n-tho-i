@@ -122,6 +122,7 @@ describe("count queue scope changes", () => {
     const input = await screen.findByRole("spinbutton");
     if (operation === "update") { fireEvent.change(input, { target: { value: "7" } }); fireEvent.blur(input); }
     else fireEvent.click(screen.getByRole("button", { name: "Tải lại phiếu" }));
+    if (operation === "reload") await waitFor(() => expect(inventoryCountService.reload).toHaveBeenCalledOnce());
     const oldScope = operation === "update" ? vi.mocked(inventoryCountService.updateItem).mock.calls[0][4] : vi.mocked(inventoryCountService.reload).mock.calls[0][1];
     expect(oldScope.isCurrent?.()).toBe(true);
     auth.userProfile.branchId = "new-branch";

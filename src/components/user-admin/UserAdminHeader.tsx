@@ -37,6 +37,16 @@ export function UserAdminHeader({
       </div>
 
       <div className="flex flex-wrap items-center gap-2.5">
+        {(userProfile?.role === "admin" || userProfile?.role === "superadmin") && (
+          <button
+            type="button"
+            onClick={onOpenCreateUserModal}
+            className="p-2 px-3.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Thêm người dùng
+          </button>
+        )}
         {userProfile?.role === "superadmin" && (
           <>
             <div className="flex items-center gap-2">

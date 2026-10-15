@@ -72,12 +72,14 @@ export default function RepairRefundForm({ ticket, onChanged }: { ticket: any; o
 
   const submit = async (action: "post" | "reconcile" | "revoke" = "post") => {
     if (blocked || inFlight.current || completed.current || !scope) return;
-    const request: RepairRefundRequest = pendingRef.current || { amount: parseDigits(amount), laborAmount: parseDigits(laborAmount), reason: reason.trim(), reference: reference.trim(), idempotencyKey: crypto.randomUUID() };
-    if (!Number.isSafeInteger(request.amount) || request.amount <= 0 || !Number.isSafeInteger(request.laborAmount) || request.laborAmount > request.amount || !request.reason || !request.reference) { setError('Số tiền hoặc nội dung hoàn tiền không hợp lệ.'); return; }
-    if (action === "revoke" && (!pendingRef.current || !await requestConfirmation({ title: "Vô hiệu hóa yêu cầu hoàn tiền?", description: "Nếu khoản hoàn đã ghi nhận, hệ thống sẽ đối chiếu thay vì hủy. Thao tác này không đảo phiếu chi.", confirmLabel: "Vô hiệu hóa", tone: "danger" }))) return;
-    if (action === "post" && !pendingRef.current && !await requestConfirmation({ title: "Liên kết phiếu chi Finance?", description: `Liên kết phiếu chi cho khoản hoàn ${money(request.amount)} đ. Hệ thống không chi tiền lần nữa.`, confirmLabel: "Liên kết phiếu chi", tone: "warning" })) return;
-    inFlight.current = true; setBusy(true); setError(''); setResult('');
+    inFlight.current = true;
     try {
+      const request: RepairRefundRequest = pendingRef.current || { amount: parseDigits(amount), laborAmount: parseDigits(laborAmount), reason: reason.trim(), reference: reference.trim(), idempotencyKey: crypto.randomUUID() };
+      if (!Number.isSafeInteger(request.amount) || request.amount <= 0 || !Number.isSafeInteger(request.laborAmount) || request.laborAmount > request.amount || !request.reason || !request.reference) { setError('Số tiền hoặc nội dung hoàn tiền không hợp lệ.'); return; }
+      if (action === "revoke" && (!pendingRef.current || !await requestConfirmation({ title: "Vô hiệu hóa yêu cầu hoàn tiền?", description: "Nếu khoản hoàn đã ghi nhận, hệ thống sẽ đối chiếu thay vì hủy. Thao tác này không đảo phiếu chi.", confirmLabel: "Vô hiệu hóa", tone: "danger" }))) return;
+      if (action === "post" && !pendingRef.current && !await requestConfirmation({ title: "Liên kết phiếu chi Finance?", description: `Liên kết phiếu chi cho khoản hoàn ${money(request.amount)} đ. Hệ thống không chi tiền lần nữa.`, confirmLabel: "Liên kết phiếu chi", tone: "warning" })) return;
+      if (!mounted.current || current.current !== identity) return;
+      setBusy(true); setError(''); setResult('');
       await withRefundRequestLock(storageKey, async () => {
         if (!mounted.current || current.current !== identity) return;
         const stored = readRefundRequest(storageKey);

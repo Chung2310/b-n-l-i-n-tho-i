@@ -484,6 +484,7 @@ export default function RetailPosPage({
           resetCart();
           setAwaitingPayment({ result, amount: pendingTransferAmount });
           setPaying(false);
+          void refreshCatalog();
         } else {
           finish(result);
           setPaying(false);
@@ -511,6 +512,7 @@ export default function RetailPosPage({
   const finish = (result: RetailOrderResult) => {
     setCompleted(result);
     resetCart();
+    void refreshCatalog();
   };
 
   const printCheckoutInvoice = async (result: RetailOrderResult, isCurrent: () => boolean) => {

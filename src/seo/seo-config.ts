@@ -201,6 +201,15 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
     priority: "0.2",
     changeFrequency: "daily",
   },
+  MARKETING: {
+    title: "Marketing tự động - Quản lý chiến dịch và chăm sóc khách hàng",
+    description: "Quản lý chiến dịch, nội dung và hoạt động chăm sóc khách hàng trên iGEN Retail.",
+    keywords: "marketing, chiến dịch, chăm sóc khách hàng, iGEN Retail",
+    path: "/marketing",
+    robots: "noindex, nofollow",
+    priority: "0.2",
+    changeFrequency: "weekly",
+  },
   "PHÂN TÍCH & BÁO CÁO": {
     title: "Phân tích & Báo cáo - Doanh thu và hiệu quả kinh doanh",
     description:
