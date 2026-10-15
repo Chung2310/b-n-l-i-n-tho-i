@@ -22,7 +22,9 @@ import type { RepairTicket } from "../../services/repairService";
 import { repairService } from "../../services/repairService";
 
 vi.mock("../retail/hooks/useRetailScope", () => ({ useRetailScope: () => ({ scope: { companyCode: "company-a", branchId: "branch-a" }, userProfile: { uid: "user-1" } }) }));
-beforeEach(() => { localStorage.clear(); Object.defineProperty(navigator, "locks", { configurable: true, value: { request: vi.fn(async (_key: string, _opts: any, fn: any) => fn({})) } }); });
+const confirmation = vi.hoisted(() => ({ confirm: vi.fn(async () => true) }));
+vi.mock("../../context/ConfirmationContext", () => ({ useConfirmation: () => confirmation.confirm }));
+beforeEach(() => { localStorage.clear(); confirmation.confirm.mockResolvedValue(true); Object.defineProperty(navigator, "locks", { configurable: true, value: { request: vi.fn(async (_key: string, _opts: any, fn: any) => fn({})) } }); });
 afterEach(cleanup);
 
 test("retains the exact issue request after a lost response and freezes new input", async () => {
@@ -134,7 +136,7 @@ test("revokes an old return and creates a fresh key when entering a corrected re
   const user = (await import("@testing-library/user-event")).default.setup();
   const key = 'repair-part-pending:v1:' + JSON.stringify(["company-a", "branch-a", "user-1", ticket._id]);
   localStorage.setItem(key, JSON.stringify({ kind: "return", partId: "part-1", reason: "wrong" }));
-  const confirm = vi.spyOn(window, "confirm").mockReturnValue(true), prompt = vi.spyOn(window, "prompt").mockReturnValue("corrected");
+  const prompt = vi.spyOn(window, "prompt").mockReturnValue("corrected");
   vi.mocked(repairService.parts).mockResolvedValue([{ _id: "part-1", productName: "Part", sku: "PART", quantity: 1, unitCost: 10, unitPrice: 20, lineTotal: 20, chargeable: true, billing: "customer", status: "issued" }] as any);
   vi.mocked(repairService.revokePartRequest).mockResolvedValueOnce({ status: "revoked", message: "ok" });
   vi.mocked(repairService.returnPart).mockClear().mockResolvedValueOnce({});
@@ -145,5 +147,5 @@ test("revokes an old return and creates a fresh key when entering a corrected re
   const button = screen.getByRole("button", { name: /Hoàn/ }); await user.click(button);
   await waitFor(() => expect(repairService.returnPart).toHaveBeenCalledOnce());
   expect(vi.mocked(repairService.returnPart).mock.calls[0]).toEqual([ticket._id, "part-1", "corrected", { companyCode: "company-a", branchId: "branch-a" }, expect.stringMatching(/^[0-9a-f-]{36}$/)]);
-  confirm.mockRestore(); prompt.mockRestore(); vi.mocked(repairService.parts).mockResolvedValue([]);
+  prompt.mockRestore(); vi.mocked(repairService.parts).mockResolvedValue([]);
 });

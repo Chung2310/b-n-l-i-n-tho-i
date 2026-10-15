@@ -12,6 +12,7 @@ export const PUBLIC_ROUTE_EXCEPTIONS: readonly PublicRouteException[] = [
   { sourceFile: "server/router/google-drive.router.ts", router: "googleDriveRouter", mount: "/integrations/google-drive", method: "GET", path: "/callback", reason: "signed, expiring Google Drive OAuth callback state" },
   { sourceFile: "server/router/webhook.router.ts", router: "webhookRouter", mount: "/webhook", method: "POST", path: "/payment", reason: "signed payment-provider webhook" },
   { sourceFile: "server/router/webhook.router.ts", router: "webhookRouter", mount: "/webhook", method: "POST", path: "/sepay/retail-payment", reason: "HMAC/API-key authenticated SePay retail webhook" },
+  { sourceFile: "server/router/webhook.router.ts", router: "webhookRouter", mount: "/webhook", method: "POST", path: "/tiktok-shop/order-status", reason: "HMAC authenticated TikTok Shop order webhook" },
   { sourceFile: "server/router/wallet.router.ts", router: "walletRouter", mount: "", method: "POST", path: "/webhook", reason: "signed PayOS webhook" },
 ] as const;
 

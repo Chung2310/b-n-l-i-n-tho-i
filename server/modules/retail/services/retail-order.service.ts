@@ -42,9 +42,9 @@ export function receivableEntriesForOrderChange(action: "confirm" | "collect" | 
   const orderId = String(order._id);
   const customerId = String(order.customerId || "");
   if (!customerId) return [];
-  if (action === "confirm" && order.dueAmount > 0) return [{ type: "charge", customerId, orderId, amount: order.dueAmount, idempotencyKey: `retail-order:${orderId}:debt-charge` }];
+  if (action === "confirm" && order.dueAmount - Number(order.pendingTransferAmount || 0) > 0) return [{ type: "charge", customerId, orderId, amount: order.dueAmount - Number(order.pendingTransferAmount || 0), idempotencyKey: `retail-order:${orderId}:debt-charge` }];
   if (action === "collect" && collectedAmount > 0) return [{ type: "payment", customerId, orderId, amount: collectedAmount, idempotencyKey: `retail-order:${orderId}:debt-payment:${collectedAmount}:${order.dueAmount}` }];
-  if (action === "cancel" && order.dueAmount > 0) return [{ type: "reversal", customerId, orderId, amount: order.dueAmount, reason: "Hủy số dư công nợ của đơn", idempotencyKey: `retail-order:${orderId}:debt-cancel` }];
+  if (action === "cancel" && order.dueAmount - Number(order.pendingTransferAmount || 0) > 0) return [{ type: "reversal", customerId, orderId, amount: order.dueAmount - Number(order.pendingTransferAmount || 0), reason: "Hủy số dư công nợ của đơn", idempotencyKey: `retail-order:${orderId}:debt-cancel` }];
   return [];
 }
 
@@ -362,14 +362,20 @@ function directCheckoutIdentity(scope: RetailBranchScope, input: any, actor: any
   const orderInput = input?.input;
   const posSessionId = String(input?.posSessionId || "");
   const expectedGrandTotal = Number(input?.expectedGrandTotal);
+  const requestedPaymentCode = input?.paymentCode === undefined ? undefined : String(input.paymentCode).trim().toUpperCase();
+  const pendingTransferAmount = Number(input?.pendingTransferAmount || 0);
   if (!key.trim() || key !== key.trim() || !actorId(actor) || !posSessionId || !orderInput || typeof orderInput !== "object" || Array.isArray(orderInput)) throw replayConflict();
   if (!Number.isSafeInteger(expectedGrandTotal) || expectedGrandTotal < 0) throw retailError("Tổng tiền xác nhận không hợp lệ.", "ORDER_TOTAL_INVALID", 400);
+  if (requestedPaymentCode !== undefined && !/^AKM[A-Z0-9]{6,29}$/.test(requestedPaymentCode)) throw retailError("Mã thanh toán QR không hợp lệ.", "PAYMENT_CODE_INVALID", 400);
   const normalized = normalizePayments(input.payments || [], expectedGrandTotal);
+  if (!Number.isSafeInteger(pendingTransferAmount) || pendingTransferAmount < 0 || normalized.total + pendingTransferAmount > expectedGrandTotal) throw retailError("Số tiền chuyển khoản chờ xác nhận không hợp lệ.", "PENDING_TRANSFER_INVALID", 400);
+  if (pendingTransferAmount > 0 && !requestedPaymentCode) throw retailError("Thiếu mã thanh toán cho giao dịch QR.", "PAYMENT_CODE_REQUIRED", 400);
   const requestFingerprint = createHash("sha256").update(JSON.stringify(checkoutCanonical({
     version: 1, operation: "checkout-order", ...scope, actorId: actorId(actor), posSessionId,
-    input: orderInput, expectedGrandTotal, payments: normalized.payments,
+    input: orderInput, expectedGrandTotal, payments: normalized.payments, paymentCode: requestedPaymentCode,
+    ...(pendingTransferAmount > 0 ? { pendingTransferAmount } : {}),
   }))).digest("hex");
-  return { key, orderInput, posSessionId, expectedGrandTotal, normalized, requestFingerprint };
+  return { key, orderInput, posSessionId, expectedGrandTotal, normalized, paymentCode: requestedPaymentCode, pendingTransferAmount, requestFingerprint };
 }
 function checkoutIdentity(scope: RetailBranchScope, input: any, actor: any) {
   const key = input?.idempotencyKey, payload = input?.payload;
@@ -590,6 +596,20 @@ export const RetailOrderService = {
     return { status: "completed" as const, ...await confirmedResult(scope, attempt) };
   },
   async detail(scope: RetailBranchScope, id: string, actor?: any, canManage = false) { if (!Types.ObjectId.isValid(id)) throw new Error("Mã đơn không hợp lệ."); const order: any = await RetailOrderModel.findOne({ _id: id, ...scope }).lean(); if (!order) throw new Error("Không tìm thấy đơn hàng."); if (order.status === "draft" && actor) assertHeldDraftAccess(String(order.createdBy), actorId(actor), canManage); return (await attachAfterSaleHistory(scope, [order]))[0]; },
+  async paymentStatus(scope: RetailBranchScope, id: string, actor: any, canManage = false) {
+    if (!Types.ObjectId.isValid(id)) throw retailError("Mã đơn không hợp lệ.", "ORDER_ID_INVALID", 400);
+    const order: any = await RetailOrderModel.findOne({ _id: id, ...scope })
+      .select("_id orderCode createdBy paidAmount dueAmount pendingTransferAmount paymentStatus status version payments")
+      .lean();
+    if (!order) throw retailError("Không tìm thấy đơn hàng.", "ORDER_NOT_FOUND", 404);
+    if (!canManage && String(order.createdBy) !== actorId(actor)) throw retailError("Bạn không được xem trạng thái thanh toán của đơn này.", "ORDER_FORBIDDEN", 403);
+    return {
+      _id: String(order._id), orderCode: order.orderCode, paidAmount: Number(order.paidAmount || 0),
+      dueAmount: Number(order.dueAmount || 0), pendingTransferAmount: Number(order.pendingTransferAmount || 0),
+      paymentStatus: order.paymentStatus, status: order.status, version: Number(order.version || 0),
+      payments: (order.payments || []).map(({ method, amount, tenderedAmount, changeAmount, reference }: any) => ({ method, amount, tenderedAmount, changeAmount, reference })),
+    };
+  },
   async createDraft(scope: RetailBranchScope, input: any, actor: any) {
     const currentBusinessDate = businessDateInVietnam(new Date());
     await expireHeldDrafts(scope, currentBusinessDate);
@@ -678,7 +698,7 @@ export const RetailOrderService = {
   },
   async checkout(scope: RetailBranchScope, input: any, actor: any, shift: any = undefined, canManage = false) {
     const identity = directCheckoutIdentity(scope, input, actor);
-    const { key, orderInput, posSessionId, expectedGrandTotal, normalized, requestFingerprint } = identity;
+    const { key, orderInput, posSessionId, expectedGrandTotal, normalized, paymentCode: requestedPaymentCode, pendingTransferAmount, requestFingerprint } = identity;
     const keyFilter = { companyCode: scope.companyCode, key };
     const replay = async (attempt: any, activeSession?: mongoose.ClientSession) => {
       if (attempt.branchId !== scope.branchId || attempt.operation !== "checkout-order" || attempt.requestFingerprint !== requestFingerprint) throw replayConflict();
@@ -701,12 +721,14 @@ export const RetailOrderService = {
         const { settings, pricing } = await priceInput(scope, orderInput, session);
         if (expectedGrandTotal !== pricing.grandTotal) throw Object.assign(new Error("Tổng tiền đã thay đổi."), { code: "ORDER_TOTAL_MISMATCH", status: 409, details: { expected: expectedGrandTotal, actual: pricing.grandTotal } });
         const dueAmount = pricing.grandTotal - normalized.total;
-        if (dueAmount > 0) {
+        if (pendingTransferAmount > dueAmount) throw retailError("Số tiền QR vừa chọn vượt quá khoản còn phải thu.", "PENDING_TRANSFER_EXCEEDS_DUE", 400);
+        const debtAmount = dueAmount - pendingTransferAmount;
+        if (debtAmount > 0) {
           requireRetailPaymentCustomer(orderInput.customerId);
           if (!orderInput.dueDate) throw new Error("Bán nợ cần hạn thanh toán.");
         }
         const customerSnapshots = await resolveOrderCustomerSnapshots(scope, orderInput.customerId, orderInput.billingProfileId);
-        if (dueAmount > 0) requireRetailPaymentCustomer(customerSnapshots?.customerId);
+        if (debtAmount > 0) requireRetailPaymentCustomer(customerSnapshots?.customerId);
         const customer: any = customerSnapshots ? { name: customerSnapshots.customerName, phone: customerSnapshots.customerPhone } : null;
         const collaborator = await resolveCollaborator(scope.companyCode, orderInput.collaboratorId);
         const branch = await BranchModel.findOne({ _id: scope.branchId, companyCode: scope.companyCode, isActive: true }).session(session).lean();
@@ -715,7 +737,7 @@ export const RetailOrderService = {
         const scopeKey = monthlyScope(businessDate);
         const counter = await RetailOrderCounterModel.findOneAndUpdate({ ...scope, scope: scopeKey }, { $inc: { seq: 1 } }, { returnDocument: "after", upsert: true, session });
         const orderCode = formatRetailDocumentCode(settings.orderPrefix, branch.code, scopeKey, counter!.seq);
-        const paymentCode = retailPaymentCode(orderCode);
+        const paymentCode = requestedPaymentCode || retailPaymentCode(orderCode);
         if (pricing.couponSnapshot) await consumeCoupon(scope, pricing.couponSnapshot, session, orderInput.customerId);
         const stockSnapshot = await applyOrderStockOut(scope, String(orderId), orderCode, pricing.lines, actorName(actor), settings.allowNegativeStock, session);
         pricing.lines = stockSnapshot.items;
@@ -725,9 +747,9 @@ export const RetailOrderService = {
         const installment: any = extras.installment;
         if (installment) {
           const upfrontAmount = Math.round(pricing.grandTotal * installment.prepayPercent / 100);
-          if (normalized.total !== upfrontAmount) throw retailError("Số tiền thu phải khớp tiền trả trước đã chọn.", "INSTALLMENT_UPFRONT_MISMATCH", 400);
+          if (normalized.total + pendingTransferAmount !== upfrontAmount) throw retailError("Số tiền thu phải khớp tiền trả trước đã chọn.", "INSTALLMENT_UPFRONT_MISMATCH", 400);
           installment.upfrontAmount = upfrontAmount;
-          installment.financedAmount = dueAmount;
+          installment.financedAmount = debtAmount;
         }
         const order: any = new RetailOrderModel({
           _id: orderId, ...scope, ...extras, orderCode, paymentCode,
@@ -738,7 +760,7 @@ export const RetailOrderService = {
           grandTotal: pricing.grandTotal, totalCost: pricing.totalCost,
           shiftId: String(shift._id), businessDate,
           payments: normalized.payments.map((payment) => snapshotPayment(payment, shift, actor)),
-          refunds: [], paidAmount: normalized.total, refundedAmount: 0, dueAmount,
+          refunds: [], paidAmount: normalized.total, refundedAmount: 0, dueAmount, pendingTransferAmount,
           paymentStatus: paymentStatusFor(normalized.total, pricing.grandTotal, 0),
           status: dueAmount === 0 ? "completed" : "confirmed", dueDate: orderInput.dueDate,
           confirmedAt: now, completedAt: dueAmount === 0 ? now : undefined,
@@ -755,7 +777,7 @@ export const RetailOrderService = {
         order.commissionSnapshot = await snapshotRetail(order, session);
         await order.save({ session });
         if (order.commissionSnapshot) await reconcileCommission("retail", String(order._id), scope.companyCode, session);
-        await publishRetailOrderEvent("confirmed", scope, order, actor, { session });
+        await publishRetailOrderEvent("confirmed", scope, { ...order.toObject(), dueAmount: debtAmount }, actor, { session });
         await RetailIdempotencyModel.updateOne({ companyCode: scope.companyCode, key }, { $set: { status: "completed", orderId: String(order._id), invoiceId: String(invoice._id) } }, { session });
         await touchPosSession(shift, scope, actor, session);
         result = { order, invoice };
@@ -914,7 +936,7 @@ export const RetailOrderService = {
         shift = await lockRetailPaymentSession(scope, { ...input, cashSessionId: input.cashSessionId || shift?._id }, actor, session, normalized.payments.some((payment) => payment.method === "cash"));
         const order: any = await RetailOrderModel.findOne({ _id: id, ...scope, status: "confirmed", version: input.expectedVersion }).session(session);
         if (!order) throw retailError("Đơn đã thay đổi hoặc không thể thu thêm. Vui lòng đối chiếu công nợ.", "ORDER_VERSION_CONFLICT");
-        if (normalized.total > order.dueAmount) throw retailError("Số tiền thu vượt công nợ còn lại.", "COLLECTION_INVALID", 400);
+        if (normalized.total > Math.max(0, Number(order.dueAmount) - Number(order.pendingTransferAmount || 0))) throw retailError("Số tiền thu vượt công nợ còn lại.", "COLLECTION_INVALID", 400);
         const collectionEvidence = { paymentOffset: order.payments.length, paidBefore: order.paidAmount, grandTotal: order.grandTotal };
         order.payments.push(...normalized.payments.map((payment) => snapshotPayment(payment, shift, actor)));
         order.paidAmount += normalized.total;

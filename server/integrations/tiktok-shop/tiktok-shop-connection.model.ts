@@ -6,6 +6,7 @@ const TikTokShopSchema = new Schema({
   code: { type: String, default: "", trim: true },
   name: { type: String, default: "", trim: true },
   region: { type: String, default: "", trim: true },
+  retailBranchId: { type: String, default: "", trim: true },
 }, { _id: false });
 
 const TikTokShopConnectionSchema = new Schema({

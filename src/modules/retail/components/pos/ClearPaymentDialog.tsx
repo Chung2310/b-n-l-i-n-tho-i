@@ -29,6 +29,8 @@ type Props = {
   total: number;
   busy: boolean;
   customerId?: string;
+  transferContent?: string;
+  deferTransferQr?: boolean;
   onClose: () => void;
   onSubmit: (payments: RetailPaymentInput[], dueDate?: string) => Promise<void>;
 };
@@ -76,6 +78,8 @@ export default function ClearPaymentDialog({
   total,
   busy,
   customerId,
+  transferContent,
+  deferTransferQr = false,
   onClose,
   onSubmit,
   installment,
@@ -94,7 +98,7 @@ export default function ClearPaymentDialog({
   const hasTransferPayment = mode !== "debt" && payments.some((payment) => payment.method === "transfer");
 
   React.useEffect(() => {
-    if (!hasTransferPayment) return;
+    if (!hasTransferPayment || deferTransferQr) return;
 
     let active = true;
     setVietqrLoading(true);
@@ -113,7 +117,7 @@ export default function ClearPaymentDialog({
     return () => {
       active = false;
     };
-  }, [hasTransferPayment]);
+  }, [hasTransferPayment, deferTransferQr]);
 
   const submitted =
     mode === "debt" ? [] : payments.filter((item) => item.amount > 0);
@@ -447,12 +451,19 @@ export default function ClearPaymentDialog({
                 </div>
 
                 {payment.method === "transfer" && (
-                  <TransferPaymentQr
-                    config={vietqrConfig}
-                    amount={showAmountInput ? payment.amount : total}
-                    loading={vietqrLoading}
-                    loadError={vietqrError}
-                  />
+                  deferTransferQr ? (
+                    <p className="mt-3 rounded-xl border border-cyan-100 bg-cyan-50 p-3 text-sm text-cyan-800">
+                      Xác nhận để lưu đơn hàng trước. Mã QR sẽ xuất hiện sau đó và hệ thống sẽ chờ SePay báo tiền về.
+                    </p>
+                  ) : (
+                    <TransferPaymentQr
+                      config={vietqrConfig}
+                      amount={showAmountInput ? payment.amount : total}
+                      transferContent={transferContent}
+                      loading={vietqrLoading}
+                      loadError={vietqrError}
+                    />
+                  )
                 )}
 
                 {/* Quick cash denomination chips in dedicated balanced row */}
@@ -628,7 +639,7 @@ export default function ClearPaymentDialog({
           onClick={() => void submit()}
         >
           <CheckCircle2 className="h-5 w-5" />
-          <span>Xác nhận thanh toán</span>
+          <span>{hasTransferPayment && deferTransferQr ? "Tạo đơn và chờ chuyển khoản" : "Xác nhận thanh toán"}</span>
         </button>
       </div>
     </div>
@@ -638,11 +649,13 @@ export default function ClearPaymentDialog({
 function TransferPaymentQr({
   config,
   amount,
+  transferContent,
   loading,
   loadError,
 }: {
   config: VietqrConfig | null;
   amount: number;
+  transferContent?: string;
   loading: boolean;
   loadError: string;
 }) {
@@ -652,10 +665,16 @@ function TransferPaymentQr({
   const imageUrl = React.useMemo(() => {
     if (!config || !hasBankDetails || amount <= 0) return "";
 
-    const params = new URLSearchParams({ amount: String(Math.round(amount)) });
-    if (accountName) params.set("accountName", accountName);
-    return `https://img.vietqr.io/image/${encodeURIComponent(config.bankId)}-${encodeURIComponent(config.accountNo)}-compact2.png?${params.toString()}`;
-  }, [accountName, amount, config, hasBankDetails]);
+    const params = new URLSearchParams({
+      acc: config.accountNo,
+      bank: config.bankId,
+      amount: String(Math.round(amount)),
+      template: "compact",
+    });
+    if (transferContent?.trim()) params.set("des", transferContent.trim());
+    if (accountName) params.set("holder", accountName);
+    return `https://vietqr.app/img?${params.toString()}`;
+  }, [accountName, amount, config, hasBankDetails, transferContent]);
 
   React.useEffect(() => setImageFailed(false), [imageUrl]);
 
@@ -695,7 +714,12 @@ function TransferPaymentQr({
         <p className="text-sm font-bold text-slate-800">Qu&#233;t m&#227; QR &#273;&#7875; chuy&#7875;n {money(amount)}</p>
         {accountName && <p className="mt-1 break-words text-sm text-slate-600">{accountName}</p>}
         <p className="mt-1 break-all font-mono text-sm font-semibold text-slate-700">STK: {config!.accountNo}</p>
-        <p className="mt-1 text-xs text-slate-500">M&#227; QR &#273;&#227; &#273;i&#7873;n s&#7861;n s&#7889; ti&#7873;n thanh to&#225;n.</p>
+        {transferContent?.trim() && (
+          <p className="mt-1 break-all text-xs text-slate-600">
+            N&#7897;i dung chuy&#7875;n kho&#7843;n: <span className="font-mono font-semibold">{transferContent.trim()}</span>
+          </p>
+        )}
+        <p className="mt-1 text-xs text-slate-500">{`Mã QR đã điền sẵn số tiền thanh toán${transferContent?.trim() ? " và nội dung đơn hàng" : ""}.`}</p>
       </div>
     </div>
   );

@@ -60,18 +60,20 @@ export function extractPaymentCode(payload: SePayPayload) {
   return candidates.map(canonicalPaymentCode).find((value) => value.length >= 6) || "";
 }
 
-export async function buildRetailPaymentQr(companyCode: string, orderId: string) {
+export async function buildRetailPaymentQr(companyCode: string, branchId: string, orderId: string) {
   const [company, order] = await Promise.all([
     CompanyModel.findOne({ code: companyCode }).select("vietqrConfig").lean(),
-    RetailOrderModel.findOne({ _id: orderId, companyCode }).lean(),
+    RetailOrderModel.findOne({ _id: orderId, companyCode, branchId }).lean(),
   ]);
   if (!order || !order.orderCode || order.status === "draft" || order.status === "cancelled") throw new Error("Đơn hàng không thể thanh toán bằng QR.");
   const config = company?.vietqrConfig;
   if (!config?.bankId || !config.accountNo) throw new Error("Doanh nghiệp chưa cấu hình tài khoản VietQR.");
-  const paymentCode = retailPaymentCode(order.orderCode);
+  const paymentCode = text(order.paymentCode) || retailPaymentCode(order.orderCode);
   if (order.paymentCode !== paymentCode) await RetailOrderModel.updateOne({ _id: order._id, companyCode }, { $set: { paymentCode } });
-  const params = new URLSearchParams({ acc: config.accountNo, bank: config.bankId, amount: String(order.dueAmount), des: paymentCode });
-  return { orderId: String(order._id), orderCode: order.orderCode, paymentCode, amount: order.dueAmount, paymentStatus: order.paymentStatus, accountNumber: config.accountNo, accountName: config.accountName, bankId: config.bankId, qrUrl: `https://vietqr.app/img?${params}` };
+  const transferContent = paymentCode;
+  const amount = Number(order.pendingTransferAmount) > 0 ? Number(order.pendingTransferAmount) : Number(order.dueAmount);
+  const params = new URLSearchParams({ acc: config.accountNo, bank: config.bankId, amount: String(amount), des: transferContent });
+  return { orderId: String(order._id), orderCode: order.orderCode, paymentCode, transferContent, amount, paymentStatus: order.paymentStatus, accountNumber: config.accountNo, accountName: config.accountName, bankId: config.bankId, qrUrl: `https://vietqr.app/img?${params}` };
 }
 
 export async function processRetailSePayTransaction(payload: SePayPayload) {
@@ -89,7 +91,7 @@ export async function processRetailSePayTransaction(payload: SePayPayload) {
   const company = companies[0];
   const transactionId = sePayTransactionKey(payload);
   const prior = await RetailSePayTransactionModel.findOne({ provider: "sepay", transactionId }).lean();
-  if (prior) return { duplicate: true, orderId: prior.orderId, appliedAmount: prior.appliedAmount };
+  if (prior) return { duplicate: true, alreadyRecorded: prior.alreadyRecorded === true, orderId: prior.orderId, appliedAmount: prior.appliedAmount };
 
   const session = await mongoose.startSession();
   let result: any;
@@ -98,36 +100,57 @@ export async function processRetailSePayTransaction(payload: SePayPayload) {
     await session.withTransaction(async () => {
       changedShift = null;
       const duplicate = await RetailSePayTransactionModel.findOne({ provider: "sepay", transactionId }).session(session).lean();
-      if (duplicate) { result = { duplicate: true, orderId: duplicate.orderId, appliedAmount: duplicate.appliedAmount }; return; }
-      const candidateOrders: any[] = await RetailOrderModel.find({ companyCode: company.code, $or: [{ paymentCode: { $in: paymentCodeCandidates } }, { orderCode: text(payload.code) }], status: "confirmed", dueAmount: { $gt: 0 } }).session(session);
+      if (duplicate) { result = { duplicate: true, alreadyRecorded: duplicate.alreadyRecorded === true, orderId: duplicate.orderId, appliedAmount: duplicate.appliedAmount }; return; }
+      const candidateOrders: any[] = await RetailOrderModel.find({ companyCode: company.code, $or: [{ paymentCode: { $in: paymentCodeCandidates } }, { orderCode: text(payload.code) }], status: { $nin: ["draft", "cancelled"] } }).session(session);
       const matches = candidateOrders.filter((candidate) => {
         const orderCode = text(candidate.orderCode);
-        return retailPaymentCode(orderCode) === paymentCode
+        return canonicalPaymentCode(candidate.paymentCode) === paymentCode
+          || retailPaymentCode(orderCode) === paymentCode
           || legacyRetailPaymentCode(orderCode) === paymentCode
           || orderCode === text(payload.code);
       });
       if (!matches.length) throw Object.assign(new Error("Không tìm thấy đơn còn nợ theo mã thanh toán."), { status: 404 });
       if (matches.length > 1) throw Object.assign(new Error("Mã thanh toán khớp nhiều đơn hàng."), { status: 409 });
       const order: any = matches[0];
+      const linkedTransactions: any[] = await RetailSePayTransactionModel.find({ provider: "sepay", companyCode: order.companyCode, orderId: String(order._id) })
+        .select("receivedAmount appliedAmount alreadyRecorded")
+        .session(session)
+        .lean();
+      const alreadyAccountedAmount = linkedTransactions.reduce((sum, transaction) => sum + Number(transaction.appliedAmount || 0)
+        + (transaction.alreadyRecorded === true ? Number(transaction.receivedAmount || 0) : 0), 0);
+      const recordedTransferAmount = (order.payments || []).reduce((sum: number, payment: any) => sum + (payment.method === "transfer" ? Number(payment.amount || 0) : 0), 0);
+      const unlinkedRecordedTransferAmount = Math.max(0, recordedTransferAmount - alreadyAccountedAmount);
+      if (unlinkedRecordedTransferAmount >= receivedAmount) {
+        const paidAt = parseSePayTransactionDate(payload.transactionDate);
+        await RetailSePayTransactionModel.create([{ provider: "sepay", transactionId, referenceCode: text(payload.referenceCode), companyCode: order.companyCode, branchId: order.branchId, orderId: String(order._id), orderCode: order.orderCode, accountNumber, receivedAmount, appliedAmount: 0, alreadyRecorded: true, transactionDate: paidAt }], { session });
+        result = { duplicate: false, alreadyRecorded: true, orderId: String(order._id), orderCode: order.orderCode, appliedAmount: 0, paymentStatus: order.paymentStatus, status: order.status };
+        return;
+      }
+      if (order.status !== "confirmed" || Number(order.dueAmount) <= 0) {
+        throw Object.assign(new Error("Không tìm thấy đơn còn nợ theo mã thanh toán."), { status: 404 });
+      }
       const appliedAmount = Math.min(receivedAmount, Number(order.dueAmount));
       const paidAt = parseSePayTransactionDate(payload.transactionDate);
       const recordedAt = new Date();
+      const pendingTransferAppliedAmount = Math.min(Number(order.pendingTransferAmount || 0), appliedAmount);
+      const debtAppliedAmount = appliedAmount - pendingTransferAppliedAmount;
+      order.pendingTransferAmount = Math.max(0, Number(order.pendingTransferAmount || 0) - pendingTransferAppliedAmount);
       changedShift = order.shiftId ? await CashierShiftModel.findOneAndUpdate({ _id: order.shiftId, companyCode: order.companyCode, branchId: order.branchId, status: "open", operationalEndsAt: { $gte: recordedAt }, openedAt: { $lte: paidAt } },
         { $inc: { activityVersion: 1 }, $set: { lastActivityAt: recordedAt } }, { session, returnDocument: "after" }) : null;
-      order.payments.push({ method: "transfer", amount: appliedAmount, reference: transactionId, paidAt, recordedAt, receivedBy: "sepay", receivedByName: "SePay webhook", shiftId: changedShift ? String(changedShift._id) : undefined, settlementStatus: changedShift ? "assigned" : "unassigned", businessDate: businessDateInVietnam(paidAt) });
+      order.payments.push({ method: "transfer", amount: appliedAmount, pendingTransferAppliedAmount, reference: transactionId, paidAt, recordedAt, receivedBy: "sepay", receivedByName: "SePay webhook", shiftId: changedShift ? String(changedShift._id) : undefined, settlementStatus: changedShift ? "assigned" : "unassigned", businessDate: businessDateInVietnam(paidAt) });
       order.paidAmount += appliedAmount; order.dueAmount = order.grandTotal - order.paidAmount;
       order.paymentStatus = paymentStatusFor(order.paidAmount, order.grandTotal, order.refundedAmount);
       if (order.dueAmount === 0) { order.status = "completed"; order.completedAt = paidAt; }
       order.version += 1;
       await order.save({ session });
       await RetailSePayTransactionModel.create([{ provider: "sepay", transactionId, referenceCode: text(payload.referenceCode), companyCode: order.companyCode, branchId: order.branchId, orderId: String(order._id), orderCode: order.orderCode, accountNumber, receivedAmount, appliedAmount, transactionDate: paidAt }], { session });
-      await publishRetailOrderEvent("paid", { companyCode: order.companyCode, branchId: order.branchId }, order, { id: "sepay", displayName: "SePay webhook" }, { session, amount: appliedAmount, transactionKey: transactionId, occurredAt: paidAt });
+      if (debtAppliedAmount > 0 && order.customerId) await publishRetailOrderEvent("paid", { companyCode: order.companyCode, branchId: order.branchId }, order, { id: "sepay", displayName: "SePay webhook" }, { session, amount: debtAppliedAmount, transactionKey: transactionId, occurredAt: paidAt });
       result = { duplicate: false, orderId: String(order._id), orderCode: order.orderCode, appliedAmount, excessAmount: receivedAmount - appliedAmount, paymentStatus: order.paymentStatus, status: order.status };
     });
     const eventOrder: any = result?.orderId
       ? await RetailOrderModel.findById(result.orderId).select("companyCode branchId shiftId salespersonId createdBy").lean()
       : null;
-    if (result?.duplicate !== true && result?.paymentStatus === "paid" && eventOrder?.createdBy) {
+    if (result?.duplicate !== true && result?.alreadyRecorded !== true && result?.paymentStatus === "paid" && eventOrder?.createdBy) {
       emitToUser(String(eventOrder.createdBy), "retail:payment_received", {
         companyCode: String(eventOrder.companyCode),
         branchId: String(eventOrder.branchId),
@@ -135,8 +158,10 @@ export async function processRetailSePayTransaction(payload: SePayPayload) {
         transactionKey: transactionId,
       });
     }
-    if (changedShift) emitSessionChange("pos:session:updated", changedShift);
-    else if (eventOrder?.shiftId) emitSessionChange("pos:session:updated", { ...eventOrder, _id: eventOrder.shiftId, cashierId: eventOrder.salespersonId });
+    if (result?.alreadyRecorded !== true) {
+      if (changedShift) emitSessionChange("pos:session:updated", changedShift);
+      else if (eventOrder?.shiftId) emitSessionChange("pos:session:updated", { ...eventOrder, _id: eventOrder.shiftId, cashierId: eventOrder.salespersonId });
+    }
     return result;
   } finally { await session.endSession(); }
 }

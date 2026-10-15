@@ -1,9 +1,11 @@
 import React from "react";
+import { useConfirmation } from "../../../../context/ConfirmationContext";
 import type { RetailScope } from "../../types";
 import { retailOrdersApi } from "../../api/retailOrders.api";
 import { verifyDraftResult, hasDraftCandidate, clearDraftCreation, listDraftRequests, readDraftRequest, retainDraftRequest, withDraftRequestLock } from "../../offline/draftCreationRequest";
 
 export default function PendingDraftRequests({ scope, userId, busy, onRecovered }: { scope: RetailScope; userId: string; busy: boolean; onRecovered: () => void }) {
+  const requestConfirmation = useConfirmation();
   const [rows, setRows] = React.useState<ReturnType<typeof listDraftRequests>>([]);
   const [message, setMessage] = React.useState("");
   const [working, setWorking] = React.useState(false);
@@ -22,7 +24,7 @@ export default function PendingDraftRequests({ scope, userId, busy, onRecovered 
   }, [refresh, busy]);
   const recover = async (row: typeof rows[number], action: "recover" | "reconcile" | "revoke" = "recover") => {
     const current = () => alive.current && liveScope.current === scopeToken;
-    if (action === "revoke" && !window.confirm("Thu hồi yêu cầu lưu nháp này? Yêu cầu chưa ghi nhận sẽ bị khóa; đơn đã lưu được giữ nguyên.")) return;
+    if (action === "revoke" && !await requestConfirmation({ title: "Thu hồi yêu cầu lưu nháp?", description: "Yêu cầu chưa ghi nhận sẽ bị khóa; đơn đã lưu được giữ nguyên.", confirmLabel: "Thu hồi yêu cầu", tone: "danger" })) return;
     let message = "Đã khôi phục kết quả lưu nháp. Chưa thực hiện thanh toán.";
     let resolved = false;
     setWorking(true); setMessage("");

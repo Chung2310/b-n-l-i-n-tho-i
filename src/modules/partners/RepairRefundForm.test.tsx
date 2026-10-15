@@ -5,8 +5,10 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import RepairRefundForm from "./RepairRefundForm";
 import { apiFetch } from "../shared/lib/apiFetch";
 const context = vi.hoisted(() => ({ scope: { companyCode: "C", branchId: "B" }, userProfile: { uid: "user" } }));
+const confirmation = vi.hoisted(() => ({ confirm: vi.fn(async () => true) }));
 vi.mock("../retail/hooks/useRetailScope", () => ({ useRetailScope: () => context }));
 vi.mock("../shared/lib/apiFetch", () => ({ apiFetch: vi.fn() }));
+vi.mock("../../context/ConfirmationContext", () => ({ useConfirmation: () => confirmation.confirm }));
 const ticket = { status: "delivered", _id: "r1", companyCode: "C", branchId: "B", ticketCode: "R1", totalAmount: 800, paidAmount: 800, laborFee: 500, partRevenue: 500, commissionRefunds: [{ amount: 200, laborAmount: 100, key: "old" }] };
 const done = vi.fn();
 const show = () => render(<RepairRefundForm ticket={ticket} onChanged={done} />);
@@ -16,13 +18,14 @@ const fill = () => {
   fireEvent.change(screen.getByPlaceholderText(/Mã phiếu trong Finance/), { target: { value: "PC1" } });
 };
 const submit = () => screen.getByRole("button", { name: /Ghi nhận.*hoàn tiền|Đang xử lý hoàn tiền|Thử lại khoản hoàn cũ/ });
-beforeEach(() => { localStorage.clear(); Object.defineProperty(navigator, "locks", { configurable: true, value: { request: vi.fn(async (_key: string, _options: any, callback: any) => callback({ name: _key })) } }); context.userProfile.uid = "user"; vi.clearAllMocks(); vi.mocked(apiFetch).mockReset(); context.scope.branchId = "B"; vi.spyOn(window, "confirm").mockReturnValue(true); });
+beforeEach(() => { localStorage.clear(); Object.defineProperty(navigator, "locks", { configurable: true, value: { request: vi.fn(async (_key: string, _options: any, callback: any) => callback({ name: _key })) } }); context.userProfile.uid = "user"; vi.clearAllMocks(); confirmation.confirm.mockResolvedValue(true); vi.mocked(apiFetch).mockReset(); context.scope.branchId = "B"; });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 it("uses the remaining discounted allocation and submits a fixed branch scope once", async () => {
   let finish!: (value: any) => void;
   vi.mocked(apiFetch).mockReturnValue(new Promise(resolve => { finish = resolve; }));
   show(); fill(); fireEvent.click(submit()); fireEvent.click(submit());
-  expect(apiFetch).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+  expect(confirmation.confirm).toHaveBeenCalledTimes(1);
   const options = vi.mocked(apiFetch).mock.calls[0][1]!;
   expect(options.params).toEqual({ companyCode: "C", branchId: "B" });
   expect(JSON.parse(String(options.body))).toMatchObject({ amount: 600, laborAmount: 300, reference: "PC1" });
@@ -123,6 +126,7 @@ it("unlocks corrected input only after the server durably revokes the pending ke
   let finish!: (value: any) => void;
   vi.mocked(apiFetch).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
   show(); fireEvent.click(screen.getByRole("button", { name: "Hủy yêu cầu đang chờ" }));
+  await waitFor(() => expect(apiFetch).toHaveBeenCalledOnce());
   expect(vi.mocked(apiFetch).mock.calls[0][0]).toBe("/repair/tickets/r1/refunds/revoke");
   expect(JSON.parse(String(vi.mocked(apiFetch).mock.calls[0][1]?.body))).toEqual(pending);
   expect(localStorage.getItem(storageKey)).not.toBeNull();
@@ -160,7 +164,7 @@ it("recognizes an already completed refund returned by revocation without unlock
   expect((submit() as HTMLButtonElement).disabled).toBe(true);
 });
 it("keeps the request if the user declines revocation", () => {
-  localStorage.setItem(storageKey, JSON.stringify(pending)); vi.mocked(window.confirm).mockReturnValue(false);
+  localStorage.setItem(storageKey, JSON.stringify(pending)); confirmation.confirm.mockResolvedValueOnce(false);
   show(); fireEvent.click(screen.getByRole("button", { name: "Hủy yêu cầu đang chờ" }));
   expect(apiFetch).not.toHaveBeenCalled(); expect(localStorage.getItem(storageKey)).not.toBeNull();
 });

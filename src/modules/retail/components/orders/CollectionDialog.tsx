@@ -70,7 +70,8 @@ export default function CollectionDialog({ order, close, done }: { order: Retail
     } finally { inFlight.current = false; if (active()) setBusy(false); }
   }
 
-  const canCollect = order.status === "confirmed" && order.dueAmount > 0;
+  const collectableAmount = Math.max(0, order.dueAmount - Number(order.pendingTransferAmount || 0));
+  const canCollect = order.status === "confirmed" && collectableAmount > 0;
   async function submit(payments: RetailPaymentInput[]) {
     if (blocked || candidates.length > 1 || inFlight.current || completed.current || !scope) return;
     const active = () => mounted.current && currentIdentity.current === identity;
@@ -128,5 +129,5 @@ export default function CollectionDialog({ order, close, done }: { order: Retail
       <div className="mt-4 flex gap-3"><button onClick={close}>Đóng</button><button disabled={busy || blocked || !pending || completed.current} onClick={() => void reconcile()}>Đối chiếu khoản thu</button><button disabled={busy || blocked || !pending || completed.current} onClick={() => void reconcile(true)}>Hủy yêu cầu chưa ghi nhận</button><button disabled={busy || blocked || candidates.length > 1 || !pending || completed.current} onClick={() => void submit([])}>{busy ? "Đang xử lý..." : "Thử lại khoản thu cũ"}</button></div>
     </div>
   </div>;
-  return <><PaymentDialog total={order.dueAmount} busy={busy} customerId={order.customerId} onClose={close} onSubmit={submit}><CashSessionPicker scope={scope} value={cashSessionId} onChange={setCashSessionId} disabled={busy} /></PaymentDialog>{error && <div role="alert" className="fixed bottom-4 left-4 z-[70] rounded-xl bg-white p-4 text-red-600">{error}</div>}</>;
+  return <><PaymentDialog total={collectableAmount} busy={busy} customerId={order.customerId} transferContent={order.paymentCode || order.orderCode} onClose={close} onSubmit={submit}><CashSessionPicker scope={scope} value={cashSessionId} onChange={setCashSessionId} disabled={busy} /></PaymentDialog>{error && <div role="alert" className="fixed bottom-4 left-4 z-[70] rounded-xl bg-white p-4 text-red-600">{error}</div>}</>;
 }

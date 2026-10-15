@@ -312,7 +312,7 @@ export default function PayrollTab({ canManage, canFinalize = canManage }: { can
           roundingUnit: policy?.roundingUnit,
         },
       );
-      const segment = line.segmentLines?.[0] ?? {};
+      const segment = line.segmentLines?.[0];
       return {
         ...line,
         ...preview.values,
@@ -321,9 +321,9 @@ export default function PayrollTab({ canManage, canFinalize = canManage }: { can
         deductionTotal: preview.deductionTotal,
         net: preview.net,
         commission: Number(preview.values.commission ?? 0),
-        calculation: segment.calculation,
-        attendance: segment.attendance,
-        vietnam: segment.vietnam,
+        calculation: segment?.calculation ?? line.calculation,
+        attendance: segment?.attendance ?? line.attendance ?? originalResult,
+        vietnam: segment?.vietnam ?? line.vietnam,
       };
     });
   }, [run, results, inputDrafts, inlineEditable, payrollPolicies, period]);
@@ -368,7 +368,9 @@ export default function PayrollTab({ canManage, canFinalize = canManage }: { can
   const totalNet = runRows.reduce((sum: number, r: any) => sum + r.net, 0);
   const totalBase = runRows.reduce((sum: number, r: any) => sum + r.baseSalary, 0);
   const headcount = run ? runRows.length : draftRows.length;
-  const shortageCount = draftRows.filter((r: any) => r.shortageDays > 0).length;
+  const shortageCount = run
+    ? runRows.filter((row: any) => buildPayrollDetails(row.attendance, row.calculation, row.vietnam).shortageDays > 0).length
+    : draftRows.filter((row: any) => row.shortageDays > 0).length;
   const hasPayrollPolicy = policiesLoaded && hasActivePolicyForMonth(payrollPolicies, period);
   const processingAction = getPayrollProcessingAction(run?.status, processingPayroll, hasPayrollPolicy);
 
@@ -894,6 +896,9 @@ export default function PayrollTab({ canManage, canFinalize = canManage }: { can
                         <tr key={line.employeeId} className="border-b last:border-0 hover:bg-slate-50/50">
                           <td className="sticky left-0 z-10 border-r-2 border-slate-200 bg-white p-3 text-center font-medium text-slate-700 shadow-xs">
                             <div className="font-semibold text-slate-800">{line.employeeName || "Chưa có tên"}</div>
+                            {(line.warnings?.includes("PAYROLL_DEDUCTIONS_EXCEED_INCOME") || Number(line.vietnam?.carryForward ?? 0) > 0) && (
+                              <div className="mt-1 text-[10px] font-medium text-amber-700">Khấu trừ vượt thu nhập</div>
+                            )}
                             {inputErrors[String(line.employeeId)] && <div className="mt-1 text-[10px] text-rose-600 font-medium">{inputErrors[String(line.employeeId)]}</div>}
                           </td>
                           {PAYROLL_RESULT_FIELDS.map(field => inlineEditable
@@ -1213,9 +1218,17 @@ export default function PayrollTab({ canManage, canFinalize = canManage }: { can
             {(() => {
               const detail = buildPayrollDetails(formulaRow.attendance, formulaRow.calculation, formulaRow.vietnam);
               const money = (value: number) => value.toLocaleString() + " đ";
+              const carryForward = Number(detail.vietnam?.carryForward ?? 0);
+              const hasDeductionCarryForward = formulaRow.warnings?.includes("PAYROLL_DEDUCTIONS_EXCEED_INCOME") || carryForward > 0;
               return (
                 <div className="mt-4 space-y-4 text-sm">
                   {formulaLoading && <p className="text-xs text-cyan-700">Đang tải snapshot bảng lương mới nhất...</p>}
+                  {hasDeductionCarryForward && (
+                    <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
+                      <p className="font-semibold">Khấu trừ vượt thu nhập</p>
+                      <p className="mt-1 text-xs">Phần chưa thể khấu trừ ({money(carryForward)}) được chuyển sang kỳ sau. Hệ thống giữ nguyên khoản khấu trừ đã tính.</p>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 sm:p-4">
                     <div><span className="text-xs text-slate-500">Lương cơ bản</span><b className="block">{money(detail.monthlySalary)}</b></div>
                     <div><span className="text-xs text-slate-500">Đơn giá giờ</span><b className="block">{money(Math.round(detail.hourlyRate))}</b></div>

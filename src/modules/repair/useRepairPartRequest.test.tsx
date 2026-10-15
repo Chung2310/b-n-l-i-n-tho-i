@@ -4,13 +4,15 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { useRepairPartRequest, type PartRequest } from "./useRepairPartRequest";
 import { repairService } from "../../services/repairService";
 const context = vi.hoisted(() => ({ scope: { companyCode: "C", branchId: "B" }, userProfile: { uid: "user" } }));
+const confirmation = vi.hoisted(() => ({ confirm: vi.fn(async () => true) }));
 vi.mock("../retail/hooks/useRetailScope", () => ({ useRetailScope: () => context }));
 vi.mock("../../services/repairService", () => ({ repairService: { issuePart: vi.fn(), returnPart: vi.fn(), reconcilePart: vi.fn(), revokePartRequest: vi.fn() } }));
+vi.mock("../../context/ConfirmationContext", () => ({ useConfirmation: () => confirmation.confirm }));
 const issue: PartRequest = { kind: "issue", input: { productId: "p", sku: "P", productName: "Part", quantity: 1, unitCost: 100, unitPrice: 200, idempotencyKey: "stable" } };
 const returned: PartRequest = { kind: "return", partId: "part", reason: "unused" };
 const key = () => 'repair-part-pending:v1:' + JSON.stringify([context.scope.companyCode, context.scope.branchId, context.userProfile.uid, "ticket"]);
 const done = vi.fn(), hook = () => renderHook(() => useRepairPartRequest("ticket", done));
-beforeEach(() => { localStorage.clear(); vi.clearAllMocks(); context.scope = { companyCode: "C", branchId: "B" }; context.userProfile.uid = "user"; vi.mocked(repairService.revokePartRequest).mockReset(); vi.mocked(repairService.issuePart).mockReset(); vi.mocked(repairService.returnPart).mockReset(); vi.mocked(repairService.reconcilePart).mockReset(); Object.defineProperty(navigator, "locks", { configurable: true, value: { request: vi.fn(async (_key: string, _opts: any, fn: any) => fn({})) } }); });
+beforeEach(() => { localStorage.clear(); vi.clearAllMocks(); confirmation.confirm.mockResolvedValue(true); context.scope = { companyCode: "C", branchId: "B" }; context.userProfile.uid = "user"; vi.mocked(repairService.revokePartRequest).mockReset(); vi.mocked(repairService.issuePart).mockReset(); vi.mocked(repairService.returnPart).mockReset(); vi.mocked(repairService.reconcilePart).mockReset(); Object.defineProperty(navigator, "locks", { configurable: true, value: { request: vi.fn(async (_key: string, _opts: any, fn: any) => fn({})) } }); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 it.each([issue, returned])("persists and retries exact $kind requests after reopening", async request => {
   const api = request.kind === "issue" ? repairService.issuePart : repairService.returnPart;
@@ -51,25 +53,25 @@ it("preserves a newer stored request while the old reply arrives", async () => {
 });
 
 it.each([issue, returned])("unlocks $kind only after confirmed revocation", async request => {
-  localStorage.setItem(key(), JSON.stringify(request)); vi.spyOn(window, "confirm").mockReturnValue(true);
+  localStorage.setItem(key(), JSON.stringify(request));
   vi.mocked(repairService.revokePartRequest).mockResolvedValueOnce({ status: "revoked", message: "ok" });
   const { result } = hook(); await act(() => result.current.run(undefined, "revoke"));
   expect(localStorage.getItem(key())).toBeNull(); expect(result.current.pending).toBeNull(); expect(done).not.toHaveBeenCalled(); expect(repairService.issuePart).not.toHaveBeenCalled(); expect(repairService.returnPart).not.toHaveBeenCalled();
 });
 it("recovers a lost revocation reply through read-only reconciliation", async () => {
-  localStorage.setItem(key(), JSON.stringify(returned)); vi.spyOn(window, "confirm").mockReturnValue(true);
+  localStorage.setItem(key(), JSON.stringify(returned));
   vi.mocked(repairService.revokePartRequest).mockRejectedValueOnce(new Error("lost reply"));
   const first = hook(); await act(() => first.result.current.run(undefined, "revoke")); expect(localStorage.getItem(key())).not.toBeNull(); first.unmount();
   vi.mocked(repairService.reconcilePart).mockResolvedValueOnce({ status: "revoked", message: "ok" });
   const next = hook(); await act(() => next.result.current.run(undefined, true)); expect(next.result.current.pending).toBeNull(); expect(done).not.toHaveBeenCalled();
 });
 it.each(["not_found", "conflict"])("preserves pending request when revocation is %s", async status => {
-  localStorage.setItem(key(), JSON.stringify(issue)); vi.spyOn(window, "confirm").mockReturnValue(true);
+  localStorage.setItem(key(), JSON.stringify(issue));
   vi.mocked(repairService.revokePartRequest).mockResolvedValueOnce({ status, message: status });
   const { result } = hook(); await act(() => result.current.run(undefined, "revoke")); expect(localStorage.getItem(key())).not.toBeNull(); expect(result.current.pending).toEqual(issue);
 });
 it("completes an already-posted request without reversing stock", async () => {
-  localStorage.setItem(key(), JSON.stringify(issue)); vi.spyOn(window, "confirm").mockReturnValue(true);
+  localStorage.setItem(key(), JSON.stringify(issue));
   vi.mocked(repairService.revokePartRequest).mockResolvedValueOnce({ status: "completed", partId: "part", message: "ok" });
   const { result } = hook(); await act(() => result.current.run(undefined, "revoke")); expect(done).toHaveBeenCalledOnce(); expect(repairService.issuePart).not.toHaveBeenCalled(); expect(repairService.returnPart).not.toHaveBeenCalled();
 });

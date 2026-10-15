@@ -624,6 +624,10 @@ export const payrollController = {
           monthlySalary: effectiveSalary,
           workedMinutes:effectiveWorkedMinutes,
           workedDays: row.workedDays || 0,
+          shortageMinutes: Number(row.shortageMinutes || 0),
+          shortageDays: Number(row.shortageDays ?? (row.standardDays > 0
+            ? Number(row.shortageMinutes || 0) / (row.standardHours * 60 / row.standardDays)
+            : 0)),
           standardHours: row.standardHours,
           standardDays: row.standardDays,
         },

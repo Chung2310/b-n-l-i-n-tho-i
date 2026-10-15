@@ -18,6 +18,8 @@ export async function confirmOfflineOrderLocked(scope: OfflineScope, item: Retai
         input: payload.input,
         expectedGrandTotal: payload.expectedGrandTotal,
         payments: payload.payments,
+        ...(payload.paymentCode ? { paymentCode: payload.paymentCode } : {}),
+        ...(payload.pendingTransferAmount > 0 ? { pendingTransferAmount: payload.pendingTransferAmount } : {}),
         idempotencyKey: item.idempotencyKey,
         posSessionId: payload.posSessionId,
       });

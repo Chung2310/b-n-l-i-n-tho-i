@@ -33,6 +33,7 @@ import type { RetailAfterSaleInput, RetailAfterSaleType, RetailOrder, RetailPaym
 import { getApiErrorMessage } from "../../../utils/errorMessage";
 import { toast } from "../../../pages/Toast";
 import { ApiClientError } from "../../../services/apiClientError";
+import { tiktokShopApi, type TikTokOrderSyncBatch, type TikTokOrderSyncProgress } from "../../../services/tiktokShopService";
 
 const money = (value: number) => new Intl.NumberFormat("vi-VN").format(value) + " ₫";
 
@@ -51,6 +52,12 @@ export default function RetailOrdersPageV2() {
   const [collecting, setCollecting] = React.useState(false);
   const [cancelling, setCancelling] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [syncingTikTokOrders, setSyncingTikTokOrders] = React.useState(false);
+  const [tiktokOrderBatch, setTiktokOrderBatch] = React.useState<TikTokOrderSyncBatch | null>(null);
+  const [tiktokOrderProgress, setTiktokOrderProgress] = React.useState<TikTokOrderSyncProgress | null>(null);
+  const tiktokOrderSyncRunning = Boolean(tiktokOrderBatch && (!tiktokOrderProgress || tiktokOrderProgress.pending > 0));
+  const tiktokBatchId = tiktokOrderBatch?.batchId;
+  const notifiedOrderBatchId = React.useRef("");
 
   const refresh = React.useCallback(async () => {
     if (!scope) return;
@@ -74,6 +81,40 @@ export default function RetailOrdersPageV2() {
     }, 250);
     return () => clearTimeout(timer);
   }, [refresh]);
+
+  React.useEffect(() => {
+    if (!tiktokBatchId) return;
+    let stopped = false;
+    let timer: number | undefined;
+    const poll = async () => {
+      try {
+        const progress = await tiktokShopApi.orderSyncProgress(tiktokBatchId);
+        if (stopped) return;
+        setTiktokOrderProgress(progress);
+        if (progress.pending > 0) timer = window.setTimeout(() => void poll(), 2000);
+        else if (progress.failed > 0) {
+          if (notifiedOrderBatchId.current !== tiktokBatchId) {
+            notifiedOrderBatchId.current = tiktokBatchId;
+            toast.error(`Đồng bộ xong: ${progress.failed} đơn lỗi; đã có hóa đơn cho ${progress.invoicesCreated}/${progress.total} đơn.`);
+            void refresh();
+          }
+        } else {
+          if (notifiedOrderBatchId.current !== tiktokBatchId) {
+            notifiedOrderBatchId.current = tiktokBatchId;
+            toast.success(`Đồng bộ xong ${progress.total} đơn; đã có hóa đơn cho ${progress.invoicesCreated} đơn.`);
+            void refresh();
+          }
+        }
+      } catch {
+        if (!stopped) timer = window.setTimeout(() => void poll(), 4000);
+      }
+    };
+    void poll();
+    return () => {
+      stopped = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [tiktokBatchId, refresh]);
 
   if (!scope) {
     return (
@@ -125,6 +166,28 @@ export default function RetailOrdersPageV2() {
       void refresh();
   };
 
+  const syncTikTokOrders = async () => {
+    setSyncingTikTokOrders(true);
+    try {
+      const batch = await tiktokShopApi.syncOrders();
+      if (!batch.queued) {
+        setTiktokOrderBatch(null);
+        setTiktokOrderProgress(null);
+        if (batch.errors.length) toast.error(batch.errors[0]);
+        else toast.success("Không có đơn TikTok đang chờ giao cần đồng bộ.");
+        return;
+      }
+      setTiktokOrderProgress(null);
+      setTiktokOrderBatch(batch);
+      if (batch.errors.length) toast.error(`Đã nhận ${batch.queued} đơn; ${batch.errors.length} shop chưa đồng bộ được.`);
+      else toast.success(`Đã nhận ${batch.queued} đơn TikTok; hệ thống đang tạo hóa đơn.`);
+    } catch (cause) {
+      toast.error(getApiErrorMessage(cause, "Không đồng bộ được đơn TikTok Shop."));
+    } finally {
+      setSyncingTikTokOrders(false);
+    }
+  };
+
   // KPI Computations
   const totalGrand = orders.reduce((sum, o) => sum + Number(o.grandTotal || 0), 0);
   const completedCount = orders.filter((o) => o.status === "completed").length;
@@ -148,16 +211,33 @@ export default function RetailOrdersPageV2() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void refresh()}
-          disabled={loading}
-          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 active:scale-95 disabled:opacity-60 cursor-pointer"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 text-cyan-600 ${loading ? "animate-spin" : ""}`} />
-          <span>Làm mới</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {manager && <button
+            type="button"
+            onClick={() => void syncTikTokOrders()}
+            disabled={syncingTikTokOrders || tiktokOrderSyncRunning}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 shadow-2xs transition hover:bg-violet-100 active:scale-95 disabled:opacity-60 cursor-pointer"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${syncingTikTokOrders || tiktokOrderSyncRunning ? "animate-spin" : ""}`} />
+            <span>Đồng bộ đơn cũ</span>
+          </button>}
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 active:scale-95 disabled:opacity-60 cursor-pointer"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 text-cyan-600 ${loading ? "animate-spin" : ""}`} />
+            <span>Làm mới</span>
+          </button>
+        </div>
       </header>
+
+      {tiktokOrderBatch && <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-950">
+        <span className="font-semibold">{tiktokOrderProgress && tiktokOrderProgress.pending === 0 ? "Đồng bộ hoàn tất" : "Đồng bộ đơn TikTok"}</span>
+        <span className="ml-2">{tiktokOrderProgress ? `${tiktokOrderProgress.processed}/${tiktokOrderProgress.total} đơn; ${tiktokOrderProgress.invoicesCreated} hóa đơn; ${tiktokOrderProgress.failed} lỗi.` : `Đã nhận ${tiktokOrderBatch.queued} đơn.`}</span>
+        {[...tiktokOrderBatch.errors, ...(tiktokOrderProgress?.errors || [])].slice(0, 2).map((message) => <p key={message} className="mt-1 text-rose-700">{message}</p>)}
+      </div>}
 
       {/* Overview KPI Cards */}
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
@@ -524,22 +604,23 @@ function OrderDialog({
         <AfterSaleHistory order={order} />
 
         {/* Financial Metrics */}
-        <div className="mt-5 grid grid-cols-3 gap-3">
+        <div className={`mt-5 grid gap-3 ${Number(order.pendingTransferAmount || 0) > 0 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
           <Metric label="Tổng cộng" value={order.grandTotal} />
           <Metric label="Đã thu" value={order.paidAmount} />
-          <Metric label={order.installment ? "Chờ đối tác thanh toán" : "Còn nợ"} value={order.dueAmount} />
+          {Number(order.pendingTransferAmount || 0) > 0 && <Metric label="Chờ chuyển khoản" value={Number(order.pendingTransferAmount)} />}
+          <Metric label={order.installment ? "Chờ đối tác thanh toán" : "Còn nợ"} value={Math.max(0, order.dueAmount - Number(order.pendingTransferAmount || 0))} />
         </div>
 
         {/* Action Buttons */}
         <div className="mt-6 flex flex-wrap items-center gap-2.5 pt-4 border-t border-slate-100">
-          {(order.status === "confirmed" || order.status === "completed" || order.status === "cancelled") && (
+          {((order.status === "confirmed" && order.dueAmount > Number(order.pendingTransferAmount || 0)) || order.status === "completed" || order.status === "cancelled") && (
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-cyan-700 active:scale-95"
               onClick={onCollect}
             >
               <Banknote className="h-4 w-4" />
-              {order.status === "confirmed" && order.dueAmount > 0 ? "Thu công nợ" : "Kiểm tra khoản thu đang chờ"}
+              {order.status === "confirmed" && order.dueAmount > Number(order.pendingTransferAmount || 0) ? "Thu công nợ" : "Kiểm tra khoản thu đang chờ"}
             </button>
           )}
 

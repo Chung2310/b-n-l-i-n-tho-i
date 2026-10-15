@@ -1,7 +1,7 @@
 import React from "react";
 import { X } from "lucide-react";
 import { superAdminTenantService } from "../../../services/superAdminTenantService";
-import { DEFAULT_MODULE_KEYS, MODULE_OPTIONS, type ModuleKey } from "../../../config/modules";
+import { DEFAULT_RETAIL_MODULE_KEYS, MODULE_OPTIONS, type ModuleKey } from "../../../config/modules";
 import { DEFAULT_BUSINESS_TYPE, type BusinessType } from "../../../config/businessTypes";
 
 export function TenantCreateDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (code: string) => void }) {
@@ -10,7 +10,7 @@ export function TenantCreateDialog({ onClose, onCreated }: { onClose: () => void
   const [ownerName, setOwnerName] = React.useState("");
   const [ownerEmail, setOwnerEmail] = React.useState("");
   const [ownerPassword, setOwnerPassword] = React.useState("");
-  const [enabledModules, setEnabledModules] = React.useState<ModuleKey[]>([...DEFAULT_MODULE_KEYS]);
+  const [enabledModules, setEnabledModules] = React.useState<ModuleKey[]>([...DEFAULT_RETAIL_MODULE_KEYS]);
   const businessType: BusinessType = DEFAULT_BUSINESS_TYPE;
   const [error, setError] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);

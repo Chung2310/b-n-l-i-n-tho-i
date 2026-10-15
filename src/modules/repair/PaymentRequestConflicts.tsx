@@ -1,18 +1,20 @@
 import React, { useEffect, useRef, useState } from "react";
 import { repairService } from "../../services/repairService";
+import { useConfirmation } from "../../context/ConfirmationContext";
 import { clearResolvedPaymentCandidate, paymentRequestCandidates, samePaymentRequest, withPaymentRequestLock, type PendingRepairPayment } from "./repairPaymentRequest";
 
 export default function PaymentRequestConflicts({ storageKey, ticketId, scope, disabled, requests, onComplete }: {
   storageKey: string; ticketId: string; scope: { companyCode: string; branchId: string } | null | undefined;
   disabled: boolean; requests: PendingRepairPayment[]; onComplete: () => void;
 }) {
+  const requestConfirmation = useConfirmation();
   const [rows, setRows] = useState(requests), [busy, setBusy] = useState(false), [message, setMessage] = useState("");
   const active = useRef(true), allowed = useRef(!disabled), inFlight = useRef(false);
   allowed.current = !disabled;
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   async function resolve(request: PendingRepairPayment, revoke: boolean) {
     if (!scope || disabled || inFlight.current) return;
-    if (revoke && !window.confirm("Vô hiệu hóa yêu cầu này ở máy chủ? Khoản thu đã ghi sổ sẽ được đối chiếu, không bị đảo tiền.")) return;
+    if (revoke && !await requestConfirmation({ title: "Vô hiệu hóa yêu cầu thu?", description: "Yêu cầu sẽ bị khóa trên máy chủ. Khoản thu đã ghi sổ sẽ được đối chiếu, không bị đảo tiền.", confirmLabel: "Vô hiệu hóa", tone: "danger" })) return;
     inFlight.current = true; setBusy(true); setMessage("");
     try {
       await withPaymentRequestLock(storageKey, async () => {

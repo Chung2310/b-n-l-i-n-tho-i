@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRetailScope } from "../retail/hooks/useRetailScope";
 import { repairService } from "../../services/repairService";
+import { useConfirmation } from "../../context/ConfirmationContext";
 
 type Payload = Record<string, any>;
 function read(key: string): Payload | null {
@@ -16,6 +17,7 @@ function read(key: string): Payload | null {
 const same = (a: Payload | null, b: Payload) => JSON.stringify(a) === JSON.stringify(b);
 
 export function useRepairCreationRequest(onCreated: () => void) {
+  const requestConfirmation = useConfirmation();
   const { scope, userProfile } = useRetailScope();
   const identity = JSON.stringify([scope?.companyCode, scope?.branchId, userProfile?.uid]);
   const origin = useRef(identity), current = useRef(identity), mounted = useRef(true), inFlight = useRef(false), completed = useRef(false);
@@ -32,7 +34,7 @@ export function useRepairCreationRequest(onCreated: () => void) {
   const blocked = identity !== origin.current || !scope || !userProfile?.uid || Boolean(storageError);
   async function run(factory?: () => Payload, reconcile: boolean | "revoke" = false) {
     if (blocked || !scope || inFlight.current || completed.current) return;
-    if (reconcile === "revoke" && (!pendingRef.current || !window.confirm("Vô hiệu hóa yêu cầu tạo phiếu đang chờ? Phiếu đã tạo sẽ được đối chiếu, không bị hủy."))) return;
+    if (reconcile === "revoke" && (!pendingRef.current || !await requestConfirmation({ title: "Vô hiệu hóa yêu cầu tạo phiếu?", description: "Phiếu đã tạo sẽ được đối chiếu, không bị hủy.", confirmLabel: "Vô hiệu hóa", tone: "danger" }))) return;
     inFlight.current = true; setBusy(true); setError(""); setMessage("");
     const active = () => mounted.current && current.current === identity;
     try {

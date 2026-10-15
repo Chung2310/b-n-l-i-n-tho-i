@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- TikTok response envelopes vary by API version. */
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 const API_BASE_URL = "https://open-api.tiktokglobalshop.com";
 const TOKEN_BASE_URL = "https://auth.tiktok-shops.com";
 
 export class TikTokShopApiError extends Error {
-  statusCode = 502;
+  // Keep TikTok failures as API JSON responses. Returning 502 makes Cloudflare
+  // replace the useful upstream error with its generic HTML gateway page.
+  statusCode = 424;
   constructor(message: string, readonly apiCode?: number | string, readonly requestId?: string) {
     super(message);
     this.name = "TikTokShopApiError";
@@ -29,6 +31,20 @@ export function getTikTokShopConfig() {
   };
 }
 
+export function getTikTokShopWebhookConfig() {
+  const appKey = String(process.env.TIKTOK_SHOP_APP_KEY || "").trim();
+  const appSecret = String(process.env.TIKTOK_SHOP_APP_SECRET || "").trim();
+  if (!appKey || !appSecret) throw Object.assign(new Error("TikTok Shop webhook cần cấu hình APP_KEY và APP_SECRET trên máy chủ."), { statusCode: 503 });
+  return { appKey, appSecret };
+}
+
+export function verifyTikTokShopWebhookSignature(rawBody: Buffer, authorization: string, appKey: string, appSecret: string) {
+  const received = String(authorization || "").trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(received)) return false;
+  const expected = createHmac("sha256", appSecret).update(appKey).update(rawBody).digest("hex");
+  return timingSafeEqual(Buffer.from(received, "ascii"), Buffer.from(expected, "ascii"));
+}
+
 export function signTikTokShopRequest(path: string, params: Record<string, string>, body: string, appSecret: string): string {
   const keys = Object.keys(params).filter((key) => key !== "sign" && key !== "access_token").sort();
   let input = path;
@@ -40,9 +56,21 @@ export function signTikTokShopRequest(path: string, params: Record<string, strin
 
 async function parseResponse(response: Response) {
   const payload: any = await response.json().catch(() => null);
-  if (!response.ok) throw new TikTokShopApiError(`TikTok Shop HTTP ${response.status}.`);
+  const apiCode = payload?.code ?? payload?.error_code ?? payload?.error?.code;
+  const requestId = payload?.request_id ?? payload?.log_id;
+  const apiMessage = [payload?.message, payload?.error?.message, typeof payload?.error === "string" ? payload.error : ""]
+    .find((value) => typeof value === "string" && value.trim())?.trim();
+  const describeFailure = (status: number, fallback: string) => {
+    const parts = [`TikTok Shop HTTP ${status}`];
+    if (apiCode !== undefined && apiCode !== null && String(apiCode)) parts.push(`mã ${String(apiCode).slice(0, 80)}`);
+    if (apiMessage) parts.push(apiMessage.slice(0, 400));
+    else parts.push(fallback);
+    if (requestId) parts.push(`request_id ${String(requestId).slice(0, 100)}`);
+    return parts.join(": ");
+  };
+  if (!response.ok) throw new TikTokShopApiError(describeFailure(response.status, "TikTok Shop từ chối yêu cầu."), apiCode, requestId);
   if (!payload || Number(payload.code) !== 0) {
-    throw new TikTokShopApiError(payload?.message || "TikTok Shop trả về phản hồi không hợp lệ.", payload?.code, payload?.request_id);
+    throw new TikTokShopApiError(describeFailure(response.status, "TikTok Shop trả về phản hồi không hợp lệ."), apiCode, requestId);
   }
   return payload.data ?? {};
 }

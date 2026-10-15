@@ -6,8 +6,10 @@ import { useRepairCreationRequest } from "./useRepairCreationRequest";
 import CreateRepairModal from "./CreateRepairModal";
 import { repairService } from "../../services/repairService";
 const context = vi.hoisted(() => ({ scope: { companyCode: "company-a", branchId: "branch-a" }, userProfile: { uid: "user-1" } }));
+const confirmation = vi.hoisted(() => ({ confirm: vi.fn(async () => true) }));
 vi.mock("../retail/hooks/useRetailScope", () => ({ useRetailScope: () => context }));
 vi.mock("../../services/repairService", () => ({ repairService: { create: vi.fn(), reconcileCreation: vi.fn(), revokeCreation: vi.fn() } }));
+vi.mock("../../context/ConfirmationContext", () => ({ useConfirmation: () => confirmation.confirm }));
 vi.mock("../customer-management/customerApi", () => ({ customerApi: { list: vi.fn(async () => ({ items: [] })) } }));
 vi.mock("../partners/CollaboratorPicker", () => ({ default: () => null }));
 const payload = { ticketCode: "SRV-frozen", ticketType: "service", customerId: "KH-1", customerName: "Customer", customerPhone: "0901234567", device: { name: "Phone", accessories: [] }, symptom: "Broken", receivedAt: "2026-09-30T01:00:00.000Z", coverage: { checkedAt: "2026-09-30T01:00:00.000Z" } };
@@ -15,7 +17,7 @@ const key = () => `repair-create-pending:v1:${JSON.stringify([context.scope.comp
 const done = vi.fn();
 const hook = () => renderHook(() => useRepairCreationRequest(done));
 beforeEach(() => {
-  localStorage.clear(); vi.clearAllMocks(); vi.mocked(repairService.revokeCreation).mockReset(); vi.mocked(repairService.create).mockReset(); vi.mocked(repairService.reconcileCreation).mockReset();
+  localStorage.clear(); vi.clearAllMocks(); confirmation.confirm.mockResolvedValue(true); vi.mocked(repairService.revokeCreation).mockReset(); vi.mocked(repairService.create).mockReset(); vi.mocked(repairService.reconcileCreation).mockReset();
   context.scope = { companyCode: "company-a", branchId: "branch-a" }; context.userProfile.uid = "user-1";
   Object.defineProperty(navigator, "locks", { configurable: true, value: { request: vi.fn(async (_key: string, _options: any, fn: any) => fn({ name: _key })) } });
 });
@@ -101,7 +103,7 @@ it("freezes modal content after sending and reopens the saved request", async ()
 });
 
 it("unlocks input only after confirmed revocation", async () => {
-  localStorage.setItem(key(), JSON.stringify(payload)); vi.spyOn(window, "confirm").mockReturnValue(true);
+  localStorage.setItem(key(), JSON.stringify(payload));
   vi.mocked(repairService.revokeCreation).mockResolvedValueOnce({ status: "revoked", message: "ok" });
   const { result } = hook(); await act(() => result.current.run(undefined, "revoke"));
   expect(result.current.pending).toBeNull(); expect(localStorage.getItem(key())).toBeNull(); expect(done).not.toHaveBeenCalled();
@@ -109,21 +111,21 @@ it("unlocks input only after confirmed revocation", async () => {
   await act(() => result.current.run(() => next)); expect(repairService.create).toHaveBeenCalledWith(next, context.scope);
 });
 it("recovers a lost revocation reply through read-only reconciliation", async () => {
-  localStorage.setItem(key(), JSON.stringify(payload)); vi.spyOn(window, "confirm").mockReturnValue(true);
+  localStorage.setItem(key(), JSON.stringify(payload));
   vi.mocked(repairService.revokeCreation).mockRejectedValueOnce(new Error("lost reply"));
   const first = hook(); await act(() => first.result.current.run(undefined, "revoke")); expect(localStorage.getItem(key())).not.toBeNull(); first.unmount();
   vi.mocked(repairService.reconcileCreation).mockResolvedValueOnce({ status: "revoked", message: "ok" });
   const next = hook(); await act(() => next.result.current.run(undefined, true)); expect(next.result.current.pending).toBeNull(); expect(localStorage.getItem(key())).toBeNull(); expect(done).not.toHaveBeenCalled();
 });
 it.each(["not_found", "conflict"])("retains saved creation on unverified revoke %s", async status => {
-  localStorage.setItem(key(), JSON.stringify(payload)); vi.spyOn(window, "confirm").mockReturnValue(true); vi.mocked(repairService.revokeCreation).mockResolvedValueOnce({ status, message: status });
+  localStorage.setItem(key(), JSON.stringify(payload)); vi.mocked(repairService.revokeCreation).mockResolvedValueOnce({ status, message: status });
   const { result } = hook(); await act(() => result.current.run(undefined, "revoke")); expect(localStorage.getItem(key())).not.toBeNull(); expect(result.current.pending).toEqual(payload);
 });
 it("treats already-created revocation as completion without another create", async () => {
-  localStorage.setItem(key(), JSON.stringify(payload)); vi.spyOn(window, "confirm").mockReturnValue(true); vi.mocked(repairService.revokeCreation).mockResolvedValueOnce({ status: "completed", ticketId: "id", message: "ok" });
+  localStorage.setItem(key(), JSON.stringify(payload)); vi.mocked(repairService.revokeCreation).mockResolvedValueOnce({ status: "completed", ticketId: "id", message: "ok" });
   const { result } = hook(); await act(() => result.current.run(undefined, "revoke")); expect(done).toHaveBeenCalledOnce(); expect(repairService.create).not.toHaveBeenCalled();
 });
 it("does not revoke if the operator cancels confirmation", async () => {
-  localStorage.setItem(key(), JSON.stringify(payload)); vi.spyOn(window, "confirm").mockReturnValue(false);
+  localStorage.setItem(key(), JSON.stringify(payload)); confirmation.confirm.mockResolvedValueOnce(false);
   const { result } = hook(); await act(() => result.current.run(undefined, "revoke")); expect(repairService.revokeCreation).not.toHaveBeenCalled(); expect(localStorage.getItem(key())).not.toBeNull();
 });
