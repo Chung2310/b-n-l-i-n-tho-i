@@ -3,6 +3,7 @@ import type { TabType } from "../types";
 export const MODULE_KEYS = ["hr", "inventory", "resource", "chat", "customer", "retail", "repair", "finance", "marketing"] as const;
 export type ModuleKey = (typeof MODULE_KEYS)[number];
 export const DEFAULT_MODULE_KEYS = MODULE_KEYS.filter((key) => key !== "retail" && key !== "finance" && key !== "marketing") as Exclude<ModuleKey, "retail" | "finance" | "marketing">[];
+export const DEFAULT_RETAIL_MODULE_KEYS: ModuleKey[] = [...DEFAULT_MODULE_KEYS, "retail"];
 
 export const MODULE_LABELS: Record<ModuleKey, string> = {
   hr: "Nhân sự", inventory: "Kho & Sản phẩm", resource: "Quản lý tài nguyên", chat: "Trò chuyện",

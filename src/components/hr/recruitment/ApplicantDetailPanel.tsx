@@ -31,6 +31,7 @@ import {
   RECRUITMENT_FILE_ACCEPT,
   validateRecruitmentFile,
 } from "./recruitmentFile";
+import { useConfirmation } from "../../../context/ConfirmationContext";
 
 export default function ApplicantDetailPanel({
   applicant,
@@ -43,6 +44,7 @@ export default function ApplicantDetailPanel({
   canManage: boolean;
   onClose: () => void;
 }) {
+  const requestConfirmation = useConfirmation();
   const [history, setHistory] = useState<RecruitmentHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -98,7 +100,7 @@ export default function ApplicantDetailPanel({
 
   const remove = async (file: RecruitmentAttachment) => {
     if (!canManage) return;
-    if (!confirm(`Xóa ${file.originalName}?`)) return;
+    if (!await requestConfirmation({ title: "Xóa tệp đính kèm?", description: `Xóa ${file.originalName}?`, confirmLabel: "Xóa tệp", tone: "danger" })) return;
     try {
       await recruitmentApi.deleteAttachment(file._id);
       await load();

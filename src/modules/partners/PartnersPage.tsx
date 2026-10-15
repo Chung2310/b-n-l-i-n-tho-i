@@ -38,6 +38,7 @@ import {
   Package,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { useConfirmation } from "../../context/ConfirmationContext";
 import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { partnerRequest, type Partner } from "./partnerApi";
 import { ProductCommissions } from "./ProductCommissions";
@@ -468,6 +469,7 @@ function Statement({
   onClose?: () => void;
   asModal?: boolean;
 }) {
+  const requestConfirmation = useConfirmation();
   const [period, setPeriod] = React.useState(month);
   const [page, setPage] = React.useState(1);
   const [data, setData] = React.useState<any>(null);
@@ -516,8 +518,7 @@ function Statement({
 
   const payout = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!window.confirm(`Xác nhận đã chi ${money(Number(amount))} cho ${data?.partner?.name}, chứng từ ${reference}?`))
-      return;
+    if (!await requestConfirmation({ title: "Xác nhận đã chi?", description: `Đã chi ${money(Number(amount))} cho ${data?.partner?.name}, chứng từ ${reference}?`, confirmLabel: "Xác nhận đã chi", tone: "warning" })) return;
     setBusy(true);
     try {
       await partnerRequest(`/${partnerId}/payouts`, "POST", {

@@ -23,6 +23,7 @@ import {
   type OutboundTicket,
 } from "./outbound/printOutboundVoucher";
 import type { StockLog, StockLogPurpose } from "../../types";
+import { useConfirmation } from "../../context/ConfirmationContext";
 
 export interface OutboundSectionProps {
   onReverse?: (id: string, reason: string) => Promise<{ _id: string }>;
@@ -46,6 +47,7 @@ export function OutboundSection({
   onUpdateStatus,
   onDeleteTransaction,
 }: OutboundSectionProps) {
+  const requestConfirmation = useConfirmation();
   // Warehouses list
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [warehousesLoading, setWarehousesLoading] = useState(false);
@@ -247,7 +249,7 @@ export function OutboundSection({
   // Xóa phiếu
   const handleDeleteTicket = async (ticketId: string) => {
     if (!onDeleteTransaction) return;
-    const confirmed = window.confirm(`Bạn có chắc chắn muốn xóa phiếu xuất ${ticketId}?`);
+    const confirmed = await requestConfirmation({ title: "Xóa phiếu xuất?", description: `Bạn có chắc chắn muốn xóa phiếu xuất ${ticketId}?`, confirmLabel: "Xóa phiếu", tone: "danger" });
     if (!confirmed) return;
 
     try {

@@ -4,12 +4,15 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import PendingDraftRequests from "./PendingDraftRequests";
 import { retailOrdersApi } from "../../api/retailOrders.api";
+const confirmation = vi.hoisted(() => ({ confirm: vi.fn(async () => true) }));
 vi.mock("../../api/retailOrders.api", () => ({ retailOrdersApi: { createDraft: vi.fn(), updateDraft: vi.fn(), confirm: vi.fn(), reconcileDraftRequest: vi.fn(), revokeDraftRequest: vi.fn() } }));
+vi.mock("../../../../context/ConfirmationContext", () => ({ useConfirmation: () => confirmation.confirm }));
 const scope = { companyCode: "A", branchId: "B" };
 const key = 'retail-create-draft:v1:["A","B","u1"]';
 const request = { idempotencyKey: "original-key", input: { customerId: "c1", items: [{ productId: "p1", quantity: 1 }] } };
 beforeEach(() => {
   vi.resetAllMocks(); localStorage.clear(); sessionStorage.clear();
+  confirmation.confirm.mockResolvedValue(true);
   Object.defineProperty(navigator, "locks", { configurable: true, value: { request: vi.fn(async (_key, _options, work) => work({})) } });
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
@@ -91,7 +94,7 @@ it.each(["not_found", "processing", "conflict"])("retains storage after read-onl
   expect(localStorage.getItem(key)).not.toBeNull();
 });
 it("recovers a lost revocation response through read-only reconciliation", async () => {
-  localStorage.setItem(key, JSON.stringify(request)); vi.spyOn(window, "confirm").mockReturnValue(true);
+  localStorage.setItem(key, JSON.stringify(request));
   vi.mocked(retailOrdersApi.revokeDraftRequest).mockRejectedValue(new Error("network"));
   render(<PendingDraftRequests scope={scope} userId="u1" busy={false} onRecovered={vi.fn()} />);
   fireEvent.click(screen.getByText("Thu hồi yêu cầu")); await screen.findByText("network");
@@ -100,7 +103,7 @@ it("recovers a lost revocation response through read-only reconciliation", async
   fireEvent.click(screen.getByText("Đối chiếu")); await waitFor(() => expect(localStorage.getItem(key)).toBeNull());
 });
 it("preserves a replacement pending payload when a revocation response arrives", async () => {
-  localStorage.setItem(key, JSON.stringify(request)); vi.spyOn(window, "confirm").mockReturnValue(true);
+  localStorage.setItem(key, JSON.stringify(request));
   const replacement = { ...request, input: { ...request.input, shippingFee: 10 } };
   vi.mocked(retailOrdersApi.revokeDraftRequest).mockImplementation(async () => { localStorage.setItem(key, JSON.stringify(replacement)); return { status: "revoked" }; });
   render(<PendingDraftRequests scope={scope} userId="u1" busy={false} onRecovered={vi.fn()} />);
@@ -108,7 +111,7 @@ it("preserves a replacement pending payload when a revocation response arrives",
   expect(JSON.parse(localStorage.getItem(key)!)).toEqual(replacement);
 });
 it("does not revoke when the user dismisses the confirmation", () => {
-  localStorage.setItem(key, JSON.stringify(request)); vi.spyOn(window, "confirm").mockReturnValue(false);
+  localStorage.setItem(key, JSON.stringify(request)); confirmation.confirm.mockResolvedValueOnce(false);
   render(<PendingDraftRequests scope={scope} userId="u1" busy={false} onRecovered={vi.fn()} />);
   fireEvent.click(screen.getByText("Thu hồi yêu cầu"));
   expect(retailOrdersApi.revokeDraftRequest).not.toHaveBeenCalled(); expect(localStorage.getItem(key)).not.toBeNull();

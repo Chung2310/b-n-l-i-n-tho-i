@@ -4,12 +4,14 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { InventoryCountPendingPanel } from "./InventoryCountPendingPanel";
 import { inventoryCountService, countQueueChangedEvent } from "../../services/inventoryCountService";
+const confirmation = vi.hoisted(() => ({ confirm: vi.fn(async () => true) }));
 vi.mock("../../services/inventoryCountService", () => ({ countQueueChangedEvent: "queue-change", inventoryCountService: { inspectPending: vi.fn(), comparePending: vi.fn(), reconcilePending: vi.fn(), revokePending: vi.fn() } }));
+vi.mock("../../context/ConfirmationContext", () => ({ useConfirmation: () => confirmation.confirm }));
 const scope = { companyCode: "IGEN", branchId: "b", userId: "u" };
 const entry = { id: "c", itemId: "i", countedQuantity: 7, expectedVersion: 3 };
 const snapshot = { raw: JSON.stringify([entry]), legacyRaw: null, entries: [entry] };
 const latest = { _id: "c", countCode: "KK-1", warehouseId: "w", version: 4, items: [{ _id: "i", countedQuantity: 7 }] };
-beforeEach(() => { vi.resetAllMocks(); vi.mocked(inventoryCountService.inspectPending).mockReturnValue(snapshot); });
+beforeEach(() => { vi.resetAllMocks(); confirmation.confirm.mockResolvedValue(true); vi.mocked(inventoryCountService.inspectPending).mockReturnValue(snapshot); });
 afterEach(() => { cleanup(); vi.clearAllTimers(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 it("compares quantities and versions without exposing a destructive resolution action", async () => {
   vi.mocked(inventoryCountService.comparePending).mockResolvedValue(latest as any);
@@ -121,7 +123,7 @@ it("ignores late verification errors after switching operators", async () => {
 it("requires confirmation before revoking and distinguishes an in-flight request from a committed one", async () => {
   const keyed = { ...entry, requestId: "11111111-1111-4111-8111-111111111111" };
   vi.mocked(inventoryCountService.inspectPending).mockReturnValue({ ...snapshot, entries: [keyed] });
-  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  confirmation.confirm.mockResolvedValueOnce(false);
   vi.mocked(inventoryCountService.revokePending).mockImplementation(async () => {
     vi.mocked(inventoryCountService.inspectPending).mockReturnValue({ raw: "[]", legacyRaw: null, entries: [] });
     window.dispatchEvent(new Event(countQueueChangedEvent));
@@ -130,7 +132,7 @@ it("requires confirmation before revoking and distinguishes an in-flight request
   render(<InventoryCountPendingPanel scope={scope} />);
   fireEvent.click(screen.getByRole("button", { name: "Thu hồi c / i" }));
   expect(inventoryCountService.revokePending).not.toHaveBeenCalled();
-  confirm.mockReturnValue(true);
+  confirmation.confirm.mockResolvedValueOnce(true);
   fireEvent.click(screen.getByRole("button", { name: "Thu hồi c / i" }));
   expect((await screen.findByRole("status")).textContent).toContain("đã được thu hồi trên máy chủ");
   expect(inventoryCountService.revokePending).toHaveBeenCalledWith(keyed, scope);
@@ -139,7 +141,6 @@ it("reports completed instead of claiming a committed count was revoked", async 
   const keyed = { ...entry, requestId: "11111111-1111-4111-8111-111111111111" };
   vi.mocked(inventoryCountService.inspectPending).mockReturnValue({ ...snapshot, entries: [keyed] });
   vi.mocked(inventoryCountService.revokePending).mockResolvedValue({ status: "completed", requestId: keyed.requestId, countId: "c", itemId: "i", committedVersion: 4, currentVersion: 7 });
-  vi.spyOn(window, "confirm").mockReturnValue(true);
   render(<InventoryCountPendingPanel scope={scope} />);
   fireEvent.click(screen.getByRole("button", { name: "Thu hồi c / i" }));
   expect((await screen.findByRole("status")).textContent).toContain("đã ghi nhận; phiếu được giữ nguyên");

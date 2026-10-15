@@ -21,6 +21,9 @@ const cleanup = [...manage, requirePermission("inventory:manage") as any];
 const company = (req: AuthenticatedRequest) => req.user?.companyCode;
 const actor = (req: AuthenticatedRequest) => String(req.user?.id || "");
 const branch = (req: AuthenticatedRequest) => String(req.body?.branchId || req.user?.branchId || "");
+const missingTikTokOrderScope = (error: any) => String(error?.apiCode || "") === "105005"
+  || /access token does not include any scope required/i.test(String(error?.message || ""));
+const tikTokOrderScopeHelp = "TikTok chưa cấp quyền đọc đơn hàng (Order Information, seller.order.info). Vào TikTok Shop Partner Center > App & Service > ứng dụng > Manage API, bật quyền Order Information; sau đó vào Cài đặt > TikTok Shop, chọn Ủy quyền lại seller và chấp nhận quyền mới rồi đồng bộ lại.";
 
 tikTokShopRouter.get("/status", ...read, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try { res.json({ data: await TikTokShopService.status(company(req)) }); } catch (error) { next(error); }
@@ -142,7 +145,10 @@ tikTokShopRouter.post("/sync-orders", ...orderManage, async (req: AuthenticatedR
             pageToken = nextPageToken;
           } while (pageToken);
         } catch (error: any) {
-          errors.push(`${shop.name || shop.id || shop.cipher}: ${String(error?.message || "Không thể lấy danh sách đơn TikTok Shop.").slice(0, 240)}`);
+          const message = missingTikTokOrderScope(error)
+            ? tikTokOrderScopeHelp
+            : String(error?.message || "Không thể lấy danh sách đơn TikTok Shop.").slice(0, 240);
+          errors.push(`${shop.name || shop.id || shop.cipher}: ${message}`);
         }
       }
     }

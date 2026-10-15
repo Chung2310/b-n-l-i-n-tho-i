@@ -7,13 +7,15 @@ import RepairPaymentForm from "./RepairPaymentForm";
 import { repairService } from "../../services/repairService";
 import { ApiClientError } from "../../services/apiClientError";
 const context = vi.hoisted(() => ({ scope: { companyCode: "company-a", branchId: "branch-a" }, userProfile: { uid: "user-1" } }));
+const confirmation = vi.hoisted(() => ({ confirm: vi.fn(async () => true) }));
 vi.mock("../retail/hooks/useRetailScope", () => ({ useRetailScope: () => context }));
 vi.mock("../../services/repairService", () => ({ repairService: { pay: vi.fn(), reconcilePayment: vi.fn(), revokePayment: vi.fn() } }));
+vi.mock("../../context/ConfirmationContext", () => ({ useConfirmation: () => confirmation.confirm }));
 const ticket: any = { _id: "repair-1", status: "done", totalAmount: 1000, paidAmount: 0, dueAmount: 1000 };
 const done = vi.fn(), lock = vi.fn();
 const key = () => 'repair-payment-pending:v1:' + JSON.stringify([context.scope.companyCode, context.scope.branchId, context.userProfile.uid, ticket._id]);
 const show = (value = ticket) => render(<RepairPaymentForm ticket={value} onComplete={done} onPendingChange={lock} />);
-beforeEach(() => { sessionStorage.clear(); localStorage.clear(); Object.defineProperty(navigator, "locks", { configurable: true, value: { request: vi.fn(async (_key: string, _options: any, callback: any) => callback({ name: _key })) } }); vi.mocked(repairService.revokePayment).mockReset(); vi.mocked(repairService.reconcilePayment).mockReset(); vi.clearAllMocks(); vi.mocked(repairService.pay).mockReset(); context.scope.branchId = "branch-a"; context.userProfile.uid = "user-1"; });
+beforeEach(() => { sessionStorage.clear(); localStorage.clear(); Object.defineProperty(navigator, "locks", { configurable: true, value: { request: vi.fn(async (_key: string, _options: any, callback: any) => callback({ name: _key })) } }); vi.mocked(repairService.revokePayment).mockReset(); vi.mocked(repairService.reconcilePayment).mockReset(); vi.clearAllMocks(); confirmation.confirm.mockResolvedValue(true); vi.mocked(repairService.pay).mockReset(); context.scope.branchId = "branch-a"; context.userProfile.uid = "user-1"; });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 const enter = async () => { const user = userEvent.setup(); await user.type(screen.getByRole("textbox"), "300"); return user; };
 it("persists before sending, blocks double submission, and completes once", async () => {
@@ -146,14 +148,14 @@ it("fails closed when shared storage is corrupt or browser locks are unavailable
 });
 
 it("only unlocks a cancelled payment after durable server revocation", async () => {
-  localStorage.setItem(key(), JSON.stringify(request)); vi.spyOn(window, "confirm").mockReturnValue(true);
+  localStorage.setItem(key(), JSON.stringify(request));
   vi.mocked(repairService.revokePayment).mockResolvedValueOnce({ status: "revoked", message: "revoked" });
   show(); fireEvent.click(screen.getByRole("button", { name: "Hủy khoản thu đang chờ" }));
   await waitFor(() => expect(localStorage.getItem(key())).toBeNull());
   expect(screen.getByRole("textbox")).toBeTruthy(); expect(done).not.toHaveBeenCalled(); expect(repairService.pay).not.toHaveBeenCalled();
 });
 it("recovers a lost revocation response through read-only reconciliation", async () => {
-  localStorage.setItem(key(), JSON.stringify(request)); vi.spyOn(window, "confirm").mockReturnValue(true);
+  localStorage.setItem(key(), JSON.stringify(request));
   vi.mocked(repairService.revokePayment).mockRejectedValueOnce(new Error("lost reply"));
   const view = show(); fireEvent.click(screen.getByRole("button", { name: "Hủy khoản thu đang chờ" }));
   await screen.findByRole("alert"); expect(localStorage.getItem(key())).not.toBeNull(); view.unmount();
@@ -162,7 +164,7 @@ it("recovers a lost revocation response through read-only reconciliation", async
   await waitFor(() => expect(localStorage.getItem(key())).toBeNull()); expect(screen.getByRole("textbox")).toBeTruthy();
 });
 it.each(["not_found", "conflict"])("retains a pending request on unverified revoke outcome %s", async status => {
-  localStorage.setItem(key(), JSON.stringify(request)); vi.spyOn(window, "confirm").mockReturnValue(true);
+  localStorage.setItem(key(), JSON.stringify(request));
   vi.mocked(repairService.revokePayment).mockResolvedValueOnce({ status, message: status });
   show(); fireEvent.click(screen.getByRole("button", { name: "Hủy khoản thu đang chờ" }));
   await screen.findByRole("status"); expect(localStorage.getItem(key())).not.toBeNull(); expect(done).not.toHaveBeenCalled();
@@ -170,7 +172,6 @@ it.each(["not_found", "conflict"])("retains a pending request on unverified revo
 it("resolves conflicting stores independently without submitting either payment", async () => {
   const other = { ...request, idempotencyKey: "other-key" };
   localStorage.setItem(key(), JSON.stringify(request)); sessionStorage.setItem(key(), JSON.stringify(other));
-  vi.spyOn(window, "confirm").mockReturnValue(true);
   vi.mocked(repairService.reconcilePayment).mockResolvedValueOnce({ status: "completed", message: "completed" });
   vi.mocked(repairService.revokePayment).mockResolvedValueOnce({ status: "revoked", message: "revoked" });
   show(); fireEvent.click(screen.getByRole("button", { name: "Đối chiếu bản 1" }));
@@ -198,7 +199,7 @@ it("does not delete a replacement record while resolving a conflicting request",
 });
 
 it("treats revocation of a posted payment as completion without another post", async () => {
-  localStorage.setItem(key(), JSON.stringify(request)); vi.spyOn(window, "confirm").mockReturnValue(true);
+  localStorage.setItem(key(), JSON.stringify(request));
   vi.mocked(repairService.revokePayment).mockResolvedValueOnce({ status: "completed", message: "completed" });
   show(); fireEvent.click(screen.getByRole("button", { name: "Hủy khoản thu đang chờ" }));
   await waitFor(() => expect(done).toHaveBeenCalledOnce()); expect(localStorage.getItem(key())).toBeNull(); expect(repairService.pay).not.toHaveBeenCalled();

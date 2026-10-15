@@ -44,6 +44,7 @@ import {
 import { Field, Modal, ModalActions } from "./catalogUi";
 import { Dropdown, type DropdownOption } from "../../common/Dropdown";
 import { AttributeChipInput } from "./AttributeChipInput";
+import { useConfirmation } from "../../../context/ConfirmationContext";
 
 interface CatalogSetupModalProps {
   kind: ProductResourceKind | "templates";
@@ -60,6 +61,7 @@ export function CatalogSetupModal({
   onClose,
   onSaved,
 }: CatalogSetupModalProps) {
+  const requestConfirmation = useConfirmation();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -217,7 +219,7 @@ export function CatalogSetupModal({
   }, [items, searchQuery]);
 
   const deleteItem = async (item: any) => {
-    if (!window.confirm(`Xóa “${item.name}”?`)) return;
+    if (!await requestConfirmation({ title: "Xóa thuộc tính?", description: `Xóa “${item.name}”?`, confirmLabel: "Xóa", tone: "danger" })) return;
     setSubmitting(true);
     try {
       await productCatalogService.deleteResource(kind as any, item._id);

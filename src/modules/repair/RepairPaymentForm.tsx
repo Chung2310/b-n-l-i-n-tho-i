@@ -2,10 +2,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { repairService, type RepairTicket } from "../../services/repairService";
 import { ApiClientError } from "../../services/apiClientError";
 import { useRetailScope } from "../retail/hooks/useRetailScope";
+import { useConfirmation } from "../../context/ConfirmationContext";
 
 import PaymentRequestConflicts from "./PaymentRequestConflicts";
 import { paymentRequestCandidates, readPaymentRequest, persistPaymentRequest, clearPaymentRequest, samePaymentRequest, withPaymentRequestLock, type PendingRepairPayment as Pending } from "./repairPaymentRequest";
 export default function RepairPaymentForm({ ticket, onComplete, onPendingChange }: { ticket: RepairTicket; onComplete: () => void; onPendingChange: (pending: boolean) => void }) {
+  const requestConfirmation = useConfirmation();
   const { scope, userProfile } = useRetailScope();
   const identity = JSON.stringify([scope?.companyCode, scope?.branchId, userProfile?.uid, ticket._id]);
   const origin = useRef(identity);
@@ -44,7 +46,7 @@ export default function RepairPaymentForm({ ticket, onComplete, onPendingChange 
 
   async function submit(action: "post" | "reconcile" | "revoke" = "post") {
     if (blocked || inFlight.current || completed.current || !scope) return;
-    if (action === "revoke" && (!pendingRef.current || !window.confirm("Vô hiệu hóa yêu cầu thu đang chờ? Khoản đã ghi sổ sẽ được đối chiếu, không bị đảo tiền."))) return;
+    if (action === "revoke" && (!pendingRef.current || !await requestConfirmation({ title: "Vô hiệu hóa yêu cầu thu?", description: "Khoản đã ghi sổ sẽ được đối chiếu, không bị đảo tiền.", confirmLabel: "Vô hiệu hóa", tone: "danger" }))) return;
     const retry = Boolean(pendingRef.current);
     const request: Pending = pendingRef.current || { amount: Number(amount.replace(/\D/g, "")), idempotencyKey: crypto.randomUUID(), expectedPaidAmount: ticket.paidAmount, expectedTotalAmount: ticket.totalAmount };
     if (!Number.isSafeInteger(request.amount) || request.amount <= 0) return;
