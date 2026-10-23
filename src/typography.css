@@ -1,0 +1,74 @@
+/* Presentation only. Preserve the completed left sidebar and its descendants. */
+:where(body *):not(:where(#app_root_layout > aside, #app_root_layout > aside *)) {
+  --font-weight-bold: 600;
+  --font-weight-extrabold: 600;
+  --font-weight-black: 600;
+  text-transform: none !important;
+}
+
+/* Native emphasis and headings also use the same restrained semibold weight. */
+:where(h1, h2, h3, h4, h5, h6, th, b, strong):not(:where(#app_root_layout > aside, #app_root_layout > aside *)) {
+  font-weight: 600;
+}
+
+/* Screen typography follows ProductCatalogV2Section: title 18px, body/actions
+   14px, supporting labels 12px. Keep print documents and navigation independent. */
+@media screen {
+  :is(
+    #main_content_area,
+    #root main,
+    body:has(#main_content_area) > .fixed,
+    #root:has(#main_content_area) > .fixed,
+    #app_root_layout > .fixed:not(aside):not(:has(~ aside))
+  ) {
+    --text-xs: 0.75rem;
+    --text-xs--line-height: 1.333333;
+    --text-sm: 0.875rem;
+    --text-sm--line-height: 1.428571;
+    --text-base: 0.875rem;
+    --text-base--line-height: 1.428571;
+    --text-lg: 1.125rem;
+    --text-lg--line-height: 1.555556;
+    --text-xl: 1.125rem;
+    --text-xl--line-height: 1.555556;
+    --text-2xl: 1.375rem;
+    --text-2xl--line-height: 1.363636;
+    --text-3xl: 1.5rem;
+    --text-3xl--line-height: 1.333333;
+    font-size: 0.875rem;
+    line-height: 1.428571;
+
+    /* Page titles retain one size even when a screen uses responsive utilities.
+       Smaller card/section headings keep their existing compact hierarchy. */
+    & h1,
+    & :is(h2, h3):is(
+      [class~="text-lg"],
+      [class~="text-xl"],
+      [class~="text-2xl"],
+      [class~="text-3xl"],
+      [class~="text-4xl"],
+      [class*="text-[2"],
+      [class*="text-[3"],
+      [class*="text-[4"]
+    ) {
+      font-size: 1.125rem;
+      line-height: 1.555556;
+    }
+
+    & :is(h2, h3)[class~="text-base"] {
+      font-size: 1rem;
+      line-height: 1.5;
+    }
+
+    /* Oversized labels and controls use the same scale as the catalog toolbar. */
+    & :is(button, input, select, textarea, label):is(
+      [class~="text-base"],
+      [class~="text-lg"],
+      [class~="text-xl"],
+      [class~="text-2xl"]
+    ) {
+      font-size: 0.875rem;
+      line-height: 1.428571;
+    }
+  }
+}

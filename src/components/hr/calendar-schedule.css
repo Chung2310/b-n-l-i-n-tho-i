@@ -1,0 +1,92 @@
+/* Schedule view uses the same restrained surfaces and blue/purple accents as ERP. */
+#calendar_tab_wrapper:has(.erp-calendar-grid) {
+  background: #f7f8fc;
+}
+
+#calendar_tab_wrapper .erp-calendar-header,
+#calendar_tab_wrapper .erp-calendar-grid {
+  background: #fff;
+  border: 1px solid #e7ebf3;
+  border-radius: 1.25rem;
+  box-shadow: 0 4px 20px rgb(27 42 78 / 4%);
+  backdrop-filter: none;
+}
+
+#calendar_tab_wrapper .erp-calendar-header {
+  gap: 1rem;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+#calendar_tab_wrapper .erp-calendar-header h2 {
+  color: #111827;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+#calendar_tab_wrapper .erp-calendar-header > div:last-child {
+  gap: 1rem;
+  padding-top: 1rem;
+  border-color: #e7ebf3;
+}
+
+#calendar_tab_wrapper .erp-calendar-header select {
+  background: #fff;
+  border-color: #dfe6f2;
+  border-radius: 0.75rem;
+  font-weight: 400;
+}
+
+#calendar_tab_wrapper .erp-calendar-header select:hover {
+  background: #f7f8fc;
+}
+
+#calendar_tab_wrapper .erp-calendar-header > div:last-child > div:last-child > div {
+  border-top-color: #e7ebf3;
+  border-right-color: #e7ebf3;
+  border-bottom-color: #e7ebf3;
+  border-radius: 0.875rem;
+  box-shadow: 0 2px 8px rgb(27 42 78 / 4%);
+  transform: none;
+}
+
+#calendar_tab_wrapper .erp-calendar-grid {
+  padding: 1.25rem;
+}
+
+#calendar_tab_wrapper .erp-calendar-grid .grid-cols-7 > div {
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+#calendar_tab_wrapper .erp-calendar-grid .grid-cols-7 > div.border {
+  border-color: #e9edf5;
+  border-radius: 0.875rem;
+  box-shadow: none;
+  transform: none;
+}
+
+#calendar_tab_wrapper .erp-calendar-grid .grid-cols-7 > div.border:hover {
+  background: #f4f7ff;
+  border-color: #cbdcff;
+  box-shadow: 0 4px 12px rgb(8 102 245 / 8%);
+}
+
+#calendar_tab_wrapper .erp-calendar-grid .grid-cols-7 > div.border:has(.bg-gradient-to-r) {
+  border-color: #7138f5;
+  background: #faf8ff;
+  box-shadow: 0 0 0 1px #7138f5;
+}
+
+#calendar_tab_wrapper .erp-calendar-grid .grid-cols-7 .bg-gradient-to-r {
+  background: #7138f5;
+  box-shadow: 0 2px 6px rgb(113 56 245 / 18%);
+}
+
+@media (max-width: 640px) {
+  #calendar_tab_wrapper .erp-calendar-header,
+  #calendar_tab_wrapper .erp-calendar-grid {
+    padding: 1rem;
+  }
+}

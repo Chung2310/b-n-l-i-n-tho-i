@@ -180,7 +180,7 @@ export function Dropdown<T = string>({
   return (
     <div
       ref={containerRef}
-      className={`relative text-left ${
+      className={`erp-dropdown relative text-left ${
         isFullWidth ? "w-full block min-w-0" : "inline-block"
       } ${className}`}
     >

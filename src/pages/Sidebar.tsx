@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, FolderOpen, LayoutDashboard, MessageSquare, Package, Settings, Shield, Users, BookOpen, ShoppingCart, Landmark, Megaphone, Wrench, ContactRound, Headphones } from "lucide-react";
-import { BRAND_LOGO_PATH, PRIVACY_POLICY_PATH, TERMS_OF_SERVICE_PATH, USER_DATA_DELETION_PATH } from "../config/brand";
+import { PRIVACY_POLICY_PATH, TERMS_OF_SERVICE_PATH, USER_DATA_DELETION_PATH } from "../config/brand";
 import { handleInternalNavigation } from "../utils/internalNavigation";
 import type { TabType } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { useIsMobile } from "../hooks/useMediaQuery";
 import { filterEnabledTabs, MODULE_READ_PERMISSIONS } from "../config/modules";
 import { isPartnerPortalProfile } from "../modules/partners/partnerAccess";
+import SidebarIcon from "./SidebarIcons";
 
 interface SidebarProps { activeTab: TabType; setActiveTab: (tab: TabType) => void; mobileOpen: boolean; onMobileClose: () => void; }
 interface MenuItem { label: TabType; title: string; icon: React.ElementType; group: "main" | "operations" | "tools" | "system"; locked?: boolean; }
@@ -43,11 +44,14 @@ export default function Sidebar({ activeTab, setActiveTab, mobileOpen, onMobileC
   return <>
     {mobileOpen && <div className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs md:hidden" onClick={onMobileClose} aria-hidden="true" />}
     <aside className={`fixed inset-y-0 left-0 z-50 flex h-dvh shrink-0 flex-col border-r border-slate-200/80 bg-white text-slate-800 shadow-sm transition-all duration-300 md:sticky md:top-0 md:z-auto md:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"} ${isCollapsed ? "md:w-20" : "md:w-64"}`}>
-      <div className={`flex items-center border-b border-slate-100 ${isCollapsed ? "justify-center px-3 py-4" : "px-5 py-4"}`}>
-        <div className={`flex min-w-0 items-center ${isCollapsed ? "justify-center" : "gap-3"}`}><img src={BRAND_LOGO_PATH} alt="iGen Retail" onClick={() => setActiveTab("TỔNG QUAN")} className="h-10 w-10 shrink-0 cursor-pointer rounded-xl border border-sky-100 object-cover shadow-sm" />{!isCollapsed && <div className="min-w-0"><h2 className="truncate text-sm font-bold text-sky-700">iGen Retail</h2><p className="truncate font-mono text-[10px] tracking-widest text-slate-400">ERP BÁN LẺ</p></div>}</div>
+      <div className="relative h-20 shrink-0 overflow-hidden border-b border-slate-100">
+        <button type="button" onClick={() => setActiveTab("TỔNG QUAN")} aria-label="Về tổng quan" className="relative h-full w-full focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[#0866f5]">
+          <img src="/logo-akm.png" alt="" aria-hidden="true" className={`pointer-events-none absolute left-[calc(50%-44px)] top-1/2 h-16 w-[220px] -translate-x-1/2 -translate-y-1/2 object-contain transition-opacity duration-200 ${isCollapsed ? "opacity-0" : "opacity-100"}`} />
+          <img src="/logo-rutgon.png" alt="" aria-hidden="true" className={`pointer-events-none absolute left-1/2 top-1/2 h-16 w-[60px] -translate-x-1/2 -translate-y-1/2 object-contain transition-opacity duration-200 ${isCollapsed ? "opacity-100" : "opacity-0"}`} />
+        </button>
       </div>
       <nav className={`flex-1 select-none space-y-5 overflow-y-auto ${isCollapsed ? "px-2 py-4" : "px-3 py-4"}`}>
-        {groups.map((group) => { const items = menuItems.filter((item) => item.group === group); if (!items.length) return null; return <div key={group} className="space-y-1">{!isCollapsed && <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{groupTitles[group]}</p>}{items.map((item) => { const Icon = item.icon; const active = activeTab === item.label || (item.label === "BÁN HÀNG" && activeTab === "BÁN LẺ"); return <button key={item.label} type="button" onClick={() => { if (item.locked) return; setActiveTab(item.label); onMobileClose(); }} aria-disabled={item.locked} title={isCollapsed ? item.title : undefined} className={`group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all ${item.locked ? "cursor-not-allowed text-slate-300 opacity-60" : active ? "bg-sky-50 font-bold text-sky-700" : "text-slate-600 hover:bg-slate-50 hover:text-sky-700"}`}><Icon className="h-4 w-4 shrink-0" />{!isCollapsed && <span className="ml-3 truncate">{item.title}</span>}{item.locked && !isCollapsed && <span className="ml-auto text-[10px]">🔒</span>}</button>; })}</div>; })}
+        {groups.map((group) => { const items = menuItems.filter((item) => item.group === group); if (!items.length) return null; return <div key={group} className="space-y-1">{!isCollapsed && <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{groupTitles[group]}</p>}{items.map((item) => { const active = activeTab === item.label || (item.label === "BÁN HÀNG" && activeTab === "BÁN LẺ"); return <button key={item.label} type="button" onClick={() => { if (item.locked) return; setActiveTab(item.label); onMobileClose(); }} aria-disabled={item.locked} title={isCollapsed ? item.title : undefined} className={`group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all ${item.locked ? "cursor-not-allowed text-slate-300 opacity-60" : active ? "bg-gradient-to-r from-[#edf3ff] to-[#f5f0ff] font-bold text-[#27346d] ring-1 ring-inset ring-[#dfe3ff]" : "text-slate-600 hover:bg-slate-50 hover:text-sky-700"}`}><span className="flex h-5 w-5 shrink-0 items-center justify-center"><SidebarIcon name={item.label} /></span>{!isCollapsed && <span className="ml-3 truncate">{item.title}</span>}{item.locked && !isCollapsed && <span className="ml-auto text-[10px]">🔒</span>}</button>; })}</div>; })}
       </nav>
       <div className={`border-t border-slate-100 ${isCollapsed ? "px-2 py-3" : "px-3 py-3"}`}>
         <button type="button" onClick={() => setIsCollapsed((current) => !current)} className="mx-auto flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm" title={isCollapsed ? "Mở rộng" : "Thu gọn"}>{isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}</button>

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DashboardSummary, DashboardActionItems } from "../../types/dashboard";
 import { ModernAnalyticsDashboard } from "./ModernAnalyticsDashboard";
@@ -81,9 +81,10 @@ describe("ModernAnalyticsDashboard", () => {
 
   it("renders all key sections with Vietnamese labels and KPI -> Title layout", async () => {
     const onNavigate = vi.fn();
+    const onDateChange = vi.fn();
 
     render(
-      <ModernAnalyticsDashboard
+      <ModernAnalyticsDashboard selectedDate="2026-10-23" onDateChange={onDateChange}
         summary={mockSummary as unknown as DashboardSummary}
         actionItems={mockActionItems as unknown as DashboardActionItems}
         userDisplayName="Admin User"
@@ -96,7 +97,12 @@ describe("ModernAnalyticsDashboard", () => {
     expect(screen.getByText(/Admin User/)).toBeTruthy();
     expect(screen.queryByText(/Chào mừng trở lại/)).toBeNull();
     expect(screen.queryByText("Chi nhánh Hà Nội")).toBeNull();
-    expect(screen.getByText("Tùy chỉnh")).toBeTruthy();
+    expect(screen.getByLabelText("Chọn ngày tổng quan")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Chọn ngày tổng quan"));
+    expect(screen.getByRole("dialog", { name: "Lịch chọn ngày tổng quan" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "1/10/2026" }));
+    expect(onDateChange).toHaveBeenCalledWith("2026-10-01");
+    expect(screen.queryByText("Tùy chỉnh")).toBeNull();
 
     // Row 1: Top 5 KPI Cards (Content/Số -> Title, Vietnamese)
     expect(screen.getByText("Doanh số hôm nay")).toBeTruthy();
@@ -150,7 +156,7 @@ describe("ModernAnalyticsDashboard", () => {
     const { fireEvent } = await import("@testing-library/react");
 
     render(
-      <ModernAnalyticsDashboard
+      <ModernAnalyticsDashboard selectedDate="2026-10-23" onDateChange={vi.fn()}
         summary={mockSummary as unknown as DashboardSummary}
         actionItems={mockActionItems as unknown as DashboardActionItems}
         userDisplayName="Admin User"
@@ -179,7 +185,7 @@ describe("ModernAnalyticsDashboard", () => {
     vi.mocked(analyticsService.getRevenue).mockImplementation(async params => ({
       total: params.from === range.previousFrom ? 10000000 : 15000000, previousTotal: 0, growthPct: null, series: [],
     }) as any);
-    render(<ModernAnalyticsDashboard summary={mockSummary as any} actionItems={mockActionItems as any} onNavigate={vi.fn()} onOpenContract={vi.fn()}/>);
+    render(<ModernAnalyticsDashboard selectedDate="2026-10-23" onDateChange={vi.fn()} summary={mockSummary as any} actionItems={mockActionItems as any} onNavigate={vi.fn()} onOpenContract={vi.fn()}/>);
     expect(await screen.findByText(/\+50% tăng/)).toBeTruthy();
     expect(analyticsService.getRevenue).toHaveBeenCalledWith(expect.objectContaining({from:range.previousFrom,to:range.previousTo}));
   });
@@ -188,7 +194,7 @@ describe("ModernAnalyticsDashboard", () => {
     const { revenueComparisonRange } = await import("./revenueComparison");
     const range = revenueComparisonRange("month");
     vi.mocked(analyticsService.getRevenue).mockImplementation(async params => ({total:params.from===range.previousFrom?0:15000000,series:[]}) as any);
-    render(<ModernAnalyticsDashboard summary={mockSummary as any} actionItems={mockActionItems as any} onNavigate={vi.fn()} onOpenContract={vi.fn()}/>);
+    render(<ModernAnalyticsDashboard selectedDate="2026-10-23" onDateChange={vi.fn()} summary={mockSummary as any} actionItems={mockActionItems as any} onNavigate={vi.fn()} onOpenContract={vi.fn()}/>);
     expect(await screen.findByText("Chưa có cơ sở so sánh")).toBeTruthy();
   });
 });

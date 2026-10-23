@@ -90,7 +90,7 @@ export default function BirthdayCouponSettings({ scope, onClose }: { scope: Reta
           <div className="relative overflow-hidden rounded-2xl border border-dashed border-cyan-300 bg-gradient-to-r from-cyan-50/70 via-sky-50/60 to-blue-50/50 p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <span className="inline-flex items-center gap-1.5 text-xs font-black tracking-wide text-cyan-800"><Gift className="h-4 w-4" aria-hidden="true" />QUÀ SINH NHẬT</span>
+                <span className="inline-flex items-center gap-1.5 text-xs font-black tracking-wide text-cyan-800"><Gift className="h-4 w-4" aria-hidden="true" />Quà sinh nhật</span>
                 <p className="mt-0.5 text-sm font-bold text-slate-800">Mỗi khách một mã · Dùng một lần</p>
               </div>
               <span className="shrink-0 rounded-lg bg-cyan-600 px-3 py-1 text-sm font-black text-white shadow-xs">

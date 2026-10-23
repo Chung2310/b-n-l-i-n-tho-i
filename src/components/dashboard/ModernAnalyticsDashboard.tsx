@@ -8,12 +8,9 @@ import {
   Users,
   CreditCard,
   ChevronRight,
-  ChevronDown,
   AlertTriangle,
   FileClock,
   ClipboardList,
-  Calendar,
-  Sparkles,
   Sun,
   Moon,
   TrendingUp,
@@ -25,6 +22,7 @@ import { analyticsService } from "../../services/analyticsService";
 import { inventoryReceivingService } from "../../services/inventoryReceivingService";
 import { BestSellingProductsCard } from "./BestSellingProductsCard";
 import { getEnthusiasticGreeting } from "./energyGreeting";
+import { DashboardDatePicker } from "./DashboardDatePicker";
 
 /** Parse chuỗi tiền tệ (vd: "17.000.000 đ", "0 đ") thành số nguyên */
 export function parseVnCurrency(str?: string | number): number {
@@ -121,6 +119,8 @@ function useCountUp(target: number, durationMs = 800): number {
 interface ModernAnalyticsDashboardProps {
   summary: DashboardSummary | null;
   actionItems: DashboardActionItems | null;
+  selectedDate: string;
+  onDateChange: (date: string) => void;
   userDisplayName?: string;
   onNavigate: (tab: string, subTab?: string) => void;
   onOpenContract?: (employeeName: string) => void;
@@ -129,6 +129,8 @@ interface ModernAnalyticsDashboardProps {
 export function ModernAnalyticsDashboard({
   summary,
   actionItems,
+  selectedDate,
+  onDateChange,
   userDisplayName = "Admin",
   onNavigate,
   onOpenContract,
@@ -337,12 +339,6 @@ export function ModernAnalyticsDashboard({
     ? `${pathD} L ${points[points.length - 1].x} ${plotHeight - paddingY} L ${points[0].x} ${plotHeight - paddingY} Z`
     : "";
 
-  const todayFormatted = new Date().toLocaleDateString("vi-VN", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-
   const currentHour = Number(
     new Intl.DateTimeFormat("en-GB", {
       hour: "numeric",
@@ -371,22 +367,7 @@ export function ModernAnalyticsDashboard({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Date Selector Badge */}
-          <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-xs">
-            <Calendar className="h-4 w-4 text-slate-500" />
-            <span>{todayFormatted}</span>
-            <ChevronDown className="h-3 w-3 text-slate-400" />
-          </div>
-
-          {/* Customize / Action Button */}
-          <button
-            type="button"
-            onClick={() => onNavigate("NHÂN SỰ", "lich")}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-sm shadow-indigo-600/20 hover:bg-indigo-700 active:scale-95 transition-all cursor-pointer"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>Tùy chỉnh</span>
-          </button>
+          <DashboardDatePicker value={selectedDate} onChange={onDateChange} />
         </div>
       </div>
 

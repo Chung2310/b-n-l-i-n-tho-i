@@ -1,0 +1,20 @@
+.dashboard-date-picker { position: relative; flex: none; }
+.dashboard-date-trigger { display: inline-flex; align-items: center; gap: .6rem; min-height: 2.5rem; padding: .5rem .875rem; border: 1px solid #dfe6f2; border-radius: .75rem; background: #fff; color: #26384f; box-shadow: 0 1px 3px rgb(27 42 78 / 6%); font: 500 .75rem/1.5 Inter, sans-serif; cursor: pointer; }
+.dashboard-date-trigger:hover, .dashboard-date-trigger[aria-expanded="true"] { border-color: #0866f5; box-shadow: 0 0 0 2px rgb(8 102 245 / 12%); }
+.dashboard-date-trigger svg { flex: none; color: #7b8da9; }
+.dashboard-date-trigger svg:last-child { margin-left: .25rem; transition: transform .15s ease; }
+.dashboard-date-chevron-open { transform: rotate(180deg); }
+.dashboard-date-popover { position: absolute; z-index: 60; top: calc(100% + .5rem); right: 0; width: 18rem; padding: .875rem; border: 1px solid #dfe6f2; border-radius: 1rem; background: #fff; box-shadow: 0 16px 36px rgb(27 42 78 / 15%); color: #26384f; }
+.dashboard-date-month { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .75rem; }
+.dashboard-date-month strong { font-size: .875rem; font-weight: 600; }
+.dashboard-date-month button { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: .5rem; color: #667894; cursor: pointer; }
+.dashboard-date-month button:hover { background: #f0f5ff; color: #0866f5; }
+.dashboard-date-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .2rem; text-align: center; }
+.dashboard-date-weekday { padding: .35rem 0; color: #8a97ad; font-size: .7rem; font-weight: 500; }
+.dashboard-date-day { display: grid; place-items: center; aspect-ratio: 1; border-radius: .55rem; color: #26384f; font-size: .75rem; cursor: pointer; }
+.dashboard-date-day:hover { background: #f0f5ff; color: #0866f5; }
+.dashboard-date-day.dashboard-date-today { box-shadow: inset 0 0 0 1px #7138f5; }
+.dashboard-date-day[aria-pressed="true"] { background: #0866f5; color: #fff; box-shadow: none; font-weight: 600; }
+.dashboard-date-go-today { display: block; width: 100%; margin-top: .75rem; padding: .55rem; border-radius: .6rem; background: #f0f5ff; color: #0866f5; font-size: .75rem; font-weight: 600; cursor: pointer; }
+.dashboard-date-go-today:hover { background: #e1ecff; }
+@media (max-width: 480px) { .dashboard-date-popover { right: -1rem; max-width: calc(100vw - 2rem); } }

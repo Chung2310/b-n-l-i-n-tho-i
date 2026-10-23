@@ -282,22 +282,17 @@ export default function RetailReportsPage() {
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           {/* Branch selector inline */}
-          <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/70 px-2.5 py-1">
-            <label htmlFor="report-branch" className="flex items-center gap-1 text-xs font-semibold text-slate-600 shrink-0 cursor-pointer">
-              <Store className="h-3.5 w-3.5 text-cyan-600" />
-              Chi nhánh báo cáo
-            </label>
             <select
               id="report-branch"
+              aria-label="Chi nhánh báo cáo"
               value={selectedBranch || ""}
               disabled={!canSelectBranches || branchContext?.loading}
               onChange={event => setReportBranch({ workingKey, id: event.target.value })}
-              className="bg-transparent text-xs font-bold text-slate-800 outline-none cursor-pointer disabled:opacity-50"
+              className="text-xs font-medium text-slate-800 outline-none cursor-pointer disabled:opacity-50"
             >
               {canSelectBranches && <option value="all">Tất cả chi nhánh</option>}
               {branchOptions.map(branch => <option key={branch._id} value={branch._id}>{branch.name}</option>)}
             </select>
-          </div>
 
           <button
             type="button"

@@ -181,7 +181,7 @@ export function PayrollSalaryAdvanceModal({
               </div>
 
               <div className="text-center my-5">
-                <h2 className="text-lg font-extrabold tracking-tight text-slate-900 uppercase">PHIẾU TẠM ỨNG LƯƠNG</h2>
+                <h2 className="text-lg font-extrabold tracking-tight text-slate-900 uppercase">Phiếu tạm ứng lương</h2>
                 <p className="text-xs text-slate-500 mt-0.5">Ngày lập: {date} · Áp dụng kỳ lương: {periodKey}</p>
               </div>
 
