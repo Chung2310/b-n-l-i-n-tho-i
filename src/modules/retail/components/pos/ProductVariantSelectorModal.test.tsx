@@ -175,6 +175,6 @@ describe("ProductVariantSelectorModal", () => {
     // Clicking it switches storage automatically
     await userEvent.click(white);
     expect(screen.getByText("30.490.000đ")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "512GB" }).className).toContain("border-cyan-600");
+    expect(screen.getByRole("button", { name: "512GB" }).className).toContain("border-[#0866f5]");
   });
 });

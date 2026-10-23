@@ -136,9 +136,9 @@ export default function CustomerList(props: Props) {
   const totalPages = Math.max(1, Math.ceil(props.total / props.limit));
 
   return (
-    <div className="space-y-4">
+    <div className="customer-list space-y-4">
       {/* Search & Filter Toolbar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-2xs">
+      <div className="customer-list-toolbar flex flex-col items-stretch gap-3 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-2xs md:flex-row md:items-center">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
@@ -209,7 +209,7 @@ export default function CustomerList(props: Props) {
       </div>
 
       {/* Customer Data Table Container */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs">
+      <div className="customer-table-card overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[850px] text-left text-xs sm:text-sm border-collapse">
             <thead>

@@ -72,3 +72,12 @@
     }
   }
 }
+
+/* Dialogs across modules use both semantic dialog nodes and full-screen
+   overlays. Keep their text at regular weight without changing the sidebar. */
+@media screen {
+  :is(dialog, [role="dialog"], [aria-modal="true"], .fixed.inset-0):not(:where(#app_root_layout aside, #app_root_layout aside *)),
+  :is(dialog, [role="dialog"], [aria-modal="true"], .fixed.inset-0) :not(:where(#app_root_layout aside, #app_root_layout aside *)) {
+    font-weight: 400 !important;
+  }
+}

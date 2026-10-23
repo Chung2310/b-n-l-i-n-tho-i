@@ -26,7 +26,7 @@ export default function OrderAdjustments({ orderDiscount, taxRate, shippingFee, 
               min="0"
               max="100"
               step="0.01"
-              className="w-full rounded-xl border border-slate-200 bg-white py-1.5 pl-3 pr-8 text-sm font-semibold text-slate-900 shadow-2xs hover:border-slate-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition"
+              className="w-full rounded-xl border border-slate-200 bg-white py-1.5 pl-3 pr-8 text-sm font-semibold text-slate-900 shadow-2xs hover:border-slate-300 focus:border-[#0866f5] focus:outline-none focus:ring-2 focus:ring-[#0866f5]/20 transition"
               value={taxRate}
               onChange={(event) =>
                 onChange({
@@ -53,7 +53,7 @@ export default function OrderAdjustments({ orderDiscount, taxRate, shippingFee, 
               type="number"
               min="0"
               step="1"
-              className="w-full rounded-xl border border-slate-200 bg-white py-1.5 pl-3 pr-8 text-sm font-semibold text-slate-900 shadow-2xs hover:border-slate-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition"
+              className="w-full rounded-xl border border-slate-200 bg-white py-1.5 pl-3 pr-8 text-sm font-semibold text-slate-900 shadow-2xs hover:border-slate-300 focus:border-[#0866f5] focus:outline-none focus:ring-2 focus:ring-[#0866f5]/20 transition"
               value={shippingFee}
               onChange={(event) =>
                 onChange({

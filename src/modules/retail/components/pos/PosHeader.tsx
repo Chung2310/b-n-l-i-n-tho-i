@@ -50,9 +50,9 @@ export function PosHeader({
   onLeavePos,
 }: PosHeaderProps) {
   return (
-    <header className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3.5 py-2 sm:px-5 shadow-2xs">
-      {/* Left: Đóng phiên */}
-      <div className="flex items-center gap-2">
+    <header className="flex shrink-0 items-center justify-between border-b border-[#dce9ff] bg-gradient-to-r from-white via-[#fbfcff] to-[#f7f3ff] px-3.5 py-2 sm:px-5 shadow-2xs">
+      {/* Left: session actions */}
+      <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
           onClick={() => {
@@ -60,17 +60,14 @@ export function PosHeader({
             else if (canLeavePos && onLeavePos) onLeavePos();
             else toast.info("Quản lý phiên POS tại menu Ca POS.");
           }}
-          className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 px-3.5 py-2 text-xs sm:text-sm font-bold text-slate-700 transition shadow-xs active:scale-95 cursor-pointer"
+          className="inline-flex h-9 w-28 items-center justify-center gap-1.5 rounded-xl bg-[#0866f5] px-2 text-xs font-bold text-white shadow-xs transition hover:bg-[#0758d5] active:scale-95 cursor-pointer"
           title="Đóng phiên làm việc POS"
         >
-          <Lock className="h-4 w-4 text-slate-500" />
+          <Lock className="h-4 w-4" />
           <span>Đóng phiên</span>
         </button>
-      </div>
-
-      <div className="flex shrink-0 gap-1">
-        {canLeavePos && onLeavePos && <button type="button" onClick={onLeavePos} className="rounded-xl border px-2 py-2 text-xs font-semibold" title="Quay về màn quản lý">Màn quản lý</button>}
-        {onLogout && <button type="button" onClick={onLogout} className="rounded-xl border px-2 py-2 text-xs font-semibold">Đăng xuất</button>}
+        {onLogout && <button type="button" onClick={onLogout} className="inline-flex h-9 w-28 items-center justify-center rounded-xl bg-rose-600 px-2 text-xs font-bold text-white shadow-xs transition hover:bg-rose-700">Đăng xuất</button>}
+        {canLeavePos && onLeavePos && <button type="button" onClick={onLeavePos} className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50" title="Quay về màn quản lý">Màn quản lý</button>}
       </div>
       {/* Center: Search & Barcode Scan */}
       <div className="relative mx-3 flex-1 max-w-2xl">
@@ -79,7 +76,7 @@ export function PosHeader({
           ref={searchRef}
           autoFocus
           aria-label="Tìm hoặc quét sản phẩm"
-          className="w-full rounded-xl border border-slate-200 bg-slate-50 hover:bg-white py-2 pl-10 pr-20 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 shadow-inner focus:border-cyan-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 hover:bg-white py-2 pl-10 pr-20 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 shadow-inner focus:border-[#0866f5] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0866f5]/20"
           placeholder="Tìm tên, SKU, IMEI"
           value={searchQuery}
           onChange={(event) => onSearchChange(event.target.value)}
@@ -115,7 +112,7 @@ export function PosHeader({
             {userProfile?.displayName || userProfile?.email || "Thu ngân"}
           </span>
           {branchDisplayName && (
-            <span className="hidden md:inline rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-bold text-cyan-700 border border-cyan-200">
+            <span className="hidden md:inline rounded-full bg-[#edf3ff] px-2 py-0.5 text-[10px] font-bold text-[#0758d5] border border-[#c2d7ff]">
               {branchDisplayName}
             </span>
           )}
@@ -129,7 +126,7 @@ export function PosHeader({
           onClick={() => void onToggleFullscreen()}
           className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 p-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
         >
-          {fullscreen ? <Minimize className="h-4 w-4 text-cyan-600" /> : <Maximize className="h-4 w-4 text-cyan-600" />}
+          {fullscreen ? <Minimize className="h-4 w-4 text-[#0866f5]" /> : <Maximize className="h-4 w-4 text-[#0866f5]" />}
           <span className="hidden md:inline">{fullscreen ? "Thu nhỏ" : "Toàn màn hình"}</span>
         </button>
 

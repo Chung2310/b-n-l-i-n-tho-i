@@ -829,7 +829,7 @@ export default function RetailPosPage({
 
   return (
     <section
-      className={`flex flex-col bg-slate-100 text-slate-900 ${
+      className={`flex flex-col bg-[#f3f6ff] text-slate-900 ${
         fullscreen ? "fixed inset-0 z-[45] h-dvh overflow-hidden" : "h-dvh max-h-screen overflow-hidden"
       }`}
     >
@@ -871,7 +871,7 @@ export default function RetailPosPage({
       {/* MAIN BODY: Product Catalog on LEFT, Cart & Payment on RIGHT */}
       <div className="grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] xl:grid-cols-[minmax(0,1fr)_450px] overflow-hidden">
         {/* LEFT COLUMN: Product Catalog & Bottom Category bar */}
-        <main className="flex flex-col min-h-0 border-r border-slate-200 overflow-hidden bg-slate-50/60">
+        <main className="flex flex-col min-h-0 border-r border-[#dce9ff] overflow-hidden bg-[#f5f8ff]">
           {scanFeedback && (
             <div className="px-4 pt-2">
               <ScanFeedback {...scanFeedback} />
@@ -884,7 +884,7 @@ export default function RetailPosPage({
               <h2 className="text-base sm:text-lg font-bold text-slate-800">
                 {categoryTitle}
               </h2>
-              <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
+              <span className="rounded-full bg-[#e7efff] px-2.5 py-0.5 text-[11px] font-semibold text-[#476393]">
                 {displayProducts.length} món
               </span>
             </div>
@@ -916,8 +916,8 @@ export default function RetailPosPage({
                 searchQuery={q}
               />
             ) : displayProductGroups.length === 0 ? (
-              <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500 shadow-2xs">
-                <Store className="mb-2 h-10 w-10 text-slate-400" />
+              <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-[#c2d7ff] bg-white p-8 text-center text-slate-500 shadow-2xs">
+                <Store className="mb-2 h-10 w-10 text-[#0866f5]" />
                 <p className="text-sm font-medium text-slate-700">Không tìm thấy sản phẩm nào trong danh mục này.</p>
                 <p className="text-xs text-slate-400">Hãy thử chọn phân loại khác hoặc xóa bộ lọc.</p>
               </div>

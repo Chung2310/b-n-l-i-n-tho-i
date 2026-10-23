@@ -26,13 +26,14 @@ export default function ReceiptPrintView({
   const pageRule = isThermal ? `${paperSize} ${pageHeightMm}mm` : paperSize;
   const marginRule = "0";
   const receiptWidth = isThermal ? paperSize : "100%";
+  const printWidth = isThermal ? paperSize : paperSize === "A5" ? "148mm" : "210mm";
   const receiptPadding = paperSize === "58mm" ? "5mm" : paperSize === "80mm" ? "4mm" : "14mm";
   React.useLayoutEffect(() => {
     if (!isThermal || !receiptRef.current) return;
     const heightMm = receiptRef.current.getBoundingClientRect().height * 25.4 / 96;
     if (Number.isFinite(heightMm) && heightMm > 0) setPageHeightMm(Math.ceil(heightMm + 2));
   }, [invoice, isReprint, isThermal, paperSize]);
-  const printCss = "@page { size: " + pageRule + "; margin: " + marginRule + "; } @media print { body.retail-print-isolated > *:not(.retail-print-staging) { display: none !important; } body.retail-print-isolated > .retail-print-staging { display: block !important; } body * { visibility: hidden !important; } .retail-print-staging { position: fixed !important; left: 0 !important; top: 0 !important; width: auto !important; height: auto !important; overflow: visible !important; visibility: visible !important; } #retail-receipt, #retail-receipt * { visibility: visible !important; } #retail-receipt { position: absolute; left: 0; top: 0; width: " + receiptWidth + "; max-width: 100%; padding: " + receiptPadding + "; } }";
+  const printCss = "@page { size: " + pageRule + "; margin: " + marginRule + "; } @media print { body.retail-print-isolated > *:not(.retail-print-staging) { display: none !important; } body.retail-print-isolated > .retail-print-staging { display: block !important; } body * { visibility: hidden !important; } .retail-print-staging { position: fixed !important; left: 0 !important; top: 0 !important; width: " + printWidth + " !important; height: auto !important; overflow: visible !important; visibility: visible !important; } #retail-receipt, #retail-receipt * { visibility: visible !important; } #retail-receipt { position: absolute; left: 0; top: 0; width: " + receiptWidth + "; max-width: 100%; padding: " + receiptPadding + "; } }";
   const barcode = encodeCode128(invoice.invoiceNo);
   const branchName = snapshot.store?.branchName?.trim() || "";
   const showBranchName = Boolean(branchName) && !isHeadOfficeName(branchName);
@@ -45,7 +46,7 @@ export default function ReceiptPrintView({
       {isReprint && <p className="mb-2 text-center text-lg font-black tracking-[0.25em] text-rose-700">In lại</p>}
       <header className="border-b border-dashed pb-3 text-center">
         <div className="mb-1 flex flex-col items-center">
-          <img src={BRAND_LOGO_PATH} alt={BRAND_NAME} className="h-[14mm] w-[38mm] object-cover object-center" />
+          <img src={BRAND_LOGO_PATH} alt={BRAND_NAME} className="h-[14mm] w-[38mm] object-contain object-center" />
           <p className="text-base font-bold">{BRAND_NAME}</p>
         </div>
         {showBranchName && <p>{branchName}</p>}

@@ -34,7 +34,7 @@ export default function DiscountInput({ label, value, onChange }: Props) {
             min="0"
             max={value.type === "percent" ? 100 : undefined}
             step={value.type === "percent" ? "0.01" : "1"}
-            className="w-full rounded-xl border border-slate-200 bg-white py-1.5 pl-3 pr-8 text-sm font-semibold text-slate-900 shadow-2xs hover:border-slate-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition"
+            className="w-full rounded-xl border border-slate-200 bg-white py-1.5 pl-3 pr-8 text-sm font-semibold text-slate-900 shadow-2xs hover:border-slate-300 focus:border-[#0866f5] focus:outline-none focus:ring-2 focus:ring-[#0866f5]/20 transition"
             value={value.value}
             onChange={(event) =>
               onChange({ ...value, value: Math.max(0, Number(event.target.value) || 0) })

@@ -12,7 +12,7 @@ function loadBaseImage(): Promise<HTMLImageElement> {
 
   baseImageLoading = new Promise((resolve, reject) => {
     const link = getIconLink();
-    originalHref = link?.getAttribute("href") || "/brand-icon.png";
+    originalHref = link?.getAttribute("href") || "/logo-rutgon.png";
     const img = new Image();
     img.onload = () => {
       baseImage = img;

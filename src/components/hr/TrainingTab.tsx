@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Award,
   BookOpen,
+  Clock3,
   CheckCircle2,
   ExternalLink,
   Plus,
@@ -17,7 +18,10 @@ import {
   AlertCircle,
   Edit2,
   Upload,
-  Paperclip
+  Paperclip,
+  Presentation,
+  UsersRound,
+  Lightbulb,
 } from "lucide-react";
 import { EmployeeNode, TrainingCourse, TrainingEnrollment, Lesson, QuizQuestion } from "../../types";
 import { getAccessToken, authService } from "../../services/authService";
@@ -494,7 +498,7 @@ export default function TrainingTab({
         } else if (totalQuizzes > 0) {
           setActiveLessonIndex(lessons.length); // Chuyển sang phần thi trắc nghiệm
         } else {
-          toast.success(`🎉 Chúc mừng! Bạn đã hoàn thành khóa học "${activeStudyCourse.title}"!`);
+          toast.success(`Chúc mừng! Bạn đã hoàn thành khóa học "${activeStudyCourse.title}"!`);
           setActiveStudyCourse(null);
           fetchCourses(userProfile.companyCode!);
         }
@@ -577,7 +581,7 @@ export default function TrainingTab({
 
         setQuizSubmitted(true);
         setQuizErrors(errorsCopy);
-        toast.success("🎉 Xuất sắc! Bạn đã trả lời đúng tất cả các câu hỏi trắc nghiệm!");
+        toast.success("Xuất sắc! Bạn đã trả lời đúng tất cả các câu hỏi trắc nghiệm!");
       } catch (err) {
         console.error(err);
         toast.error(getApiErrorMessage(err, "Không thể lưu kết quả thi."));
@@ -593,7 +597,7 @@ export default function TrainingTab({
 
   const handleFinishCourse = () => {
     if (!activeStudyCourse || !userProfile) return;
-    toast.success(`🎉 Chúc mừng! Bạn đã hoàn thành khóa học "${activeStudyCourse.title}"!`);
+    toast.success(`Chúc mừng! Bạn đã hoàn thành khóa học "${activeStudyCourse.title}"!`);
     setActiveStudyCourse(null);
     fetchCourses(userProfile.companyCode!);
   };
@@ -626,7 +630,7 @@ export default function TrainingTab({
         ? { ...e, progress: 100, status: "completed" }
         : e
       ));
-      toast.success(`🎉 Bạn đã hoàn thành khóa học "${activeStudyCourse.title}"!`);
+      toast.success(`Bạn đã hoàn thành khóa học "${activeStudyCourse.title}"!`);
       setActiveStudyCourse(null);
       fetchCourses(userProfile.companyCode!);
     } catch (err) {
@@ -756,8 +760,8 @@ export default function TrainingTab({
 
   return (
     <>
-      <div className="flex-1 p-6 overflow-y-auto" id="hr_tab_content">
-        <div className="space-y-6" id="elearning_catalog">
+      <div className="flex-1 p-4 overflow-y-auto" id="hr_tab_content">
+        <div className="space-y-4" id="elearning_catalog">
           {/* Monitor Training Progress Banner */}
           {trainingFilter && (
             <div className="bg-emerald-50 border border-emerald-200 text-emerald-850 p-5 rounded-2xl mb-6 relative text-left">
@@ -778,9 +782,9 @@ export default function TrainingTab({
           )}
 
           {/* Supervisor view controls */}
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-white p-6 rounded-3xl border border-gray-200 shadow-2xs text-left">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-white px-5 py-4 rounded-2xl border border-gray-200 shadow-2xs text-left">
             <div>
-              <h3 className="font-bold text-lg text-slate-800 font-sans">Học Viện & Đào Tạo iGen</h3>
+              <h3 className="font-semibold text-base text-slate-800 font-sans">Đào tạo nhân sự</h3>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -819,10 +823,11 @@ export default function TrainingTab({
           </div>
 
           {/* Course Catalog list */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-left">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 text-left">
             {courses.length === 0 ? (
               <div className="col-span-full text-center py-12 text-gray-450 italic select-none">
-                📚 Chưa có khóa học nào được đăng tải trên học viện.
+                <BookOpen className="mx-auto mb-2 h-6 w-6 text-slate-400" aria-hidden="true" />
+                Chưa có khóa học nào được đăng tải trên học viện.
               </div>
             ) : (
               courses.map((course) => {
@@ -835,34 +840,34 @@ export default function TrainingTab({
                 const isCompleted = myEnrollment ? myEnrollment.status === "completed" : false;
 
                 return (
-                  <div key={course.id} className="bg-white border border-gray-200 rounded-3xl p-6 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between relative group">
+                  <div key={course.id} className="bg-white border border-gray-200 rounded-2xl p-4 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between relative group">
                     {course.isRequired && (
-                      <span className="absolute top-4 right-4 px-2 py-0.5 bg-rose-50 border border-rose-200 text-rose-700 font-mono text-[9px] font-bold rounded-md uppercase select-none">
+                      <span className="absolute top-3 right-3 px-2 py-0.5 bg-rose-50 border border-rose-200 text-rose-700 font-mono text-[9px] font-bold rounded-md uppercase select-none">
                         Bắt buộc
                       </span>
                     )}
 
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3">
-                        <span className="text-3xl bg-slate-50 w-12 h-12 rounded-2xl border flex items-center justify-center select-none shadow-3xs">{course.icon || "📚"}</span>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="bg-slate-50 w-10 h-10 shrink-0 rounded-xl border flex items-center justify-center select-none shadow-3xs text-indigo-650"><BookOpen className="h-5 w-5" aria-hidden="true" /></span>
                         <div>
                           <span className="text-[10px] font-bold text-indigo-650 uppercase tracking-wider font-mono bg-indigo-50/70 border border-indigo-100/50 px-2 py-0.5 rounded-md">{course.category || "Văn hóa"}</span>
                           <h4 className="font-bold text-slate-800 text-sm mt-1 leading-snug line-clamp-1">{course.title}</h4>
                         </div>
                       </div>
 
-                      <p className="text-xs text-slate-500 line-clamp-3 leading-relaxed min-h-[54px]">{course.description || "Không có mô tả chi tiết khóa đào tạo."}</p>
+                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{course.description || "Không có mô tả chi tiết khóa đào tạo."}</p>
 
-                      <div className="grid grid-cols-2 gap-3 text-[10px] text-slate-650 bg-slate-50 p-3 rounded-2xl select-none font-medium border border-gray-150">
-                        <div>⏱️ Thời lượng: <strong className="text-slate-800">{course.duration}</strong></div>
-                        <div>👨‍🏫 Trình bày: <strong className="text-slate-800">{course.instructor}</strong></div>
-                        <div>👥 Nhân viên: <strong className="text-indigo-650 font-bold">{course.enrolledCount || 0}</strong></div>
-                        <div>📖 Bài giảng: <strong className="text-slate-800">{(course.lessons || []).length} bài</strong></div>
+                      <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-650 bg-slate-50 p-2.5 rounded-xl select-none font-medium border border-gray-150">
+                        <div className="flex items-center gap-1"><Clock3 className="h-3 w-3 shrink-0 text-slate-500" aria-hidden="true" /><span>Thời lượng: <strong className="text-slate-800">{course.duration}</strong></span></div>
+                        <div className="flex items-center gap-1"><Presentation className="h-3 w-3 shrink-0 text-slate-500" aria-hidden="true" /><span>Trình bày: <strong className="text-slate-800">{course.instructor}</strong></span></div>
+                        <div className="flex items-center gap-1"><UsersRound className="h-3 w-3 shrink-0 text-slate-500" aria-hidden="true" /><span>Nhân viên: <strong className="text-indigo-650 font-bold">{course.enrolledCount || 0}</strong></span></div>
+                        <div className="flex items-center gap-1"><BookOpen className="h-3 w-3 shrink-0 text-slate-500" aria-hidden="true" /><span>Bài giảng: <strong className="text-slate-800">{(course.lessons || []).length} bài</strong></span></div>
                       </div>
 
                       {/* Course learning progress bar */}
                       {myEnrollment && (
-                        <div className="space-y-1 pt-1 select-none">
+                        <div className="space-y-1 select-none">
                           <div className="flex justify-between text-[9px] font-bold">
                             <span className="text-gray-400">Tiến độ học:</span>
                             <span className={isCompleted ? "text-emerald-600" : "text-indigo-600"}>{progress}% {isCompleted ? "(Đã xong)" : ""}</span>
@@ -877,7 +882,7 @@ export default function TrainingTab({
                       )}
                     </div>
 
-                    <div className="pt-5 mt-5 border-t border-gray-100 flex justify-between items-center gap-3">
+                    <div className="pt-3 mt-3 border-t border-gray-100 flex justify-between items-center gap-3">
                       {isSupervisor && course.creatorUid === userProfile?.uid && !trainingFilter ? (
                         <div className="flex gap-2">
                           <button
@@ -1063,8 +1068,8 @@ export default function TrainingTab({
                               onChange={(e) => handleLessonFormChange(index, "type", e.target.value)}
                               className="w-full px-3 py-1.5 bg-slate-50 border border-transparent hover:border-slate-200 focus:bg-white focus:border-indigo-500 rounded-lg text-xs outline-none cursor-pointer transition-all"
                             >
-                              <option value="text">📄 Văn bản / Doc</option>
-                              <option value="video">🎥 Video</option>
+                              <option value="text">Văn bản / Doc</option>
+                              <option value="video">Video</option>
                             </select>
                           </div>
                         </div>
@@ -1273,7 +1278,7 @@ export default function TrainingTab({
             {/* Player header */}
             <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center border-b border-slate-800 shrink-0">
               <div className="flex items-center gap-3">
-                <span className="text-2xl select-none">{activeStudyCourse.icon || "📚"}</span>
+                <BookOpen className="h-6 w-6 shrink-0 text-indigo-400" aria-hidden="true" />
                 <div className="text-left">
                   <span className="text-[9px] font-bold text-indigo-400 font-mono uppercase tracking-wider bg-indigo-950 border border-indigo-900 px-2 py-0.5 rounded-md">
                     {activeStudyCourse.category || "Đào tạo"}
@@ -1410,7 +1415,7 @@ export default function TrainingTab({
                   <div className="space-y-6 text-left max-w-2xl mx-auto h-full flex flex-col justify-between py-4">
                     <div className="space-y-5">
                       <div className="text-center pb-5 border-b select-none">
-                        <span className="text-5xl block mb-2">{activeStudyCourse.icon || "📚"}</span>
+                        <BookOpen className="mx-auto mb-2 h-10 w-10 text-indigo-650" aria-hidden="true" />
                         <h2 className="text-xl font-bold text-slate-800 font-sans leading-tight">{activeStudyCourse.title}</h2>
                         <span className="inline-block text-[10px] font-bold text-gray-400 font-mono uppercase mt-1">Đăng tải bởi: {activeStudyCourse.instructor}</span>
                       </div>
@@ -1500,7 +1505,8 @@ export default function TrainingTab({
                               )}
                             </div>
                             <div className="p-4 bg-white border border-gray-150 rounded-2xl shadow-3xs text-xs text-slate-500 leading-relaxed font-semibold">
-                              💡 Lớp học video: Nhấp vào nút chạy Video phía trên và hoàn thành theo thời lượng video trước khi nhấp "Hoàn thành bài học" bên dưới.
+                              <Lightbulb className="mr-1 inline h-4 w-4 align-text-bottom text-amber-500" aria-hidden="true" />
+                              Lớp học video: Nhấp vào nút chạy Video phía trên và hoàn thành theo thời lượng video trước khi nhấp "Hoàn thành bài học" bên dưới.
                             </div>
                           </div>
                         ) : (
