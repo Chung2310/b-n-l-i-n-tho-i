@@ -1,0 +1,204 @@
+/* Shared dropdown appearance. Native values, events, validation and form
+   submission remain browser-owned. Hidden selects and listboxes are excluded. */
+:is(
+  select:not([multiple], [size]:not([size="1"]), [hidden], .hidden, .sr-only),
+  .erp-dropdown
+):not(#app_root_layout > aside *) {
+  --dropdown-surface: #ffffff;
+  --dropdown-border: #e0e5f0;
+  --dropdown-text: #26384f;
+  --dropdown-muted: #94a3b8;
+  --dropdown-hover: #f7f8fc;
+  --dropdown-selected: #f0f5ff;
+  --dropdown-accent: #0866f5;
+  --dropdown-shadow: 0 12px 28px rgb(17 24 39 / 10%), 0 2px 5px rgb(17 24 39 / 8%);
+}
+
+.dark :is(
+  select:not([multiple], [size]:not([size="1"]), [hidden], .hidden, .sr-only),
+  .erp-dropdown
+):not(#app_root_layout > aside *) {
+  --dropdown-surface: #16181f;
+  --dropdown-border: #313747;
+  --dropdown-text: #e2e8f0;
+  --dropdown-muted: #94a3b8;
+  --dropdown-hover: #1e212b;
+  --dropdown-selected: #142c54;
+  --dropdown-accent: #8ab8ff;
+}
+
+select:not([multiple], [size]:not([size="1"]), [hidden], .hidden, .sr-only, #app_root_layout > aside *) {
+  border: 1px solid var(--dropdown-border);
+  border-radius: 0.75rem;
+  background-color: var(--dropdown-surface);
+  color: var(--dropdown-text);
+  padding: 0.375rem 0.625rem;
+  min-height: 2.125rem;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.5;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background-color: var(--dropdown-hover);
+  }
+
+  &:focus-visible,
+  &:open {
+    outline: none;
+    border-color: #0866f5;
+    box-shadow: 0 0 0 2px rgb(8 102 245 / 16%);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+    background-color: var(--dropdown-hover);
+  }
+}
+
+@supports (appearance: base-select) {
+  select:not([multiple], [size]:not([size="1"]), [hidden], .hidden, .sr-only, #app_root_layout > aside *) {
+    appearance: base-select;
+    gap: 0.625rem;
+
+    &::picker(select) {
+      appearance: base-select;
+      margin-block: 0.375rem;
+      padding: 0.25rem;
+      border: 1px solid var(--dropdown-border);
+      border-radius: 0.75rem;
+      background: var(--dropdown-surface);
+      color: var(--dropdown-text);
+      box-shadow: var(--dropdown-shadow);
+      max-height: min(18rem, 60dvh);
+      max-width: calc(100vw - 1.5rem);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+      font: inherit;
+      text-align: start;
+    }
+
+    &::picker-icon {
+      content: "";
+      display: block;
+      flex: 0 0 0.875rem;
+      width: 0.875rem;
+      height: 0.875rem;
+      align-self: center;
+      margin-inline: 0.375rem 0.125rem;
+      background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3 6 5 5 5-5' fill='none' stroke='%2394a3b8' stroke-width='1.25' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    }
+
+    &:open::picker-icon {
+      rotate: 180deg;
+    }
+
+    & option {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.375rem 0.625rem;
+      margin-block: 0.125rem;
+      min-height: 1.75rem;
+      border: 0;
+      border-radius: 0.5rem;
+      background: transparent;
+      color: var(--dropdown-text);
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 400;
+      line-height: 1.5;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      cursor: pointer;
+    }
+
+    & option:hover:not(:disabled),
+    & option:focus-visible {
+      outline: none;
+      background: var(--dropdown-hover);
+    }
+
+    & option:checked {
+      background: var(--dropdown-selected);
+      color: var(--dropdown-accent);
+      font-weight: 600;
+    }
+
+    & option:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    & option[hidden] {
+      display: none;
+    }
+
+    & option::checkmark {
+      order: 1;
+      margin-inline-start: auto;
+      color: var(--dropdown-accent);
+    }
+
+    & optgroup {
+      color: var(--dropdown-muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+  }
+
+  /* These controls already include a separate SVG chevron beside the select. */
+  select.appearance-none::picker-icon {
+    display: none !important;
+  }
+}
+
+.erp-dropdown:not(#app_root_layout > aside *) {
+  & > button {
+    border: 1px solid var(--dropdown-border);
+    border-radius: 0.75rem;
+    background-color: var(--dropdown-surface);
+    color: var(--dropdown-text);
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+
+  & > button:focus-visible,
+  & > button[aria-expanded="true"],
+  &.erp-searchable-select:has(> div.absolute) > button {
+    outline: none;
+    border-color: #0866f5;
+    box-shadow: 0 0 0 2px rgb(8 102 245 / 16%);
+  }
+
+  & > [role="listbox"],
+  &.erp-searchable-select > div.absolute {
+    padding: 0.25rem;
+    border: 1px solid var(--dropdown-border);
+    border-radius: 0.75rem;
+    background: var(--dropdown-surface);
+    color: var(--dropdown-text);
+    box-shadow: var(--dropdown-shadow);
+  }
+
+  & [role="option"],
+  &.erp-searchable-select > div.absolute > div > button {
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+
+  & [role="option"]:hover:not(:disabled) {
+    background-color: var(--dropdown-hover);
+  }
+
+  & [role="option"][aria-selected="true"],
+  &.erp-searchable-select button.bg-blue-50 {
+    background: var(--dropdown-selected);
+    color: var(--dropdown-accent);
+    font-weight: 600;
+  }
+}

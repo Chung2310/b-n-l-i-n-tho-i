@@ -65,7 +65,7 @@ export function SearchableSelect({
   };
 
   return (
-    <div ref={containerRef} className={`relative w-full ${className}`}>
+    <div ref={containerRef} className={`erp-dropdown erp-searchable-select relative w-full ${className}`}>
       {/* Trigger Button */}
       <button
         type="button"

@@ -331,7 +331,7 @@ export default function WarrantyLookupPage() {
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="rounded-full bg-amber-200/80 px-3 py-0.5 text-xs font-bold text-amber-900">
-                  THIẾT BỊ NGOÀI SHOP
+                  Thiết bị ngoài shop
                 </span>
                 <span className="text-xs text-amber-700 font-mono">
                   IMEI: <b>{searchedCode}</b>
@@ -373,7 +373,7 @@ export default function WarrantyLookupPage() {
                 <Check className="h-4 w-4 stroke-[3]" />
               </div>
               <span className="text-sm font-bold tracking-tight text-slate-100">
-                XÁC NHẬN: THIẾT BỊ XUẤT BÁN TẠI SHOP
+                Xác nhận: thiết bị xuất bán tại shop
               </span>
             </div>
 
@@ -387,12 +387,12 @@ export default function WarrantyLookupPage() {
                 {isWarrantyCovered ? (
                   <>
                     <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-                    <span>CÒN HẠN BẢO HÀNH</span>
+                    <span>Còn hạn bảo hành</span>
                   </>
                 ) : (
                   <>
                     <ShieldAlert className="h-3.5 w-3.5 text-rose-400" />
-                    <span>ĐÃ HẾT HẠN BẢO HÀNH</span>
+                    <span>Đã hết hạn bảo hành</span>
                   </>
                 )}
               </span>

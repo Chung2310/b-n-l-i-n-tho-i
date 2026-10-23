@@ -12,7 +12,6 @@ import "../components/dashboard/overview.css";
 export default function DashboardTab() {
   const { userProfile } = useAuth();
   const { activeBranchId } = useBranch();
-
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const bulletinKey = `${userProfile?.uid}:${userProfile?.role}:${activeBranchId}`;
   const [bulletinResult, setBulletinResult] = useState<{

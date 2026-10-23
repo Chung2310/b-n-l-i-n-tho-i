@@ -864,7 +864,7 @@ export default function TrainingTab({
                       {myEnrollment && (
                         <div className="space-y-1 pt-1 select-none">
                           <div className="flex justify-between text-[9px] font-bold">
-                            <span className="text-gray-400">TIẾN ĐỘ HỌC:</span>
+                            <span className="text-gray-400">Tiến độ học:</span>
                             <span className={isCompleted ? "text-emerald-600" : "text-indigo-600"}>{progress}% {isCompleted ? "(Đã xong)" : ""}</span>
                           </div>
                           <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden border">
@@ -1296,7 +1296,7 @@ export default function TrainingTab({
               <div className="w-64 bg-slate-50 border-r border-gray-200 overflow-y-auto p-4 shrink-0 flex flex-col justify-between">
                 <div className="space-y-4">
                   <div className="text-left select-none">
-                    <span className="block text-[8px] font-extrabold text-gray-400 uppercase tracking-widest font-mono">TIẾN ĐỘ HOÀN THÀNH:</span>
+                    <span className="block text-[8px] font-extrabold text-gray-400 uppercase tracking-widest font-mono">Tiến độ hoàn thành:</span>
                     <div className="flex items-center gap-2 mt-1">
                       <div className="flex-1 bg-gray-250 h-2 rounded-full overflow-hidden border">
                         <div
@@ -1311,7 +1311,7 @@ export default function TrainingTab({
                   </div>
 
                   <div className="space-y-2 border-t pt-3">
-                    <span className="block text-[9px] font-bold text-gray-400 uppercase select-none tracking-wider text-left font-mono">DANH SÁCH BÀI HỌC:</span>
+                    <span className="block text-[9px] font-bold text-gray-400 uppercase select-none tracking-wider text-left font-mono">Danh sách bài học:</span>
                     <div className="space-y-1 text-xs">
                       {/* Course Overview / Introduction */}
                       <button
@@ -1464,7 +1464,7 @@ export default function TrainingTab({
                     <div className="space-y-6 text-left max-w-2xl mx-auto h-full flex flex-col justify-between py-4 w-full">
                       <div className="space-y-5 flex-1 overflow-y-auto pr-1">
                         <div className="pb-4 border-b">
-                          <span className="text-[10px] font-bold text-gray-450 uppercase tracking-widest font-mono">BÀI GIẢNG {activeLessonIndex + 1} / {activeStudyCourse.lessons?.length}</span>
+                          <span className="text-[10px] font-bold text-gray-450 uppercase tracking-widest font-mono">Bài giảng {activeLessonIndex + 1} / {activeStudyCourse.lessons?.length}</span>
                           <h3 className="text-lg font-bold text-slate-800 mt-1 font-sans leading-snug">{les.title}</h3>
                         </div>
 

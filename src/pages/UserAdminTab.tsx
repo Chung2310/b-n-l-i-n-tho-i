@@ -911,7 +911,7 @@ export default function UserAdminTab() {
                           </div>
                           {roleInfo.isDefault && (
                             <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-150 rounded-sm text-[8px] font-bold font-mono">
-                              MẶC ĐỊNH
+                              Mặc định
                             </span>
                           )}
                         </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from "react";
+import "./calendar-schedule.css";
 import { useIsMobile } from "../../hooks/useMediaQuery";
 import {
   Calendar as CalendarIcon,
@@ -1529,7 +1530,7 @@ export default function CalendarTab({
       ) : (
         <>
           {/* 1. Glassmorphism Header Controls & Filters & Quick Stats */}
-          <div className="flex flex-col gap-5 bg-white/80 backdrop-blur-md p-5 rounded-3xl border border-slate-100/80 shadow-md shadow-slate-100/50 mb-5 transition-all duration-300">
+          <div className="erp-calendar-header flex flex-col gap-5 bg-white/80 backdrop-blur-md p-5 rounded-3xl border border-slate-100/80 shadow-md shadow-slate-100/50 mb-5 transition-all duration-300">
             {/* Navigation & Actions */}
             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
               <div className="flex flex-wrap items-center gap-3">
@@ -1697,7 +1698,7 @@ export default function CalendarTab({
           </div>
 
           {/* 2. Premium Calendar Grid */}
-          <div className="flex-1 bg-white/90 backdrop-blur-md border border-slate-100/80 rounded-3xl shadow-md shadow-slate-100/40 p-5 overflow-x-auto min-h-[550px] transition-all duration-300">
+          <div className="erp-calendar-grid flex-1 bg-white/90 backdrop-blur-md border border-slate-100/80 rounded-3xl shadow-md shadow-slate-100/40 p-5 overflow-x-auto min-h-[550px] transition-all duration-300">
             {loading ? (
               <div className="flex flex-col items-center justify-center h-full py-20 gap-3.5">
                 <div className="w-9 h-9 border-3 border-indigo-650 border-t-transparent rounded-full animate-spin" />

@@ -42,14 +42,14 @@ export default function ReceiptPrintView({
     <>
       {createPortal(<style media="print">{printCss}</style>, document.head)}
       <article ref={receiptRef} id={printTarget ? "retail-receipt" : "retail-receipt-preview"} style={isThermal ? { width: receiptWidth, maxWidth: receiptWidth, padding: receiptPadding } : undefined} className={"mx-auto w-full bg-white p-4 text-sm text-slate-900 " + (isThermal ? "max-w-sm" : "max-w-3xl")}>
-      {isReprint && <p className="mb-2 text-center text-lg font-black tracking-[0.25em] text-rose-700">IN LẠI</p>}
+      {isReprint && <p className="mb-2 text-center text-lg font-black tracking-[0.25em] text-rose-700">In lại</p>}
       <header className="border-b border-dashed pb-3 text-center">
         <div className="mb-1 flex flex-col items-center">
           <img src={BRAND_LOGO_PATH} alt={BRAND_NAME} className="h-[14mm] w-[38mm] object-cover object-center" />
           <p className="text-base font-bold">{BRAND_NAME}</p>
         </div>
         {showBranchName && <p>{branchName}</p>}
-        <h2 className="mt-2 text-lg font-bold">HÓA ĐƠN BÁN HÀNG</h2>
+        <h2 className="mt-2 text-lg font-bold">Hóa đơn bán hàng</h2>
         <p className="font-semibold">{invoice.invoiceNo}</p>
         <p>{new Date(invoice.issuedAt).toLocaleString("vi-VN")}</p>
       </header>

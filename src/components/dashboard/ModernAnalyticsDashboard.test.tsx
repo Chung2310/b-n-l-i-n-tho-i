@@ -96,7 +96,9 @@ describe("ModernAnalyticsDashboard", () => {
     expect(screen.getByText(/Admin User/)).toBeTruthy();
     expect(screen.queryByText(/Chào mừng trở lại/)).toBeNull();
     expect(screen.queryByText("Chi nhánh Hà Nội")).toBeNull();
-    expect(screen.getByText("Tùy chỉnh")).toBeTruthy();
+    expect(screen.getByLabelText("Ngày hôm nay").textContent).toMatch(/thứ|chủ nhật/i);
+    expect(screen.queryByRole("dialog", { name: "Lịch chọn ngày tổng quan" })).toBeNull();
+    expect(screen.queryByText("Tùy chỉnh")).toBeNull();
 
     // Row 1: Top 5 KPI Cards (Content/Số -> Title, Vietnamese)
     expect(screen.getByText("Doanh số hôm nay")).toBeTruthy();

@@ -153,11 +153,11 @@ export function printOutboundVoucher(options: PrintOutboundVoucherOptions): void
         <div style="font-size: 11px; font-weight: 600; color: #475569; margin-bottom: 4px;">
           Danh sách ${serials.length} mã IMEI / Serial máy xuất:
         </div>
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; font-family: monospace; font-size: 10px; color: #1e293b;">
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; font-family: Inter, sans-serif; font-size: 10px; color: #1e293b;">
           ${serials.map((s, sIdx) => {
             const nb = item.unitDetails?.[sIdx]?.internalBarcode;
             return `<div style="background: #ffffff; border: 1px solid #e2e8f0; padding: 2px 4px; border-radius: 3px;">
-              <span style="color: #94a3b8; font-family: sans-serif;">#${sIdx + 1}</span> <b>${s}</b>
+              <span style="color: #94a3b8; font-family: Inter, sans-serif;">#${sIdx + 1}</span> <b>${s}</b>
               ${nb ? `<br/><span style="color: #64748b; font-size: 9px;">NB: ${nb}</span>` : ""}
             </div>`;
           }).join("")}
@@ -172,17 +172,17 @@ export function printOutboundVoucher(options: PrintOutboundVoucherOptions): void
       <tr>
         <td style="text-align: center; vertical-align: top; font-weight: 500;">${idx + 1}</td>
         <td style="vertical-align: top;">
-          <div style="font-weight: 700; font-size: 13px; color: #0f172a;">${item.productName}</div>
+          <div style="font-weight: 600; font-size: 13px; color: #0f172a;">${item.productName}</div>
           ${item.displayName && item.displayName !== item.productName ? `<div style="font-size: 12px; color: #0891b2; font-weight: 600; margin-top: 2px;">${item.displayName}</div>` : ""}
           ${imeiChipsHtml}
         </td>
-        <td style="font-family: monospace; font-size: 11px; vertical-align: top; font-weight: 600; color: #334155;">${item.sku}</td>
+        <td style="font-family: Inter, sans-serif; font-size: 11px; vertical-align: top; font-weight: 600; color: #334155;">${item.sku}</td>
         <td style="text-align: center; font-size: 11px; vertical-align: top; color: #475569;">Cái</td>
-        <td style="text-align: right; font-weight: 700; font-size: 13px; vertical-align: top;">${item.quantity}</td>
-        <td style="text-align: right; font-family: monospace; font-size: 12px; vertical-align: top;">
+        <td style="text-align: right; font-weight: 600; font-size: 13px; vertical-align: top;">${item.quantity}</td>
+        <td style="text-align: right; font-family: Inter, sans-serif; font-size: 12px; vertical-align: top;">
           ${price > 0 ? money(price) : "—"}
         </td>
-        <td style="text-align: right; font-weight: 700; font-family: monospace; font-size: 12px; vertical-align: top;">
+        <td style="text-align: right; font-weight: 600; font-family: Inter, sans-serif; font-size: 12px; vertical-align: top;">
           ${lineTotal > 0 ? money(lineTotal) : "—"}
         </td>
       </tr>
@@ -198,6 +198,7 @@ export function printOutboundVoucher(options: PrintOutboundVoucherOptions): void
       <meta charset="utf-8">
       <title>Phiếu Xuất Kho - ${ticket.id}</title>
       <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,100..900;1,100..900&display=swap');
         @page {
           size: A4 portrait;
           margin: 12mm 15mm 15mm 15mm;
@@ -208,7 +209,7 @@ export function printOutboundVoucher(options: PrintOutboundVoucherOptions): void
           print-color-adjust: exact !important;
         }
         body {
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+          font-family: Inter, sans-serif;
           color: #0f172a;
           margin: 0;
           padding: 0;
@@ -231,9 +232,9 @@ export function printOutboundVoucher(options: PrintOutboundVoucherOptions): void
         }
         .title-main {
           font-size: 22px;
-          font-weight: 800;
+          font-weight: 600;
           letter-spacing: 0.5px;
-          text-transform: uppercase;
+          text-transform: none;
           margin: 0;
           color: #0f172a;
         }
@@ -245,7 +246,7 @@ export function printOutboundVoucher(options: PrintOutboundVoucherOptions): void
         }
         .title-code {
           font-size: 13px;
-          font-weight: 700;
+          font-weight: 600;
           margin-top: 4px;
           color: #0f172a;
         }
@@ -262,8 +263,8 @@ export function printOutboundVoucher(options: PrintOutboundVoucherOptions): void
         .info-label {
           color: #64748b;
           font-size: 10px;
-          text-transform: uppercase;
-          font-weight: 700;
+          text-transform: none;
+          font-weight: 600;
           letter-spacing: 0.3px;
           display: block;
           margin-bottom: 2px;
@@ -280,8 +281,8 @@ export function printOutboundVoucher(options: PrintOutboundVoucherOptions): void
         table.items-table th {
           background-color: #e2e8f0;
           font-size: 11px;
-          text-transform: uppercase;
-          font-weight: 700;
+          text-transform: none;
+          font-weight: 600;
           color: #1e293b;
         }
         .signature-table {
@@ -298,9 +299,9 @@ export function printOutboundVoucher(options: PrintOutboundVoucherOptions): void
           padding: 0 4px;
         }
         .sig-title {
-          font-weight: 700;
+          font-weight: 600;
           font-size: 12px;
-          text-transform: uppercase;
+          text-transform: none;
           color: #0f172a;
         }
         .sig-sub {
@@ -323,21 +324,21 @@ export function printOutboundVoucher(options: PrintOutboundVoucherOptions): void
       <table class="header-table">
         <tr>
           <td style="vertical-align: top; width: 60%;">
-            <div style="font-weight: 800; font-size: 15px; color: #0f172a;">${companyInfo?.name || "HỆ THỐNG BÁN LẺ & TRUNG TÂM THIẾT BỊ DI ĐỘNG"}</div>
+            <div style="font-weight: 600; font-size: 15px; color: #0f172a;">${companyInfo?.name || "HỆ THỐNG BÁN LẺ & TRUNG TÂM THIẾT BỊ DI ĐỘNG"}</div>
             <div style="font-size: 11px; color: #475569; margin-top: 2px;">Địa chỉ: ${companyInfo?.address || "Hồ Chí Minh, Việt Nam"}</div>
             <div style="font-size: 11px; color: #475569;">Điện thoại: ${companyInfo?.phone || "1900 xxxx"} · Hotline bảo hành</div>
           </td>
           <td style="text-align: right; vertical-align: top; width: 40%;">
-            <div style="font-weight: 700; font-size: 11px; color: #334155;">Mẫu số 02 - VT</div>
+            <div style="font-weight: 600; font-size: 11px; color: #334155;">Mẫu số 02 - VT</div>
             <div style="font-size: 10px; color: #64748b; font-style: italic;">(Ban hành theo Thông tư 200/2014/TT-BTC)</div>
-            <div style="font-size: 11px; color: #334155; margin-top: 4px;">Số phiếu: <b style="font-family: monospace;">${ticket.id}</b></div>
+            <div style="font-size: 11px; color: #334155; margin-top: 4px;">Số phiếu: <b style="font-family: Inter, sans-serif;">${ticket.id}</b></div>
           </td>
         </tr>
       </table>
 
       <div class="title-box">
         <h1 class="title-main">PHIẾU XUẤT KHO</h1>
-        ${ticket.reversalId ? `<div style="font-weight:700;color:#be123c">ĐÃ ĐẢO TOÀN BỘ — Chỉ dùng đối chiếu lịch sử</div>` : ""}
+        ${ticket.reversalId ? `<div style="font-weight: 600;color:#be123c">ĐÃ ĐẢO TOÀN BỘ — Chỉ dùng đối chiếu lịch sử</div>` : ""}
         <div class="title-sub">Ngày ${day} tháng ${month} năm ${year} (In lúc ${timeStr})</div>
         <div class="title-code">Mục đích: ${purposeLabel(ticket.purpose)}</div>
       </div>
@@ -345,13 +346,13 @@ export function printOutboundVoucher(options: PrintOutboundVoucherOptions): void
       <div class="info-grid">
         <div>
           <span class="info-label">Xuất từ kho</span>
-          <div style="font-size: 13px; font-weight: 700; color: #0f172a;">${warehouse?.name || "Kho mặc định"}</div>
-          <div style="font-size: 11px; color: #475569; margin-top: 2px;">Mã kho: <b style="font-family: monospace;">${warehouse?.code || "DEFAULT"}</b></div>
+          <div style="font-size: 13px; font-weight: 600; color: #0f172a;">${warehouse?.name || "Kho mặc định"}</div>
+          <div style="font-size: 11px; color: #475569; margin-top: 2px;">Mã kho: <b style="font-family: Inter, sans-serif;">${warehouse?.code || "DEFAULT"}</b></div>
           ${warehouse?.address ? `<div style="font-size: 11px; color: #475569;">Địa chỉ: ${warehouse.address}</div>` : ""}
         </div>
         <div>
           <span class="info-label">${ticket.purpose === "chuyển kho" ? "Kho / Cơ sở nhận" : ticket.purpose === "nội bộ" ? "Nhân viên / Phòng ban nhận" : "Đơn vị nhận / Lý do"}</span>
-          <div style="font-size: 13px; font-weight: 700; color: #0f172a;">
+          <div style="font-size: 13px; font-weight: 600; color: #0f172a;">
             ${ticket.customerName || (ticket.purpose === "chuyển kho" ? "Kho nhận nội bộ" : "Nhân sự nội bộ")}
           </div>
           <div style="font-size: 11px; color: #475569; margin-top: 2px;">
@@ -375,11 +376,11 @@ export function printOutboundVoucher(options: PrintOutboundVoucherOptions): void
         </thead>
         <tbody>
           ${rowsHtml}
-          <tr style="background-color: #f1f5f9; font-weight: 700;">
-            <td colspan="4" style="text-align: right; text-transform: uppercase; font-size: 11px;">Tổng cộng:</td>
+          <tr style="background-color: #f1f5f9; font-weight: 600;">
+            <td colspan="4" style="text-align: right; text-transform: none; font-size: 11px;">Tổng cộng:</td>
             <td style="text-align: right; font-size: 13px;">${totalQuantity}</td>
             <td></td>
-            <td style="text-align: right; font-family: monospace; font-size: 13px; color: #0f172a;">
+            <td style="text-align: right; font-family: Inter, sans-serif; font-size: 13px; color: #0f172a;">
               ${totalPrice > 0 ? money(totalPrice) : "—"}
             </td>
           </tr>

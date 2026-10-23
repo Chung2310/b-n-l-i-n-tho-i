@@ -104,7 +104,7 @@ export function RevenueAnalysisPanel() {
             <div>
               <h3 className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-800">
                 <BarChart3 className="h-4 w-4 text-cyan-500" />
-                DOANH THU
+                Doanh thu
                 <span className="text-2xl font-black text-slate-900" title={`${currentTotal} VND`}>{revenueLabel}</span>
               </h3>
             </div>

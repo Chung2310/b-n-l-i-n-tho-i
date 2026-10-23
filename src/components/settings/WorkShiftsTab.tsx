@@ -407,7 +407,7 @@ export default function WorkShiftsTab() {
                             </h4>
                             {shift.isDefault && (
                               <span className="px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-[10px] font-extrabold text-indigo-600">
-                                MẶC ĐỊNH
+                                Mặc định
                               </span>
                             )}
                           </div>

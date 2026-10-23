@@ -1,0 +1,302 @@
+/* AKPro AI content theme. Deliberately scoped away from the left navigation.
+   Page-local light themes repeat the scope so their tokens cannot restore the
+   previous green/cyan brand. No layout, sizing or interaction rules belong here. */
+#main_content_area,
+#main_content_area #dashboard_tab_view[data-overview="true"],
+#main_content_area #partners-page,
+body:has(#main_content_area) > .fixed,
+#root:has(#main_content_area) > .fixed:not(aside),
+#app_root_layout > .fixed:not(aside):not(:has(~ aside)) {
+  --font-sans: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Inter", "Segoe UI", system-ui, sans-serif;
+  --color-primary: #0866f5;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #eaf2ff;
+  --color-on-primary-container: #0846a8;
+  --color-primary-fixed: #f0f5ff;
+  --color-primary-fixed-dim: #c6dcff;
+  --color-on-primary-fixed: #10234b;
+  --color-on-primary-fixed-variant: #0846a8;
+  --color-secondary: #7138f5;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #f1ebff;
+  --color-on-secondary-container: #5022b8;
+  --color-secondary-fixed: #f5f0ff;
+  --color-secondary-fixed-dim: #ddceff;
+  --color-on-secondary-fixed: #251147;
+  --color-on-secondary-fixed-variant: #5022b8;
+  --color-background: #ffffff;
+  --color-on-background: #111111;
+  --color-surface: #f7f8fc;
+  --color-on-surface: #111111;
+  --color-surface-bright: #ffffff;
+  --color-surface-dim: #e5e9f3;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f7f8fc;
+  --color-surface-container: #f0f3fa;
+  --color-surface-container-high: #e9edf7;
+  --color-surface-container-highest: #dfe5f2;
+  --color-surface-variant: #e9edf7;
+  --color-on-surface-variant: #52586b;
+  --color-outline: #7b8194;
+  --color-outline-variant: #e0e5f0;
+  --color-inverse-primary: #8ab8ff;
+  --color-surface-tint: #0866f5;
+  --color-brand-primary: #0866f5;
+  --color-brand-bg: #ffffff;
+  font-family: var(--font-sans);
+  color: var(--color-on-surface);
+}
+
+/* Keep the existing dark-mode behavior, with the new brand accents. */
+.dark #main_content_area,
+.dark body:has(#main_content_area) > .fixed,
+.dark #root:has(#main_content_area) > .fixed:not(aside),
+.dark #app_root_layout > .fixed:not(aside):not(:has(~ aside)) {
+  --color-background: #0d0f14;
+  --color-on-background: #f1f5f9;
+  --color-surface: #0d0f14;
+  --color-on-surface: #f1f5f9;
+  --color-surface-bright: #16181f;
+  --color-surface-dim: #0d0f14;
+  --color-surface-container-lowest: #101217;
+  --color-surface-container-low: #16181f;
+  --color-surface-container: #1e212b;
+  --color-surface-container-high: #272b38;
+  --color-surface-container-highest: #313747;
+  --color-on-surface-variant: #cbd5e1;
+  --color-outline: #475569;
+  --color-outline-variant: #242834;
+  --color-primary-container: #142c54;
+  --color-on-primary-container: #b8d3ff;
+  --color-secondary-container: #2b1c4d;
+  --color-on-secondary-container: #ddceff;
+}
+
+/* Replace legacy brand utility colors, including green/emerald accents. */
+#main_content_area,
+#main_content_area #dashboard_tab_view[data-overview="true"],
+#main_content_area #partners-page,
+body:has(#main_content_area) > .fixed,
+#root:has(#main_content_area) > .fixed:not(aside),
+#app_root_layout > .fixed:not(aside):not(:has(~ aside)) {
+  --color-blue-50: #f0f5ff;
+  --color-blue-100: #e1ecff;
+  --color-blue-150: #d4e4ff;
+  --color-blue-200: #c2d8ff;
+  --color-blue-300: #99bfff;
+  --color-blue-400: #5898ff;
+  --color-blue-500: #287afa;
+  --color-blue-550: #0866f5;
+  --color-blue-600: #0866f5;
+  --color-blue-650: #0758d5;
+  --color-blue-655: #0758d5;
+  --color-blue-700: #0752c4;
+  --color-blue-750: #0846a8;
+  --color-blue-800: #0846a8;
+  --color-blue-850: #093b8b;
+  --color-blue-900: #103572;
+  --color-blue-950: #10234b;
+  --color-cyan-50: #f0f5ff;
+  --color-cyan-100: #e1ecff;
+  --color-cyan-150: #d4e4ff;
+  --color-cyan-200: #c2d8ff;
+  --color-cyan-300: #99bfff;
+  --color-cyan-400: #5898ff;
+  --color-cyan-500: #287afa;
+  --color-cyan-550: #0866f5;
+  --color-cyan-600: #0866f5;
+  --color-cyan-650: #0758d5;
+  --color-cyan-655: #0758d5;
+  --color-cyan-700: #0752c4;
+  --color-cyan-750: #0846a8;
+  --color-cyan-800: #0846a8;
+  --color-cyan-850: #093b8b;
+  --color-cyan-900: #103572;
+  --color-cyan-950: #10234b;
+  --color-sky-50: #f0f5ff;
+  --color-sky-100: #e1ecff;
+  --color-sky-150: #d4e4ff;
+  --color-sky-200: #c2d8ff;
+  --color-sky-300: #99bfff;
+  --color-sky-400: #5898ff;
+  --color-sky-500: #287afa;
+  --color-sky-550: #0866f5;
+  --color-sky-600: #0866f5;
+  --color-sky-650: #0758d5;
+  --color-sky-655: #0758d5;
+  --color-sky-700: #0752c4;
+  --color-sky-750: #0846a8;
+  --color-sky-800: #0846a8;
+  --color-sky-850: #093b8b;
+  --color-sky-900: #103572;
+  --color-sky-950: #10234b;
+  --color-green-50: #f0f5ff;
+  --color-green-100: #e1ecff;
+  --color-green-150: #d4e4ff;
+  --color-green-200: #c2d8ff;
+  --color-green-300: #99bfff;
+  --color-green-400: #5898ff;
+  --color-green-500: #287afa;
+  --color-green-550: #0866f5;
+  --color-green-600: #0866f5;
+  --color-green-650: #0758d5;
+  --color-green-655: #0758d5;
+  --color-green-700: #0752c4;
+  --color-green-750: #0846a8;
+  --color-green-800: #0846a8;
+  --color-green-850: #093b8b;
+  --color-green-900: #103572;
+  --color-green-950: #10234b;
+  --color-emerald-50: #f0f5ff;
+  --color-emerald-100: #e1ecff;
+  --color-emerald-150: #d4e4ff;
+  --color-emerald-200: #c2d8ff;
+  --color-emerald-300: #99bfff;
+  --color-emerald-400: #5898ff;
+  --color-emerald-500: #287afa;
+  --color-emerald-550: #0866f5;
+  --color-emerald-600: #0866f5;
+  --color-emerald-650: #0758d5;
+  --color-emerald-655: #0758d5;
+  --color-emerald-700: #0752c4;
+  --color-emerald-750: #0846a8;
+  --color-emerald-800: #0846a8;
+  --color-emerald-850: #093b8b;
+  --color-emerald-900: #103572;
+  --color-emerald-950: #10234b;
+  --color-teal-50: #f0f5ff;
+  --color-teal-100: #e1ecff;
+  --color-teal-150: #d4e4ff;
+  --color-teal-200: #c2d8ff;
+  --color-teal-300: #99bfff;
+  --color-teal-400: #5898ff;
+  --color-teal-500: #287afa;
+  --color-teal-550: #0866f5;
+  --color-teal-600: #0866f5;
+  --color-teal-650: #0758d5;
+  --color-teal-655: #0758d5;
+  --color-teal-700: #0752c4;
+  --color-teal-750: #0846a8;
+  --color-teal-800: #0846a8;
+  --color-teal-850: #093b8b;
+  --color-teal-900: #103572;
+  --color-teal-950: #10234b;
+  --color-indigo-50: #f5f0ff;
+  --color-indigo-100: #ede4ff;
+  --color-indigo-150: #e5d9ff;
+  --color-indigo-200: #ddceff;
+  --color-indigo-300: #c3a5ff;
+  --color-indigo-400: #a27bfc;
+  --color-indigo-500: #8955fa;
+  --color-indigo-550: #7138f5;
+  --color-indigo-600: #7138f5;
+  --color-indigo-650: #6129d9;
+  --color-indigo-655: #6129d9;
+  --color-indigo-700: #6129d9;
+  --color-indigo-750: #5022b8;
+  --color-indigo-800: #5022b8;
+  --color-indigo-850: #421e91;
+  --color-indigo-900: #391d76;
+  --color-indigo-950: #251147;
+  --color-purple-50: #f5f0ff;
+  --color-purple-100: #ede4ff;
+  --color-purple-150: #e5d9ff;
+  --color-purple-200: #ddceff;
+  --color-purple-300: #c3a5ff;
+  --color-purple-400: #a27bfc;
+  --color-purple-500: #8955fa;
+  --color-purple-550: #7138f5;
+  --color-purple-600: #7138f5;
+  --color-purple-650: #6129d9;
+  --color-purple-655: #6129d9;
+  --color-purple-700: #6129d9;
+  --color-purple-750: #5022b8;
+  --color-purple-800: #5022b8;
+  --color-purple-850: #421e91;
+  --color-purple-900: #391d76;
+  --color-purple-950: #251147;
+  --color-violet-50: #f5f0ff;
+  --color-violet-100: #ede4ff;
+  --color-violet-150: #e5d9ff;
+  --color-violet-200: #ddceff;
+  --color-violet-300: #c3a5ff;
+  --color-violet-400: #a27bfc;
+  --color-violet-500: #8955fa;
+  --color-violet-550: #7138f5;
+  --color-violet-600: #7138f5;
+  --color-violet-650: #6129d9;
+  --color-violet-655: #6129d9;
+  --color-violet-700: #6129d9;
+  --color-violet-750: #5022b8;
+  --color-violet-800: #5022b8;
+  --color-violet-850: #421e91;
+  --color-violet-900: #391d76;
+  --color-violet-950: #251147;
+}
+
+/* Light surfaces and readable neutral text, including page-local palettes. */
+#main_content_area,
+#main_content_area #dashboard_tab_view[data-overview="true"],
+#main_content_area #partners-page,
+body:has(#main_content_area) > .fixed,
+#root:has(#main_content_area) > .fixed:not(aside),
+#app_root_layout > .fixed:not(aside):not(:has(~ aside)) {
+  --color-black: #111111;
+  --color-gray-800: #222222;
+  --color-gray-900: #111111;
+  --color-slate-800: #222222;
+  --color-slate-900: #111111;
+}
+
+.dark #main_content_area,
+.dark body:has(#main_content_area) > .fixed,
+.dark #root:has(#main_content_area) > .fixed:not(aside),
+.dark #app_root_layout > .fixed:not(aside):not(:has(~ aside)) {
+  --color-black: #ffffff;
+  --color-gray-800: #f8fafc;
+  --color-gray-900: #ffffff;
+  --color-slate-800: #ffffff;
+  --color-slate-900: #f8fafc;
+}
+
+#main_content_area .visible-scrollbar::-webkit-scrollbar-thumb {
+  background: #0866f5 !important;
+}
+#main_content_area .visible-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #0752c4 !important;
+}
+
+/* Dark accent surfaces stay subdued; solid action colors remain branded. */
+.dark #main_content_area,
+.dark body:has(#main_content_area) > .fixed,
+.dark #root:has(#main_content_area) > .fixed:not(aside),
+.dark #app_root_layout > .fixed:not(aside):not(:has(~ aside)) {
+  --color-blue-50: #121e34;
+  --color-blue-100: #1a3052;
+  --color-blue-200: #294775;
+  --color-cyan-50: #121e34;
+  --color-cyan-100: #1a3052;
+  --color-cyan-200: #294775;
+  --color-sky-50: #121e34;
+  --color-sky-100: #1a3052;
+  --color-sky-200: #294775;
+  --color-green-50: #121e34;
+  --color-green-100: #1a3052;
+  --color-green-200: #294775;
+  --color-emerald-50: #121e34;
+  --color-emerald-100: #1a3052;
+  --color-emerald-200: #294775;
+  --color-teal-50: #121e34;
+  --color-teal-100: #1a3052;
+  --color-teal-200: #294775;
+  --color-indigo-50: #211734;
+  --color-indigo-100: #32214f;
+  --color-indigo-200: #4b3374;
+  --color-purple-50: #211734;
+  --color-purple-100: #32214f;
+  --color-purple-200: #4b3374;
+  --color-violet-50: #211734;
+  --color-violet-100: #32214f;
+  --color-violet-200: #4b3374;
+}
