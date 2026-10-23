@@ -76,7 +76,7 @@ export default function AddSerialToCartDialog({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 p-3 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-3 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150"
       onKeyDown={(event) => {
         event.stopPropagation();
         if (event.key === "Escape") onClose();
@@ -94,7 +94,7 @@ export default function AddSerialToCartDialog({
         {/* COMPACT HEADER */}
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 bg-slate-50/50">
           <div className="flex min-w-0 items-center gap-2.5">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-100/70 text-cyan-700">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#dce9ff]/70 text-[#0758d5]">
               <ScanBarcode className="h-4 w-4" aria-hidden="true" />
             </span>
             <div className="min-w-0">
@@ -138,7 +138,7 @@ export default function AddSerialToCartDialog({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Tìm IMEI, serial hoặc mã vạch..."
-              className="w-full min-w-0 rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-xs text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20"
+              className="w-full min-w-0 rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-xs text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-[#0866f5] focus:ring-1 focus:ring-[#0866f5]/20"
             />
           </div>
 
@@ -151,7 +151,7 @@ export default function AddSerialToCartDialog({
               <span
                 className={`rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
                   canConfirm
-                    ? "bg-cyan-100 text-cyan-800 font-bold"
+                    ? "bg-[#dce9ff] text-[#0844a8] font-bold"
                     : "bg-slate-100 text-slate-500"
                 }`}
               >
@@ -166,7 +166,7 @@ export default function AddSerialToCartDialog({
               role="status"
               className="flex flex-1 items-center justify-center gap-2 py-8 text-xs text-slate-500"
             >
-              <Loader2 className="h-4 w-4 animate-spin text-cyan-600" aria-hidden="true" />
+              <Loader2 className="h-4 w-4 animate-spin text-[#0866f5]" aria-hidden="true" />
               Đang tải IMEI / Serial...
             </div>
           )}
@@ -191,7 +191,7 @@ export default function AddSerialToCartDialog({
                   key={item._id}
                   className={`flex cursor-pointer items-center justify-between gap-2.5 rounded-lg border px-3 py-2 text-xs transition select-none ${
                     checked
-                      ? "border-cyan-500 bg-cyan-50/70 shadow-2xs font-semibold ring-1 ring-cyan-500/30"
+                      ? "border-[#0866f5] bg-[#edf3ff]/70 shadow-2xs font-semibold ring-1 ring-[#0866f5]/30"
                       : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80"
                   }`}
                 >
@@ -202,7 +202,7 @@ export default function AddSerialToCartDialog({
                       aria-label={item.serialNumber}
                       checked={checked}
                       onChange={() => setSelected(item.normalizedSerialNumber)}
-                      className="h-3.5 w-3.5 shrink-0 accent-cyan-600 cursor-pointer"
+                      className="h-3.5 w-3.5 shrink-0 accent-[#0866f5] cursor-pointer"
                     />
                     <div className="min-w-0 flex-1">
                       <span className="block truncate font-mono text-xs font-bold text-slate-800">
@@ -217,7 +217,7 @@ export default function AddSerialToCartDialog({
                   </div>
 
                   {checked && (
-                    <Check className="h-4 w-4 shrink-0 text-cyan-600" aria-hidden="true" />
+                    <Check className="h-4 w-4 shrink-0 text-[#0866f5]" aria-hidden="true" />
                   )}
                 </label>
               );
@@ -247,7 +247,7 @@ export default function AddSerialToCartDialog({
             onClick={() => {
               if (canConfirm) onConfirm(selected);
             }}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-cyan-600 px-3.5 py-1.5 text-xs font-bold text-white transition-colors hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer shadow-xs shadow-cyan-600/20 active:scale-98"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#0866f5] px-3.5 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#0758d5] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer shadow-xs shadow-[#0866f5]/20 active:scale-98"
           >
             <ShoppingCart className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             Thêm vào giỏ

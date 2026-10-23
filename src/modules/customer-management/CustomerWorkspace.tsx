@@ -13,6 +13,7 @@ import { CurrencyInput } from "../../components/common/CurrencyInput";
 import { useSubTabRouter } from "../../hooks/useSubTabRouter";
 import { CUSTOMER_SUB_TAB_ROUTES, type CustomerSubTabType } from "../../router/subTabRoutes";
 import type { Customer, CustomerInput, CustomerStatus, CustomerType, PaginatedCustomers, CustomerSettings, CustomerTier } from "./types";
+import "./customer-workspace.css";
 
 const emptyResult: PaginatedCustomers = { items: [], total: 0, page: 1, limit: 20 };
 
@@ -143,9 +144,9 @@ export default function CustomerWorkspace() {
   const vatCount = result.items.filter((c) => c.type === "vat").length;
 
   return (
-    <section className="space-y-6 p-4 sm:p-6 max-w-7xl mx-auto">
+    <section className="customer-workspace mx-auto w-full max-w-none space-y-6 p-4 sm:p-6" data-view={activeTab}>
       {/* Top Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="customer-page-header flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
             Quản lý khách hàng
@@ -167,7 +168,7 @@ export default function CustomerWorkspace() {
       </div>
 
       {/* Navigation Segmented Tabs */}
-      <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-100/90 border border-slate-200/80 w-fit shadow-2xs">
+      <div className="customer-view-tabs flex w-fit items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-slate-100/90 p-1 shadow-2xs">
         <button
           type="button"
           onClick={() => setActiveTab("list")}
@@ -209,9 +210,9 @@ export default function CustomerWorkspace() {
       )}
 
       {activeTab === "list" ? (
-        <div className="space-y-5">
+        <div className="customer-list-view space-y-5">
           {/* KPI Summary Bento Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="customer-kpis grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs hover:shadow-xs transition">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tổng khách hàng</span>

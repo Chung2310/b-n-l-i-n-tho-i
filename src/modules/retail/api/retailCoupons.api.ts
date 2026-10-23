@@ -9,6 +9,7 @@ export interface RetailCouponInput {
   startsAt: string; endsAt: string; active: boolean;
 }
 export interface RetailCoupon extends RetailCouponInput { emailDelivery?: { status?: "pending" | "sending" | "sent" | "failed" | "skipped"; reason?: string }; _id: string; usedCount: number; version: number; source?: "manual" | "birthday" | "purchase" }
+export type RetailSelectableCoupon = Pick<RetailCoupon, "_id" | "code" | "name" | "discountType" | "value" | "minSubtotal" | "maxDiscount" | "customerId" | "customerTierCodes">;
 export interface RetailBirthdayProgram {
   deliveryChannels?: "email"[];
   enabled: boolean; discountType: "amount" | "percent"; value: number;
@@ -19,6 +20,9 @@ export interface RetailCouponAutomationInput extends RetailBirthdayProgram {
 }
 export interface RetailCouponAutomation extends RetailCouponAutomationInput { _id: string; legacy?: boolean }
 export const retailCouponsApi = {
+  async selectable(scope: RetailScope, customerId?: string) {
+    return (await apiFetch<{ data: RetailSelectableCoupon[] }>("/retail/coupons/selectable", { params: { ...scope, ...(customerId ? { customerId } : {}) } })).data;
+  },
   async automations(scope: RetailScope) {
     return (await apiFetch<{ data: RetailCouponAutomation[] }>("/retail/coupons/automations", { params: scope })).data;
   },

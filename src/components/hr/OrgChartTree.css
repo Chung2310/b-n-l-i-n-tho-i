@@ -1,0 +1,37 @@
+@property --org-chart-border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes org-chart-border-spin {
+  to { --org-chart-border-angle: 360deg; }
+}
+
+.org-chart-node {
+  border: 2px solid transparent;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(#dfe7f3, #dfe7f3) border-box;
+}
+
+.org-chart-node:is(:hover, :focus-within),
+.org-chart-node.is-selected {
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    conic-gradient(from var(--org-chart-border-angle), #0866f5, #71c8ff, #7138f5, #c998ff, #0866f5) border-box;
+}
+
+.org-chart-node:hover,
+.org-chart-node:focus-within {
+  animation: org-chart-border-spin 2.2s linear infinite;
+}
+
+.org-chart-node.is-selected {
+  box-shadow: 0 10px 30px rgb(8 102 245 / 18%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .org-chart-node:hover,
+  .org-chart-node:focus-within { animation: none; }
+}

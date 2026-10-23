@@ -187,7 +187,9 @@ export const productCatalogService = {
       },
       body: JSON.stringify({
         file: base64Data,
-        sourceType: "inventory.product",
+        // Catalog saves URL strings, without a managed-upload finalization token.
+        // Use permanent media storage so the pending-upload purge cannot delete saved images.
+        folder: "igen_erp/inventory/products",
         fileName: file.name,
         mimeType: file.type,
         size: file.size,

@@ -231,10 +231,10 @@ export default function CreateRepairModal({
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/50 p-3 sm:p-4 backdrop-blur-xs overflow-y-auto">
       <form
         onSubmit={submit}
-        className="my-auto max-h-[94vh] w-full max-w-4xl flex flex-col rounded-3xl bg-white shadow-2xl border border-slate-200/80 overflow-hidden"
+        className="my-auto h-[94dvh] max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex flex-col rounded-3xl bg-white shadow-2xl border border-slate-200/80 overflow-hidden"
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4.5 bg-slate-50/50">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4.5 bg-slate-50/50">
           <div className="flex items-center gap-3">
             <div
               className={`flex h-10 w-10 items-center justify-center rounded-2xl ${
@@ -270,7 +270,8 @@ export default function CreateRepairModal({
         </div>
 
         {/* Modal Scrollable Body */}
-        <fieldset disabled={busy || blocked} className="space-y-4.5 overflow-y-auto p-6 flex-1 text-xs sm:text-sm">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <fieldset disabled={busy || blocked} className="min-w-0 space-y-4.5 p-6 text-xs sm:text-sm">
           {/* 2-Card Flow Selection */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {/* Warranty Flow Card */}
@@ -509,9 +510,10 @@ export default function CreateRepairModal({
             />
           </div>
         </fieldset>
+        </div>
 
         {/* Modal Footer */}
-        <div className="flex items-center justify-end gap-2.5 border-t border-slate-100 px-6 py-4 bg-slate-50/50">
+        <div className="flex shrink-0 items-center justify-end gap-2.5 border-t border-slate-100 px-6 py-4 bg-slate-50/50">
           <button
             type="button"
             onClick={onClose}

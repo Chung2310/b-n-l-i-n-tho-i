@@ -2,18 +2,11 @@ import { revenueComparisonRange } from "./revenueComparison";
 import { useBranchOptional } from "../../context/BranchContext";
 import React, { useState, useEffect } from "react";
 import {
-  BarChart3,
-  ShoppingCart,
   Boxes,
-  Users,
-  CreditCard,
   ChevronRight,
-  ChevronDown,
   AlertTriangle,
   FileClock,
   ClipboardList,
-  Calendar,
-  Sparkles,
   Sun,
   Moon,
   TrendingUp,
@@ -25,6 +18,8 @@ import { analyticsService } from "../../services/analyticsService";
 import { inventoryReceivingService } from "../../services/inventoryReceivingService";
 import { BestSellingProductsCard } from "./BestSellingProductsCard";
 import { getEnthusiasticGreeting } from "./energyGreeting";
+import { DashboardDatePicker } from "./DashboardDatePicker";
+import { MonthlyRevenueIcon, StockIcon, TodaySalesIcon, WorkforceIcon, YesterdaySalesIcon } from "./DashboardKpiIcons";
 
 /** Parse chuỗi tiền tệ (vd: "17.000.000 đ", "0 đ") thành số nguyên */
 export function parseVnCurrency(str?: string | number): number {
@@ -337,12 +332,6 @@ export function ModernAnalyticsDashboard({
     ? `${pathD} L ${points[points.length - 1].x} ${plotHeight - paddingY} L ${points[0].x} ${plotHeight - paddingY} Z`
     : "";
 
-  const todayFormatted = new Date().toLocaleDateString("vi-VN", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-
   const currentHour = Number(
     new Intl.DateTimeFormat("en-GB", {
       hour: "numeric",
@@ -371,22 +360,7 @@ export function ModernAnalyticsDashboard({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Date Selector Badge */}
-          <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-xs">
-            <Calendar className="h-4 w-4 text-slate-500" />
-            <span>{todayFormatted}</span>
-            <ChevronDown className="h-3 w-3 text-slate-400" />
-          </div>
-
-          {/* Customize / Action Button */}
-          <button
-            type="button"
-            onClick={() => onNavigate("NHÂN SỰ", "lich")}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-sm shadow-indigo-600/20 hover:bg-indigo-700 active:scale-95 transition-all cursor-pointer"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>Tùy chỉnh</span>
-          </button>
+          <DashboardDatePicker />
         </div>
       </div>
 
@@ -400,8 +374,8 @@ export function ModernAnalyticsDashboard({
           className="relative rounded-2xl border border-slate-200/80 bg-white p-3 lg:p-3.5 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center gap-3"
           style={{ animation: "kpiCardEntrance 0.45s cubic-bezier(0.16, 1, 0.3, 1) 40ms both" }}
         >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-            <BarChart3 className="h-5 w-5" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#edf3ff] to-[#f5f0ff]">
+            <TodaySalesIcon className="h-6 w-6" />
           </div>
           <div className="min-w-0 flex-1">
             {/* KPI / Số / Content trước */}
@@ -472,8 +446,8 @@ export function ModernAnalyticsDashboard({
           className="rounded-2xl border border-slate-200/80 bg-white p-3 lg:p-3.5 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center gap-3"
           style={{ animation: "kpiCardEntrance 0.45s cubic-bezier(0.16, 1, 0.3, 1) 90ms both" }}
         >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-            <ShoppingCart className="h-5 w-5" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#edf3ff] to-[#f5f0ff]">
+            <YesterdaySalesIcon className="h-6 w-6" />
           </div>
           <div className="min-w-0">
             {/* KPI / Số / Content trước */}
@@ -493,8 +467,8 @@ export function ModernAnalyticsDashboard({
           className="rounded-2xl border border-slate-200/80 bg-white p-3 lg:p-3.5 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center gap-3"
           style={{ animation: "kpiCardEntrance 0.45s cubic-bezier(0.16, 1, 0.3, 1) 140ms both" }}
         >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600">
-            <Boxes className="h-5 w-5" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#edf3ff] to-[#f5f0ff]">
+            <StockIcon className="h-6 w-6" />
           </div>
           <div className="min-w-0">
             {/* KPI / Số / Content trước */}
@@ -514,8 +488,8 @@ export function ModernAnalyticsDashboard({
           className="rounded-2xl border border-slate-200/80 bg-white p-3 lg:p-3.5 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center gap-3"
           style={{ animation: "kpiCardEntrance 0.45s cubic-bezier(0.16, 1, 0.3, 1) 190ms both" }}
         >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
-            <Users className="h-5 w-5" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#edf3ff] to-[#f5f0ff]">
+            <WorkforceIcon className="h-6 w-6" />
           </div>
           <div className="min-w-0">
             {/* KPI / Số / Content trước */}
@@ -535,8 +509,8 @@ export function ModernAnalyticsDashboard({
           className="relative rounded-2xl border border-slate-200/80 bg-white p-3 lg:p-3.5 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center gap-3"
           style={{ animation: "kpiCardEntrance 0.45s cubic-bezier(0.16, 1, 0.3, 1) 240ms both" }}
         >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-500">
-            <CreditCard className="h-5 w-5" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#edf3ff] to-[#f5f0ff]">
+            <MonthlyRevenueIcon className="h-6 w-6" />
           </div>
           <div className="min-w-0 flex-1">
             {/* KPI / Số / Content trước */}

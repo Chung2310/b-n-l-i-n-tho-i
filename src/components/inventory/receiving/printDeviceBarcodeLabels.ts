@@ -126,15 +126,16 @@ export function printDeviceBarcodeLabels(
   if (!printWindow) throw new Error("Trình duyệt đã chặn cửa sổ in. Hãy cho phép cửa sổ bật lên rồi thử lại.");
   printWindow.document.open();
   printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Tem mã vạch thiết bị</title><style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,100..900;1,100..900&display=swap');
     @page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; font-family: Arial, sans-serif; color: #000; }
+    html, body { margin: 0; padding: 0; font-family: Inter, sans-serif; color: #000; }
     .label-sheet { width: ${widthMm}mm; height: ${heightMm}mm; display: grid; grid-template-columns: repeat(${columns}, minmax(0, 1fr)); overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
     .label-sheet + .label-sheet { break-before: page; page-break-before: always; }
     .label { width: auto; min-width: 0; height: ${heightMm}mm; margin: 0; padding: .8mm .5mm; overflow: hidden; break-inside: avoid; page-break-inside: avoid; display: flex; flex-direction: column; }
-    .imeis { flex: 0 0 auto; overflow: hidden; font: 5pt/1.1 Arial, sans-serif; white-space: nowrap; }
+    .imeis { flex: 0 0 auto; overflow: hidden; font: 5pt/1.1 Inter, sans-serif; white-space: nowrap; }
     svg { display: block; width: 100%; height: 14mm; margin-top: 1mm; flex: 0 0 14mm; }
-    .barcode-text { overflow: hidden; white-space: nowrap; text-align: center; font: 6pt/1.1 monospace; letter-spacing: .1pt; }
+    .barcode-text { overflow: hidden; white-space: nowrap; text-align: center; font: 6pt/1.1 Inter, sans-serif; letter-spacing: .1pt; }
     @media screen { body { background: #e2e8f0; padding: 12px; } .label-sheet { background: #fff; margin: 0 auto 12px; box-shadow: 0 1px 4px #64748b; } .label + .label { border-left: 1px dashed #cbd5e1; } }
     @media print { html, body { margin: 0 !important; padding: 0 !important; } }
   </style></head><body>${pages.join("")}<script>window.addEventListener('load', function () { window.focus(); setTimeout(function () { window.print(); }, 150); });</script></body></html>`);

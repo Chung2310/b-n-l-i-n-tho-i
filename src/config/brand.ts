@@ -1,4 +1,4 @@
-export const BRAND_NAME = "iGEN Retail";
+export const BRAND_NAME = "AnhKhoa Mobile";
 export const BRAND_TAGLINE = "Enterprise Hub";
 export const ERP_SERVICE_WEBSITE_URL = "https://erp.igentechnology.net";
 export const RETAIL_SERVICE_WEBSITE_URL = "https://retail.igentechnology.net";
@@ -23,5 +23,5 @@ export const SUPPORT_URL = `${SERVICE_WEBSITE_URL}/#phap-ly`;
 export const PRIVACY_POLICY_URL = `${SERVICE_WEBSITE_URL}${PRIVACY_POLICY_PATH}`;
 export const TERMS_OF_SERVICE_URL = `${SERVICE_WEBSITE_URL}${TERMS_OF_SERVICE_PATH}`;
 export const USER_DATA_DELETION_URL = `${SERVICE_WEBSITE_URL}${USER_DATA_DELETION_PATH}`;
-export const BRAND_LOGO_PATH = "/brand-icon.png";
+export const BRAND_LOGO_PATH = "/logo-akproai.png";
 export const BRAND_LOGO_URL = `${SERVICE_WEBSITE_URL}${BRAND_LOGO_PATH}`;

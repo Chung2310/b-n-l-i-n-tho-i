@@ -49,14 +49,14 @@ export function printInventoryCountVoucher(options: PrintInventoryCountOptions):
       <tr>
         <td style="text-align: center; vertical-align: top;">${idx + 1}</td>
         <td style="vertical-align: top;">
-          <div style="font-weight: 700; font-size: 13px; color: #0f172a;">${item.productName}</div>
-          ${item.barcode ? `<div style="font-size: 10px; color: #64748b; font-family: monospace;">Mã vạch: ${item.barcode}</div>` : ""}
+          <div style="font-weight: 600; font-size: 13px; color: #0f172a;">${item.productName}</div>
+          ${item.barcode ? `<div style="font-size: 10px; color: #64748b; font-family: Inter, sans-serif;">Mã vạch: ${item.barcode}</div>` : ""}
         </td>
-        <td style="font-family: monospace; font-size: 11px; vertical-align: top; font-weight: 600;">${item.sku}</td>
+        <td style="font-family: Inter, sans-serif; font-size: 11px; vertical-align: top; font-weight: 600;">${item.sku}</td>
         <td style="text-align: center; font-size: 11px; vertical-align: top;">${tracking}</td>
         <td style="text-align: right; font-weight: 600; vertical-align: top; font-size: 12px;">${item.systemQuantity}</td>
-        <td style="text-align: right; font-weight: 700; vertical-align: top; font-size: 12px; color: ${isMatched ? "#0f172a" : isShortage ? "#b91c1c" : "#b45309"};">${item.countedQuantity}</td>
-        <td style="text-align: right; font-weight: 700; vertical-align: top; font-size: 12px; color: ${isMatched ? "#047857" : isShortage ? "#dc2626" : "#d97706"};">
+        <td style="text-align: right; font-weight: 600; vertical-align: top; font-size: 12px; color: ${isMatched ? "#0f172a" : isShortage ? "#b91c1c" : "#b45309"};">${item.countedQuantity}</td>
+        <td style="text-align: right; font-weight: 600; vertical-align: top; font-size: 12px; color: ${isMatched ? "#047857" : isShortage ? "#dc2626" : "#d97706"};">
           ${item.quantityDelta > 0 ? "+" : ""}${item.quantityDelta}
         </td>
         <td style="font-size: 11px; color: #475569; vertical-align: top;">
@@ -73,6 +73,7 @@ export function printInventoryCountVoucher(options: PrintInventoryCountOptions):
       <meta charset="utf-8">
       <title>Biên Bản Kiểm Kê - ${count.countCode}</title>
       <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,100..900;1,100..900&display=swap');
         @page {
           size: A4 portrait;
           margin: 12mm 15mm 15mm 15mm;
@@ -83,7 +84,7 @@ export function printInventoryCountVoucher(options: PrintInventoryCountOptions):
           print-color-adjust: exact !important;
         }
         body {
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+          font-family: Inter, sans-serif;
           color: #0f172a;
           margin: 0;
           padding: 0;
@@ -106,9 +107,9 @@ export function printInventoryCountVoucher(options: PrintInventoryCountOptions):
         }
         .title-main {
           font-size: 20px;
-          font-weight: 800;
+          font-weight: 600;
           letter-spacing: 0.5px;
-          text-transform: uppercase;
+          text-transform: none;
           margin: 0;
           color: #0f172a;
         }
@@ -120,7 +121,7 @@ export function printInventoryCountVoucher(options: PrintInventoryCountOptions):
         }
         .title-code {
           font-size: 13px;
-          font-weight: 700;
+          font-weight: 600;
           margin-top: 4px;
           color: #0f172a;
         }
@@ -146,8 +147,8 @@ export function printInventoryCountVoucher(options: PrintInventoryCountOptions):
         table.items-table th {
           background-color: #e2e8f0;
           font-size: 11px;
-          text-transform: uppercase;
-          font-weight: 700;
+          text-transform: none;
+          font-weight: 600;
           color: #1e293b;
         }
         .total-box {
@@ -165,7 +166,7 @@ export function printInventoryCountVoucher(options: PrintInventoryCountOptions):
           page-break-inside: avoid;
         }
         .sig-title {
-          font-weight: 700;
+          font-weight: 600;
           font-size: 12px;
           color: #0f172a;
         }
@@ -182,7 +183,7 @@ export function printInventoryCountVoucher(options: PrintInventoryCountOptions):
       <table class="header-table">
         <tr>
           <td style="vertical-align: top; width: 62%;">
-            <div style="font-weight: 800; font-size: 13px; text-transform: uppercase; color: #0f172a;">
+            <div style="font-weight: 600; font-size: 13px; text-transform: none; color: #0f172a;">
               HỆ THỐNG CỬA HÀNG ĐIỆN THOẠI & THIẾT BỊ DI ĐỘNG
             </div>
             <div style="font-size: 11px; color: #475569; margin-top: 2px;">
@@ -190,7 +191,7 @@ export function printInventoryCountVoucher(options: PrintInventoryCountOptions):
             </div>
           </td>
           <td style="vertical-align: top; text-align: right; width: 38%;">
-            <div style="font-size: 11px; font-weight: 700; color: #1e293b;">Mẫu số: 05 - VT</div>
+            <div style="font-size: 11px; font-weight: 600; color: #1e293b;">Mẫu số: 05 - VT</div>
             <div style="font-size: 10px; color: #64748b; font-style: italic;">(Ban hành theo TT 200/2014/TT-BTC)</div>
             <div style="font-size: 11px; color: #475569; margin-top: 4px;">
               Trạng thái: <b>${statusLabel}</b>
@@ -203,17 +204,17 @@ export function printInventoryCountVoucher(options: PrintInventoryCountOptions):
         <h1 class="title-main">BIÊN BẢN KIỂM KÊ HÀNG HÓA</h1>
         <div class="title-sub">Thời điểm kiểm kê: Ngày ${day} tháng ${month} năm ${year} (lúc ${timeStr})</div>
         <div class="title-code">
-          Mã số phiếu: <span style="font-family: monospace; font-size: 14px;">${count.countCode}</span>
+          Mã số phiếu: <span style="font-family: Inter, sans-serif; font-size: 14px;">${count.countCode}</span>
         </div>
       </div>
 
       <div class="info-grid">
         <div>
-          <div style="font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700;">Địa điểm kho</div>
-          <div style="font-weight: 700; font-size: 13px; color: #0f172a; margin-top: 2px;">${warehouseName || "Kho bán hàng chính"}</div>
+          <div style="font-size: 11px; color: #64748b; text-transform: none; font-weight: 600;">Địa điểm kho</div>
+          <div style="font-weight: 600; font-size: 13px; color: #0f172a; margin-top: 2px;">${warehouseName || "Kho bán hàng chính"}</div>
         </div>
         <div>
-          <div style="font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700;">Quy mô kiểm đếm</div>
+          <div style="font-size: 11px; color: #64748b; text-transform: none; font-weight: 600;">Quy mô kiểm đếm</div>
           <div style="font-size: 12px; color: #1e293b; margin-top: 2px;">
             Tổng cộng: <b>${count.items.length} mặt hàng SKU</b>
           </div>
@@ -244,9 +245,9 @@ export function printInventoryCountVoucher(options: PrintInventoryCountOptions):
             Tổng số lượng sổ sách: <b>${totalSystemQty} máy</b> &nbsp;·&nbsp;
             Tổng số lượng thực tế đếm: <b>${totalCountedQty} máy</b>
           </div>
-          <div style="font-size: 13px; font-weight: 700; color: #0f172a;">
+          <div style="font-size: 13px; font-weight: 600; color: #0f172a;">
             Tổng chênh lệch: 
-            <span style="font-size: 15px; font-weight: 800; color: ${totalDelta === 0 ? "#047857" : totalDelta < 0 ? "#dc2626" : "#d97706"}; margin-left: 4px; font-family: monospace;">
+            <span style="font-size: 15px; font-weight: 600; color: ${totalDelta === 0 ? "#047857" : totalDelta < 0 ? "#dc2626" : "#d97706"}; margin-left: 4px; font-family: Inter, sans-serif;">
               ${totalDelta > 0 ? "+" : ""}${totalDelta} máy
             </span>
           </div>

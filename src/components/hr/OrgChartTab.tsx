@@ -22,7 +22,8 @@ import {
   Eye,
   CalendarDays,
   List,
-  Network
+  Network,
+  Crown
 } from "lucide-react";
 import { EmployeeNode, UserProfile, TrainingCourse, DepartmentRecord } from "../../types";
 import { authService, getAccessToken } from "../../services/authService";
@@ -32,6 +33,7 @@ import { ConfirmDialog } from "../common/ConfirmDialog";
 import { getApiErrorMessage } from "../../utils/errorMessage";
 import { filterOrgChartEmployees, getManagerForEmployee, getRootEmployees, getRootDirectReports } from "./orgChartUtils";
 import { useIsMobile } from "../../hooks/useMediaQuery";
+import "./OrgChartTree.css";
 
 interface OrgChartTabProps {
   userProfile: any;
@@ -99,6 +101,16 @@ const FUNCTIONAL_CATEGORIES = [
   { key: "hr", label: "Hành chính & Nhân sự", badge: "HR", color: "bg-rose-500", border: "border-t-4 border-rose-500", dot: "#f43f5e" },
   { key: "other", label: "Khác", badge: "OTHER", color: "bg-slate-500", border: "border-t-4 border-slate-500", dot: "#64748b" }
 ];
+
+const CATEGORY_CARD_STYLES: Record<string, { header: string; badge: string }> = {
+  governance: { header: "bg-[#edf3ff]", badge: "bg-[#e8f0ff] text-[#0846a8]" },
+  finance: { header: "bg-[#eaf8f1]", badge: "bg-[#e4f6ea] text-[#176b3a]" },
+  tech: { header: "bg-[#f1ebff]", badge: "bg-[#eee7ff] text-[#6029c6]" },
+  operations: { header: "bg-[#e9f7ff]", badge: "bg-[#e2f5ff] text-[#006a9b]" },
+  sales: { header: "bg-[#fff5e8]", badge: "bg-[#fff0d9] text-[#925500]" },
+  hr: { header: "bg-[#fff0f5]", badge: "bg-[#ffe7ef] text-[#a32858]" },
+  other: { header: "bg-slate-50", badge: "bg-slate-100 text-slate-700" },
+};
 
 const getCategoryByDivision = (division: string) => {
   const divLower = (division || "").toLowerCase();
@@ -180,9 +192,9 @@ export default function OrgChartTab({
   activeBranchId,
 }: OrgChartTabProps) {
   const isMobile = useIsMobile();
-  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [zoomLevel, setZoomLevel] = useState<number>(0.65);
   const [isFitted, setIsFitted] = useState<boolean>(false);
-  const [preFitZoom, setPreFitZoom] = useState<number>(1);
+  const [preFitZoom, setPreFitZoom] = useState<number>(0.65);
   const [isSafari, setIsSafari] = useState<boolean>(false);
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
@@ -1143,16 +1155,7 @@ export default function OrgChartTab({
 
     const category = getCategoryByDivision(node.division);
 
-    const renderCardIcon = (role: string) => {
-      const rLower = (role || "").toLowerCase();
-      if (rLower.includes("ceo") || rLower.includes("chủ tịch") || rLower.includes("coo") || rLower.includes("cfo") || rLower.includes("cmo") || rLower.includes("cso") || rLower.includes("director") || rLower.includes("giám đốc")) {
-        return "👑";
-      }
-      if (rLower.includes("trưởng phòng") || rLower.includes("manager") || rLower.includes("leader") || rLower.includes("trưởng nhóm")) {
-        return "💼";
-      }
-      return "👤";
-    };
+    const cardStyle = CATEGORY_CARD_STYLES[category.key] || CATEGORY_CARD_STYLES.other;
 
     return (
       <div
@@ -1162,46 +1165,39 @@ export default function OrgChartTab({
         onDrop={(e) => handleDrop(e, node.id)}
         onClick={() => setSelectedEmp(node)}
         onMouseLeave={() => setActiveDropdownCardId(null)}
-        className={`p-3 bg-white text-gray-800 rounded-2xl shadow-xs text-left cursor-pointer relative hover:scale-104 active:scale-95 transition-all duration-300 border border-gray-200 ${category.border} ${isSelected
-          ? "ring-4 ring-indigo-500 shadow-indigo-100 border-transparent z-10"
-          : "hover:border-indigo-300 hover:shadow-md"
-          } ${isFilteredOut ? "opacity-30 blur-[0.5px] scale-98" : "opacity-100"} w-48 sm:w-56`}
+        className={`org-chart-node relative w-44 cursor-pointer rounded-2xl p-2 text-center shadow-[0_8px_28px_rgba(57,87,132,0.10)] transition-all duration-200 sm:w-48 ${isSelected ? "is-selected z-10" : "hover:-translate-y-1 hover:shadow-[0_12px_30px_rgba(57,87,132,0.16)]"} ${isFilteredOut ? "scale-98 opacity-30 blur-[0.5px]" : "opacity-100"}`}
         id={`org_node_${node.id}`}
       >
+        <div className={`absolute inset-x-1.5 top-1.5 h-14 rounded-xl ${cardStyle.header}`} />
+
         {/* Online/Offline Dot */}
-        <div className="absolute top-2 right-2 z-10 flex items-center justify-center">
+        <div className="absolute right-2.5 top-2.5 z-10 flex items-center justify-center">
           {node.status === "online" ? (
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 block border border-white animate-pulse" title="Đang hoạt động" />
+            <span className="block h-2 w-2 animate-pulse rounded-full border border-white bg-emerald-500 shadow-xs" title="Đang hoạt động" />
           ) : (
-            <span className="w-1.5 h-1.5 rounded-full bg-gray-300 block border border-white" title="Ngoại tuyến" />
+            <span className="block h-2 w-2 rounded-full border border-white bg-slate-300" title="Ngoại tuyến" />
           )}
         </div>
 
-        <div className="space-y-2">
-          {/* Middle row: Department (Main Title) */}
-          <div className="min-h-[32px] flex items-center flex-wrap gap-1.5">
-            <h4 className="font-bold text-xs text-slate-800 leading-snug font-sans line-clamp-2">
-              {node.department}
-            </h4>
-            {node.isLeader && (
-              <span className="bg-amber-500 text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded-md uppercase tracking-wider font-mono shadow-sm flex items-center gap-0.5 shrink-0">
-                👑 Leader
-              </span>
-            )}
-          </div>
+        {node.isLeader && (
+          <span className="absolute left-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 shadow-xs" title="Trưởng nhóm" aria-label="Trưởng nhóm">
+            <Crown className="h-3.5 w-3.5 fill-amber-400 stroke-amber-700" />
+          </span>
+        )}
 
-          {/* Bottom row: Manager Info */}
-          <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
-            {renderAvatar(node.avatar, "w-6 h-6", "text-xs")}
-            <div className="min-w-0 flex-1">
-              <span className="block text-[8px] font-bold text-gray-400 uppercase tracking-wider truncate font-mono">
-                {renderCardIcon(node.role)} {node.role}
-              </span>
-              <span className="block text-[10px] font-bold text-indigo-950 truncate">
-                {node.name}
-              </span>
-            </div>
+        <div className="relative z-[1] flex flex-col items-center pt-1">
+          <div className="rounded-full bg-white p-0.5 shadow-sm">
+            {renderAvatar(node.avatar, "w-12 h-12 sm:w-14 sm:h-14", "text-xl")}
           </div>
+          <h4 className="mt-1.5 line-clamp-2 min-h-8 px-1 text-xs font-bold leading-4 text-slate-900" title={node.name}>
+            {node.name || missingValue}
+          </h4>
+          <p className="w-full truncate px-1 text-[10px] leading-4 text-slate-600" title={node.role}>
+            {node.role || missingValue}
+          </p>
+          <span className={`mt-1.5 max-w-full truncate rounded-lg px-2.5 py-1 text-[9px] font-semibold ${cardStyle.badge}`} title={node.department || node.division}>
+            {node.department || node.division || missingValue}
+          </span>
         </div>
 
         {/* Collapse/Expand toggle badge */}
@@ -1217,10 +1213,10 @@ export default function OrgChartTab({
               }
             }}
             title={isCollapsed ? `Mở rộng ${directReportsCount} nhân viên cấp dưới` : `Thu gọn ${directReportsCount} nhân viên cấp dưới`}
-            className={`absolute -bottom-2.5 left-1/2 -translate-x-1/2 text-white text-[9px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center shadow-xs border-2 border-white select-none transition-all cursor-pointer ${isCollapsed ? "bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white" : "bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white"
+            className={`absolute -bottom-2 right-2 flex h-5 w-5 cursor-pointer select-none items-center justify-center rounded-full border-2 border-white text-[10px] font-bold shadow-xs transition-all ${isCollapsed ? "bg-[#e8f0ff] text-[#0846a8] hover:bg-[#d4e4ff]" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
               }`}
           >
-            {isCollapsed ? `+${directReportsCount}` : "^"}
+            {isCollapsed ? `+${directReportsCount}` : "−"}
           </button>
         )}
       </div>
@@ -1239,7 +1235,7 @@ export default function OrgChartTab({
         {/* Children Render recursive block */}
         {children.length > 0 && !isCollapsed && (
           <>
-            <div className="w-0.5 h-6 bg-slate-300" />
+            <div className="h-5 w-px bg-[#b8c9e1]" />
             <div className="flex relative items-start">
               {children.map((child, index) => {
                 const isFirst = index === 0;
@@ -1247,15 +1243,15 @@ export default function OrgChartTab({
                 const hasSiblings = children.length > 1;
 
                 return (
-                  <div key={child.id} className="flex flex-col items-center px-4 relative">
+                  <div key={child.id} className="relative flex flex-col items-center px-2 sm:px-3">
                     {/* Horizontal Connector bar */}
                     {hasSiblings && (
-                      <div className="absolute top-0 left-0 right-0 h-0.5 flex">
-                        <div className={`w-1/2 ${isFirst ? '' : 'border-t-2 border-slate-300'}`} />
-                        <div className={`w-1/2 ${isLast ? '' : 'border-t-2 border-slate-300'}`} />
+                      <div className="absolute left-0 right-0 top-0 flex h-px">
+                        <div className={`w-1/2 ${isFirst ? '' : 'border-t border-[#b8c9e1]'}`} />
+                        <div className={`w-1/2 ${isLast ? '' : 'border-t border-[#b8c9e1]'}`} />
                       </div>
                     )}
-                    <div className="w-0.5 h-6 border-l-2 border-slate-300" />
+                    <div className="h-5 w-px bg-[#b8c9e1]" />
 
                     {renderBranch(child)}
                   </div>
@@ -1271,8 +1267,8 @@ export default function OrgChartTab({
   return (
     <>
       {/* Division filter and search bar for Org Chart tab */}
-      <div data-testid="org-chart-toolbar" className="flex shrink-0 flex-col gap-3 border-b border-gray-200 bg-slate-50 p-3 md:p-4 min-[1200px]:flex-row min-[1200px]:items-center min-[1200px]:justify-between">
-        <div data-testid="org-chart-filters" className="grid w-full flex-1 grid-cols-1 items-stretch gap-2 min-[640px]:grid-cols-2 min-[1200px]:max-w-md">
+      <div data-testid="org-chart-toolbar" className="flex shrink-0 flex-col gap-3 border-b border-slate-200/80 bg-white p-3 md:px-5 md:py-3.5 min-[1200px]:flex-row min-[1200px]:items-center min-[1200px]:justify-between">
+        <div data-testid="org-chart-filters" className="grid w-full flex-1 grid-cols-1 items-stretch gap-2.5 min-[640px]:grid-cols-2 min-[1200px]:max-w-md">
           <div className="relative w-full">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input
@@ -1280,15 +1276,15 @@ export default function OrgChartTab({
               placeholder="Tìm theo tên hoặc chức danh..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border border-gray-200 bg-white rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="h-10 w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-4 text-xs outline-none focus:ring-2 focus:ring-[#0866f5]"
             />
           </div>
-          <div data-testid="org-chart-department-filter" className="flex w-full items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-2.5 py-1.5">
+          <div data-testid="org-chart-department-filter" className="flex h-10 w-full items-center gap-1.5">
             <Filter className="h-3.5 w-3.5 text-gray-400" />
             <select
               value={filterDepartment}
               onChange={(e) => setFilterDepartment(e.target.value)}
-              className="bg-transparent text-xs outline-none cursor-pointer font-medium w-full"
+              className="text-xs outline-none cursor-pointer font-medium w-full"
             >
               <option value="Tất cả">Tất cả Phòng ban</option>
               {uniqueDepartments.map(dept => (
@@ -1298,26 +1294,26 @@ export default function OrgChartTab({
           </div>
         </div>
 
-        <div data-testid="org-chart-actions" className="grid w-full grid-cols-1 items-center gap-2 min-[420px]:grid-cols-2 min-[768px]:grid-cols-3 min-[1200px]:flex min-[1200px]:w-auto">
-          <div data-testid="org-chart-view-toggle" className="flex w-full items-center rounded-xl border border-gray-200 bg-white p-1 min-[1200px]:w-auto">
-            <button type="button" onClick={() => setViewMode("tree")} className={`flex flex-1 items-center justify-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-bold cursor-pointer ${viewMode === "tree" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}><Network className="h-3.5 w-3.5" /> Cây</button>
-            <button type="button" onClick={() => setViewMode("list")} className={`flex flex-1 items-center justify-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-bold cursor-pointer ${viewMode === "list" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}><List className="h-3.5 w-3.5" /> Danh sách</button>
+        <div data-testid="org-chart-actions" className="grid w-full grid-cols-1 items-center gap-2 min-[420px]:grid-cols-2 min-[768px]:grid-cols-3 min-[1200px]:flex min-[1200px]:w-auto min-[1200px]:shrink-0">
+          <div data-testid="org-chart-view-toggle" className="flex h-10 w-full items-center rounded-xl border border-slate-200/80 bg-slate-100/70 p-1 min-[1200px]:w-auto min-[1200px]:shrink-0">
+            <button type="button" onClick={() => setViewMode("tree")} className={`flex h-full flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-xs font-semibold transition-all ${viewMode === "tree" ? "bg-white font-bold text-[#0846a8] shadow-xs" : "text-slate-600 hover:text-slate-900"}`}><Network className="h-3.5 w-3.5 shrink-0 text-[#0866f5]" /> Cây</button>
+            <button type="button" onClick={() => setViewMode("list")} className={`flex h-full flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-xs font-semibold transition-all ${viewMode === "list" ? "bg-white font-bold text-[#0846a8] shadow-xs" : "text-slate-600 hover:text-slate-900"}`}><List className="h-3.5 w-3.5 shrink-0 text-[#0866f5]" /> Danh sách</button>
           </div>
 
-          <div data-testid="org-chart-zoom-control" className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-1.5 min-[1200px]:w-auto min-[1200px]:border-0 min-[1200px]:bg-transparent min-[1200px]:px-0">
+          <div data-testid="org-chart-zoom-control" className="flex h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-gray-200 bg-white px-2 min-[1200px]:w-auto min-[1200px]:shrink-0 min-[1200px]:border-0 min-[1200px]:bg-transparent min-[1200px]:px-0">
             <div className="hidden h-6 w-px bg-gray-200 mx-1 min-[1200px]:block" />
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Thu Phóng:</span>
             <input
               type="range"
               min="0.5"
               max="1.5"
-              step="0.1"
+              step="0.05"
               value={zoomLevel}
               onChange={(e) => {
                 setZoomLevel(parseFloat(e.target.value));
                 setIsFitted(false);
               }}
-              className="w-20 accent-indigo-600 cursor-pointer"
+              className="w-20 cursor-pointer accent-[#0866f5]"
             />
             <span className="w-10 text-right text-[10px] font-bold text-slate-655 mr-1">{Math.round(zoomLevel * 100)}%</span>
           </div>
@@ -1329,7 +1325,7 @@ export default function OrgChartTab({
                 data-testid="org-chart-add-button"
                 type="button"
                 onClick={() => setIsAddModalOpen(true)}
-                className="col-span-full flex w-full items-center justify-center gap-1.5 rounded-xl bg-indigo-650 px-4 py-2 text-xs font-bold text-white shadow-xs transition-all hover:bg-indigo-700 active:scale-95 cursor-pointer min-[768px]:col-span-1 min-[1200px]:w-auto"
+                className="col-span-full flex h-10 w-full cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-indigo-650 px-4 text-xs font-bold text-white shadow-xs transition-all hover:bg-indigo-700 active:scale-95 min-[768px]:col-span-1 min-[1200px]:w-auto min-[1200px]:shrink-0"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span>Thêm nhân sự</span>
@@ -1529,14 +1525,14 @@ export default function OrgChartTab({
           )}
 
           {/* Interactive Tree viewport diagram - full width */}
-          <div className={`col-span-1 bg-slate-50 border border-gray-250 rounded-2xl relative overflow-hidden flex flex-col min-h-[500px] ${viewMode === "tree" ? "" : "hidden"}`} id="tree_viewport">
+          <div className={`relative col-span-1 flex min-h-[580px] flex-col overflow-hidden rounded-2xl border border-[#e1eaf5] bg-gradient-to-b from-white via-[#f8fbff] to-[#f2f7fd] ${viewMode === "tree" ? "" : "hidden"}`} id="tree_viewport">
 
 
             {/* Nút icon Vừa khung hình / Mở rộng đặt góc trên bên phải trong khung sơ đồ */}
             <button
               type="button"
               onClick={toggleFitScreen}
-              className="absolute top-4 right-4 z-20 flex h-8 w-8 items-center justify-center rounded-xl bg-white/90 border border-gray-200 text-slate-700 shadow-2xs hover:bg-white hover:text-indigo-655 active:scale-95 transition-all cursor-pointer"
+              className="absolute right-3 top-3 z-20 flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl border border-[#dce7f4] bg-white text-slate-700 shadow-2xs transition-all hover:bg-[#edf3ff] hover:text-[#0846a8] active:scale-95"
               title={isFitted ? "Phóng to (Mặc định)" : "Vừa khung hình"}
             >
               {isFitted ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
@@ -1547,7 +1543,7 @@ export default function OrgChartTab({
               onMouseLeave={isMobile ? undefined : handleMouseLeaveOrUp}
               onMouseUp={isMobile ? undefined : handleMouseLeaveOrUp}
               onMouseMove={isMobile ? undefined : handleMouseMove}
-              className={`flex-1 overflow-auto flex items-start justify-start min-h-[440px] select-none overscroll-none p-4 sm:p-12 ${
+              className={`flex-1 overflow-auto flex items-start justify-start min-h-[500px] select-none overscroll-none p-4 pt-14 sm:p-8 sm:pt-14 ${
                 isMobile ? "" : "cursor-grab"
               } ${isDragging && !isMobile ? "cursor-grabbing" : ""}`}
               id="interactive_org_chart"
@@ -1585,9 +1581,9 @@ export default function OrgChartTab({
                     return (
                       <div className="flex flex-col items-center">
                         {/* Executive Tier: Co-leaders rendered side-by-side */}
-                        <div className="relative flex items-center justify-center gap-8 px-4">
+                        <div className="relative flex items-center justify-center gap-6 px-3 sm:gap-8 sm:px-4">
                           {/* Co-leadership horizontal connection line */}
-                          <div className="absolute top-1/2 left-10 right-10 h-0.5 border-t-2 border-dashed border-slate-300 -z-0" />
+                          <div className="absolute left-10 right-10 top-1/2 -z-0 border-t border-dashed border-[#b8c9e1]" />
                           {rootEmployees.map((root, index) => (
                             <div key={root.id} className="relative z-10">
                               {renderCard(
@@ -1602,7 +1598,7 @@ export default function OrgChartTab({
                         {/* Downward connector to children */}
                         {allRootChildren.length > 0 && !isAnyRootCollapsed && (
                           <>
-                            <div className="w-0.5 h-6 bg-slate-300" />
+                            <div className="h-5 w-px bg-[#b8c9e1]" />
                             <div className="flex relative items-start">
                               {allRootChildren.map((child, index) => {
                                 const isFirst = index === 0;
@@ -1610,14 +1606,14 @@ export default function OrgChartTab({
                                 const hasSiblings = allRootChildren.length > 1;
 
                                 return (
-                                  <div key={child.id} className="flex flex-col items-center px-4 relative">
+                                  <div key={child.id} className="relative flex flex-col items-center px-2 sm:px-3">
                                     {hasSiblings && (
-                                      <div className="absolute top-0 left-0 right-0 h-0.5 flex">
-                                        <div className={`w-1/2 ${isFirst ? '' : 'border-t-2 border-slate-300'}`} />
-                                        <div className={`w-1/2 ${isLast ? '' : 'border-t-2 border-slate-300'}`} />
+                                      <div className="absolute left-0 right-0 top-0 flex h-px">
+                                        <div className={`w-1/2 ${isFirst ? '' : 'border-t border-[#b8c9e1]'}`} />
+                                        <div className={`w-1/2 ${isLast ? '' : 'border-t border-[#b8c9e1]'}`} />
                                       </div>
                                     )}
-                                    <div className="w-0.5 h-6 border-l-2 border-slate-300" />
+                                    <div className="h-5 w-px bg-[#b8c9e1]" />
                                     {renderBranch(child)}
                                   </div>
                                 );

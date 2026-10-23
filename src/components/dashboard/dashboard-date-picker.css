@@ -1,0 +1,18 @@
+.dashboard-date-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: .6rem;
+  min-height: 2.5rem;
+  padding: .5rem .875rem;
+  border: 1px solid #dfe6f2;
+  border-radius: .75rem;
+  background: #fff;
+  color: #26384f;
+  box-shadow: 0 1px 3px rgb(27 42 78 / 6%);
+  font: 500 .75rem/1.5 Inter, sans-serif;
+}
+
+.dashboard-date-trigger svg {
+  flex: none;
+  color: #7b8da9;
+}

@@ -37,7 +37,7 @@ export function DeviceCategoryIcon({ name, category }: { name: string; category?
     text.includes("cáp") ||
     text.includes("ốp")
   ) {
-    return <Headphones className="h-8 w-8 text-slate-400 group-hover:text-cyan-600 transition" />;
+    return <Headphones className="h-8 w-8 text-[#6b8fd6] group-hover:text-[#0866f5] transition" />;
   }
   if (
     text.includes("máy tính bảng") ||
@@ -45,7 +45,7 @@ export function DeviceCategoryIcon({ name, category }: { name: string; category?
     text.includes("ipad") ||
     text.includes("galaxy tab")
   ) {
-    return <Tablet className="h-8 w-8 text-slate-400 group-hover:text-cyan-600 transition" />;
+    return <Tablet className="h-8 w-8 text-[#6b8fd6] group-hover:text-[#0866f5] transition" />;
   }
   if (
     text.includes("iphone") ||
@@ -57,9 +57,9 @@ export function DeviceCategoryIcon({ name, category }: { name: string; category?
     text.includes("oppo") ||
     text.includes("samsung")
   ) {
-    return <Smartphone className="h-8 w-8 text-slate-400 group-hover:text-cyan-600 transition" />;
+    return <Smartphone className="h-8 w-8 text-[#6b8fd6] group-hover:text-[#0866f5] transition" />;
   }
-  return <Package className="h-8 w-8 text-slate-400 group-hover:text-cyan-600 transition" />;
+  return <Package className="h-8 w-8 text-[#6b8fd6] group-hover:text-[#0866f5] transition" />;
 }
 
 export interface ProductCardProps {
@@ -96,11 +96,11 @@ export function ProductCard({
   const maxPrice = Math.max(...group.variants.map((v) => v.price));
 
   return (
-    <div className="group relative flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-cyan-400 hover:shadow-md shadow-2xs">
+    <div className="group relative flex flex-col justify-between rounded-xl border border-[#dce6f7] bg-white p-3 text-left transition hover:border-[#6b9dff] hover:shadow-md shadow-2xs">
       <button
         type="button"
         aria-label={`${group.name} SKU: ${selected.sku} Tồn: ${selected.stock} ${money(selected.price)}`}
-        className={`flex w-full min-w-0 flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded-lg cursor-pointer ${
+        className={`flex w-full min-w-0 flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0866f5] rounded-lg cursor-pointer ${
           isSoldOut ? "opacity-75" : ""
         }`}
         onClick={() => {
@@ -116,7 +116,7 @@ export function ProductCard({
         }}
       >
         {/* Device Icon / Image Box */}
-        <div className="relative flex h-24 sm:h-28 w-full items-center justify-center rounded-lg bg-slate-50 border border-slate-100 overflow-hidden group-hover:bg-cyan-50/30 transition">
+        <div className="relative flex h-24 sm:h-28 w-full items-center justify-center rounded-lg bg-gradient-to-br from-[#f3f7ff] to-[#f7f3ff] border border-[#e7edfa] overflow-hidden group-hover:from-[#edf3ff] group-hover:to-[#f5f0ff] transition">
           {selected.imageUrl && selected.imageUrl !== failedImageUrl ? (
             <img
               src={selected.imageUrl}
@@ -145,12 +145,12 @@ export function ProductCard({
         <div className="mt-2.5 min-w-0 flex-1">
           <span
             title={group.name}
-            className="block truncate text-sm font-bold text-slate-900 group-hover:text-cyan-700 transition"
+            className="block truncate text-sm font-bold text-slate-900 group-hover:text-[#0758d5] transition"
           >
             {group.name}
           </span>
 
-          <p className="mt-1 text-xs sm:text-sm font-extrabold text-cyan-700 tabular-nums">
+          <p className="mt-1 text-xs sm:text-sm font-extrabold text-[#0866f5] tabular-nums">
             {group.variants.length > 1 && minPrice !== maxPrice
               ? `Từ ${money(minPrice)}`
               : money(selected.price)}
@@ -212,7 +212,7 @@ export function ProductCard({
               type="button"
               aria-label={`Mở bảng chọn chi tiết SKU cho ${group.name}`}
               onClick={() => onOpenVariantSelector(group)}
-              className="shrink-0 p-1.5 rounded-lg border border-slate-200 hover:border-cyan-500 hover:bg-cyan-50 text-slate-500 hover:text-cyan-600 transition cursor-pointer"
+              className="shrink-0 p-1.5 rounded-lg border border-slate-200 hover:border-[#0866f5] hover:bg-[#edf3ff] text-slate-500 hover:text-[#0866f5] transition cursor-pointer"
               title="Mở bảng chọn chi tiết SKU"
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />

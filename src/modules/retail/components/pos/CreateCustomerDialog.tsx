@@ -1,8 +1,9 @@
 import React from "react";
-import { X } from "lucide-react";
+import { UserPlus, X } from "lucide-react";
 import { customerApi } from "../../../customer-management/customerApi";
 import type { RetailCustomer, RetailScope } from "../../types";
 import { getApiErrorMessage } from "../../../../utils/errorMessage";
+import "./createCustomerDialog.css";
 
 type CustomerForm = {
   type: "regular" | "vat";
@@ -103,21 +104,24 @@ export default function CreateCustomerDialog({ scope, initialPhone = "", initial
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs">
       <form
         role="dialog"
         aria-label="Tạo khách hàng mới"
         aria-modal="true"
-        className="max-h-[calc(100vh-2rem)] w-full max-w-lg space-y-4 overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6"
+        className="pos-create-customer-dialog max-h-[calc(100vh-2rem)] w-full max-w-lg space-y-4 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-6"
         onSubmit={(event) => void submit(event)}
       >
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-bold">Tạo khách hàng mới</h2>
-            <p className="text-sm text-slate-500">Khách hàng sẽ được chọn vào đơn hiện tại sau khi lưu.</p>
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#edf3ff] text-[#0866f5]"><UserPlus className="h-5 w-5" /></span>
+            <div>
+              <h2 className="text-lg font-bold">Tạo khách hàng mới</h2>
+              <p className="text-sm text-slate-500">Khách hàng sẽ được chọn vào đơn hiện tại sau khi lưu.</p>
+            </div>
           </div>
-          <button type="button" aria-label="Đóng" onClick={onClose}>
-            <X className="h-5 w-5" />
+          <button type="button" aria-label="Đóng" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" onClick={onClose}>
+            <X className="h-4 w-4" />
           </button>
         </div>
         <label className="block text-sm font-semibold">
@@ -126,7 +130,7 @@ export default function CreateCustomerDialog({ scope, initialPhone = "", initial
             aria-label="Loại khách hàng"
             value={form.type}
             onChange={(event) => setForm((value) => ({ ...value, type: event.target.value as "regular" | "vat" }))}
-            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 outline-none focus:border-[#0866f5] focus:ring-2 focus:ring-[#0866f5]/20"
           >
             <option value="regular">Khách thường</option>
             <option value="vat">Khách xuất VAT</option>
@@ -140,12 +144,12 @@ export default function CreateCustomerDialog({ scope, initialPhone = "", initial
               autoFocus={key === "name"}
               value={form[key] || ""}
               onChange={(event) => setForm((value) => ({ ...value, [key]: event.target.value }))}
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 outline-none focus:border-[#0866f5] focus:ring-2 focus:ring-[#0866f5]/20"
             />
           </label>
         ))}
         {form.type === "vat" && (
-          <div className="space-y-4 rounded-2xl border border-cyan-100 bg-cyan-50/40 p-4">
+          <div className="space-y-4 rounded-2xl border border-[#c2d7ff] bg-[#edf3ff]/40 p-4">
             <div>
               <h3 className="text-sm font-bold text-slate-900">Thông tin xuất VAT</h3>
               <p className="text-xs text-slate-500">Hồ sơ VAT mặc định sẽ được tạo cùng khách hàng.</p>
@@ -157,18 +161,18 @@ export default function CreateCustomerDialog({ scope, initialPhone = "", initial
                   aria-label={vatLabels[key]}
                   value={vatForm[key]}
                   onChange={(event) => setVatForm((value) => ({ ...value, [key]: event.target.value }))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 outline-none focus:border-[#0866f5] focus:ring-2 focus:ring-[#0866f5]/20"
                 />
               </label>
             ))}
           </div>
         )}
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <button type="button" className="rounded-xl border px-4 py-2.5 font-semibold" onClick={onClose}>
+        <div className="grid grid-cols-1 gap-2 border-t border-slate-100 pt-4 sm:grid-cols-2">
+          <button type="button" className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 font-semibold text-slate-600 hover:bg-slate-50" onClick={onClose}>
             Hủy
           </button>
-          <button disabled={saving} className="rounded-xl bg-cyan-600 px-4 py-2.5 font-bold text-white disabled:opacity-50">
+          <button disabled={saving} className="rounded-xl bg-[#0866f5] px-4 py-2.5 font-bold text-white hover:bg-[#0758d5] disabled:opacity-50">
             {saving ? "Đang lưu..." : "Lưu khách hàng"}
           </button>
         </div>

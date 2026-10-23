@@ -4,7 +4,7 @@ import {
   Bell, LogOut, Search, Settings, Wallet, Info, X, Image, Video, Volume2, FileText,
   Package, Megaphone, Sparkles, CheckCheck, ShoppingCart, AlertTriangle, Send, Sun, Moon,
   Briefcase, GraduationCap, LayoutGrid, LayoutDashboard, Users, MessageSquareShare,
-  FolderOpen, MessageSquare, Shield, LineChart, Menu, FolderTree, GitBranch, Calendar, Clock, User,
+  FolderOpen, MessageSquare, Shield, LineChart, Menu, FolderTree, Calendar, Clock, User,
   LogIn, LogOut as LogOutIcon, ChevronDown, Landmark, ContactRound
 } from "lucide-react";
 import { TabType } from "../types";
@@ -41,7 +41,7 @@ const searchIndex = [
 
 export default function Header({ currentTab, onSearchSelect, onMenuClick }: HeaderProps) {
   const { userProfile, logout } = useAuth();
-  const { branches, activeBranchId, setActiveBranchId, activeBranch } = useBranch();
+  const { branches, activeBranchId, setActiveBranchId } = useBranch();
   const [searchQuery, setSearchQuery] = useState("");
   const [showResults, setShowResults] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -399,18 +399,14 @@ export default function Header({ currentTab, onSearchSelect, onMenuClick }: Head
         <div className="ml-1 flex shrink-0 items-center gap-1 sm:ml-6 sm:gap-3" id="header_controls">
 
           {userProfile?.role === "admin" && branches.length > 0 && (
-            <div className="flex min-w-0 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-emerald-800 shadow-sm" title={`Chi nhánh đang xem: ${activeBranch?.name || ""}`}>
-              <GitBranch className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
-              <span className="hidden whitespace-nowrap text-[11px] font-bold sm:inline">Chi nhánh</span>
               <select
                 aria-label="Chi nhánh đang chọn"
                 value={activeBranchId}
                 onChange={(e) => setActiveBranchId(e.target.value)}
-                className="max-w-[150px] min-w-0 cursor-pointer truncate bg-transparent text-[11px] font-bold text-emerald-900 outline-none sm:max-w-[190px]"
+                className="max-w-[190px] min-w-0 cursor-pointer truncate text-xs font-medium sm:max-w-[220px]"
               >
                 {branches.map((branch) => <option key={branch._id} value={branch._id}>{branch.name} ({branch.code})</option>)}
               </select>
-            </div>
           )}
 
 

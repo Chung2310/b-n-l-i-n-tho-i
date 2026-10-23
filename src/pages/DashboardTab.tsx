@@ -12,7 +12,6 @@ import "../components/dashboard/overview.css";
 export default function DashboardTab() {
   const { userProfile } = useAuth();
   const { activeBranchId } = useBranch();
-
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const bulletinKey = `${userProfile?.uid}:${userProfile?.role}:${activeBranchId}`;
   const [bulletinResult, setBulletinResult] = useState<{
@@ -76,7 +75,7 @@ export default function DashboardTab() {
     let path = "/tong-quan";
     if (tab === "NHÂN SỰ") path = "/nhan-su";
     else if (tab === "KHO & SẢN PHẨM") path = "/kho-san-pham";
-    else if (tab === "BÁN HÀNG" || tab === "BÁN LẺ") path = "/ban-hang";
+    else if (tab === "BÁN HÀNG" || tab === "BÁN LẺ") path = "/ban-le";
     else if (tab === "TÀI CHÍNH") path = "/tai-chinh";
 
     const url = subTab ? `${path}?sub=${subTab}` : path;

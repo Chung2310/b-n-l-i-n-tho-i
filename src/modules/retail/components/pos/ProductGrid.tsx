@@ -57,7 +57,7 @@ export function ProductFolderBranch({
           <div className="flex items-center gap-3 min-w-0">
             <div
               className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
-                expanded ? "bg-cyan-600 text-white shadow-xs shadow-cyan-600/25" : "bg-cyan-50 text-cyan-700"
+                expanded ? "bg-[#0866f5] text-white shadow-xs shadow-[#0866f5]/25" : "bg-[#edf3ff] text-[#0758d5]"
               }`}
             >
               <Folder aria-hidden="true" className="h-4.5 w-4.5" />
@@ -75,7 +75,7 @@ export function ProductFolderBranch({
             </span>
             <div
               className={`flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-transform duration-200 ${
-                expanded ? "rotate-180 text-cyan-600 bg-cyan-50" : "bg-slate-100/70"
+                expanded ? "rotate-180 text-[#0866f5] bg-[#edf3ff]" : "bg-slate-100/70"
               }`}
             >
               <ChevronDown aria-hidden="true" className="h-4 w-4" />
@@ -114,7 +114,7 @@ export function ProductFolderBranch({
 
   if (depth === 2) {
     return (
-      <section className="min-w-0 rounded-xl border border-slate-200/80 bg-white p-2.5 sm:p-3 shadow-2xs transition hover:border-cyan-300">
+      <section className="min-w-0 rounded-xl border border-slate-200/80 bg-white p-2.5 sm:p-3 shadow-2xs transition hover:border-[#9ec1ff]">
         <button
           type="button"
           aria-label={folder.name}
@@ -177,7 +177,7 @@ export function ProductFolderBranch({
         aria-expanded={expanded}
         aria-controls={contentId}
         onClick={handleToggle}
-        className="flex w-full items-center justify-between gap-2 text-left cursor-pointer select-none py-1 hover:text-cyan-700"
+        className="flex w-full items-center justify-between gap-2 text-left cursor-pointer select-none py-1 hover:text-[#0758d5]"
       >
         <div className="flex items-center gap-2 min-w-0">
           <Tag aria-hidden="true" className="h-3.5 w-3.5 text-amber-500 shrink-0" />
@@ -188,7 +188,7 @@ export function ProductFolderBranch({
           <ChevronDown
             aria-hidden="true"
             className={`h-3 w-3 text-slate-400 transition-transform duration-200 ${
-              expanded ? "rotate-180 text-cyan-600" : ""
+              expanded ? "rotate-180 text-[#0866f5]" : ""
             }`}
           />
         </div>

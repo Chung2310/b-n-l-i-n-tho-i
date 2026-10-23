@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Search } from "lucide-react";
+import { Package, X, Search } from "lucide-react";
 import type { RetailProduct } from "../../types";
 
 export type ProductGroup = { key: string; name: string; variants: RetailProduct[] };
@@ -402,9 +402,10 @@ export function ProductVariantSelectorModal({
       <div className="relative flex w-full max-w-[500px] flex-col rounded-3xl border border-slate-200 bg-white text-slate-800 shadow-2xl overflow-hidden max-h-[92vh]">
         {/* MODAL HEADER */}
         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 px-4 sm:px-5 py-3.5">
-          <h3 className="text-base sm:text-lg font-extrabold text-slate-900 truncate max-w-[200px]">
-            {group.name}
-          </h3>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#edf3ff] text-[#0866f5]"><Package className="h-4 w-4" /></span>
+            <h3 className="max-w-[200px] truncate text-base font-extrabold text-slate-900 sm:text-lg">{group.name}</h3>
+          </div>
 
           <div className="flex items-center gap-2">
             {/* TABS: Theo thuộc tính | Danh sách SKU */}
@@ -414,7 +415,7 @@ export function ProductVariantSelectorModal({
                 onClick={() => setActiveTab("attributes")}
                 className={`rounded-lg px-2.5 sm:px-3 py-1 font-medium transition cursor-pointer select-none ${
                   activeTab === "attributes"
-                    ? "bg-white text-cyan-800 font-bold shadow-xs border border-slate-200/80"
+                    ? "bg-white text-[#0844a8] font-bold shadow-xs border border-slate-200/80"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
@@ -425,7 +426,7 @@ export function ProductVariantSelectorModal({
                 onClick={() => setActiveTab("sku_list")}
                 className={`rounded-lg px-2.5 sm:px-3 py-1 font-medium transition cursor-pointer select-none ${
                   activeTab === "sku_list"
-                    ? "bg-white text-cyan-800 font-bold shadow-xs border border-slate-200/80"
+                    ? "bg-white text-[#0844a8] font-bold shadow-xs border border-slate-200/80"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
@@ -477,9 +478,9 @@ export function ProductVariantSelectorModal({
 
                       const chipClass = {
                         selected:
-                          "border-cyan-600 bg-cyan-50 text-cyan-800 font-bold ring-2 ring-cyan-500/20 shadow-xs",
+                          "border-[#0866f5] bg-[#edf3ff] text-[#0844a8] font-bold ring-2 ring-[#0866f5]/20 shadow-xs",
                         available:
-                          "border-slate-300 bg-white text-slate-800 font-semibold shadow-2xs hover:border-cyan-400 hover:bg-cyan-50/40",
+                          "border-slate-300 bg-white text-slate-800 font-semibold shadow-2xs hover:border-[#6b9dff] hover:bg-[#edf3ff]/40",
                         switch:
                           "border-dashed border-amber-300 bg-amber-50/40 text-slate-600 font-medium hover:border-amber-400 hover:bg-amber-50",
                         soldout:
@@ -487,7 +488,7 @@ export function ProductVariantSelectorModal({
                       }[state];
 
                       const badgeClass = {
-                        selected: "bg-cyan-600 text-white",
+                        selected: "bg-[#0866f5] text-white",
                         available: "bg-emerald-100 text-emerald-700",
                         switch: "bg-amber-100 text-amber-700",
                         soldout: "bg-slate-200 text-slate-500",
@@ -509,7 +510,7 @@ export function ProductVariantSelectorModal({
                             <span
                               aria-hidden="true"
                               className={`h-3.5 w-3.5 rounded-full shrink-0 border ${
-                                isSelected ? "border-cyan-600" : "border-slate-300"
+                                isSelected ? "border-[#0866f5]" : "border-slate-300"
                               } ${state === "soldout" ? "opacity-40" : ""}`}
                               style={{ backgroundColor: colorHex }}
                             />
@@ -539,7 +540,7 @@ export function ProductVariantSelectorModal({
                   value={skuFilter}
                   onChange={(e) => setSkuFilter(e.target.value)}
                   placeholder="Lọc: 256, đen, like new..."
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2 pl-9 pr-3 text-xs text-slate-900 placeholder-slate-400 focus:border-cyan-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2 pl-9 pr-3 text-xs text-slate-900 placeholder-slate-400 focus:border-[#0866f5] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0866f5]/20 transition"
                 />
               </div>
 
@@ -585,7 +586,7 @@ export function ProductVariantSelectorModal({
                               onAdd(v);
                               onClose();
                             }}
-                            className="rounded-xl bg-cyan-50 hover:bg-cyan-600 text-cyan-700 hover:text-white border border-cyan-200 hover:border-cyan-600 active:scale-95 px-3 py-1.5 text-xs font-bold transition shadow-2xs cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+                            className="rounded-xl bg-[#edf3ff] hover:bg-[#0866f5] text-[#0758d5] hover:text-white border border-[#c2d7ff] hover:border-[#0866f5] active:scale-95 px-3 py-1.5 text-xs font-bold transition shadow-2xs cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
                           >
                             Thêm
                           </button>
@@ -632,7 +633,7 @@ export function ProductVariantSelectorModal({
                 onAdd(matchedVariant);
                 onClose();
               }}
-              className="shrink-0 rounded-2xl bg-cyan-600 hover:bg-cyan-700 active:scale-95 px-5 py-2.5 text-sm font-extrabold text-white shadow-lg shadow-cyan-600/25 transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+              className="shrink-0 rounded-2xl bg-[#0866f5] hover:bg-[#0758d5] active:scale-95 px-5 py-2.5 text-sm font-extrabold text-white shadow-lg shadow-[#0866f5]/25 transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
             >
               Thêm vào giỏ
             </button>

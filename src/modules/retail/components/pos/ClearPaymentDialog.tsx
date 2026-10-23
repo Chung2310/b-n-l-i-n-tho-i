@@ -70,7 +70,7 @@ const paymentMethodOptions = [
   {
     value: "transfer",
     label: "Chuyển khoản",
-    icon: <Building2 className="h-4 w-4 text-cyan-600" />,
+    icon: <Building2 className="h-4 w-4 text-[#0866f5]" />,
   },
 ];
 
@@ -259,13 +259,13 @@ export default function ClearPaymentDialog({
       <div
         role="dialog"
         aria-label="Thanh toán"
-        className="max-h-[95vh] w-full min-w-0 max-w-2xl overflow-x-hidden overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl sm:p-6 text-slate-800"
+        className="max-h-[95vh] w-full min-w-0 max-w-2xl overflow-x-hidden overflow-y-auto rounded-t-2xl border border-slate-200 bg-white p-5 shadow-2xl sm:rounded-2xl sm:p-6 text-slate-800"
       >
         {/* Header */}
         <div className="flex min-w-0 items-start justify-between gap-3 pb-4 border-b border-slate-100">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-100 text-cyan-700 shadow-2xs">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#edf3ff] text-[#0866f5] shadow-2xs">
                 <Receipt className="h-5 w-5" />
               </div>
               <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
@@ -274,7 +274,7 @@ export default function ClearPaymentDialog({
             </div>
             <div className="mt-1 flex items-center gap-2">
               <span className="text-xs font-semibold text-slate-500">Cần thu</span>
-              <span className="font-mono text-base font-black text-cyan-700 bg-cyan-50 px-2.5 py-0.5 rounded-lg border border-cyan-200/80">
+              <span className="font-mono text-base font-black text-[#0866f5] bg-[#edf3ff] px-2.5 py-0.5 rounded-lg border border-[#c2d7ff]">
                 {money(total)}
               </span>
             </div>
@@ -283,10 +283,10 @@ export default function ClearPaymentDialog({
           <button
             type="button"
             aria-label="Đóng"
-            className="rounded-xl p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer shrink-0"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
             onClick={onClose}
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
@@ -304,14 +304,14 @@ export default function ClearPaymentDialog({
                 aria-pressed={isSelected}
                 className={`min-w-0 flex items-center justify-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-bold transition cursor-pointer select-none ${
                   isSelected
-                    ? "bg-white text-cyan-800 shadow-sm border border-slate-200/80"
+                    ? "bg-white text-[#0844a8] shadow-sm border border-slate-200/80"
                     : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
                 }`}
                 onClick={() => selectMode(item.value)}
               >
                 <Icon
                   className={`h-4 w-4 shrink-0 ${
-                    isSelected ? "text-cyan-600" : "text-slate-400"
+                    isSelected ? "text-[#0866f5]" : "text-slate-400"
                   }`}
                 />
                 <span className="truncate">{item.label}</span>
@@ -437,7 +437,7 @@ export default function ClearPaymentDialog({
                         <span className="relative mt-1.5 block min-w-0">
                           <input
                             aria-label="Mã giao dịch"
-                            className="w-full h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 pr-3 font-mono text-sm font-semibold text-slate-900 shadow-2xs hover:border-slate-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition"
+                            className="w-full h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 pr-3 font-mono text-sm font-semibold text-slate-900 shadow-2xs hover:border-slate-300 focus:border-[#0866f5] focus:outline-none focus:ring-2 focus:ring-[#0866f5]/20 transition"
                             placeholder="Nhập mã tham chiếu..."
                             value={payment.reference || ""}
                             onChange={(event) =>
@@ -452,7 +452,7 @@ export default function ClearPaymentDialog({
 
                 {payment.method === "transfer" && (
                   deferTransferQr ? (
-                    <p className="mt-3 rounded-xl border border-cyan-100 bg-cyan-50 p-3 text-sm text-cyan-800">
+                    <p className="mt-3 rounded-xl border border-[#dce9ff] bg-[#edf3ff] p-3 text-sm text-[#0844a8]">
                       Xác nhận để lưu đơn hàng trước. Mã QR sẽ xuất hiện sau đó và hệ thống sẽ chờ SePay báo tiền về.
                     </p>
                   ) : (
@@ -481,7 +481,7 @@ export default function ClearPaymentDialog({
                             : payment.amount,
                         })
                       }
-                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-700 hover:bg-slate-100 hover:text-cyan-700 transition cursor-pointer shadow-2xs"
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-700 hover:bg-slate-100 hover:text-[#0758d5] transition cursor-pointer shadow-2xs"
                     >
                       Đủ tiền
                     </button>
@@ -499,7 +499,7 @@ export default function ClearPaymentDialog({
                           onClick={() =>
                             update(index, { tenderedAmount: rounded })
                           }
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-700 hover:bg-slate-100 hover:text-cyan-700 transition cursor-pointer shadow-2xs"
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-700 hover:bg-slate-100 hover:text-[#0758d5] transition cursor-pointer shadow-2xs"
                         >
                           {money(rounded)}
                         </button>
@@ -512,7 +512,7 @@ export default function ClearPaymentDialog({
 
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-slate-300 hover:border-cyan-500 bg-white hover:bg-cyan-50/50 px-3.5 py-2 text-xs font-bold text-slate-700 hover:text-cyan-700 shadow-2xs transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-slate-300 hover:border-[#0866f5] bg-white hover:bg-[#edf3ff]/50 px-3.5 py-2 text-xs font-bold text-slate-700 hover:text-[#0758d5] shadow-2xs transition cursor-pointer"
               onClick={() =>
                 setPayments((rows) => [
                   ...rows,
@@ -530,7 +530,7 @@ export default function ClearPaymentDialog({
                 ])
               }
             >
-              <Plus className="h-4 w-4 shrink-0 text-cyan-600" />
+              <Plus className="h-4 w-4 shrink-0 text-[#0866f5]" />
               <span>Thêm phương thức</span>
             </button>
           </div>
@@ -574,20 +574,20 @@ export default function ClearPaymentDialog({
           <div
             className={`min-w-0 rounded-2xl border p-3.5 shadow-2xs ${
               summary.change > 0
-                ? "border-cyan-300 bg-cyan-50/80 text-cyan-900"
+                ? "border-[#9ec1ff] bg-[#edf3ff]/80 text-[#082b66]"
                 : "border-slate-200 bg-slate-50 text-slate-700"
             }`}
           >
             <p
               className={`break-words text-xs font-bold ${
-                summary.change > 0 ? "text-cyan-800" : "text-slate-500"
+                summary.change > 0 ? "text-[#0844a8]" : "text-slate-500"
               }`}
             >
               Tiền thừa
             </p>
             <p
               className={`break-words text-lg sm:text-xl font-black font-mono mt-0.5 ${
-                summary.change > 0 ? "text-cyan-700" : "text-slate-800"
+                summary.change > 0 ? "text-[#0758d5]" : "text-slate-800"
               }`}
             >
               {money(summary.change)}
@@ -612,7 +612,7 @@ export default function ClearPaymentDialog({
                 <input
                   aria-label={installment ? "Hạn đối tác thanh toán" : "Hạn thanh toán công nợ"}
                   type="date"
-                  className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-800 shadow-2xs hover:border-slate-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition"
+                  className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-800 shadow-2xs hover:border-slate-300 focus:border-[#0866f5] focus:outline-none focus:ring-2 focus:ring-[#0866f5]/20 transition"
                   value={dueDate}
                   onChange={(event) => setDueDate(event.target.value)}
                 />
@@ -635,7 +635,7 @@ export default function ClearPaymentDialog({
         <button
           type="button"
           disabled={busy}
-          className="mt-5 w-full min-w-0 rounded-2xl bg-cyan-600 hover:bg-cyan-700 active:scale-[0.99] py-3.5 text-base font-extrabold text-white shadow-lg shadow-cyan-600/20 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="mt-5 w-full min-w-0 rounded-2xl bg-[#0866f5] hover:bg-[#0758d5] active:scale-[0.99] py-3.5 text-base font-extrabold text-white shadow-lg shadow-[#0866f5]/20 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           onClick={() => void submit()}
         >
           <CheckCircle2 className="h-5 w-5" />
@@ -679,7 +679,7 @@ function TransferPaymentQr({
   React.useEffect(() => setImageFailed(false), [imageUrl]);
 
   if (loading) {
-    return <p className="mt-3 rounded-xl border border-cyan-100 bg-cyan-50 p-3 text-sm text-cyan-800">&#272;ang t&#7843;i c&#224;i &#273;&#7863;t t&#224;i kho&#7843;n ng&#226;n h&#224;ng...</p>;
+    return <p className="mt-3 rounded-xl border border-[#dce9ff] bg-[#edf3ff] p-3 text-sm text-[#0844a8]">&#272;ang t&#7843;i c&#224;i &#273;&#7863;t t&#224;i kho&#7843;n ng&#226;n h&#224;ng...</p>;
   }
 
   if (loadError) {
@@ -695,7 +695,7 @@ function TransferPaymentQr({
   }
 
   return (
-    <div className="mt-3 flex min-w-0 flex-col items-center gap-3 rounded-xl border border-cyan-100 bg-white p-3 sm:flex-row sm:items-start">
+    <div className="mt-3 flex min-w-0 flex-col items-center gap-3 rounded-xl border border-[#dce9ff] bg-white p-3 sm:flex-row sm:items-start">
       {imageFailed ? (
         <div className="flex h-40 w-40 shrink-0 items-center justify-center rounded-lg bg-slate-50 px-3 text-center text-xs text-slate-500">
           Kh&#244;ng t&#7843;i &#273;&#432;&#7907;c m&#227; QR. Ki&#7875;m tra k&#7871;t n&#7889;i m&#7841;ng ho&#7863;c chuy&#7875;n kho&#7843;n th&#7911; c&#244;ng.

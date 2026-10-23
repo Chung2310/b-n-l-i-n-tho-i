@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
-  Boxes,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -13,7 +12,6 @@ import {
   RotateCcw,
   Search,
   Sliders,
-  Smartphone,
   Tag,
   Trash2,
   X,
@@ -44,6 +42,7 @@ import { Dropdown, type DropdownOption } from "../common/Dropdown";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { VariantModal } from "./catalog/VariantModal";
 import { BulkVariantModal } from "./catalog/BulkVariantModal";
+import { TrackingModeIcon } from "./TrackingModeIcon";
 
 export function ProductCatalogV2Section() {
   const handledDeepLink = useRef("");
@@ -435,11 +434,11 @@ export function ProductCatalogV2Section() {
             Tổng: <strong className="text-slate-900">{total}</strong> sản phẩm
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-50 px-3 py-1 font-medium text-cyan-800 border border-cyan-200/80">
-            <Smartphone className="h-3.5 w-3.5 text-cyan-600" />
+            <TrackingModeIcon mode="serial" />
             IMEI / Serial: <strong className="text-cyan-900">{serialCount}</strong>
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 font-medium text-emerald-800 border border-emerald-200/80">
-            <Boxes className="h-3.5 w-3.5 text-emerald-600" />
+            <TrackingModeIcon mode="quantity" />
             Số lượng: <strong className="text-emerald-900">{qtyCount}</strong>
           </span>
           {(query || selectedCategory || selectedBrand || status) && (
@@ -561,12 +560,12 @@ export function ProductCatalogV2Section() {
                       <td className="px-4 py-3">
                         {isSerial ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700 border border-cyan-200">
-                            <Smartphone className="h-3.5 w-3.5" />
+                            <TrackingModeIcon mode="serial" />
                             Theo IMEI / Serial
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">
-                            <Boxes className="h-3.5 w-3.5" />
+                            <TrackingModeIcon mode="quantity" />
                             Theo Số lượng
                           </span>
                         )}

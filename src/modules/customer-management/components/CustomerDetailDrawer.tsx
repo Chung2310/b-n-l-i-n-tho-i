@@ -77,7 +77,7 @@ export default function CustomerDetailDrawer({
         onClick={onClose}
         aria-hidden="true"
       />
-      <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-4xl xl:max-w-5xl flex-col border-l border-slate-200 bg-slate-50/70 shadow-2xl backdrop-blur-md animate-in slide-in-from-right duration-200">
+      <aside className="fixed inset-y-0 right-0 z-50 flex w-full xl:w-[calc(100vw-48px)] max-w-[1800px] flex-col border-l border-slate-200 bg-slate-50/70 shadow-2xl backdrop-blur-md animate-in slide-in-from-right duration-200">
         {/* Header Bar */}
       <div className="flex items-center justify-between border-b border-slate-200 bg-white p-5">
         <div className="flex items-center gap-3">

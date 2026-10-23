@@ -63,7 +63,11 @@ export function useTabRouter(options?: { enabled?: boolean }) {
     console.log(`[useTabRouter] Sync Path Effect: activeTab="${activeTab}", currentPath="${window.location.pathname}", nextPath="${nextPath}"`);
     if (window.location.pathname !== nextPath) {
       console.log(`[useTabRouter] Pushing state to nextPath="${nextPath}"`);
-      window.history.pushState(null, "", nextPath);
+      if (window.location.pathname.toLowerCase() === "/ban-hang" && nextPath === "/ban-le") {
+        window.history.replaceState(null, "", `${nextPath}${window.location.search}${window.location.hash}`);
+      } else {
+        window.history.pushState(null, "", nextPath);
+      }
       window.dispatchEvent(new Event("popstate"));
     }
   }, [activeTab, enabled]);

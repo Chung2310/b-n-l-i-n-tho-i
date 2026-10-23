@@ -1,9 +1,11 @@
 import React from "react";
 import {
+  CircleX,
   CreditCard,
   FileText,
   Search,
   Settings,
+  ShoppingCart,
   Ticket,
   Users,
   X,
@@ -29,7 +31,6 @@ export interface CartPanelProps {
   scope: RetailScope;
   cart: RetailCartState;
   billingProfiles: any[];
-  allowCouponListing: boolean;
   allowCollaboratorCreation: boolean;
   busy: boolean;
   canPay: boolean;
@@ -41,7 +42,6 @@ export function CartPanel({
   scope,
   cart,
   billingProfiles,
-  allowCouponListing,
   allowCollaboratorCreation,
   busy,
   canPay,
@@ -115,7 +115,10 @@ export function CartPanel({
       {/* Cart Items List */}
       <div className="my-3 flex-1 min-h-[140px] space-y-2 overflow-y-auto pr-1 scrollbar-thin">
         {cart.lines.length === 0 ? (
-          <div className="flex h-full min-h-[160px] flex-col items-center justify-center p-4 text-slate-400 text-center">
+          <div className="flex h-full min-h-[160px] flex-col items-center justify-center gap-3 p-4 text-center">
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-[#e8f2ff] via-[#edf3ff] to-[#f5f0ff] text-[#5875a6] shadow-inner" aria-hidden="true">
+              <ShoppingCart className="h-8 w-8" strokeWidth={1.8} />
+            </span>
             <p className="text-sm font-medium text-slate-400">Chưa có sản phẩm nào trong giỏ hàng</p>
           </div>
         ) : (
@@ -129,7 +132,7 @@ export function CartPanel({
                   <p className="truncate font-semibold text-sm text-slate-800">
                     {line.product.name}
                   </p>
-                  <p className="font-mono text-xs text-cyan-600 font-bold">
+                  <p className="font-mono text-xs text-[#0866f5] font-bold">
                     {money(line.product.price)}
                   </p>
                 </div>
@@ -238,14 +241,14 @@ export function CartPanel({
             onClick={() => setShowCollaboratorModal(true)}
             className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition cursor-pointer shadow-2xs ${
               cart.collaboratorId
-                ? "border-cyan-300 bg-cyan-50 text-cyan-800"
+                ? "border-[#9ec1ff] bg-[#edf3ff] text-[#0844a8]"
                 : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
             }`}
           >
             <Users className="h-4 w-4 text-slate-500" />
             <span>Người giới thiệu</span>
             {cart.collaboratorId && (
-              <span className="rounded-md bg-cyan-100 px-1.5 py-0.5 text-[10px] font-bold text-cyan-700 border border-cyan-200">
+              <span className="rounded-md bg-[#dce9ff] px-1.5 py-0.5 text-[10px] font-bold text-[#0758d5] border border-[#c2d7ff]">
                 Đã chọn
               </span>
             )}
@@ -262,14 +265,14 @@ export function CartPanel({
             }}
             className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition cursor-pointer shadow-2xs ${
               orderNote
-                ? "border-cyan-300 bg-cyan-50 text-cyan-800"
+                ? "border-[#9ec1ff] bg-[#edf3ff] text-[#0844a8]"
                 : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
             }`}
           >
             <FileText className="h-4 w-4 text-slate-500" />
             <span>Ghi chú</span>
             {orderNote && (
-              <span className="h-2 w-2 rounded-full bg-cyan-600" />
+              <span className="h-2 w-2 rounded-full bg-[#0866f5]" />
             )}
           </button>
 
@@ -300,21 +303,21 @@ export function CartPanel({
       <div className="mt-3 pt-3 border-t border-slate-200 space-y-1.5 shrink-0">
         <div className="flex justify-between text-xs text-slate-500 font-medium">
           <span>Tạm tính</span>
-          <span className="font-mono text-slate-700 font-semibold">
+          <span className="font-mono text-[#0866f5] font-semibold">
             {formatVndBadge(cart.quote?.subtotal || 0)}
           </span>
         </div>
 
         <div className="flex justify-between text-xs text-slate-500 font-medium">
           <span>VAT {cart.taxRate ?? 0}%</span>
-          <span className="font-mono text-slate-700 font-semibold">
+          <span className="font-mono text-[#0866f5] font-semibold">
             {formatVndBadge(Number(cart.quote?.tax || cart.quote?.taxAmount || 0))}
           </span>
         </div>
 
         <div className="flex items-baseline justify-between pt-1">
           <span className="text-base font-bold text-slate-900">Tổng</span>
-          <span className="font-mono text-xl sm:text-2xl font-black text-cyan-700">
+          <span className="font-mono text-xl sm:text-2xl font-black text-[#0866f5]">
             {formatVndBadge(cart.quote?.grandTotal || 0)}
           </span>
         </div>
@@ -330,7 +333,7 @@ export function CartPanel({
           }
           className={`mt-2 w-full flex items-center justify-center rounded-xl py-3.5 text-sm font-bold transition shadow-xs ${
             cart.lines.length > 0 && cart.quote && !cart.quoteDirty && canPay && !busy
-              ? "bg-cyan-600 hover:bg-cyan-700 text-white shadow-md shadow-cyan-600/20 cursor-pointer active:scale-[0.99]"
+              ? "bg-gradient-to-r from-[#0866f5] to-[#7138f5] hover:from-[#0758d5] hover:to-[#622ae1] text-white shadow-md shadow-[#0866f5]/20 cursor-pointer active:scale-[0.99]"
               : "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
           }`}
           onClick={onPay}
@@ -345,20 +348,21 @@ export function CartPanel({
           role="dialog"
           aria-modal="true"
           aria-label="Giảm giá & Điều chỉnh đơn"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4"
         >
-          <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl text-slate-800">
+          <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl text-slate-800 sm:p-6">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <Settings className="h-5 w-5 text-cyan-600" />
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#edf3ff] text-[#0866f5]"><Settings className="h-4 w-4" /></span>
                 <h3 className="font-bold text-base text-slate-900">Giảm giá & Điều chỉnh đơn</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowDiscountModal(false)}
-                className="rounded-lg p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                aria-label="Đóng giảm giá và điều chỉnh đơn"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
@@ -374,20 +378,19 @@ export function CartPanel({
 
               <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 space-y-2">
                 <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                  <Ticket className="h-3.5 w-3.5 text-cyan-600" />
+                  <Ticket className="h-3.5 w-3.5 text-[#0866f5]" />
                   Mã ưu đãi (Coupon)
                 </label>
                 <CartCouponPicker
                   scope={scope}
                   customerId={cart.customer?._id}
-                  allowListing={allowCouponListing}
                   value={cart.couponCode || ""}
                   onChange={(code) => dispatch({ type: "coupon", code })}
                 />
                 <div className="relative flex items-center">
                   <input
                     aria-label="Mã ưu đãi"
-                    className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-3.5 pr-8 font-mono text-xs font-bold uppercase tracking-wider text-slate-900 placeholder:font-sans placeholder:normal-case placeholder:text-slate-400 hover:border-slate-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 shadow-2xs transition"
+                    className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-3.5 pr-8 font-mono text-xs font-bold uppercase tracking-wider text-slate-900 placeholder:font-sans placeholder:normal-case placeholder:text-slate-400 hover:border-slate-300 focus:border-[#0866f5] focus:outline-none focus:ring-2 focus:ring-[#0866f5]/20 shadow-2xs transition"
                     maxLength={32}
                     placeholder="Nhập mã ưu đãi..."
                     value={cart.couponCode || ""}
@@ -428,7 +431,7 @@ export function CartPanel({
               <button
                 type="button"
                 onClick={() => setShowDiscountModal(false)}
-                className="rounded-xl bg-cyan-600 px-5 py-2 text-xs font-bold text-white hover:bg-cyan-700 cursor-pointer shadow-xs"
+                className="rounded-xl bg-[#0866f5] px-5 py-2 text-xs font-bold text-white hover:bg-[#0758d5] cursor-pointer shadow-xs"
               >
                 Áp dụng & Đóng
               </button>
@@ -454,7 +457,7 @@ export function CartPanel({
             <div>
               <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
                 <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-100 text-cyan-700">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#edf3ff] text-[#0866f5]">
                     <Users className="h-4 w-4" />
                   </div>
                   <div>
@@ -469,9 +472,10 @@ export function CartPanel({
                 <button
                   type="button"
                   onClick={() => setShowCollaboratorModal(false)}
-                  className="rounded-xl p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                  aria-label="Đóng người giới thiệu"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-4 w-4" />
                 </button>
               </div>
 
@@ -487,8 +491,9 @@ export function CartPanel({
                   <button
                     type="button"
                     onClick={() => dispatch({ type: "collaborator", collaboratorId: null })}
-                    className="text-xs font-semibold text-rose-600 hover:text-rose-700 cursor-pointer underline"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 no-underline hover:text-rose-700 hover:no-underline cursor-pointer"
                   >
+                    <CircleX className="h-4 w-4 shrink-0" aria-hidden="true" />
                     Bỏ chọn người giới thiệu
                   </button>
                 )}
@@ -499,7 +504,7 @@ export function CartPanel({
               <button
                 type="button"
                 onClick={() => setShowCollaboratorModal(false)}
-                className="rounded-xl bg-cyan-600 px-5 py-2 text-xs font-bold text-white hover:bg-cyan-700 active:scale-95 cursor-pointer shadow-xs transition"
+                className="rounded-xl bg-[#0866f5] px-5 py-2 text-xs font-bold text-white hover:bg-[#0758d5] active:scale-95 cursor-pointer shadow-xs transition"
               >
                 Xác nhận
               </button>
@@ -514,26 +519,27 @@ export function CartPanel({
           role="dialog"
           aria-modal="true"
           aria-label="Ghi chú đơn hàng"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4"
         >
-          <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl text-slate-800">
+          <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl text-slate-800 sm:p-6">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-cyan-600" />
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#edf3ff] text-[#0866f5]"><FileText className="h-4 w-4" /></span>
                 <h3 className="font-bold text-base text-slate-900">Ghi chú đơn hàng</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowNoteModal(false)}
-                className="rounded-lg p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                aria-label="Đóng ghi chú đơn hàng"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
             <div className="my-4 space-y-3">
               <textarea
-                className="w-full h-24 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-800 placeholder-slate-400 focus:border-cyan-500 focus:bg-white focus:outline-none resize-none transition"
+                className="w-full h-24 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-800 placeholder-slate-400 focus:border-[#0866f5] focus:bg-white focus:outline-none resize-none transition"
                 placeholder="Nhập ghi chú hoặc yêu cầu giao hàng..."
                 value={noteEditorValue}
                 onChange={(e) => setNoteEditorValue(e.target.value)}
@@ -574,7 +580,7 @@ export function CartPanel({
                   dispatch({ type: "note", note: noteEditorValue.trim() });
                   setShowNoteModal(false);
                 }}
-                className="rounded-xl bg-cyan-600 px-5 py-2 text-xs font-bold text-white hover:bg-cyan-700 cursor-pointer shadow-xs"
+                className="rounded-xl bg-[#0866f5] px-5 py-2 text-xs font-bold text-white hover:bg-[#0758d5] cursor-pointer shadow-xs"
               >
                 Lưu ghi chú
               </button>
@@ -589,20 +595,21 @@ export function CartPanel({
           role="dialog"
           aria-modal="true"
           aria-label="Thông tin trả góp"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4"
         >
-          <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl text-slate-800">
+          <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl text-slate-800 sm:p-6">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-amber-600" />
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#edf3ff] text-[#0866f5]"><CreditCard className="h-4 w-4" /></span>
                 <h3 className="font-bold text-base text-slate-900">Hồ sơ trả góp</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowInstallmentModal(false)}
-                className="rounded-lg p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                aria-label="Đóng hồ sơ trả góp"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
@@ -620,7 +627,7 @@ export function CartPanel({
                       onClick={() => setInstallmentPartner(partner)}
                       className={`p-2.5 rounded-xl border text-xs font-semibold text-center transition cursor-pointer ${
                         installmentPartner === partner
-                          ? "border-amber-500 bg-amber-50 text-amber-900 font-bold shadow-2xs"
+                          ? "border-[#0866f5] bg-[#edf3ff] text-[#0844a8] font-bold shadow-2xs"
                           : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
                       }`}
                     >
@@ -642,7 +649,7 @@ export function CartPanel({
                       onClick={() => setInstallmentMonths(m)}
                       className={`py-2 rounded-xl border text-xs font-semibold text-center transition cursor-pointer ${
                         installmentMonths === m
-                          ? "border-amber-500 bg-amber-50 text-amber-900 font-bold shadow-2xs"
+                          ? "border-[#0866f5] bg-[#edf3ff] text-[#0844a8] font-bold shadow-2xs"
                           : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
                       }`}
                     >
@@ -664,7 +671,7 @@ export function CartPanel({
                       onClick={() => setPrepayPercent(pct)}
                       className={`py-1.5 rounded-lg border text-[11px] font-semibold text-center transition cursor-pointer ${
                         prepayPercent === pct
-                          ? "border-amber-500 bg-amber-50 text-amber-900 font-bold shadow-2xs"
+                          ? "border-[#0866f5] bg-[#edf3ff] text-[#0844a8] font-bold shadow-2xs"
                           : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
                       }`}
                     >
@@ -678,7 +685,7 @@ export function CartPanel({
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1.5 text-slate-700">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Trả trước ước tính:</span>
-                    <span className="font-mono font-bold text-amber-700">
+                    <span className="font-mono font-bold text-[#0866f5]">
                       {formatVndBadge(Math.round((cart.quote.grandTotal * prepayPercent) / 100))}
                     </span>
                   </div>
@@ -714,7 +721,7 @@ export function CartPanel({
                   dispatch({ type: "installment", installment: { partner: installmentPartner, months: installmentMonths, prepayPercent } });
                   setShowInstallmentModal(false);
                 }}
-                className="rounded-xl bg-amber-500 hover:bg-amber-600 px-5 py-2 text-xs font-bold text-slate-950 cursor-pointer shadow-xs"
+                className="rounded-xl bg-[#0866f5] px-5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-[#0758d5] cursor-pointer"
               >
                 Áp dụng trả góp
               </button>

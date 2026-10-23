@@ -1945,7 +1945,7 @@ export default function ResourceTab() {
                       left: noteTextInput.x,
                       top: noteTextInput.y - 12,
                       color: noteColor,
-                      font: "bold 16px Arial, Helvetica, sans-serif",
+                      font: "bold 16px Inter, sans-serif",
                       background: "transparent",
                       border: "none",
                       outline: "none",

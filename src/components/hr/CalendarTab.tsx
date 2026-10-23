@@ -1,4 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from "react";
+import "./calendar-schedule.css";
 import { useIsMobile } from "../../hooks/useMediaQuery";
 import {
   Calendar as CalendarIcon,
@@ -1529,7 +1530,7 @@ export default function CalendarTab({
       ) : (
         <>
           {/* 1. Glassmorphism Header Controls & Filters & Quick Stats */}
-          <div className="flex flex-col gap-5 bg-white/80 backdrop-blur-md p-5 rounded-3xl border border-slate-100/80 shadow-md shadow-slate-100/50 mb-5 transition-all duration-300">
+          <div className="erp-calendar-header flex flex-col gap-5 bg-white/80 backdrop-blur-md p-5 rounded-3xl border border-slate-100/80 shadow-md shadow-slate-100/50 mb-5 transition-all duration-300">
             {/* Navigation & Actions */}
             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
               <div className="flex flex-wrap items-center gap-3">
@@ -1697,7 +1698,7 @@ export default function CalendarTab({
           </div>
 
           {/* 2. Premium Calendar Grid */}
-          <div className="flex-1 bg-white/90 backdrop-blur-md border border-slate-100/80 rounded-3xl shadow-md shadow-slate-100/40 p-5 overflow-x-auto min-h-[550px] transition-all duration-300">
+          <div className="erp-calendar-grid flex-1 bg-white/90 backdrop-blur-md border border-slate-100/80 rounded-3xl shadow-md shadow-slate-100/40 p-5 overflow-x-auto min-h-[550px] transition-all duration-300">
             {loading ? (
               <div className="flex flex-col items-center justify-center h-full py-20 gap-3.5">
                 <div className="w-9 h-9 border-3 border-indigo-650 border-t-transparent rounded-full animate-spin" />
@@ -1816,11 +1817,11 @@ export default function CalendarTab({
             ) : (
               <div className="min-w-[750px] h-full flex flex-col">
                 {/* Weekdays Labels */}
-                <div className="grid grid-cols-7 gap-1.5 mb-3">
+                <div className="grid grid-cols-7 overflow-hidden rounded-t-xl border-l border-t border-slate-200">
                   {WEEKDAYS.map((day, idx) => (
                     <div
                       key={day}
-                      className={`text-center py-2.5 text-xs font-extrabold tracking-wider uppercase ${idx === 0
+                      className={`border-r border-b border-slate-200 bg-slate-50 text-center py-2.5 text-xs font-extrabold tracking-wider uppercase ${idx === 0
                           ? "text-rose-500"
                           : idx === 6
                             ? "text-blue-500"
@@ -1833,7 +1834,7 @@ export default function CalendarTab({
                 </div>
 
                 {/* Days Grid */}
-                <div className="grid grid-cols-7 gap-2 flex-1 select-none">
+                <div className="grid grid-cols-7 flex-1 select-none overflow-hidden rounded-b-xl border-l border-slate-200">
                   {calendarDays.map(({ date: dayDate, isCurrentMonth }, index) => {
                     const dayItems = filteredItems.filter((item) => itemMatchesDay(item, dayDate));
                     const dayIsToday = isToday(dayDate);
@@ -1844,13 +1845,13 @@ export default function CalendarTab({
                         key={index}
                         onClick={() => handleDayClick(dayDate)}
                         title={holiday?.name}
-                        className={`min-h-[100px] p-2.5 border rounded-2xl flex flex-col justify-between transition-all hover:bg-indigo-50/20 hover:border-indigo-100 hover:shadow-md hover:-translate-y-0.5 duration-300 cursor-pointer ${holiday
-                            ? "bg-rose-50/40 border-rose-100/70"
+                        className={`min-h-[100px] p-2.5 border-r border-b border-slate-200 flex flex-col justify-between transition-colors hover:bg-indigo-50/40 cursor-pointer ${holiday
+                            ? "bg-rose-50/40"
                             : isCurrentMonth
-                              ? "bg-white border-slate-100/80 shadow-3xs"
-                              : "bg-slate-50/30 border-slate-50/50 text-slate-350"
+                              ? "bg-white"
+                              : "bg-slate-50/50 text-slate-350"
                           } ${dayIsToday
-                            ? "ring-2 ring-indigo-500 ring-offset-2 bg-gradient-to-br from-indigo-50/20 to-violet-50/20 border-indigo-200/50 shadow-sm shadow-indigo-500/5"
+                            ? "relative z-10 ring-2 ring-inset ring-indigo-500 bg-indigo-50/40"
                             : ""
                           }`}
                       >

@@ -3,8 +3,6 @@ import { createPortal } from "react-dom";
 import "./partners.css";
 import {
   Users,
-  UserCheck,
-  Building2,
   Plus,
   Search,
   SlidersHorizontal,
@@ -35,7 +33,7 @@ import {
   Check,
   ContactRound,
   UserPlus,
-  Package,
+  Gift,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useConfirmation } from "../../context/ConfirmationContext";
@@ -43,6 +41,7 @@ import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { partnerRequest, type Partner } from "./partnerApi";
 import { ProductCommissions } from "./ProductCommissions";
 import { toast } from "../../pages/Toast";
+import PartnerMetricIcon from "./PartnerMetricIcon";
 
 const money = (n: number) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(n || 0);
@@ -1279,15 +1278,12 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
   const totalBalance = partnerList.reduce((acc, curr) => acc + (curr.balance || 0), 0);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 text-left">
+    <div className="partners-management-page mx-auto max-w-7xl space-y-6 p-4 sm:p-6 text-left">
       {/* Header Bar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="partners-page-header flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-cyan-600 to-sky-500 text-white shadow-lg shadow-cyan-500/25">
-            <ContactRound className="h-6 w-6" />
-          </div>
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
+            <h1 className="partners-page-title text-2xl font-extrabold tracking-tight text-slate-900">
               Quản lý đối tác
             </h1>
             <p className="text-xs font-medium text-slate-500">
@@ -1296,9 +1292,9 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
         </div>
 
         {/* Tab Switcher */}
-        <nav className="flex items-center rounded-xl bg-slate-100 p-1">
+        <nav className="partners-page-tabs flex items-center rounded-xl bg-slate-100 p-1">
           <button
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition cursor-pointer ${tab === "list"
+            className={`partners-page-tab flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition cursor-pointer ${tab === "list"
               ? "bg-white text-cyan-700 shadow-xs"
               : "text-slate-600 hover:text-slate-900"
               }`}
@@ -1309,7 +1305,7 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
           </button>
           {hasPermission("commission-policy:manage") && (
             <button
-              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition cursor-pointer ${tab === "policy"
+              className={`partners-page-tab flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition cursor-pointer ${tab === "policy"
                 ? "bg-white text-cyan-700 shadow-xs"
                 : "text-slate-600 hover:text-slate-900"
                 }`}
@@ -1321,14 +1317,14 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
           )}
           {hasPermission("commission-policy:manage") && (
             <button
-              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition cursor-pointer ${
+              className={`partners-page-tab flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition cursor-pointer ${
                 tab === "products"
                   ? "bg-white text-cyan-700 shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
               }`}
               onClick={() => setTab("products")}
             >
-              <Package className="h-3.5 w-3.5" />
+              <Gift className="h-3.5 w-3.5" />
               Hoa hồng sản phẩm
             </button>
           )}
@@ -1337,45 +1333,45 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
 
       {/* Top Metric Cards */}
       {tab === "list" && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-gray-300 bg-white p-4 shadow-xs">
+        <div className="partners-metrics-grid grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="partners-metric-card rounded-2xl border border-gray-300 bg-white p-4 shadow-xs">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
-                <Users className="h-5 w-5" />
+              <div className="partners-metric-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
+                <PartnerMetricIcon kind="partners" />
               </div>
-              <p className="min-w-0 break-words text-2xl font-extrabold text-slate-900">{partners.length}</p>
+              <p className="partners-metric-value min-w-0 break-words text-2xl font-extrabold text-slate-900">{partners.length}</p>
             </div>
-            <p className="mt-2 text-xs font-semibold text-slate-600">Tổng đối tác</p>
+            <p className="partners-metric-label mt-2 text-xs font-semibold text-slate-600">Tổng đối tác</p>
           </div>
 
-          <div className="rounded-2xl border border-gray-300 bg-white p-4 shadow-xs">
+          <div className="partners-metric-card rounded-2xl border border-gray-300 bg-white p-4 shadow-xs">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-600 text-white">
-                <UserCheck className="h-5 w-5" />
+              <div className="partners-metric-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-600 text-white">
+                <PartnerMetricIcon kind="collaborators" />
               </div>
-              <p className="min-w-0 break-words text-2xl font-extrabold text-slate-900">{totalCollaborators}</p>
+              <p className="partners-metric-value min-w-0 break-words text-2xl font-extrabold text-slate-900">{totalCollaborators}</p>
             </div>
-            <p className="mt-2 text-xs font-semibold text-slate-600">Cộng tác viên (CTV)</p>
+            <p className="partners-metric-label mt-2 text-xs font-semibold text-slate-600">Cộng tác viên (CTV)</p>
           </div>
 
-          <div className="rounded-2xl border border-gray-300 bg-white p-4 shadow-xs">
+          <div className="partners-metric-card rounded-2xl border border-gray-300 bg-white p-4 shadow-xs">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white">
-                <Building2 className="h-5 w-5" />
+              <div className="partners-metric-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white">
+                <PartnerMetricIcon kind="organizations" />
               </div>
-              <p className="min-w-0 break-words text-2xl font-extrabold text-slate-900">{totalDealers + totalSuppliers}</p>
+              <p className="partners-metric-value min-w-0 break-words text-2xl font-extrabold text-slate-900">{totalDealers + totalSuppliers}</p>
             </div>
-            <p className="mt-2 text-xs font-semibold text-slate-600">Đại lý & Nhà CC</p>
+            <p className="partners-metric-label mt-2 text-xs font-semibold text-slate-600">Đại lý & Nhà CC</p>
           </div>
 
-          <div className="rounded-2xl border border-gray-300 bg-white p-4 shadow-xs">
+          <div className="partners-metric-card rounded-2xl border border-gray-300 bg-white p-4 shadow-xs">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white">
-                <Coins className="h-5 w-5" />
+              <div className="partners-metric-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white">
+                <PartnerMetricIcon kind="balance" />
               </div>
-              <p className="min-w-0 break-words text-2xl font-extrabold text-slate-900">{money(totalBalance)}</p>
+              <p className="partners-metric-value min-w-0 break-words text-2xl font-extrabold text-slate-900">{money(totalBalance)}</p>
             </div>
-            <p className="mt-2 text-xs font-semibold text-slate-600">Tổng số dư hoa hồng</p>
+            <p className="partners-metric-label mt-2 text-xs font-semibold text-slate-600">Tổng số dư hoa hồng</p>
           </div>
         </div>
       )}
@@ -1449,10 +1445,10 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
           )}
 
           {/* Action and Filter Toolbar */}
-          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs sm:flex-row sm:items-center sm:justify-between">
+          <div className="partners-toolbar flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-1 flex-wrap items-center gap-3">
               {/* Search Box */}
-              <div className="relative min-w-[240px] flex-1">
+              <div className="partners-search relative min-w-[240px] flex-1">
                 <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   aria-label="Tìm đối tác"
@@ -1466,7 +1462,7 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
               {/* Group Filter */}
               <select
                 aria-label="Nhóm đối tác"
-                className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-medium text-slate-800 outline-none transition focus:border-cyan-500 cursor-pointer"
+                className="partners-group-filter rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-medium text-slate-800 outline-none transition focus:border-cyan-500 cursor-pointer"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
               >
@@ -1485,7 +1481,7 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
                 <button
                   type="button"
                   disabled={importingSuppliers}
-                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  className="partners-sync-button rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                   onClick={async () => {
                     setImportingSuppliers(true);
                     try {
@@ -1501,7 +1497,7 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
                   {importingSuppliers ? "Đang đồng bộ..." : "Đồng bộ NCC từ kho"}
                 </button>
                 <button
-                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-sky-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-cyan-500/20 hover:from-cyan-500 hover:to-sky-500 transition cursor-pointer"
+                  className="partners-add-button flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-sky-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-cyan-500/20 hover:from-cyan-500 hover:to-sky-500 transition cursor-pointer"
                   onClick={() => setEditing({})}
                 >
                   <Plus className="h-4 w-4" />
@@ -1512,10 +1508,10 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
           </div>
 
           {/* Partners Table Card */}
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
+          <div className="partners-table-card overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-bold uppercase tracking-wider text-slate-500">
+              <table className="partners-table w-full text-left text-sm">
+                <thead className="partners-table-head border-b border-slate-200 bg-slate-50/80 text-xs font-bold uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="p-3.5">Đối tác</th>
                     <th className="p-3.5">Nhóm</th>
@@ -1529,19 +1525,19 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
                   {filtered.map((p) => (
                     <tr
                       key={p._id}
-                      className="group hover:bg-slate-50/80 transition"
+                      className="partners-table-row group hover:bg-slate-50/80 transition"
                     >
                       {/* Name & Code */}
                       <td className="p-3.5">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-500/20 to-sky-500/20 font-bold text-xs text-cyan-700">
+                          <div className="partners-partner-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-500/20 to-sky-500/20 font-bold text-xs text-cyan-700">
                             {getInitials(p.name || "DT")}
                           </div>
                           <div>
-                            <p className="font-bold text-slate-900 group-hover:text-cyan-600 transition">
+                            <p className="partners-partner-name font-bold text-slate-900 group-hover:text-cyan-600 transition">
                               {p.name}
                             </p>
-                            <span className="font-mono text-xs font-medium text-slate-400">
+                            <span className="partners-partner-code font-mono text-xs font-medium text-slate-400">
                               {p.code}
                             </span>
                           </div>
@@ -1554,7 +1550,8 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
                           {p.roles.map((r) => (
                             <span
                               key={r}
-                              className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${r === "collaborator"
+                              data-role={r}
+                              className={`partners-role-pill rounded-md px-2 py-0.5 text-[11px] font-bold ${r === "collaborator"
                                 ? "bg-cyan-50 text-cyan-700"
                                 : r === "dealer"
                                   ? "bg-indigo-50 text-indigo-700"
@@ -1588,7 +1585,8 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
                       {/* Status */}
                       <td className="p-3.5">
                         <span
-                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${p.status === "active"
+                          data-status={p.status}
+                          className={`partners-status-pill inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${p.status === "active"
                             ? "bg-emerald-50 text-emerald-700"
                             : "bg-slate-100 text-slate-600"
                             }`}
@@ -1603,7 +1601,7 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
 
                       {/* Balance */}
                       <td
-                        className={`whitespace-nowrap p-3.5 text-right font-extrabold text-sm ${p.balance < 0
+                        className={`partners-balance whitespace-nowrap p-3.5 text-right font-extrabold text-sm ${p.balance < 0
                           ? "text-rose-600"
                           : p.balance > 0
                             ? "text-emerald-600"

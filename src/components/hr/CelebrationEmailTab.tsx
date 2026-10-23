@@ -474,7 +474,7 @@ export default function CelebrationEmailTab() {
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 block" />
                 </div>
                 <span className="text-[11px] font-bold font-mono tracking-wider text-slate-300 ml-2">
-                  XEM TRƯỚC EMAIL GỬI ĐI
+                  Xem trước email gửi đi
                 </span>
               </div>
               <button
@@ -492,7 +492,7 @@ export default function CelebrationEmailTab() {
                   Từ:
                 </span>
                 <span className="text-slate-800 font-medium">
-                  Hệ thống iGEN Retail &lt;no-reply@igen.vn&gt;
+                  Hệ thống AnhKhoa Mobile &lt;no-reply@igen.vn&gt;
                 </span>
               </div>
               <div className="flex items-center gap-3">

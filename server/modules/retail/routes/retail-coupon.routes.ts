@@ -13,6 +13,17 @@ export const retailCouponRoutes = Router();
 const operate = requirePermission([RETAIL_OPERATE_PERMISSION, RETAIL_MANAGER_PERMISSION]) as any;
 const manage = requirePermission(RETAIL_MANAGER_PERMISSION) as any;
 retailCouponRoutes.use(requireAuth as any, requireModule("retail"));
+retailCouponRoutes.get("/selectable", operate, async (req: Request, res: Response) => {
+  try {
+    const scope = requireRetailBranch(retailScopeFromRequest((req as any).user || {}, req.query));
+    if (req.query.customerId) {
+      const customer = await getPromotionCustomer(scope.companyCode, req.query.customerId);
+      if (!customer) throw new Error("Khách hàng không tồn tại hoặc đã ngừng hoạt động.");
+      await issueCouponAutomations(scope, new Date(), String(customer._id));
+    }
+    res.json({ success: true, data: await retailCouponService.selectable(scope, req.query.customerId) });
+  } catch (error: any) { res.status(error.status || 400).json({ success: false, error: error.message }); }
+});
 retailCouponRoutes.get("/tiers", operate, async (req: Request, res: Response) => {
   try {
     const scope = requireRetailBranch(retailScopeFromRequest((req as any).user || {}, req.query));
