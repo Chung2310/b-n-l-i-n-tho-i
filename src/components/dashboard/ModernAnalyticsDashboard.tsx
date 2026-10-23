@@ -119,8 +119,6 @@ function useCountUp(target: number, durationMs = 800): number {
 interface ModernAnalyticsDashboardProps {
   summary: DashboardSummary | null;
   actionItems: DashboardActionItems | null;
-  selectedDate: string;
-  onDateChange: (date: string) => void;
   userDisplayName?: string;
   onNavigate: (tab: string, subTab?: string) => void;
   onOpenContract?: (employeeName: string) => void;
@@ -129,8 +127,6 @@ interface ModernAnalyticsDashboardProps {
 export function ModernAnalyticsDashboard({
   summary,
   actionItems,
-  selectedDate,
-  onDateChange,
   userDisplayName = "Admin",
   onNavigate,
   onOpenContract,
@@ -367,7 +363,7 @@ export function ModernAnalyticsDashboard({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <DashboardDatePicker value={selectedDate} onChange={onDateChange} />
+          <DashboardDatePicker />
         </div>
       </div>
 

@@ -12,11 +12,6 @@ import "../components/dashboard/overview.css";
 export default function DashboardTab() {
   const { userProfile } = useAuth();
   const { activeBranchId } = useBranch();
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  });
-
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const bulletinKey = `${userProfile?.uid}:${userProfile?.role}:${activeBranchId}`;
   const [bulletinResult, setBulletinResult] = useState<{
@@ -34,7 +29,7 @@ export default function DashboardTab() {
 
     const loadSummary = () => {
       dashboardService
-        .getSummary({ filter: "custom", startDate: selectedDate, endDate: selectedDate })
+        .getSummary({ filter: "day" })
         .then((data) => {
           if (!cancelled) setSummary(data);
         })
@@ -49,7 +44,7 @@ export default function DashboardTab() {
       cancelled = true;
       clearInterval(intervalId);
     };
-  }, [userProfile?.uid, activeBranchId, selectedDate]);
+  }, [userProfile?.uid, activeBranchId]);
 
   // Poll action items
   useEffect(() => {
@@ -101,8 +96,6 @@ export default function DashboardTab() {
     >
       <ModernAnalyticsDashboard
         summary={summary}
-        selectedDate={selectedDate}
-        onDateChange={setSelectedDate}
         actionItems={actionItems}
         userDisplayName={userProfile?.displayName}
         onNavigate={goToTab}
