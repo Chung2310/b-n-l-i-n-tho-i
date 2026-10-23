@@ -25,9 +25,9 @@ export function buildDocumentTitle(title: string) {
 export const DEFAULT_SEO: SeoMeta = {
   title: "Nền tảng quản trị doanh nghiệp tích hợp AI",
   description:
-    "iGEN Retail là nền tảng quản trị doanh nghiệp tích hợp AI thế hệ mới, hỗ trợ quản lý kho vận, nhân sự, tiếp thị tự động, quản lý khách hàng đa kênh và tối ưu hiệu suất vận hành doanh nghiệp.",
+    "AnhKhoa Mobile là nền tảng quản trị doanh nghiệp tích hợp AI thế hệ mới, hỗ trợ quản lý kho vận, nhân sự, tiếp thị tự động, quản lý khách hàng đa kênh và tối ưu hiệu suất vận hành doanh nghiệp.",
   keywords:
-    "iGEN Retail, ERP tích hợp AI, phần mềm quản trị doanh nghiệp, quản lý nhân sự HRM, quản lý kho thông minh, marketing AI, sales CRM đa kênh, tối ưu vận hành",
+    "AnhKhoa Mobile, ERP tích hợp AI, phần mềm quản trị doanh nghiệp, quản lý nhân sự HRM, quản lý kho thông minh, marketing AI, sales CRM đa kênh, tối ưu vận hành",
   path: "/",
   image: SEO_DEFAULT_IMAGE,
   robots: "index, follow",
@@ -39,9 +39,9 @@ export const DEFAULT_SEO: SeoMeta = {
 export const AUTH_SEO: SeoMeta = {
   title: "Đăng nhập - Quản trị doanh nghiệp thông minh",
   description:
-    "Đăng nhập vào iGEN Retail để quản lý vận hành, nhân sự, kho, tiếp thị và khách hàng trên một nền tảng doanh nghiệp tích hợp AI.",
+    "Đăng nhập vào AnhKhoa Mobile để quản lý vận hành, nhân sự, kho, tiếp thị và khách hàng trên một nền tảng doanh nghiệp tích hợp AI.",
   keywords:
-    "đăng nhập iGEN Retail, hệ thống ERP doanh nghiệp, cổng quản trị AI, phần mềm ERP",
+    "đăng nhập AnhKhoa Mobile, hệ thống ERP doanh nghiệp, cổng quản trị AI, phần mềm ERP",
   path: "/dang-nhap",
   image: SEO_DEFAULT_IMAGE,
   robots: "noindex, nofollow",
@@ -52,8 +52,8 @@ export const AUTH_SEO: SeoMeta = {
 
 export const PRIVACY_SEO: SeoMeta = {
   title: "Chính sách bảo mật",
-  description: "Chính sách bảo mật thông tin người dùng và dữ liệu của iGEN Retail.",
-  keywords: "chính sách bảo mật, bảo mật dữ liệu, iGEN Retail",
+  description: "Chính sách bảo mật thông tin người dùng và dữ liệu của AnhKhoa Mobile.",
+  keywords: "chính sách bảo mật, bảo mật dữ liệu, AnhKhoa Mobile",
   path: "/privacy-policy",
   image: SEO_DEFAULT_IMAGE,
   robots: "index, follow",
@@ -64,8 +64,8 @@ export const PRIVACY_SEO: SeoMeta = {
 
 export const TERMS_SEO: SeoMeta = {
   title: "Điều khoản dịch vụ",
-  description: "Điều khoản dịch vụ và thỏa thuận sử dụng phần mềm quản trị doanh nghiệp iGEN Retail.",
-  keywords: "điều khoản dịch vụ, thoả thuận sử dụng, iGEN Retail",
+  description: "Điều khoản dịch vụ và thỏa thuận sử dụng phần mềm quản trị doanh nghiệp AnhKhoa Mobile.",
+  keywords: "điều khoản dịch vụ, thoả thuận sử dụng, AnhKhoa Mobile",
   path: "/terms-of-service",
   image: SEO_DEFAULT_IMAGE,
   robots: "index, follow",
@@ -76,8 +76,8 @@ export const TERMS_SEO: SeoMeta = {
 
 export const DELETION_SEO: SeoMeta = {
   title: "Yêu cầu xóa dữ liệu người dùng",
-  description: "Hướng dẫn xóa dữ liệu người dùng và tra cứu trạng thái yêu cầu xóa thông tin trên hệ thống iGEN Retail.",
-  keywords: "xóa dữ liệu người dùng, bảo mật dữ liệu, user data deletion, iGEN Retail",
+  description: "Hướng dẫn xóa dữ liệu người dùng và tra cứu trạng thái yêu cầu xóa thông tin trên hệ thống AnhKhoa Mobile.",
+  keywords: "xóa dữ liệu người dùng, bảo mật dữ liệu, user data deletion, AnhKhoa Mobile",
   path: "/user-data-deletion",
   image: SEO_DEFAULT_IMAGE,
   robots: "index, follow",
@@ -90,9 +90,9 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "TỔNG QUAN": {
     title: "Tổng quan doanh nghiệp - Dashboard điều hành thông minh",
     description:
-      "Báo cáo tổng quan hiệu suất kinh doanh, doanh thu bán hàng, tiến độ công việc và phân tích vận hành doanh nghiệp tự động với AI trên iGEN Retail.",
+      "Báo cáo tổng quan hiệu suất kinh doanh, doanh thu bán hàng, tiến độ công việc và phân tích vận hành doanh nghiệp tự động với AI trên AnhKhoa Mobile.",
     keywords:
-      "dashboard doanh nghiệp, tổng quan ERP, báo cáo điều hành, dashboard AI, iGEN Retail, doanh thu erp",
+      "dashboard doanh nghiệp, tổng quan ERP, báo cáo điều hành, dashboard AI, AnhKhoa Mobile, doanh thu erp",
     path: "/tong-quan",
     priority: "0.9",
     changeFrequency: "daily",
@@ -100,7 +100,7 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "NHÂN SỰ": {
     title: "Quản lý nhân sự HRM - Sơ đồ tổ chức, KPI và Đào tạo",
     description:
-      "Giải pháp HRM toàn diện trên iGEN Retail giúp quản lý hồ sơ nhân sự, vẽ sơ đồ tổ chức tự động, thiết lập KPI và số hóa tài liệu đào tạo nội bộ.",
+      "Giải pháp HRM toàn diện trên AnhKhoa Mobile giúp quản lý hồ sơ nhân sự, vẽ sơ đồ tổ chức tự động, thiết lập KPI và số hóa tài liệu đào tạo nội bộ.",
     keywords:
       "quản lý nhân sự, HRM, KPI nhân viên, đào tạo nội bộ, sơ đồ tổ chức, ERP nhân sự, sơ đồ báo cáo",
     path: "/nhan-su",
@@ -120,9 +120,9 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "QUẢN LÝ TÀI NGUYÊN": {
     title: "Quản lý tài nguyên - Lưu trữ và quản lý tài liệu nội bộ",
     description:
-      "Không gian quản lý tài nguyên, tài liệu nội bộ và chia sẻ tài nguyên an toàn cho nhân viên trên iGEN Retail.",
+      "Không gian quản lý tài nguyên, tài liệu nội bộ và chia sẻ tài nguyên an toàn cho nhân viên trên AnhKhoa Mobile.",
     keywords:
-      "quản lý tài nguyên, lưu trữ tài liệu, tài liệu nội bộ, thư mục tài nguyên, iGEN Retail",
+      "quản lý tài nguyên, lưu trữ tài liệu, tài liệu nội bộ, thư mục tài nguyên, AnhKhoa Mobile",
     path: "/quan-ly-tai-nguyen",
     priority: "0.8",
     changeFrequency: "weekly",
@@ -130,19 +130,19 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "TRÒ CHUYỆN": {
     title: "Trò chuyện nội bộ - Trực quan, Thời gian thực",
     description:
-      "Trực tiếp trao đổi công việc, trò chuyện 1-1 hoặc tạo phòng chat nhóm giữa các tài khoản nhân viên trong doanh nghiệp tại iGEN Retail.",
+      "Trực tiếp trao đổi công việc, trò chuyện 1-1 hoặc tạo phòng chat nhóm giữa các tài khoản nhân viên trong doanh nghiệp tại AnhKhoa Mobile.",
     keywords:
-      "chat nội bộ, chat nhóm, chat 1-1, trò chuyện nội bộ, nhắn tin realtime, socket.io chat, iGEN Retail",
+      "chat nội bộ, chat nhóm, chat 1-1, trò chuyện nội bộ, nhắn tin realtime, socket.io chat, AnhKhoa Mobile",
     path: "/tro-chuyen",
     priority: "0.7",
     changeFrequency: "weekly",
   },
   "CSKH": {
-    title: "Hộp thư CSKH 1-1 & AI Marketing - iGEN Retail",
+    title: "Hộp thư CSKH 1-1 & AI Marketing - AnhKhoa Mobile",
     description:
       "Kênh chăm sóc khách hàng 1-1 qua Zalo/SMS, kết nối trực tiếp với phiếu sửa chữa và trợ lý AI gợi ý phản hồi nhanh.",
     keywords:
-      "CSKH, chat 1-1, Zalo ZNS, nhắn tin khách hàng, chăm sóc khách hàng sửa chữa, AI Marketing, iGEN Retail",
+      "CSKH, chat 1-1, Zalo ZNS, nhắn tin khách hàng, chăm sóc khách hàng sửa chữa, AI Marketing, AnhKhoa Mobile",
     path: "/cskh",
     priority: "0.8",
     changeFrequency: "daily",
@@ -150,7 +150,7 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "QUẢN LÝ KHÁCH HÀNG": {
     title: "Quản lý khách hàng - Hồ sơ, chăm sóc và lịch sử tương tác",
     description:
-      "Phân khu quản lý khách hàng trong iGEN Retail giúp doanh nghiệp lưu trữ hồ sơ khách hàng, theo dõi lịch sử tương tác và tối ưu hoạt động chăm sóc khách hàng.",
+      "Phân khu quản lý khách hàng trong AnhKhoa Mobile giúp doanh nghiệp lưu trữ hồ sơ khách hàng, theo dõi lịch sử tương tác và tối ưu hoạt động chăm sóc khách hàng.",
     keywords:
       "quản lý khách hàng, CRM, chăm sóc khách hàng, hồ sơ khách hàng, lịch sử tương tác, ERP dịch vụ",
     path: "/quan-ly-khach-hang",
@@ -160,7 +160,7 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "QUẢN LÝ ỨNG VIÊN": {
     title: "Quản lý ứng viên - Tuyển dụng, hồ sơ và quy trình phỏng vấn",
     description:
-      "Phân khu quản lý ứng viên trong iGEN Retail giúp doanh nghiệp tập trung hồ sơ ứng viên, theo dõi các vòng tuyển dụng và quản lý lịch phỏng vấn hiệu quả.",
+      "Phân khu quản lý ứng viên trong AnhKhoa Mobile giúp doanh nghiệp tập trung hồ sơ ứng viên, theo dõi các vòng tuyển dụng và quản lý lịch phỏng vấn hiệu quả.",
     keywords:
       "quản lý ứng viên, tuyển dụng, hồ sơ ứng viên, lịch phỏng vấn, quy trình tuyển dụng, ERP tuyển dụng",
     path: "/quan-ly-ung-vien",
@@ -170,10 +170,10 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "BÁN HÀNG": {
     title: "Bán hàng & POS - Quản lý bán hàng tại quầy",
     description:
-      "Phân hệ bán hàng trên iGEN Retail hỗ trợ quản lý khách hàng, cấu hình bán hàng tại quầy và vận hành POS theo chi nhánh.",
+      "Phân hệ bán hàng trên AnhKhoa Mobile hỗ trợ quản lý khách hàng, cấu hình bán hàng tại quầy và vận hành POS theo chi nhánh.",
     keywords:
-      "bán hàng, POS, quản lý bán hàng, khách hàng bán hàng, ERP bán hàng, iGEN Retail",
-    path: "/pos",
+      "bán hàng, POS, quản lý bán hàng, khách hàng bán hàng, ERP bán hàng, AnhKhoa Mobile",
+    path: "/ban-le",
     robots: "noindex, nofollow",
     priority: "0.2",
     changeFrequency: "weekly",
@@ -181,9 +181,9 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "BÁN LẺ": {
     title: "Bán hàng & POS - Quản lý bán hàng tại quầy",
     description:
-      "Phân hệ bán hàng trên iGEN Retail hỗ trợ quản lý khách hàng, cấu hình bán hàng tại quầy và vận hành POS theo chi nhánh.",
+      "Phân hệ bán hàng trên AnhKhoa Mobile hỗ trợ quản lý khách hàng, cấu hình bán hàng tại quầy và vận hành POS theo chi nhánh.",
     keywords:
-      "bán hàng, POS, quản lý bán hàng, khách hàng bán hàng, ERP bán hàng, iGEN Retail",
+      "bán hàng, POS, quản lý bán hàng, khách hàng bán hàng, ERP bán hàng, AnhKhoa Mobile",
     path: "/ban-le",
     robots: "noindex, nofollow",
     priority: "0.2",
@@ -193,9 +193,9 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "TÀI CHÍNH": {
     title: "Tài chính - Quản lý công nợ và nhắc nợ",
     description:
-      "Phân hệ tài chính trên iGEN Retail hỗ trợ theo dõi công nợ phải thu, ghi nhận thanh toán và quản lý lịch nhắc nợ theo chi nhánh.",
+      "Phân hệ tài chính trên AnhKhoa Mobile hỗ trợ theo dõi công nợ phải thu, ghi nhận thanh toán và quản lý lịch nhắc nợ theo chi nhánh.",
     keywords:
-      "quản lý công nợ, công nợ phải thu, nhắc nợ, thanh toán, ERP tài chính, iGEN Retail",
+      "quản lý công nợ, công nợ phải thu, nhắc nợ, thanh toán, ERP tài chính, AnhKhoa Mobile",
     path: "/tai-chinh",
     robots: "noindex, nofollow",
     priority: "0.2",
@@ -203,8 +203,8 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   },
   MARKETING: {
     title: "Marketing tự động - Quản lý chiến dịch và chăm sóc khách hàng",
-    description: "Quản lý chiến dịch, nội dung và hoạt động chăm sóc khách hàng trên iGEN Retail.",
-    keywords: "marketing, chiến dịch, chăm sóc khách hàng, iGEN Retail",
+    description: "Quản lý chiến dịch, nội dung và hoạt động chăm sóc khách hàng trên AnhKhoa Mobile.",
+    keywords: "marketing, chiến dịch, chăm sóc khách hàng, AnhKhoa Mobile",
     path: "/marketing",
     robots: "noindex, nofollow",
     priority: "0.2",
@@ -248,7 +248,7 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
     description:
       "Hệ thống quản lý quy trình tiếp nhận, kiểm tra, báo giá, sửa chữa, bàn giao thiết bị bảo hành chuyên nghiệp tích hợp AI.",
     keywords:
-      "sửa chữa bảo hành, quản lý sửa chữa, phiếu bảo hành, tra cứu IMEI, bảo hành thiết bị, iGEN Retail",
+      "sửa chữa bảo hành, quản lý sửa chữa, phiếu bảo hành, tra cứu IMEI, bảo hành thiết bị, AnhKhoa Mobile",
     path: "/sua-chua-bao-hanh",
     robots: "noindex, nofollow",
     priority: "0.5",
@@ -257,7 +257,7 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "TÀI NGUYÊN": {
     title: "Tài nguyên - Quản lý tài liệu nội bộ",
     description:
-      "Lưu trữ và quản lý tài liệu nội bộ, chia sẻ tài nguyên doanh nghiệp tập trung trên iGEN Retail.",
+      "Lưu trữ và quản lý tài liệu nội bộ, chia sẻ tài nguyên doanh nghiệp tập trung trên AnhKhoa Mobile.",
     keywords:
       "tài liệu nội bộ, quản lý tài nguyên, lưu trữ doanh nghiệp, tài nguyên ERP",
     path: "/tai-nguyen",
@@ -268,9 +268,9 @@ export const TAB_SEO_MAP: Partial<Record<TabType, SeoMeta>> & Record<string, Seo
   "HƯỚNG DẪN": {
     title: "Hướng dẫn sử dụng - Cẩm nang thao tác hệ thống",
     description:
-      "Hướng dẫn sử dụng chi tiết từng phân hệ trong iGEN Retail bằng ngôn ngữ giản dị, trực quan dành cho người dùng không chuyên.",
+      "Hướng dẫn sử dụng chi tiết từng phân hệ trong AnhKhoa Mobile bằng ngôn ngữ giản dị, trực quan dành cho người dùng không chuyên.",
     keywords:
-      "hướng dẫn sử dụng, cẩm nang erp, tài liệu hướng dẫn, iGEN Retail, hỗ trợ sử dụng",
+      "hướng dẫn sử dụng, cẩm nang erp, tài liệu hướng dẫn, AnhKhoa Mobile, hỗ trợ sử dụng",
     path: "/huong-dan",
     robots: "noindex, nofollow",
     priority: "0.5",
@@ -324,7 +324,7 @@ export function tabToPath(tab: TabType): string {
 
 export function pathToTab(pathname: string): TabType | null {
   const normalized = pathname.startsWith("/") ? pathname : `/${pathname}`;
-  if (normalized.toLowerCase() === "/ban-le") return "BÁN LẺ";
+  if (normalized.toLowerCase() === "/ban-le" || normalized.toLowerCase() === "/ban-hang") return "BÁN HÀNG";
   const matched = (Object.entries(TAB_SEO_MAP) as Array<[TabType, SeoMeta]>).find(
     ([, meta]) => meta.path.toLowerCase() === normalized.toLowerCase()
   );

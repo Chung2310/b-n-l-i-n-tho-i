@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, FolderOpen, LayoutDashboard, MessageSquare, Package, Settings, Shield, Users, BookOpen, ShoppingCart, Landmark, Megaphone, Wrench, ContactRound, Headphones } from "lucide-react";
+import { ChevronLeft, ChevronRight, FolderOpen, LayoutDashboard, LockKeyhole, MessageSquare, Package, Settings, Shield, Users, BookOpen, ShoppingCart, Landmark, Megaphone, Wrench, ContactRound, Headphones } from "lucide-react";
 import { PRIVACY_POLICY_PATH, TERMS_OF_SERVICE_PATH, USER_DATA_DELETION_PATH } from "../config/brand";
 import { handleInternalNavigation } from "../utils/internalNavigation";
 import type { TabType } from "../types";
@@ -8,6 +8,9 @@ import { useIsMobile } from "../hooks/useMediaQuery";
 import { filterEnabledTabs, MODULE_READ_PERMISSIONS } from "../config/modules";
 import { isPartnerPortalProfile } from "../modules/partners/partnerAccess";
 import SidebarIcon from "./SidebarIcons";
+import { useRetailScope } from "../modules/retail/hooks/useRetailScope";
+import { retailShiftsApi } from "../modules/retail/api/retailShifts.api";
+import { socketService } from "../services/socketService";
 
 interface SidebarProps { activeTab: TabType; setActiveTab: (tab: TabType) => void; mobileOpen: boolean; onMobileClose: () => void; }
 interface MenuItem { label: TabType; title: string; icon: React.ElementType; group: "main" | "operations" | "tools" | "system"; locked?: boolean; }
@@ -29,6 +32,35 @@ const groupTitles: Record<MenuItem["group"], string> = { main: "Tổng quan", op
 
 export default function Sidebar({ activeTab, setActiveTab, mobileOpen, onMobileClose }: SidebarProps) {
   const { userProfile, hasPermission } = useAuth();
+  const { scope } = useRetailScope();
+  const canViewSalesManagement = userProfile?.role === "admin" || userProfile?.role === "superadmin" || hasPermission("retail:manage") || hasPermission("retail:read");
+  const isPosOperator = !canViewSalesManagement && hasPermission("pos:manage");
+  const companyCode = scope?.companyCode;
+  const branchId = scope?.branchId;
+  const terminalId = scope?.terminalId;
+  const assignmentKey = `${userProfile?.uid}:${companyCode}:${branchId}:${terminalId}`;
+  const [assignment, setAssignment] = useState<{ key: string; assigned: boolean } | null>(null);
+  const hasAssignedPosShift = isPosOperator && assignment?.key === assignmentKey && assignment.assigned;
+  useEffect(() => {
+    if (!isPosOperator || !companyCode || !branchId || !terminalId || !userProfile?.uid) return;
+    const currentScope = { companyCode, branchId, terminalId };
+    let active = true;
+    const refresh = async () => {
+      try {
+        const shift = await retailShiftsApi.current(currentScope);
+        if (active) setAssignment({ key: assignmentKey, assigned: shift?.status === "open" && shift.cashierId === userProfile.uid });
+      } catch { if (active) setAssignment({ key: assignmentKey, assigned: false }); }
+    };
+    const onSessionChange = (event: { companyCode?: string; branchId?: string; cashierId?: string }) => {
+      if (event?.companyCode === companyCode && event?.branchId === branchId && event?.cashierId === userProfile.uid) void refresh();
+    };
+    const dispose = ["opened", "closed", "reconciled", "device-changed"].map((event) => socketService.on(`pos:session:${event}`, onSessionChange));
+    const onVisibilityChange = () => { if (document.visibilityState === "visible") void refresh(); };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    const interval = window.setInterval(() => { if (document.visibilityState === "visible") void refresh(); }, 15000);
+    void refresh();
+    return () => { active = false; dispose.forEach((off) => off()); document.removeEventListener("visibilitychange", onVisibilityChange); window.clearInterval(interval); };
+  }, [isPosOperator, companyCode, branchId, terminalId, userProfile?.uid, assignmentKey]);
   const [isCollapsedState, setIsCollapsed] = useState(false);
   const isMobile = useIsMobile();
   const isCollapsed = isCollapsedState && !isMobile;
@@ -36,7 +68,7 @@ export default function Sidebar({ activeTab, setActiveTab, mobileOpen, onMobileC
   useEffect(() => { if (!isMobile || !mobileOpen) return; const previousOverflow = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { document.body.style.overflow = previousOverflow; }; }, [isMobile, mobileOpen]);
   const visibleBaseMenuItems = partnerPortal ? baseMenuItems.filter((item) => item.label === "ĐỐI TÁC") : baseMenuItems;
   const enabledTabs = new Set(filterEnabledTabs(visibleBaseMenuItems.map((item) => item.label), userProfile?.enabledModules));
-  const menuItems: MenuItem[] = visibleBaseMenuItems.filter((item) => enabledTabs.has(item.label)).map((item) => { const requiredPerms = MODULE_READ_PERMISSIONS[item.label]; return { ...item, locked: requiredPerms ? !requiredPerms.some((code) => hasPermission(code)) : false }; });
+  const menuItems: MenuItem[] = visibleBaseMenuItems.filter((item) => enabledTabs.has(item.label)).map((item) => { const requiredPerms = MODULE_READ_PERMISSIONS[item.label]; return { ...item, locked: item.label === "BÁN HÀNG" ? !canViewSalesManagement && !hasAssignedPosShift : requiredPerms ? !requiredPerms.some((code) => hasPermission(code)) : false }; });
   if (userProfile?.role === "superadmin" || userProfile?.role === "admin") menuItems.push({ label: "QUẢN TRỊ USER", title: "Quản lý người dùng", icon: Shield, group: "system" });
   menuItems.push({ label: "CÀI ĐẶT", title: "Cài đặt hệ thống", icon: Settings, group: "system" });
   menuItems.push({ label: "HƯỚNG DẪN", title: "Hướng dẫn sử dụng", icon: BookOpen, group: "system" });
@@ -51,7 +83,7 @@ export default function Sidebar({ activeTab, setActiveTab, mobileOpen, onMobileC
         </button>
       </div>
       <nav className={`flex-1 select-none space-y-5 overflow-y-auto ${isCollapsed ? "px-2 py-4" : "px-3 py-4"}`}>
-        {groups.map((group) => { const items = menuItems.filter((item) => item.group === group); if (!items.length) return null; return <div key={group} className="space-y-1">{!isCollapsed && <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{groupTitles[group]}</p>}{items.map((item) => { const active = activeTab === item.label || (item.label === "BÁN HÀNG" && activeTab === "BÁN LẺ"); return <button key={item.label} type="button" onClick={() => { if (item.locked) return; setActiveTab(item.label); onMobileClose(); }} aria-disabled={item.locked} title={isCollapsed ? item.title : undefined} className={`group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all ${item.locked ? "cursor-not-allowed text-slate-300 opacity-60" : active ? "bg-gradient-to-r from-[#edf3ff] to-[#f5f0ff] font-bold text-[#27346d] ring-1 ring-inset ring-[#dfe3ff]" : "text-slate-600 hover:bg-slate-50 hover:text-sky-700"}`}><span className="flex h-5 w-5 shrink-0 items-center justify-center"><SidebarIcon name={item.label} /></span>{!isCollapsed && <span className="ml-3 truncate">{item.title}</span>}{item.locked && !isCollapsed && <span className="ml-auto text-[10px]">🔒</span>}</button>; })}</div>; })}
+        {groups.map((group) => { const items = menuItems.filter((item) => item.group === group); if (!items.length) return null; return <div key={group} className="space-y-1">{!isCollapsed && <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{groupTitles[group]}</p>}{items.map((item) => { const active = activeTab === item.label || (item.label === "BÁN HÀNG" && activeTab === "BÁN LẺ"); return <button key={item.label} type="button" onClick={() => { if (item.locked) return; if (item.label === "BÁN HÀNG") { window.history.pushState(null, "", isPosOperator ? "/pos" : "/ban-le"); window.dispatchEvent(new PopStateEvent("popstate")); } else { setActiveTab(item.label); } onMobileClose(); }} aria-disabled={item.locked} title={isCollapsed ? item.title : undefined} className={`group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all ${item.locked ? "cursor-not-allowed text-slate-300 opacity-60" : active ? "bg-gradient-to-r from-[#edf3ff] to-[#f5f0ff] font-bold text-[#27346d] ring-1 ring-inset ring-[#dfe3ff]" : "text-slate-600 hover:bg-slate-50 hover:text-sky-700"}`}><span className="flex h-5 w-5 shrink-0 items-center justify-center"><SidebarIcon name={item.label} /></span>{!isCollapsed && <span className="ml-3 truncate">{item.title}</span>}{item.locked && !isCollapsed && <LockKeyhole aria-hidden="true" className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />}</button>; })}</div>; })}
       </nav>
       <div className={`border-t border-slate-100 ${isCollapsed ? "px-2 py-3" : "px-3 py-3"}`}>
         <button type="button" onClick={() => setIsCollapsed((current) => !current)} className="mx-auto flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm" title={isCollapsed ? "Mở rộng" : "Thu gọn"}>{isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}</button>

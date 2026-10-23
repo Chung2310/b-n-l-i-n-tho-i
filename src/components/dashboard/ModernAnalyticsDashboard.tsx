@@ -2,11 +2,7 @@ import { revenueComparisonRange } from "./revenueComparison";
 import { useBranchOptional } from "../../context/BranchContext";
 import React, { useState, useEffect } from "react";
 import {
-  BarChart3,
-  ShoppingCart,
   Boxes,
-  Users,
-  CreditCard,
   ChevronRight,
   AlertTriangle,
   FileClock,
@@ -23,6 +19,7 @@ import { inventoryReceivingService } from "../../services/inventoryReceivingServ
 import { BestSellingProductsCard } from "./BestSellingProductsCard";
 import { getEnthusiasticGreeting } from "./energyGreeting";
 import { DashboardDatePicker } from "./DashboardDatePicker";
+import { MonthlyRevenueIcon, StockIcon, TodaySalesIcon, WorkforceIcon, YesterdaySalesIcon } from "./DashboardKpiIcons";
 
 /** Parse chuỗi tiền tệ (vd: "17.000.000 đ", "0 đ") thành số nguyên */
 export function parseVnCurrency(str?: string | number): number {
@@ -377,8 +374,8 @@ export function ModernAnalyticsDashboard({
           className="relative rounded-2xl border border-slate-200/80 bg-white p-3 lg:p-3.5 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center gap-3"
           style={{ animation: "kpiCardEntrance 0.45s cubic-bezier(0.16, 1, 0.3, 1) 40ms both" }}
         >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-            <BarChart3 className="h-5 w-5" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#edf3ff] to-[#f5f0ff]">
+            <TodaySalesIcon className="h-6 w-6" />
           </div>
           <div className="min-w-0 flex-1">
             {/* KPI / Số / Content trước */}
@@ -449,8 +446,8 @@ export function ModernAnalyticsDashboard({
           className="rounded-2xl border border-slate-200/80 bg-white p-3 lg:p-3.5 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center gap-3"
           style={{ animation: "kpiCardEntrance 0.45s cubic-bezier(0.16, 1, 0.3, 1) 90ms both" }}
         >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-            <ShoppingCart className="h-5 w-5" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#edf3ff] to-[#f5f0ff]">
+            <YesterdaySalesIcon className="h-6 w-6" />
           </div>
           <div className="min-w-0">
             {/* KPI / Số / Content trước */}
@@ -470,8 +467,8 @@ export function ModernAnalyticsDashboard({
           className="rounded-2xl border border-slate-200/80 bg-white p-3 lg:p-3.5 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center gap-3"
           style={{ animation: "kpiCardEntrance 0.45s cubic-bezier(0.16, 1, 0.3, 1) 140ms both" }}
         >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600">
-            <Boxes className="h-5 w-5" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#edf3ff] to-[#f5f0ff]">
+            <StockIcon className="h-6 w-6" />
           </div>
           <div className="min-w-0">
             {/* KPI / Số / Content trước */}
@@ -491,8 +488,8 @@ export function ModernAnalyticsDashboard({
           className="rounded-2xl border border-slate-200/80 bg-white p-3 lg:p-3.5 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center gap-3"
           style={{ animation: "kpiCardEntrance 0.45s cubic-bezier(0.16, 1, 0.3, 1) 190ms both" }}
         >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
-            <Users className="h-5 w-5" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#edf3ff] to-[#f5f0ff]">
+            <WorkforceIcon className="h-6 w-6" />
           </div>
           <div className="min-w-0">
             {/* KPI / Số / Content trước */}
@@ -512,8 +509,8 @@ export function ModernAnalyticsDashboard({
           className="relative rounded-2xl border border-slate-200/80 bg-white p-3 lg:p-3.5 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center gap-3"
           style={{ animation: "kpiCardEntrance 0.45s cubic-bezier(0.16, 1, 0.3, 1) 240ms both" }}
         >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-500">
-            <CreditCard className="h-5 w-5" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#edf3ff] to-[#f5f0ff]">
+            <MonthlyRevenueIcon className="h-6 w-6" />
           </div>
           <div className="min-w-0 flex-1">
             {/* KPI / Số / Content trước */}

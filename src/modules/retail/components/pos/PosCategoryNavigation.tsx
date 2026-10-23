@@ -53,7 +53,7 @@ export function PosCategoryDrilldown({
             }}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer select-none shrink-0 ${
               selectedL2 === "all"
-                ? "bg-cyan-600 text-white shadow-xs font-bold"
+                ? "bg-gradient-to-r from-[#0866f5] to-[#7138f5] text-white shadow-xs font-bold"
                 : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
             }`}
           >
@@ -89,7 +89,7 @@ export function PosCategoryDrilldown({
               }}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer select-none shrink-0 ${
                 selectedL2 === item.name
-                  ? "bg-cyan-600 text-white shadow-xs font-bold"
+                  ? "bg-gradient-to-r from-[#0866f5] to-[#7138f5] text-white shadow-xs font-bold"
                   : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
               }`}
             >
@@ -114,7 +114,7 @@ export function PosCategoryDrilldown({
             onClick={() => setSelectedL3("all")}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer select-none shrink-0 ${
               selectedL3 === "all"
-                ? "bg-cyan-600 text-white shadow-xs font-bold"
+                ? "bg-gradient-to-r from-[#0866f5] to-[#7138f5] text-white shadow-xs font-bold"
                 : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
             }`}
           >
@@ -129,7 +129,7 @@ export function PosCategoryDrilldown({
               onClick={() => setSelectedL3(item.name)}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer select-none shrink-0 ${
                 selectedL3 === item.name
-                  ? "bg-cyan-600 text-white shadow-xs font-bold"
+                  ? "bg-gradient-to-r from-[#0866f5] to-[#7138f5] text-white shadow-xs font-bold"
                   : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
               }`}
             >
@@ -149,7 +149,7 @@ export function PosCategoryDrilldown({
               setSelectedL2("all");
               setSelectedL3("all");
             }}
-            className={`hover:text-cyan-700 transition cursor-pointer ${
+            className={`hover:text-[#0758d5] transition cursor-pointer ${
               selectedL1 === "all" ? "font-bold text-slate-800" : "hover:underline"
             }`}
           >
@@ -165,7 +165,7 @@ export function PosCategoryDrilldown({
                   setSelectedL2("all");
                   setSelectedL3("all");
                 }}
-                className={`hover:text-cyan-700 transition cursor-pointer ${
+                className={`hover:text-[#0758d5] transition cursor-pointer ${
                   selectedL2 === "all" ? "font-bold text-slate-800" : "hover:underline"
                 }`}
               >
@@ -180,7 +180,7 @@ export function PosCategoryDrilldown({
               <button
                 type="button"
                 onClick={() => setSelectedL3("all")}
-                className={`hover:text-cyan-700 transition cursor-pointer ${
+                className={`hover:text-[#0758d5] transition cursor-pointer ${
                   selectedL3 === "all" ? "font-bold text-slate-800" : "hover:underline"
                 }`}
               >
@@ -217,7 +217,7 @@ export function PosBottomTabs({
   tabs,
 }: PosBottomTabsProps) {
   return (
-    <footer className="shrink-0 border-t border-slate-200 bg-white px-3 sm:px-4 py-2 shadow-xs">
+    <footer className="shrink-0 border-t border-[#dce9ff] bg-white px-3 sm:px-4 py-2 shadow-xs">
       <div
         role="tablist"
         aria-label="Danh mục mức 1"
@@ -242,7 +242,7 @@ export function PosBottomTabs({
               }}
               className={`flex-1 min-w-[90px] flex flex-col items-center justify-center gap-1 py-1.5 px-2 rounded-xl transition cursor-pointer select-none border text-center ${
                 active
-                  ? "bg-cyan-600 text-white border-cyan-600 shadow-xs shadow-cyan-600/20 font-bold"
+                  ? "bg-gradient-to-r from-[#0866f5] to-[#7138f5] text-white border-[#0866f5] shadow-xs shadow-[#0866f5]/20 font-bold"
                   : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
               }`}
             >

@@ -19,8 +19,8 @@ const markup = content
   .replaceAll("{{termsUrl}}", escapeAttribute(TERMS_OF_SERVICE_PATH))
   .replaceAll("{{deletionUrl}}", escapeAttribute(USER_DATA_DELETION_PATH));
 const meta = {
-  title: "iGEN Retail — Nền tảng Quản trị Bán lẻ & Doanh nghiệp Toàn diện",
-  description: "iGEN Retail kết nối hành trình bán hàng, quản lý kho, chăm sóc khách hàng và vận hành doanh nghiệp toàn diện dành cho các chuỗi bán lẻ và dịch vụ.",
+  title: "AnhKhoa Mobile — Nền tảng Quản trị Bán lẻ & Doanh nghiệp Toàn diện",
+  description: "AnhKhoa Mobile kết nối hành trình bán hàng, quản lý kho, chăm sóc khách hàng và vận hành doanh nghiệp toàn diện dành cho các chuỗi bán lẻ và dịch vụ.",
   keywords: "igen, cửa hàng điện thoại, bán hàng điện thoại, chăm sóc khách hàng, bảo hành",
   path: "/",
 };

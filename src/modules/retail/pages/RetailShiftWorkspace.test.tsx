@@ -14,9 +14,12 @@ vi.mock("../../../services/socketService", () => ({
     onStatusChange: vi.fn(() => vi.fn()),
   },
 }));
+vi.mock("../../../services/authService", () => ({
+  authService: { getUsersByCompany: vi.fn().mockResolvedValue([]) },
+}));
 vi.mock("../api/retailShifts.api", () => ({
   retailShiftsApi: {
-    current: vi.fn(), list: vi.fn(), detail: vi.fn(), open: vi.fn(), close: vi.fn(), reconcile: vi.fn(),
+    current: vi.fn(), cashiers: vi.fn(), list: vi.fn(), detail: vi.fn(), open: vi.fn(), close: vi.fn(), reconcile: vi.fn(),
   },
 }));
 
@@ -29,6 +32,7 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(retailShiftsApi.current).mockResolvedValue(null);
+  vi.mocked(retailShiftsApi.cashiers).mockResolvedValue([]);
   vi.mocked(retailShiftsApi.list).mockResolvedValue({ items: [shift], total: 1, page: 1, limit: 20 });
   vi.mocked(retailShiftsApi.detail).mockResolvedValue({
     shift,
@@ -46,11 +50,11 @@ describe("RetailShiftWorkspace session details", () => {
   it("opens an employee session detail from the history list", async () => {
     render(<RetailShiftWorkspace />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Xem chi tiết" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Chi tiết" }));
 
-    expect(await screen.findByRole("dialog", { name: "Chi tiết phiên POS-B1-1" })).toBeTruthy();
+    expect(await screen.findByRole("dialog", { name: "Lan" })).toBeTruthy();
     expect(screen.getByText("Áo thun")).toBeTruthy();
     expect(screen.getAllByText("Chuyển khoản").length).toBeGreaterThan(0);
-    expect(retailShiftsApi.detail).toHaveBeenCalledWith({ companyCode: "ACME", branchId: "B1" }, "shift-1");
+    expect(retailShiftsApi.detail).toHaveBeenCalledWith({ companyCode: "ACME", branchId: "B1" }, "shift-1", { page: 1, afterSalesPage: 1 });
   });
 });

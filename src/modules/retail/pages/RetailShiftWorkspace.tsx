@@ -149,8 +149,8 @@ export default function RetailShiftWorkspace() {
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-cyan-50 text-cyan-700"><ClipboardList className="h-5 w-5" /></span>
       <div><h1 className="text-xl font-bold text-slate-900">Phiên POS</h1><p className="mt-1 text-sm text-slate-500">Quản lý phiên bán hàng của nhân viên.</p></div>
     </header>
-    <form onSubmit={(event) => void open(event)} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-4 py-4 sm:px-5">
+    <form onSubmit={(event) => void open(event)} className="relative z-10 overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="rounded-t-2xl border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-4 py-4 sm:px-5">
         <div className="flex items-center gap-3">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-cyan-50 text-cyan-700"><Wallet className="h-4 w-4" /></span>
           <div><h2 className="font-bold text-slate-900">Mở phiên cho nhân viên</h2><p className="mt-0.5 text-xs text-slate-500">Chọn nhân viên và nhập tiền nhận đầu ca.</p></div>

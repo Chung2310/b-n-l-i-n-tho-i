@@ -20,8 +20,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body: payload.body || "",
-      icon: "/brand-icon.png",
-      badge: "/brand-icon.png",
+      icon: "/logo-rutgon.png",
+      badge: "/logo-rutgon.png",
       tag: payload.tag || "igen-erp",
       data: { url: payload.url || "/tro-chuyen" },
     })

@@ -191,7 +191,7 @@ function AppContent() {
   if (loading) {
     return (
       <>
-        <SEOHead meta={{ ...AUTH_SEO, title: "Đang tải hệ thống iGEN Retail", path: "/khoi-tao-he-thong" }} />
+        <SEOHead meta={{ ...AUTH_SEO, title: "Đang tải hệ thống AnhKhoa Mobile", path: "/khoi-tao-he-thong" }} />
         <div className="relative flex h-screen w-screen flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-[#f6f8fd] via-[#eef2f7] to-[#e3ecf5] text-center font-sans">
           <div className="pointer-events-none absolute left-[-10%] top-[-10%] h-[600px] w-[600px] rounded-full bg-blue-400/5 blur-[120px]" />
           <div className="pointer-events-none absolute bottom-[-10%] right-[-10%] h-[600px] w-[600px] rounded-full bg-indigo-400/5 blur-[120px]" />
@@ -222,11 +222,11 @@ function AppContent() {
     const canAccessPos = isPosOnly || userProfile.role === "admin" || userProfile.role === "superadmin" || Boolean(userProfile.permissions?.some((permission) => ["*", "pos:manage", "retail:manage"].includes(permission)));
     return canAccessPos ? (
       <>
-        <SEOHead meta={getSeoForTab("BÁN HÀNG")} />
+        <SEOHead meta={{ ...getSeoForTab("BÁN HÀNG"), path: "/pos" }} />
         <Suspense fallback={<AuthLoader />}><RetailPosEntry /></Suspense>
       </>
     ) : (
-      <main className="flex min-h-dvh items-center justify-center bg-slate-950 p-6 text-center font-semibold text-white">Tài khoản chưa được cấp quyền sử dụng quầy POS.</main>
+      <main className="flex min-h-dvh items-center justify-center bg-slate-50 p-6 text-center font-semibold text-slate-700">Tài khoản chưa được cấp quyền sử dụng quầy POS.</main>
     );
   }
 

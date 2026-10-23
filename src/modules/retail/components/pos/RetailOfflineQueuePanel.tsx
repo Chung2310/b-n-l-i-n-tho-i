@@ -46,13 +46,13 @@ export default function RetailOfflineQueuePanel({
                 <button
                   aria-label={`Thử lại ${item.id}`}
                   onClick={() => onRetry(item.id)}
-                  className="font-semibold text-cyan-700"
+                  className="font-semibold text-[#0758d5]"
                 >
                   Thử lại
                 </button>
               )}
               {item.status !== "synced" && item.status !== "revoked" && <>
-                {onReconcile && <button aria-label={`Đối chiếu ${item.id}`} onClick={() => onReconcile(item.id)} className="font-semibold text-cyan-700">Đối chiếu</button>}
+                {onReconcile && <button aria-label={`Đối chiếu ${item.id}`} onClick={() => onReconcile(item.id)} className="font-semibold text-[#0758d5]">Đối chiếu</button>}
                 {onRevoke && <button aria-label={`Thu hồi ${item.id}`} onClick={() => onRevoke(item.id)} className="text-red-700">Thu hồi yêu cầu</button>}
               </>}
               {item.status === "synced" && <button

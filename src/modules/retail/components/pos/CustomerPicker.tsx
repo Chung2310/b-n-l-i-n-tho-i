@@ -56,9 +56,9 @@ export default function CustomerPicker({
   }, [query, scope.companyCode, value?._id]);
 
   if (value) return (
-    <div className={`flex items-center justify-between gap-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 px-3.5 py-2.5 text-slate-800 shadow-2xs transition hover:border-cyan-300 ${className}`}>
+    <div className={`flex items-center justify-between gap-2.5 rounded-xl border border-[#c2d7ff] bg-[#edf3ff]/70 px-3.5 py-2.5 text-slate-800 shadow-2xs transition hover:border-[#9ec1ff] ${className}`}>
       <div className="flex items-center gap-2 min-w-0">
-        <User className="h-4 w-4 text-cyan-600 shrink-0" />
+        <User className="h-4 w-4 text-[#0866f5] shrink-0" />
         <span className="font-bold text-sm text-slate-800 truncate">{value.name}</span>
         {value.tier && (
           <span className="rounded-full bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 text-[10px] font-bold shrink-0">
@@ -96,9 +96,9 @@ export default function CustomerPicker({
           aria-label="Tìm khách hàng"
           title="Tìm khách thành viên để tích điểm"
           onClick={() => setIsOpen(true)}
-          className="flex items-center gap-2 w-full rounded-xl border border-dashed border-slate-300 hover:border-cyan-500 bg-white hover:bg-slate-50 px-3.5 py-2.5 text-xs text-slate-500 hover:text-cyan-700 transition cursor-pointer shadow-2xs"
+          className="flex items-center gap-2 w-full rounded-xl border border-dashed border-slate-300 hover:border-[#0866f5] bg-white hover:bg-slate-50 px-3.5 py-2.5 text-xs text-slate-500 hover:text-[#0758d5] transition cursor-pointer shadow-2xs"
         >
-          <Search className="h-4 w-4 text-cyan-600 shrink-0" />
+          <Search className="h-4 w-4 text-[#0866f5] shrink-0" />
           <span className="truncate">Tìm khách thành viên để tích điểm (không bắt buộc)...</span>
         </button>
       </div>
@@ -111,7 +111,7 @@ export default function CustomerPicker({
       role="combobox"
       aria-label="Tìm khách hàng"
       aria-expanded={items.length > 0}
-      className={`w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 ${collapsible || onClose ? "pr-8" : "pr-3"} text-xs sm:text-sm font-medium text-slate-800 placeholder-slate-400 hover:border-slate-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition shadow-2xs`}
+      className={`w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 ${collapsible || onClose ? "pr-8" : "pr-3"} text-xs sm:text-sm font-medium text-slate-800 placeholder-slate-400 hover:border-slate-300 focus:border-[#0866f5] focus:outline-none focus:ring-2 focus:ring-[#0866f5]/20 transition shadow-2xs`}
       placeholder="Tìm khách thành viên để tích điểm (không bắt buộc)..."
       value={query}
       onChange={(event) => { setQuery(event.target.value); setSearchCompleted(false); }}
@@ -135,12 +135,12 @@ export default function CustomerPicker({
     {loading && <p className="mt-1 text-xs text-slate-500">Đang tìm khách hàng...</p>}
     {error && <p className="mt-1 text-xs text-rose-600">{error}</p>}
     {!loading && query.trim() && !error && searchCompleted && items.length === 0 && (
-      <div className="mt-2 rounded-xl border border-dashed border-cyan-300 bg-cyan-50/60 p-3 shadow-2xs">
+      <div className="mt-2 rounded-xl border border-dashed border-[#9ec1ff] bg-[#edf3ff]/60 p-3 shadow-2xs">
         <p className="text-xs text-slate-600">Không tìm thấy khách hàng thành viên.</p>
         <button
           type="button"
           aria-label="Tạo khách hàng mới"
-          className="mt-2 flex items-center gap-2 text-xs font-bold text-cyan-700 hover:text-cyan-800 cursor-pointer"
+          className="mt-2 flex items-center gap-2 text-xs font-bold text-[#0758d5] hover:text-[#0844a8] cursor-pointer"
           onClick={() => setCreating(true)}
         >
           <UserPlus className="h-4 w-4" />
@@ -157,7 +157,7 @@ export default function CustomerPicker({
             aria-selected="false"
             aria-label={`${customer.name} ${customer.customerCode} ${customer.phone || ""}`}
             key={customer._id}
-            className="flex items-center justify-between w-full rounded-lg px-3 py-2 text-left hover:bg-cyan-50 transition text-slate-800 cursor-pointer"
+            className="flex items-center justify-between w-full rounded-lg px-3 py-2 text-left hover:bg-[#edf3ff] transition text-slate-800 cursor-pointer"
             onClick={() => { onChange(customer); setItems([]); setQuery(""); }}
           >
             <div className="flex items-center gap-2 min-w-0">

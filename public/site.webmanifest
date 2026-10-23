@@ -1,15 +1,15 @@
 {
-  "name": "Igen Retail ERP",
-  "short_name": "Igen Retail ERP",
+  "name": "AnhKhoa Mobile",
+  "short_name": "AnhKhoa Mobile",
   "description": "Nền tảng Quản trị Bán lẻ & Bảo hành Điện thoại tích hợp AI.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f6f8fd",
-  "theme_color": "#00aeca",
+  "background_color": "#f8fbff",
+  "theme_color": "#0866f5",
   "lang": "vi",
   "icons": [
     {
-      "src": "/brand-icon.png",
+      "src": "/logo-rutgon.png",
       "sizes": "1024x1024",
       "type": "image/png"
     }

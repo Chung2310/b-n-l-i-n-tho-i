@@ -30,7 +30,7 @@ export default function CurrencyInput({ label, description, value, onChange, rea
           readOnly={readOnly}
           type="text"
           inputMode="numeric"
-          className="w-full h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 pr-8 font-mono text-sm font-bold text-slate-900 shadow-2xs hover:border-slate-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition"
+          className="w-full h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 pr-8 font-mono text-sm font-bold text-slate-900 shadow-2xs hover:border-slate-300 focus:border-[#0866f5] focus:outline-none focus:ring-2 focus:ring-[#0866f5]/20 transition"
           value={value ? formatter.format(value) : ""}
           onChange={(event) => {
             const digits = event.target.value.replace(/\D/g, "");
