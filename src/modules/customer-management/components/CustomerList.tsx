@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Search,
   Users,
@@ -10,6 +10,7 @@ import {
   Mail,
   Copy,
   Check,
+  ChevronLeft,
   ChevronRight,
   Filter,
   X,
@@ -124,6 +125,45 @@ const renderTierBadge = (tier?: { name: string; code: string }) => {
 };
 
 export default function CustomerList(props: Props) {
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const [scrollControls, setScrollControls] = useState({ visible: false, canScrollLeft: false, canScrollRight: false });
+
+  const updateScrollControls = useCallback(() => {
+    const container = tableScrollRef.current;
+    if (!container) return;
+
+    const visible = container.scrollWidth > container.clientWidth + 1;
+    const canScrollLeft = visible && container.scrollLeft > 1;
+    const canScrollRight = visible && container.scrollLeft + container.clientWidth < container.scrollWidth - 1;
+    setScrollControls((current) =>
+      current.visible === visible && current.canScrollLeft === canScrollLeft && current.canScrollRight === canScrollRight
+        ? current
+        : { visible, canScrollLeft, canScrollRight },
+    );
+  }, []);
+
+  useEffect(() => {
+    const container = tableScrollRef.current;
+    if (!container) return;
+
+    updateScrollControls();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateScrollControls) : null;
+    observer?.observe(container);
+    if (container.firstElementChild) observer?.observe(container.firstElementChild);
+    window.addEventListener("resize", updateScrollControls);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateScrollControls);
+    };
+  }, [props.items, updateScrollControls]);
+
+  const scrollTable = (direction: -1 | 1) => {
+    const container = tableScrollRef.current;
+    if (!container) return;
+    container.scrollBy({ left: direction * Math.max(240, container.clientWidth * 0.75), behavior: "smooth" });
+  };
+
   const hasFilter = Boolean(props.query || props.status !== "active" || props.type);
 
   const resetFilters = () => {
@@ -210,7 +250,31 @@ export default function CustomerList(props: Props) {
 
       {/* Customer Data Table Container */}
       <div className="customer-table-card overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs">
-        <div className="overflow-x-auto">
+        {scrollControls.visible && (
+          <div className="flex justify-end gap-1 border-b border-slate-200/80 bg-white px-3 py-1.5">
+            <button
+              type="button"
+              aria-label="Xem phía bên trái danh sách khách hàng"
+              title="Xem phía bên trái"
+              disabled={!scrollControls.canScrollLeft}
+              onClick={() => scrollTable(-1)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-blue-600 transition hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:border-slate-200 disabled:hover:bg-white"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Xem phía bên phải danh sách khách hàng"
+              title="Xem phía bên phải"
+              disabled={!scrollControls.canScrollRight}
+              onClick={() => scrollTable(1)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-blue-600 transition hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:border-slate-200 disabled:hover:bg-white"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+        <div ref={tableScrollRef} onScroll={updateScrollControls} className="overflow-x-auto">
           <table className="w-full min-w-[850px] text-left text-xs sm:text-sm border-collapse">
             <thead>
               <tr className="border-b border-slate-200/80 bg-slate-50/70 text-slate-500 font-bold text-[11px] uppercase tracking-wider select-none">
