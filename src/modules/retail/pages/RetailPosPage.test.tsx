@@ -22,7 +22,7 @@ vi.mock("../../../pages/Toast", () => ({
   }
 }));
 
-vi.mock("../api/retailCoupons.api", () => ({ retailCouponsApi: { available: vi.fn().mockResolvedValue([]), list: vi.fn() } }));
+vi.mock("../api/retailCoupons.api", () => ({ retailCouponsApi: { available: vi.fn().mockResolvedValue([]), selectable: vi.fn() } }));
 vi.mock("../../../services/inventorySerialService", () => ({ inventorySerialService: { list: vi.fn() } }));
 vi.mock("../hooks/useRetailScope", () => ({ useRetailScope: () => ({ scope: { companyCode: "ACME", branchId: "B1" }, userProfile: { uid: "u1", permissions: ["retail:manage"] } }) }));
 vi.mock("../../customer-management/customerApi", () => ({ customerApi: { billingProfiles: vi.fn() } }));
@@ -53,7 +53,7 @@ beforeEach(() => {
   localStorage.clear(); sessionStorage.clear();
   Object.defineProperty(navigator, "locks", { configurable: true, value: { request: vi.fn(async (_key, _options, work) => work({})) } });
   vi.clearAllMocks();
-  vi.mocked(retailCouponsApi.list).mockResolvedValue({ items: [], total: 0 });
+  vi.mocked(retailCouponsApi.selectable).mockResolvedValue([]);
   vi.mocked(customerApi.billingProfiles).mockResolvedValue([{ _id: "bp1", customerId: "c1", legalName: "Cong ty A", taxId: "0312345678", address: "1 Nguyen Hue", invoiceEmail: "a@example.com", isDefault: true, status: "active", version: 1 }] as any);
   vi.mocked(retailProductsApi.list).mockResolvedValue({ items: [product], total: 1, page: 1, limit: 500 });
   vi.mocked(retailOrdersApi.list).mockResolvedValue({ items: [], total: 0, page: 1, limit: 5 });
@@ -119,7 +119,7 @@ describe("RetailPosPage", () => {
     expect((screen.getByLabelText("Số lượng Áo") as HTMLInputElement).value).toBe("1");
   });
   it("uses either a created coupon or a manually typed code in the cart quote", async () => {
-    vi.mocked(retailCouponsApi.list).mockResolvedValue({ items: [{ _id: "coupon-1", code: "SALE10", name: "Giảm 10%", discountType: "percent", value: 10, active: true, startsAt: "2020-01-01", endsAt: "2099-01-01", usageLimit: null, usedCount: 0, minSubtotal: 0, maxDiscount: null, version: 0 }], total: 1 });
+    vi.mocked(retailCouponsApi.selectable).mockResolvedValue([{ _id: "coupon-1", code: "SALE10", name: "Giảm 10%", discountType: "percent", value: 10, minSubtotal: 0, maxDiscount: null }]);
     render(<RetailPosPage posSessionId="s1" />);
     await userEvent.click(await screen.findByRole("button", { name: "A" }));
     await userEvent.click(await screen.findByRole("button", { name: /SKU-1/ }));

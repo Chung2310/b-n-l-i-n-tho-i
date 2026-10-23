@@ -6,6 +6,9 @@ import { customerApi } from "../customerApi";
 import CustomerPurchaseHistoryPanel from "./CustomerPurchaseHistoryPanel";
 
 vi.mock("../customerApi", () => ({ customerApi: { purchaseHistory: vi.fn() } }));
+vi.mock("../../../context/BranchContext", () => ({
+  useBranchOptional: () => ({ branches: [{ _id: "B1", name: "Trụ sở chính" }], activeBranchId: "B1", loading: false }),
+}));
 
 const history = {
   summary: { orderCount: 2, totalPurchased: 150000, totalPaid: 120000, currentDebt: 30000, lastPurchaseAt: "2026-08-20T00:00:00.000Z" },
@@ -117,6 +120,8 @@ describe("CustomerPurchaseHistoryPanel", () => {
     expect(screen.getByText("0987654321")).toBeTruthy();
     expect(screen.getByText("Nguyen Van A")).toBeTruthy();
     expect(screen.getByText(/BANK123/)).toBeTruthy();
+    expect(screen.getByText("Chi nhánh: Trụ sở chính")).toBeTruthy();
+    expect(screen.queryByText("Chi nhánh: B1")).toBeNull();
 
     // Close modal
     const closeBtn = screen.getAllByRole("button", { name: "Đóng" })[0];

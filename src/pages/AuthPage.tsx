@@ -100,7 +100,7 @@ export default function AuthPage() {
           <div className="inline-block relative">
             <img
               src={BRAND_LOGO_PATH}
-              alt={BRAND_NAME}
+              alt="AKProAI"
               className="relative mx-auto h-20 w-48 object-contain"
             />
           </div>

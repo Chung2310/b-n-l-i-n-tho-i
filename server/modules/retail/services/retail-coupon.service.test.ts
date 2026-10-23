@@ -158,6 +158,21 @@ describe("coupon persistence and transactions", () => {
     expect(await retailCouponService.available({ ...scope, branchId: "another" }, id)).toEqual([]);
     await expect(retailCouponService.available({ ...scope, companyCode: "OTHER" }, id)).rejects.toThrow();
   });
+  it("lists usable common coupons for POS and limits private coupons to the selected customer", async () => {
+    const owner = await customer();
+    const other = await customer({ customerCode: "KH-OTHER" });
+    await retailCouponService.create(scope, { ...input, code: "PUBLIC" }, "actor");
+    await retailCouponService.create(scope, { ...input, code: "PRIVATE", customerId: String(owner._id) }, "actor");
+    await retailCouponService.create(scope, { ...input, code: "DISABLED", active: false }, "actor");
+    await retailCouponService.create(scope, { ...input, code: "EXPIRED", endsAt: "2021-01-01T00:00:00Z" }, "actor");
+    await retailCouponService.create(scope, { ...input, code: "USED" }, "actor");
+    await RetailCouponModel.updateOne({ ...scope, code: "USED" }, { $set: { usedCount: 1 } });
+
+    expect((await retailCouponService.selectable(scope)).map(row => row.code)).toEqual(["PUBLIC"]);
+    expect((await retailCouponService.selectable(scope, String(other._id))).map(row => row.code)).toEqual(["PUBLIC"]);
+    expect((await retailCouponService.selectable(scope, String(owner._id))).map(row => row.code).sort()).toEqual(["PRIVATE", "PUBLIC"]);
+    expect(await retailCouponService.selectable({ ...scope, branchId: "other" })).toEqual([]);
+  });
   const birthdayScope = { ...scope, branchId: "507f1f77bcf86cd799439011" };
   const program = { enabled: true, discountType: "percent", value: 10, minSubtotal: 0, maxDiscount: 50000, validityDays: 7, version: 0 };
   const setupBirthday = async () => {

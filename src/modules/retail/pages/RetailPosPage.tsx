@@ -959,15 +959,6 @@ export default function RetailPosPage({
               ),
             )
           }
-          allowCouponListing={
-            userProfile?.role === "admin" ||
-            userProfile?.role === "superadmin" ||
-            Boolean(
-              userProfile?.permissions?.some(
-                (permission: string) => permission === "*" || permission === "retail:manage",
-              ),
-            )
-          }
           busy={busy}
           canPay={!recoveryBlocked}
           dispatch={dispatchCartAction}

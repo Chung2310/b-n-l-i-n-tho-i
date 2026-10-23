@@ -85,6 +85,33 @@ export async function releaseCoupon(scope: RetailBranchScope, id: string, sessio
   await RetailCouponModel.updateOne({ _id: id, ...scope, customerId: null, usedCount: { $gt: 0 } }, { $inc: { usedCount: -1 } }, { session });
 }
 export const retailCouponService = {
+  async selectable(scope: RetailBranchScope, customerId?: unknown) {
+    const customer = customerId ? await getPromotionCustomer(scope.companyCode, customerId) : null;
+    if (customerId && !customer) throw new Error("Khách hàng không tồn tại hoặc đã ngừng hoạt động.");
+    const now = new Date();
+    const coupons = await RetailCouponModel.find({
+      ...scope,
+      active: true,
+      startsAt: { $lte: now },
+      endsAt: { $gt: now },
+      customerId: { $in: [null, ...(customer ? [String(customer._id)] : [])] },
+    }).sort({ endsAt: 1 }).lean();
+    const available = [];
+    for (const coupon of coupons) {
+      if (coupon.usageLimit != null && coupon.usedCount >= coupon.usageLimit) continue;
+      if (coupon.customerTierCodes?.length && (!customer?.tier?.code || !coupon.customerTierCodes.includes(customer.tier.code))) continue;
+      try {
+        await assertCouponRewardSource(scope, coupon);
+        available.push({
+          _id: coupon._id, code: coupon.code, name: coupon.name,
+          discountType: coupon.discountType, value: coupon.value,
+          minSubtotal: coupon.minSubtotal, maxDiscount: coupon.maxDiscount,
+          customerId: coupon.customerId, customerTierCodes: coupon.customerTierCodes,
+        });
+      } catch (error) { if ((error as { code?: string }).code !== "COUPON_SOURCE_INELIGIBLE") throw error; }
+    }
+    return available;
+  },
   async available(scope: RetailBranchScope, customerId: unknown) {
     const customer = await getPromotionCustomer(scope.companyCode, customerId);
     if (!customer) throw new Error("Khách hàng không tồn tại hoặc đã ngừng hoạt động.");

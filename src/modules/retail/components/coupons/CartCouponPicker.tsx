@@ -1,32 +1,23 @@
 import { useEffect, useState } from "react";
-import { retailCouponsApi, type RetailCoupon } from "../../api/retailCoupons.api";
+import { retailCouponsApi, type RetailSelectableCoupon } from "../../api/retailCoupons.api";
 import { Dropdown } from "../../../../components/common/Dropdown";
 import type { RetailScope } from "../../types";
 
-export default function CartCouponPicker({ scope, customerId, value, onChange, allowListing = true }: {
+export default function CartCouponPicker({ scope, customerId, value, onChange }: {
   scope: RetailScope;
   customerId?: string;
   value: string;
   onChange: (code: string) => void;
-  allowListing?: boolean;
 }) {
-  const [result, setResult] = useState<{ key: string; items: RetailCoupon[]; error?: string } | null>(null);
+  const [result, setResult] = useState<{ key: string; items: RetailSelectableCoupon[]; error?: string } | null>(null);
   const [revision, setRevision] = useState(0);
-  const key = `${scope.companyCode}:${scope.branchId}`;
+  const key = `${scope.companyCode}:${scope.branchId}:${customerId || ""}`;
   useEffect(() => {
     let current = true;
     setResult(null);
-    if (!allowListing) return () => { current = false; };
     const load = async () => {
       try {
-        const items: RetailCoupon[] = [];
-        let page = 1;
-        while (current) {
-          const data = await retailCouponsApi.list(scope, page++);
-          if (!current) return;
-          items.push(...data.items);
-          if (!data.items.length || items.length >= data.total) break;
-        }
+        const items = await retailCouponsApi.selectable(scope, customerId);
         if (current) setResult({ key, items });
       } catch {
         if (current) setResult({ key, items: [], error: "Không tải được danh sách mã. Bạn vẫn có thể nhập mã bên dưới." });
@@ -34,14 +25,9 @@ export default function CartCouponPicker({ scope, customerId, value, onChange, a
     };
     void load();
     return () => { current = false; };
-  }, [key, revision, allowListing]);
-  if (!allowListing) return null;
+  }, [key, revision]);
   const loading = result?.key !== key;
-  const now = Date.now();
-  const coupons = loading ? [] : result.items.filter(item => item.active
-    && new Date(item.startsAt).getTime() <= now && new Date(item.endsAt).getTime() > now
-    && (item.usageLimit == null || item.usedCount < item.usageLimit)
-    && (!item.customerId || item.customerId === customerId));
+  const coupons = loading ? [] : result.items;
   const selected = coupons.some(item => item.code === value) ? value : "";
 
   const options = [
