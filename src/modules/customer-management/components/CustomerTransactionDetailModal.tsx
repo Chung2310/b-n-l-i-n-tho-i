@@ -23,6 +23,7 @@ import type { CustomerPurchaseHistoryItem } from "../types";
 import { retailOrdersApi } from "../../retail/api/retailOrders.api";
 import { retailAfterSalesApi } from "../../retail/api/retailAfterSales.api";
 import { repairService } from "../../../services/repairService";
+import { useBranchOptional } from "../../../context/BranchContext";
 
 interface Props {
   transaction: CustomerPurchaseHistoryItem;
@@ -159,6 +160,7 @@ export default function CustomerTransactionDetailModal({
   branchId,
   onClose,
 }: Props) {
+  const branchContext = useBranchOptional();
   const recordType = transaction.recordType || "purchase";
   const typeMeta = TYPE_CONFIG[recordType] || TYPE_CONFIG.purchase;
   const TypeIcon = typeMeta.icon;
@@ -225,6 +227,10 @@ export default function CustomerTransactionDetailModal({
     liveData?.createdByName ||
     transaction.salespersonName ||
     "—";
+  const branchName =
+    branchContext?.branches.find((branch) => branch._id === branchId)?.name?.trim() ||
+    (branchContext?.activeBranchId === branchId ? branchContext.activeBranch?.name?.trim() : "") ||
+    (branchContext?.loading ? "Đang tải..." : "Không xác định");
 
   // Items
   const items = liveData?.items || transaction.items || [];
@@ -314,7 +320,7 @@ export default function CustomerTransactionDetailModal({
                   {recordType === "repair" ? "Kỹ thuật viên" : "Nhân viên phụ trách"}
                 </span>
                 <p className="mt-1 font-bold text-sm text-slate-900 truncate">{staffName}</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Chi nhánh: {branchId}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Chi nhánh: {branchName}</p>
               </div>
             </div>
 

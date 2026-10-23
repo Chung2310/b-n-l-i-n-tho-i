@@ -3,8 +3,6 @@ import { createPortal } from "react-dom";
 import "./partners.css";
 import {
   Users,
-  UserRoundPlus,
-  Building2,
   Plus,
   Search,
   SlidersHorizontal,
@@ -43,6 +41,7 @@ import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { partnerRequest, type Partner } from "./partnerApi";
 import { ProductCommissions } from "./ProductCommissions";
 import { toast } from "../../pages/Toast";
+import PartnerMetricIcon from "./PartnerMetricIcon";
 
 const money = (n: number) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(n || 0);
@@ -1338,7 +1337,7 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
           <div className="partners-metric-card rounded-2xl border border-gray-300 bg-white p-4 shadow-xs">
             <div className="flex items-center gap-3">
               <div className="partners-metric-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
-                <Users className="h-5 w-5" />
+                <PartnerMetricIcon kind="partners" />
               </div>
               <p className="partners-metric-value min-w-0 break-words text-2xl font-extrabold text-slate-900">{partners.length}</p>
             </div>
@@ -1348,7 +1347,7 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
           <div className="partners-metric-card rounded-2xl border border-gray-300 bg-white p-4 shadow-xs">
             <div className="flex items-center gap-3">
               <div className="partners-metric-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-600 text-white">
-                <UserRoundPlus className="h-5 w-5" />
+                <PartnerMetricIcon kind="collaborators" />
               </div>
               <p className="partners-metric-value min-w-0 break-words text-2xl font-extrabold text-slate-900">{totalCollaborators}</p>
             </div>
@@ -1358,7 +1357,7 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
           <div className="partners-metric-card rounded-2xl border border-gray-300 bg-white p-4 shadow-xs">
             <div className="flex items-center gap-3">
               <div className="partners-metric-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white">
-                <Building2 className="h-5 w-5" />
+                <PartnerMetricIcon kind="organizations" />
               </div>
               <p className="partners-metric-value min-w-0 break-words text-2xl font-extrabold text-slate-900">{totalDealers + totalSuppliers}</p>
             </div>
@@ -1368,7 +1367,7 @@ export default function PartnersPage({ portalOnly = false }: { portalOnly?: bool
           <div className="partners-metric-card rounded-2xl border border-gray-300 bg-white p-4 shadow-xs">
             <div className="flex items-center gap-3">
               <div className="partners-metric-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white">
-                <Coins className="h-5 w-5" />
+                <PartnerMetricIcon kind="balance" />
               </div>
               <p className="partners-metric-value min-w-0 break-words text-2xl font-extrabold text-slate-900">{money(totalBalance)}</p>
             </div>

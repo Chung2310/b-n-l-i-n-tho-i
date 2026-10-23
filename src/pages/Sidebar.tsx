@@ -78,8 +78,11 @@ export default function Sidebar({ activeTab, setActiveTab, mobileOpen, onMobileC
     <aside className={`fixed inset-y-0 left-0 z-50 flex h-dvh shrink-0 flex-col border-r border-slate-200/80 bg-white text-slate-800 shadow-sm transition-all duration-300 md:sticky md:top-0 md:z-auto md:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"} ${isCollapsed ? "md:w-20" : "md:w-64"}`}>
       <div className="relative h-20 shrink-0 overflow-hidden border-b border-slate-100">
         <button type="button" onClick={() => setActiveTab("TỔNG QUAN")} aria-label="Về tổng quan" className="relative h-full w-full focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[#0866f5]">
-          <img src="/logo-akm.png" alt="" aria-hidden="true" className={`pointer-events-none absolute left-[calc(50%-44px)] top-1/2 h-16 w-[220px] -translate-x-1/2 -translate-y-1/2 object-contain transition-opacity duration-200 ${isCollapsed ? "opacity-0" : "opacity-100"}`} />
-          <img src="/logo-rutgon.png" alt="" aria-hidden="true" className={`pointer-events-none absolute left-1/2 top-1/2 h-16 w-[60px] -translate-x-1/2 -translate-y-1/2 object-contain transition-opacity duration-200 ${isCollapsed ? "opacity-100" : "opacity-0"}`} />
+          <span aria-hidden="true" className={`pointer-events-none absolute inset-0 flex flex-col items-center justify-center transition-opacity duration-200 ${isCollapsed ? "opacity-0" : "opacity-100"}`}>
+            <img src="/logo-akproai.png" alt="" className="h-12 w-[174px] object-contain" />
+            <span className="whitespace-nowrap text-[8px] font-semibold tracking-[-0.02em] text-slate-700">SỐ HOÁ HÔM NAY – TĂNG TRƯỞNG NGÀY MAI</span>
+          </span>
+          <img src="/logo-akproai-icon.png" alt="" aria-hidden="true" className={`pointer-events-none absolute left-1/2 top-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2 object-contain transition-opacity duration-200 ${isCollapsed ? "opacity-100" : "opacity-0"}`} />
         </button>
       </div>
       <nav className={`flex-1 select-none space-y-5 overflow-y-auto ${isCollapsed ? "px-2 py-4" : "px-3 py-4"}`}>

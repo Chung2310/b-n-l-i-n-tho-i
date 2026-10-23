@@ -35,7 +35,7 @@ export function initPresentation(container, life) {
       el.innerHTML = `
         <div class="screen phone-brand-screen">
           <div class="island"></div>
-          <img class="phone-screen-logo" src="/logo-rutgon.png" alt="AnhKhoa Mobile" />
+          <img class="phone-screen-logo" src="/logo-akproai-icon.png" alt="AKProAI" />
         </div>`;
       renderIcons(el);
     }

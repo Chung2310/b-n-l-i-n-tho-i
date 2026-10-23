@@ -154,6 +154,7 @@
 .igen-landing .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
 .igen-landing .brand-text strong { font-size: 24px; font-weight: 600; color: #0f273d; letter-spacing: -0.04em; }
 .igen-landing .brand-sub { font-size: 10px; color: #0284c7; font-weight: 600; letter-spacing: 0.05em; text-transform: none; }
+.igen-landing .brand-logo { display: block; width: 180px; height: 56px; object-fit: contain; object-position: left center; }
 .igen-landing .nav-actions { display: flex; align-items: center; gap: 10px; }
 .igen-landing .btn-login {
   display: inline-flex;

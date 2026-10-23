@@ -10,6 +10,18 @@ beforeEach(() => {
 });
 
 describe("productCatalogService resource caching and invalidation", () => {
+  it("uploads catalog images to permanent storage instead of expiring pending uploads", async () => {
+    const url = "https://res.cloudinary.com/test/image/upload/product.png";
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      new Response(JSON.stringify({ status: "success", url }), { status: 200 })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await productCatalogService.uploadMedia(new File(["image"], "product.png", { type: "image/png" }))).toBe(url);
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(body.folder).toBe("igen_erp/inventory/products");
+    expect(body.sourceType).toBeUndefined();
+    expect(body.file).toMatch(/^data:image\/png;base64,/);
+  });
   it("caches listResources responses and avoids duplicate network requests", async () => {
     const fetchMock = vi.fn(async () =>
       new Response(JSON.stringify({ success: true, data: [{ _id: "b1", code: "APPLE", name: "Apple", status: "active" }] }), {

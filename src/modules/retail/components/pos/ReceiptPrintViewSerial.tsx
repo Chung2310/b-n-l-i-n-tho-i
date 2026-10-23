@@ -46,7 +46,7 @@ export default function ReceiptPrintView({
       {isReprint && <p className="mb-2 text-center text-lg font-black tracking-[0.25em] text-rose-700">In lại</p>}
       <header className="border-b border-dashed pb-3 text-center">
         <div className="mb-1 flex flex-col items-center">
-          <img src={BRAND_LOGO_PATH} alt={BRAND_NAME} className="h-[14mm] w-[38mm] object-contain object-center" />
+          <img src={BRAND_LOGO_PATH} alt="AKProAI" className="h-[14mm] w-[38mm] object-contain object-center" />
           <p className="text-base font-bold">{BRAND_NAME}</p>
         </div>
         {showBranchName && <p>{branchName}</p>}

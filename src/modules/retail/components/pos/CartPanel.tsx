@@ -31,7 +31,6 @@ export interface CartPanelProps {
   scope: RetailScope;
   cart: RetailCartState;
   billingProfiles: any[];
-  allowCouponListing: boolean;
   allowCollaboratorCreation: boolean;
   busy: boolean;
   canPay: boolean;
@@ -43,7 +42,6 @@ export function CartPanel({
   scope,
   cart,
   billingProfiles,
-  allowCouponListing,
   allowCollaboratorCreation,
   busy,
   canPay,
@@ -386,7 +384,6 @@ export function CartPanel({
                 <CartCouponPicker
                   scope={scope}
                   customerId={cart.customer?._id}
-                  allowListing={allowCouponListing}
                   value={cart.couponCode || ""}
                   onChange={(code) => dispatch({ type: "coupon", code })}
                 />
