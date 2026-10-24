@@ -115,6 +115,14 @@ function removeSuperAdminSecrets(_doc: unknown, ret: Record<string, any>) {
   return ret;
 }
 
+const EmployeeDocumentSchema = new Schema({
+  category: { type: String, enum: ["identity", "certificate", "degree", "other"], required: true },
+  fileName: { type: String, required: true },
+  fileUrl: { type: String, required: true },
+  mimeType: { type: String, required: true },
+  size: { type: Number, required: true, min: 0 },
+}, { _id: false });
+
 const UserSchema = new Schema<IUser>({
   email: { type: String, required: true, unique: true, index: true, lowercase: true },
   password: { type: String },
@@ -124,6 +132,7 @@ const UserSchema = new Schema<IUser>({
   accountType: { type: String, enum: ["internal", "partner"], index: true },
   createdAt: { type: Date, default: Date.now },
   birthDate: { type: Date },
+  hireDate: { type: Date },
   facebookIntegration: { type: FacebookIntegrationSchema, default: null },
   tiktokIntegration: { type: TikTokIntegrationSchema, default: null },
   zaloIntegration: { type: ZaloIntegrationSchema, default: null },
@@ -134,6 +143,7 @@ const UserSchema = new Schema<IUser>({
   qualification: { type: String, default: "", trim: true },
   department: { type: String },
   jobDescriptionLink: { type: String },
+  employeeDocuments: { type: [EmployeeDocumentSchema], default: [] },
   phone: { type: String },
   level: { type: Number },
   parentId: { type: String },

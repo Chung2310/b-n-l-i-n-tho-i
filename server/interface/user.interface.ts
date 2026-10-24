@@ -102,6 +102,7 @@ export interface IUser extends Document {
   accountType?: "internal" | "partner";
   createdAt: Date;
   birthDate?: Date;
+  hireDate?: Date;
   facebookIntegration?: IFacebookIntegration | null;
   tiktokIntegration?: ITikTokIntegration | null;
   zaloIntegration?: IZaloIntegration | null;
@@ -114,6 +115,13 @@ export interface IUser extends Document {
   qualification?: string;
   department?: string;
   jobDescriptionLink?: string;
+  employeeDocuments?: Array<{
+    category: "identity" | "certificate" | "degree" | "other";
+    fileName: string;
+    fileUrl: string;
+    mimeType: string;
+    size: number;
+  }>;
   phone?: string;
   level?: number;
   parentId?: string;

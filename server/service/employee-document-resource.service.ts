@@ -17,6 +17,18 @@ export function createEmployeeDocumentResourceService(finalizer: SourceFinalizer
         uploads: [{ uploadToken, sourceField: "jobDescriptionLink" }],
       });
     },
+    async finalizeDocuments(actor: ManagedUploadActor, user: any, documents: Array<{ uploadToken?: string }>) {
+      const userId = String(user._id || user.id || user.uid);
+      return finalizer.finalize(actor, {
+        entityType: "employee", entityId: userId,
+        entityLabel: user.displayName || user.email || userId,
+        sourceRecordId: userId, expectedSourceType: "hr.employee",
+        uploads: documents.map((document, index) => ({
+          uploadToken: document.uploadToken,
+          sourceField: `employeeDocuments.${index}`,
+        })),
+      });
+    },
   };
 }
 

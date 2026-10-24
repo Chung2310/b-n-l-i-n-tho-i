@@ -252,6 +252,7 @@ const registerUserSchema = {
     }).optional(),
     monthlySalary: Joi.number().min(0).optional(),
     birthDate: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional().allow("", null),
+    hireDate: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional().allow("", null),
     phone: Joi.string().pattern(vnPhoneRegex).optional().allow("").messages({
       "string.pattern.base": "Số điện thoại Việt Nam không đúng định dạng (ví dụ: 0987654321).",
     }),
@@ -418,11 +419,20 @@ const updateUserSchema = {
     }).optional(),
     monthlySalary: Joi.number().min(0).optional(),
     birthDate: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional().allow("", null),
+    hireDate: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional().allow("", null),
     phone: Joi.string().pattern(vnPhoneRegex).optional().allow("").messages({
       "string.pattern.base": "Số điện thoại Việt Nam không đúng định dạng (ví dụ: 0987654321).",
     }),
     jobDescriptionLink: Joi.string().uri().optional().allow(""),
     jobDescriptionUploadToken: Joi.string().trim().optional(),
+    employeeDocuments: Joi.array().max(100).items(Joi.object({
+      category: Joi.string().valid("identity", "certificate", "degree", "other").required(),
+      fileName: Joi.string().trim().max(300).required(),
+      fileUrl: Joi.string().uri({ scheme: ["https", "private"] }).required(),
+      mimeType: Joi.string().valid("application/pdf", "image/jpeg", "image/png", "image/webp").required(),
+      size: Joi.number().integer().min(1).max(10 * 1024 * 1024).required(),
+      uploadToken: Joi.string().guid({ version: ["uuidv4"] }).optional(),
+    })).optional(),
   }),
 };
 
@@ -440,6 +450,11 @@ authRouter.patch("/users/bulk", requireAuth as any, requirePermission("access:ma
 
 // Cập nhật chi tiết một thành viên (yêu cầu Access Token, quyền access:manage, thuộc cùng công ty và thuộc nhánh quản lý nếu là manager)
 authRouter.patch("/users/:id", requireAuth as any, requirePermission("access:manage") as any, requireCompanyAccess(UserModel, "id") as any, requireHierarchyAccess("id") as any, validateRequest(updateUserSchema), authController.updateUser as any);
+
+authRouter.get("/users/:id/documents/preview", requireAuth as any, requirePermission("access:manage") as any, requireCompanyAccess(UserModel, "id") as any, requireHierarchyAccess("id") as any, validateRequest({
+  params: Joi.object({ id: Joi.string().hex().length(24).required() }),
+  query: Joi.object({ fileUrl: Joi.string().uri({ scheme: ["https", "private"] }).required() }),
+}), authController.previewEmployeeDocument as any);
 
 // Xóa thành viên và điều chuyển cấp dưới (yêu cầu Access Token, quyền access:manage, thuộc cùng công ty và thuộc nhánh quản lý nếu là manager)
 authRouter.delete("/users/:id", requireAuth as any, requirePermission("access:manage") as any, requireCompanyAccess(UserModel, "id") as any, requireHierarchyAccess("id") as any, validateRequest(deleteUserSchema), authController.deleteUser as any);

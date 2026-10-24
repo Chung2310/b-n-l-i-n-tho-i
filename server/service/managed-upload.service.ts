@@ -79,7 +79,8 @@ export interface PendingUploadRepository {
 
 export interface ManagedUploadStorage {
   upload(file: string, folder: string): Promise<PublicMediaAsset>;
-  delete(asset: Pick<PendingUploadRecord, "storagePublicId" | "storageResourceType">): Promise<void>;
+  uploadPrivate?(buffer: Buffer, folder: string, filename: string): Promise<PublicMediaAsset>;
+  delete(asset: Pick<PendingUploadRecord, "sourceType" | "storagePublicId" | "storageResourceType">): Promise<void>;
 }
 
 interface ManagedUploadIndexer {
@@ -130,8 +131,16 @@ const mongooseRepository: PendingUploadRepository = {
 
 const cloudinaryStorage: ManagedUploadStorage = {
   upload: (file, folder) => cloudinaryService.uploadMediaAsset(file, folder),
+  async uploadPrivate(buffer, folder, filename) {
+    const asset = await cloudinaryService.uploadPrivateRaw(buffer, folder, filename);
+    return { secureUrl: `private://${asset.publicId}`, publicId: asset.publicId, resourceType: "raw", bytes: asset.bytes };
+  },
   async delete(asset) {
     if (!asset.storagePublicId) return;
+    if (asset.sourceType === "hr.employee") {
+      await cloudinaryService.deleteRawAsset(asset.storagePublicId);
+      return;
+    }
     await cloudinaryService.deletePublicMedia(asset.storagePublicId, asset.storageResourceType || "image");
   },
 };
@@ -199,10 +208,20 @@ export function createManagedUploadService(dependencies: ManagedUploadDependenci
       const sourceType = required(input.sourceType, "Nguồn upload").toLowerCase();
       getResourceSourceDefinition(sourceType);
       const createdAt = now();
-      const asset = await dependencies.storage.upload(
-        required(input.file, "Dữ liệu tệp"),
-        storageFolder(companyCode, sourceType),
-      );
+      let asset: PublicMediaAsset;
+      if (sourceType === "hr.employee") {
+        const allowed = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+        if (!allowed.includes(input.mimeType || "")) throw new Error("Định dạng giấy tờ không được hỗ trợ.");
+        const match = /^data:[^;]+;base64,([A-Za-z0-9+/=]+)$/.exec(required(input.file, "Dữ liệu tệp"));
+        if (!match) throw new Error("Dữ liệu giấy tờ không hợp lệ.");
+        const buffer = Buffer.from(match[1], "base64");
+        if (!buffer.length || buffer.length > 10 * 1024 * 1024 || buffer.length !== input.size) throw new Error("Giấy tờ phải có dung lượng từ 1 B đến 10 MB.");
+        if (!dependencies.storage.uploadPrivate) throw new Error("Lưu trữ giấy tờ riêng tư chưa được cấu hình.");
+        const extension = ({ "application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" } as Record<string, string>)[input.mimeType!];
+        asset = await dependencies.storage.uploadPrivate(buffer, storageFolder(companyCode, sourceType), `${randomUUID()}${extension}`);
+      } else {
+        asset = await dependencies.storage.upload(required(input.file, "Dữ liệu tệp"), storageFolder(companyCode, sourceType));
+      }
       const expiresAt = new Date(createdAt.getTime() + 24 * 60 * 60 * 1000);
       try {
         return await dependencies.repository.create({
@@ -224,7 +243,7 @@ export function createManagedUploadService(dependencies: ManagedUploadDependenci
           expiresAt,
         });
       } catch (error) {
-        await dependencies.storage.delete({ storagePublicId: asset.publicId, storageResourceType: asset.resourceType }).catch(() => undefined);
+        await dependencies.storage.delete({ sourceType, storagePublicId: asset.publicId, storageResourceType: asset.resourceType }).catch(() => undefined);
         throw error;
       }
     },
@@ -251,13 +270,13 @@ export function createManagedUploadService(dependencies: ManagedUploadDependenci
         sourceField,
         sourceKey: `${pending.sourceType}:${source.sourceRecordId}:${sourceField}:${publicIdentity}`,
         fileName: pending.fileName,
-        fileUrl: pending.fileUrl,
+        fileUrl: pending.sourceType === "hr.employee" ? "" : pending.fileUrl,
         mimeType: pending.mimeType,
         size: pending.size,
         storageProvider: pending.storageProvider,
         storagePublicId: pending.storagePublicId,
         storageResourceType: pending.storageResourceType,
-        storageAccess: "public",
+        storageAccess: pending.sourceType === "hr.employee" ? "authenticated" : "public",
         uploaderId: pending.actorId,
         uploaderName: pending.actorName,
         sourceAudienceIds: source.sourceAudienceIds,

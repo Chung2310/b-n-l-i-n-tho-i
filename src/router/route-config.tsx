@@ -124,10 +124,6 @@ export const APP_ROUTES: AppRoute[] = [
     tab: "CÀI ĐẶT",
     component: lazy(() => import("../pages/SettingsTab")),
   },
-  {
-    tab: "HƯỚNG DẪN",
-    component: lazy(() => import("../pages/GuideTab")),
-  },
 
 ];
 

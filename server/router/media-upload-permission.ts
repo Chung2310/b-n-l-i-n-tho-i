@@ -1,5 +1,6 @@
 export function permissionForMediaUpload(sourceType: unknown): string {
-  return String(sourceType || "").trim().toLowerCase() === "hr.kanban"
-    ? "work:manage"
-    : "resource:manage";
+  const type = String(sourceType || "").trim().toLowerCase();
+  if (type === "hr.kanban") return "work:manage";
+  if (type === "hr.employee") return "access:manage";
+  return "resource:manage";
 }

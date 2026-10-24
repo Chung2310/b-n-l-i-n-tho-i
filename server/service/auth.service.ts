@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import { UserModel } from "../model/user.model";
 import { normalizeBirthDate } from "./birth-date";
+import { normalizeHireDate } from "./hire-date";
 import { BranchModel } from "../model/branch.model";
 import { CompanyModel } from "../model/company.model";
 import { SuperAdminSessionModel } from "../model/super-admin-session.model";
@@ -604,6 +605,7 @@ export const authService = {
       jobDescriptionLink,
       branchId,
       birthDate,
+      hireDate,
       monthlySalary,
     } = data;
 
@@ -673,6 +675,7 @@ export const authService = {
       phone: phone || "Chưa cập nhật",
       jobDescriptionLink: jobDescriptionLink || "",
       birthDate: normalizeBirthDate(birthDate) || undefined,
+      hireDate: normalizeHireDate(hireDate) || undefined,
       createdAt: new Date(),
       status: "offline",
       photoURL: `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName.trim())}&background=random&color=fff`,
@@ -699,6 +702,12 @@ export const authService = {
     }
 
     if (updateData.birthDate !== undefined) updateData.birthDate = normalizeBirthDate(updateData.birthDate);
+    if (updateData.hireDate !== undefined) {
+      if (callerRole !== "admin" && callerRole !== "superadmin") {
+        throw new Error("Chỉ admin mới có quyền sửa ngày vào làm.");
+      }
+      updateData.hireDate = normalizeHireDate(updateData.hireDate);
+    }
 
     const isSelf = Boolean(callerId && user._id.toString() === callerId);
 

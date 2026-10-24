@@ -284,6 +284,9 @@ export default function ContractsTab({
     currentPage = page,
     currentSearch = debouncedSearch
   ) => {
+    // HR resolves the selected company after the initial render.
+    // An empty companyCode is rejected by the contracts API.
+    if (!companyCode.trim()) return;
     setLoading(true);
     try {
       const contractSuffix = `${suffix}&page=${currentPage}&limit=${limit}${

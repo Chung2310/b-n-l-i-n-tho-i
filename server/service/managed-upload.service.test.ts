@@ -44,6 +44,39 @@ function fakeRepository(): PendingUploadRepository & { records: PendingUploadRec
 }
 
 describe("ManagedUploadService", () => {
+  it("stores employee documents privately and indexes them without a public URL", async () => {
+    const repository = fakeRepository();
+    const upload = vi.fn();
+    const uploadPrivate = vi.fn(async () => ({
+      secureUrl: "private://igen_erp/managed/acme/hr/employee/file.pdf",
+      publicId: "igen_erp/managed/acme/hr/employee/file.pdf",
+      resourceType: "raw",
+      bytes: 4,
+    }));
+    const registerUploadedResource = vi.fn(async (input) => ({
+      _id: "resource-1", type: "file" as const, ...input, parentId: "folder-1", name: input.fileName,
+    }));
+    const service = createManagedUploadService({
+      repository, storage: { upload, uploadPrivate, delete: vi.fn() },
+      indexer: { registerUploadedResource }, createToken: () => "employee-token",
+      now: () => new Date("2026-08-08T00:00:00.000Z"),
+    });
+    const pending = await service.createPendingUpload(actor, {
+      sourceType: "hr.employee", file: "data:application/pdf;base64,dGVzdA==",
+      fileName: "cccd.pdf", mimeType: "application/pdf", size: 4,
+    });
+    expect(upload).not.toHaveBeenCalled();
+    expect(uploadPrivate).toHaveBeenCalledWith(expect.any(Buffer), "igen_erp/managed/acme/hr/employee", expect.stringMatching(/\.pdf$/));
+    expect(pending.fileUrl).toBe("private://igen_erp/managed/acme/hr/employee/file.pdf");
+    await service.finalizeManagedUpload(pending.token, actor, {
+      expectedSourceType: "hr.employee", entityType: "employee", entityId: "employee-1",
+      entityLabel: "Employee 1", sourceRecordId: "employee-1", sourceField: "employeeDocuments.0",
+    });
+    expect(registerUploadedResource).toHaveBeenCalledWith(expect.objectContaining({
+      fileUrl: "", storageAccess: "authenticated", storagePublicId: "igen_erp/managed/acme/hr/employee/file.pdf",
+    }));
+  });
+
   it("records an already-uploaded validated asset as a pending managed upload", async () => {
     const repository = fakeRepository();
     const service = createManagedUploadService({

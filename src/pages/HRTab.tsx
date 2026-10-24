@@ -197,7 +197,9 @@ export default function HRTab() {
     division: usr.division || "Khối Vận Hành",
     isLeader: usr.isLeader,
     jobDescriptionLink: usr.jobDescriptionLink || "",
+    employeeDocuments: usr.employeeDocuments || [],
     monthlySalary: usr.monthlySalary,
+    hireDate: usr.hireDate,
   }));
 
   return (

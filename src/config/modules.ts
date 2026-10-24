@@ -31,7 +31,7 @@ export const MODULE_READ_PERMISSIONS: Partial<Record<TabType, string[]>> = {
   "CSKH": ["repair:read", "repair:manage", "customer:read", "customer:manage", "marketing:read", "marketing:manage"],
 };
 
-export const HIDDEN_TABS = new Set<TabType>();
+export const HIDDEN_TABS = new Set<TabType>(["HƯỚNG DẪN"]);
 export function isTabHidden(tab: TabType): boolean { return HIDDEN_TABS.has(tab); }
 export const HIDDEN_SETTINGS_SUBTABS = new Set<string>(["personal-integrations", "company-integrations"]);
 export function isSettingsSubTabHidden(value: string): boolean { return HIDDEN_SETTINGS_SUBTABS.has(value); }

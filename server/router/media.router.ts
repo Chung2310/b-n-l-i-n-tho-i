@@ -67,6 +67,7 @@ const uploadSchema = {
       "string.base": "Trường 'folder' phải là kiểu văn bản (string).",
     }),
     sourceType: Joi.string().trim().max(100).optional(),
+    companyCode: Joi.string().trim().max(100).optional(),
     name: Joi.string().trim().max(300).optional(),
     fileName: Joi.string().trim().max(300).optional(),
     mimeType: Joi.string().trim().max(200).allow("").optional(),

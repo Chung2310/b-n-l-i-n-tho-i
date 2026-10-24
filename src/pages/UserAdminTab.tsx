@@ -26,6 +26,7 @@ import { ConfirmDialog } from "../components/common/ConfirmDialog";
 import { DEFAULT_MODULE_KEYS, DEFAULT_RETAIL_MODULE_KEYS, MODULE_KEYS } from "../config/modules";
 import { DEFAULT_SYSTEM_PERMISSIONS, getPermissionLabel, getRoleDisplayName } from "../utils/permissionUtils";
 import { UserActivityTimeline } from "./super-admin/users/UserActivityTimeline";
+import { hireDateInputValue, todayLocalDate } from "../utils/employeeHireDate";
 
 export default function UserAdminTab() {
   const { userProfile } = useAuth();
@@ -93,6 +94,7 @@ export default function UserAdminTab() {
   const [userEmail, setUserEmail] = useState("");
   const [userPhone, setUserPhone] = useState("");
   const [userBirthDate, setUserBirthDate] = useState("");
+  const [userHireDate, setUserHireDate] = useState("");
   const [userPassword, setUserPassword] = useState("");
   const [userRole, setUserRole] = useState<string>("user");
   const [userCompanyCode, setUserCompanyCode] = useState<string>("");
@@ -111,6 +113,7 @@ export default function UserAdminTab() {
     setUserEmail("");
     setUserPhone("");
     setUserBirthDate("");
+    setUserHireDate("");
     setUserPassword("");
     setUserRole("user");
     setUserBranchId("");
@@ -564,6 +567,10 @@ export default function UserAdminTab() {
       toast.warning("Mật khẩu phải từ 6 ký tự trở lên!");
       return;
     }
+    if (!editingUser && ["admin", "superadmin"].includes(userProfile?.role || "") && !userHireDate) {
+      toast.warning("Vui lòng chọn ngày vào làm.");
+      return;
+    }
     if (userRole === "pos_cashier" && !userBranchId) {
       toast.warning("Nhân viên bán hàng POS phải được gán chi nhánh.");
       return;
@@ -598,6 +605,7 @@ export default function UserAdminTab() {
           division: userDepartment.trim() || "",
           phone: userPhone.trim(),
           birthDate: userBirthDate || null,
+          ...(["admin", "superadmin"].includes(userProfile?.role || "") ? { hireDate: userHireDate || null } : {}),
           qualification: userQualification.trim(),
           jobDescriptionLink: userJobDescriptionLink.trim() || "",
           jobDescriptionUploadToken: userJobDescriptionUploadToken || undefined,
@@ -626,6 +634,7 @@ export default function UserAdminTab() {
           userQualification.trim() || undefined,
           undefined,
           userJobDescriptionUploadToken || undefined,
+          userHireDate || undefined,
         );
 
         toast.success(`Đăng ký tài khoản cho "${userDisplayName}" thành công!`);
@@ -648,6 +657,7 @@ export default function UserAdminTab() {
 
   const openCreateUserModal = () => {
     resetUserForm();
+    setUserHireDate(todayLocalDate());
     if (activeBranchId) {
       setUserBranchId(activeBranchId);
     }
@@ -661,6 +671,7 @@ export default function UserAdminTab() {
     setUserEmail(user.email || "");
     setUserPhone(user.phone && user.phone !== "Chưa cập nhật" ? user.phone : "");
     setUserBirthDate(user.birthDate ? String(user.birthDate).slice(0, 10) : "");
+    setUserHireDate(hireDateInputValue(user.hireDate));
     setUserPassword("");
     setUserRole(user.role || "user");
     setUserCompanyCode(user.companyCode || "");
@@ -1013,6 +1024,8 @@ export default function UserAdminTab() {
         setUserPhone={setUserPhone}
         userBirthDate={userBirthDate}
         setUserBirthDate={setUserBirthDate}
+        userHireDate={userHireDate}
+        setUserHireDate={setUserHireDate}
         setUserEmail={setUserEmail}
         userPassword={userPassword}
         setUserPassword={setUserPassword}
