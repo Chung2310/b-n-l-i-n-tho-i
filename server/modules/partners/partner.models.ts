@@ -1,5 +1,6 @@
 import { Schema, model } from "mongoose";
 const partner = new Schema({
+  branchId: { type: String, index: true },
   companyCode: { type: String, required: true }, code: { type: String, required: true }, name: { type: String, required: true },
   roles: [{ type: String, enum: ["collaborator", "dealer", "supplier"] }], phone: String, email: String, address: String,
   status: { type: String, enum: ["active", "inactive"], default: "active" }, userId: String, supplierId: String, customerId: String,

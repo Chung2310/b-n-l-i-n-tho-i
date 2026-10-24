@@ -24,6 +24,8 @@ import { createManualStockLog, updateManualStockLog, deleteManualStockLog } from
 import { writeStockMovement } from "../../integrations/shared/stock-movement.service";
 import { inInventoryTransaction } from "./inventory-transaction";
 import { reverseManualOutbound } from "./stock-log-reversal.service";
+import { RetailProductService } from "../retail/services/retail-product.service";
+import { applyOrderStockOut } from "../retail/services/retail-stock.service";
 
 const id = () => new mongoose.Types.ObjectId().toString();
 const companyCode = "AUDIT";
@@ -63,9 +65,30 @@ describe("inventory posting invariants", () => {
   afterAll(async () => { vi.restoreAllMocks(); await mongoose.disconnect(); await replica?.stop(); });
 
   async function receiptInput() {
-    const supplier = await SupplierModel.create({ companyCode, code: "NCC", name: "Supplier", status: "active", createdBy: "u", updatedBy: "u" });
+    const supplier = await SupplierModel.create({ companyCode, branchId, code: "NCC", name: "Supplier", status: "active", createdBy: "u", updatedBy: "u" });
     return { supplierId: String(supplier._id), warehouseId, items: [line({ unitCost: 100 })] };
   }
+  it("shares catalog definitions but never uses another branch's stock for POS", async () => {
+    const destinationBranch = id(), destinationWarehouse = id();
+    const destinationScope = { companyCode, branchId: destinationBranch };
+    await BranchModel.create({ _id: destinationBranch, companyCode, code: "CN2", name: "Branch 2", isActive: true });
+    await WarehouseModel.create({ _id: destinationWarehouse, ...destinationScope, code: "DEFAULT", name: "Branch 2", isDefault: true, isActive: true });
+    const catalog = await RetailProductService.search(destinationScope, {});
+    expect(catalog.items.find((item) => item.sku === "SKU-A")).toMatchObject({ stock: 0 });
+    await expect(inInventoryTransaction((session) => applyOrderStockOut(destinationScope, id(), "POS-CN2", [line({ productId: variantId })] as any, "Tester", false, session))).rejects.toThrow();
+    expect(await quantity()).toBe(2);
+    expect(await InventoryLedgerEntryModel.countDocuments()).toBe(0);
+    expect(await ProductCatalogModel.countDocuments({ companyCode })).toBe(1);
+  });
+
+  it("POS barcode lookup only matches serial units in its selling warehouse", async () => {
+    await machine("SECONDARY-IMEI");
+    await machine("SELLING-IMEI", { warehouseId: otherWarehouseId });
+    await machine("FOREIGN-IMEI", { branchId: id(), warehouseId: id() });
+    expect((await RetailProductService.search(scope, { barcode: "SECONDARY-IMEI" })).items).toHaveLength(0);
+    expect((await RetailProductService.search(scope, { barcode: "FOREIGN-IMEI" })).items).toHaveLength(0);
+    expect((await RetailProductService.search(scope, { barcode: "SELLING-IMEI" })).items).toHaveLength(1);
+  });
   it("creates concurrent receipts with distinct atomic numbers on the first counter use", async () => {
     const input = await receiptInput();
     const receipts = await Promise.all(Array.from({ length: 12 }, () => createReceipt(scope, input, { id: "u" })));

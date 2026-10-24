@@ -9,6 +9,7 @@ import { InventoryBalanceModel } from "../../../model/inventory-balance.model";
 import { SerialUnitModel } from "../serials/serial-unit.model";
 import { SerialEventModel } from "../serials/serial-event.model";
 import { writeStockMovement } from "../../../integrations/shared/stock-movement.service";
+import { ensureDefaultWarehouse } from "../warehouse/warehouse.service";
 
 export type TransferActor = { id: string; name: string };
 export type TransferInput = {
@@ -146,6 +147,14 @@ export async function getTransfer(scope: InventoryScope, id: string) {
 export async function transferDestinations(companyCode: string) {
   const branches = await BranchModel.find({ companyCode, isActive: true }).select("name code").lean();
   const names = new Map(branches.map((branch) => [String(branch._id), `${branch.code} — ${branch.name}`]));
+  // New branches may not have opened inventory yet. Provision their own empty
+  // warehouse, while leaving deliberately deactivated warehouses unchanged.
+  const initialized = new Set(await WarehouseModel.distinct("branchId", {
+    companyCode, branchId: { $in: [...names.keys()] }, kind: { $ne: "transit" },
+  }));
+  for (const branchId of names.keys()) {
+    if (!initialized.has(branchId)) await ensureDefaultWarehouse(companyCode, branchId);
+  }
   const warehouses = await WarehouseModel.find({ companyCode, branchId: { $in: [...names.keys()] }, isActive: true, kind: { $ne: "transit" } }).select("branchId name code isDefault").sort({ branchId: 1, name: 1 }).lean();
   return warehouses.map((warehouse) => ({ ...warehouse, branchName: names.get(warehouse.branchId) }));
 }

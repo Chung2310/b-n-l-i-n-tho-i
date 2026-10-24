@@ -5,7 +5,8 @@ import type { CustomerInput, CustomerStatus, CustomerType, ICustomer } from "./i
 import { CustomerCounterModel } from "./models/customer-counter.model";
 import { CustomerModel } from "./models/customer.model";
 
-export type CustomerScope = { companyCode: string };
+import { customerScopeFilter, type CustomerScope } from "./customer-branch-scope";
+export type { CustomerScope } from "./customer-branch-scope";
 export type CustomerActor = { id: string; name: string };
 export type CustomerListQuery = {
   q?: string;
@@ -32,7 +33,7 @@ const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$
 
 export function buildCustomerListFilter(scope: CustomerScope, query: CustomerListQuery): Record<string, unknown> {
   const filter: Record<string, unknown> = {
-    companyCode: scope.companyCode,
+    ...customerScopeFilter(scope),
     status: query.status || "active",
     ...(query.type ? { type: query.type } : {}),
   };
@@ -81,6 +82,7 @@ export function createCustomerService(repository: CustomerRepository) {
           ...values,
           source: values.source || "manual",
           companyCode: scope.companyCode,
+          ...(scope.branchId ? { branchId: scope.branchId } : {}),
           customerCode: formatCustomerCode(scope.companyCode, sequence),
           createdBy: actor.id,
           createdByName: actor.name,
@@ -137,14 +139,14 @@ const mongooseRepository: CustomerRepository = {
     ).lean();
     return counter!.sequence;
   },
-  findByPhone: (scope, normalizedPhone) => CustomerModel.findOne({ ...scope, normalizedPhone }).lean() as any,
+  findByPhone: (scope, normalizedPhone) => CustomerModel.findOne({ ...customerScopeFilter(scope), normalizedPhone }).lean() as any,
   create: async (values) => (await CustomerModel.create(values)).toObject() as any,
-  findById: (scope, id) => CustomerModel.findOne({ _id: id, ...scope }).lean() as any,
+  findById: (scope, id) => CustomerModel.findOne({ _id: id, ...customerScopeFilter(scope) }).lean() as any,
   updateWithVersion: (scope, id, version, values) => CustomerModel.findOneAndUpdate(
-    { _id: id, ...scope, version }, { $set: values, $inc: { version: 1 } }, { returnDocument: 'after', runValidators: true },
+    { _id: id, ...customerScopeFilter(scope), version }, { $set: values, $inc: { version: 1 } }, { returnDocument: 'after', runValidators: true },
   ).lean() as any,
   setStatus: (scope, id, version, status) => CustomerModel.findOneAndUpdate(
-    { _id: id, ...scope, version }, { $set: { status }, $inc: { version: 1 } }, { returnDocument: 'after', runValidators: true },
+    { _id: id, ...customerScopeFilter(scope), version }, { $set: { status }, $inc: { version: 1 } }, { returnDocument: 'after', runValidators: true },
   ).lean() as any,
 };
 

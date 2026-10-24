@@ -6,6 +6,10 @@ describe("permissionForMediaUpload", () => {
     expect(permissionForMediaUpload("hr.kanban")).toBe("work:manage");
   });
 
+  it("requires employee management permission for private employee documents", () => {
+    expect(permissionForMediaUpload("hr.employee")).toBe("access:manage");
+  });
+
   it("keeps generic and unknown uploads behind resource management", () => {
     expect(permissionForMediaUpload(undefined)).toBe("resource:manage");
     expect(permissionForMediaUpload("unknown.source")).toBe("resource:manage");

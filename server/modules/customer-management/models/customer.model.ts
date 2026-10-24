@@ -3,6 +3,7 @@ import type { ICustomer } from "../interfaces/customer.interface";
 
 const CustomerSchema = new Schema<ICustomer>({
   companyCode: { type: String, required: true, trim: true },
+  branchId: { type: String, trim: true, index: true },
   customerCode: { type: String, required: true, trim: true },
   type: { type: String, enum: ["regular", "vat"], default: "regular", required: true },
   name: { type: String, required: true, trim: true },

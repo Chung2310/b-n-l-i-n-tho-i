@@ -35,10 +35,12 @@ export interface UserProfile {
   permissions?: string[];
   createdAt: any;
   birthDate?: string;
+  hireDate?: string;
   jobTitle?: string;
   qualification?: string;
   department?: string;
   jobDescriptionLink?: string;
+  employeeDocuments?: import("./hr").EmployeeDocument[];
   phone?: string;
   level?: number;
   parentId?: string;

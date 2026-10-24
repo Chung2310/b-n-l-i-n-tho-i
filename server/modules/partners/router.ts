@@ -29,7 +29,10 @@ export function partnerCompany(req: any) {
   if (!companyCode) throw invalid("Thiếu công ty."); return companyCode;
 }
 const id = (value: unknown) => { const result = String(value || ""); if (!Types.ObjectId.isValid(result)) throw invalid("ID không hợp lệ."); return result; };
-const route = (fn: (req: any) => Promise<any>) => async (req: any, res: any, next: any) => { try { res.json({ success: true, data: await fn(req) }); } catch (error) { next(error); } };
+const route = (fn: (req: any) => Promise<any>) => async (req: any, res: any, next: any) => { try {
+  req.partnerCompanyFilter = { companyCode: partnerCompany(req) };
+  if (req.params.id && !req.path.startsWith("/policies/") && !await PartnerModel.exists({ ...req.partnerCompanyFilter, _id: id(req.params.id) })) throw invalid("Không tìm thấy đối tác.", 404);
+  res.json({ success: true, data: await fn(req) }); } catch (error) { next(error); } };
 const periodOf = (value: unknown) => { const period = String(value || monthKey(new Date())); if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) throw invalid("Kỳ phải có dạng YYYY-MM."); return period; };
 
 export async function partnerStatement(companyCode: string, partnerId: string, period: string, page = 1) {
@@ -71,10 +74,10 @@ export async function partnerStatement(companyCode: string, partnerId: string, p
   };
 }
 
-partnerRouter.get("/collaborators", picker, route(async req => PartnerModel.find({ companyCode: partnerCompany(req), roles: "collaborator", status: "active" }).select("code name").sort({ name: 1 }).limit(1000).lean()));
+partnerRouter.get("/collaborators", picker, route(async req => PartnerModel.find({ ...req.partnerCompanyFilter, roles: "collaborator", status: "active" }).select("code name").sort({ name: 1 }).limit(1000).lean()));
 partnerRouter.get("/suppliers", requirePermission(["inventory:read", "inventory:manage", "partner:read", "partner:manage"]) as any, route(async req => {
   const companyCode = partnerCompany(req);
-  const partners = await PartnerModel.find({ companyCode, roles: "supplier", status: "active", supplierId: { $type: "string" } })
+  const partners = await PartnerModel.find({ ...req.partnerCompanyFilter, roles: "supplier", status: "active", supplierId: { $type: "string" } })
     .select("code name supplierId").sort({ name: 1 }).lean();
   const suppliers = await SupplierModel.find({ companyCode, status: "active", _id: { $in: partners.map(partner => partner.supplierId) } })
     .select("name").lean();
@@ -86,8 +89,8 @@ partnerRouter.get("/suppliers", requirePermission(["inventory:read", "inventory:
 }));
 partnerRouter.get("/me/statement", own, route(async req => {
   const companyCode = partnerCompany(req);
-  const partner = await PartnerModel.findOne({ companyCode, userId: String(req.user.id), roles: "collaborator" }).select("_id").lean()
-    || await PartnerModel.findOne({ companyCode, userId: String(req.user.id) }).select("_id").lean();
+  const partner = await PartnerModel.findOne({ ...req.partnerCompanyFilter, userId: String(req.user.id), roles: "collaborator" }).select("_id").lean()
+    || await PartnerModel.findOne({ ...req.partnerCompanyFilter, userId: String(req.user.id) }).select("_id").lean();
   if (!partner) throw invalid("Tài khoản chưa được liên kết với hồ sơ CTV.", 404);
   const statement = await partnerStatement(companyCode, String(partner._id), periodOf(req.query.period), Math.max(1, Math.floor(Number(req.query.page) || 1)));
   if (statement.partner.status === "inactive") throw invalid("Hồ sơ đối tác đã ngừng hoạt động.", 403);
@@ -98,7 +101,7 @@ partnerRouter.put("/product-commissions", policies, route(async req => saveProdu
 partnerRouter.get("/policies", read, route(async req => ({ defaults: defaultPolicy, items: await CommissionPolicyModel.find({ companyCode: partnerCompany(req) }).sort({ effectiveAt: -1 }).limit(100).lean() })));
 partnerRouter.post("/policies", policies, route(async req => {
   const companyCode = partnerCompany(req), partnerId = req.body.partnerId ? id(req.body.partnerId) : "";
-  if (partnerId && !await PartnerModel.exists({ companyCode, _id: partnerId, roles: "collaborator" })) throw invalid("CTV không tồn tại.");
+  if (partnerId && !await PartnerModel.exists({ ...req.partnerCompanyFilter, _id: partnerId, roles: "collaborator" })) throw invalid("CTV không tồn tại.");
   const effectiveAt = req.body.effectiveAt ? new Date(req.body.effectiveAt) : new Date();
   if (!Number.isFinite(effectiveAt.getTime()) || effectiveAt.getTime() < Date.now() - 60000) throw invalid("Ngày hiệu lực không được hồi tố.");
   return CommissionPolicyModel.create({ companyCode, partnerId, effectiveAt, config: validatePolicy(req.body.config), createdBy: req.user.id });
@@ -108,7 +111,7 @@ partnerRouter.patch("/policies/:id", policies, route(async req => {
   const existing = await CommissionPolicyModel.findOne({ companyCode, _id: policyId });
   if (!existing) throw invalid("Chính sách không tồn tại.", 404);
   const partnerId = req.body.partnerId !== undefined ? (req.body.partnerId ? id(req.body.partnerId) : "") : existing.partnerId;
-  if (partnerId && !await PartnerModel.exists({ companyCode, _id: partnerId, roles: "collaborator" })) throw invalid("CTV không tồn tại.");
+  if (partnerId && !await PartnerModel.exists({ ...req.partnerCompanyFilter, _id: partnerId, roles: "collaborator" })) throw invalid("CTV không tồn tại.");
   const effectiveAt = req.body.effectiveAt ? new Date(req.body.effectiveAt) : existing.effectiveAt;
   if (!Number.isFinite(effectiveAt.getTime())) throw invalid("Ngày hiệu lực không hợp lệ.");
   const config = validatePolicy(req.body.config ? { ...req.body.config, rules: req.body.config.rules ?? existing.config.rules } : existing.config);
@@ -120,13 +123,13 @@ partnerRouter.patch("/policies/:id", policies, route(async req => {
 }));
 partnerRouter.post("/import-suppliers", manage, route(async req => {
   const companyCode = partnerCompany(req); let count = 0;
-  for await (const supplier of SupplierModel.find({ companyCode }).cursor()) {
+  for await (const supplier of SupplierModel.find(req.partnerCompanyFilter).cursor()) {
     await PartnerModel.updateOne({ companyCode, supplierId: String(supplier._id) }, { $setOnInsert: { code: `NCC-${supplier._id}`, name: supplier.name, phone: supplier.phone, email: supplier.email, address: supplier.address, roles: ["supplier"], status: supplier.status, createdBy: req.user.id } }, { upsert: true }); count++;
   }
   return { count };
 }));
 partnerRouter.get("/", read, route(async req => {
-  const filter: any = { companyCode: partnerCompany(req) };
+  const filter: any = { ...req.partnerCompanyFilter };
   if (req.query.role) { if (!["collaborator", "dealer", "supplier"].includes(req.query.role)) throw invalid("Nhóm không hợp lệ."); filter.roles = req.query.role; }
   const items = await PartnerModel.find(filter).sort({ name: 1 }).limit(1000).lean();
   // Supplier remains the source of truth for its contact information.
@@ -139,9 +142,9 @@ async function partnerInput(req: any) {
   if (!code || code.length > 60 || !name || name.length > 200) throw invalid("Mã và tên đối tác là bắt buộc.");
   if (!Array.isArray(body.roles) || !body.roles.length || body.roles.some((r: string) => !["collaborator", "dealer", "supplier"].includes(r))) throw invalid("Chọn nhóm đối tác hợp lệ.");
   const userId = body.userId ? id(body.userId) : undefined;
-  if (userId && !await UserModel.exists({ _id: userId, companyCode })) throw invalid("Tài khoản CTV không thuộc công ty.");
+  if (userId && !await UserModel.exists({ _id: userId, ...req.partnerCompanyFilter })) throw invalid("Tài khoản CTV không thuộc công ty.");
   const supplierId = body.supplierId ? id(body.supplierId) : undefined;
-  if (supplierId && !await SupplierModel.exists({ _id: supplierId, companyCode })) throw invalid("Nhà cung cấp không thuộc công ty.");
+  if (supplierId && !await SupplierModel.exists({ _id: supplierId, ...req.partnerCompanyFilter })) throw invalid("Nhà cung cấp không thuộc công ty.");
   if (body.status && !["active", "inactive"].includes(body.status)) throw invalid("Trạng thái không hợp lệ.");
   return { companyCode, code, name, roles: [...new Set(body.roles)] as Array<"collaborator" | "dealer" | "supplier">, phone: String(body.phone || "").trim().slice(0, 30), email: String(body.email || "").trim().slice(0, 200), address: String(body.address || "").trim().slice(0, 500), userId, supplierId, status: body.status || "active", updatedBy: req.user.id };
 }

@@ -115,7 +115,7 @@ export function InventoryTransferSection({
         if (!controller.signal.aborted) toast.error(error.message);
       });
     return () => controller.abort();
-  }, [branchId]);
+  }, [branchId, open, revision]);
 
   // Fetch transfer documents
   useEffect(() => {

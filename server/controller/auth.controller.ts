@@ -1,3 +1,4 @@
+import { customerScopeFromRequest, customerScopeFilter } from "../modules/customer-management/customer-branch-scope";
 import { Request, Response } from "express";
 import { authService } from "../service/auth.service";
 import { AuthenticatedRequest } from "../middleware/auth";
@@ -14,7 +15,10 @@ import { PERMISSION_CODES } from "../config/permission-catalog";
 import { getEffectivePermissions } from "../middleware/auth";
 import { profileResourceService } from "../service/profile-resource.service";
 import { employeeDocumentResourceService } from "../service/employee-document-resource.service";
+import { PendingUploadModel } from "../model/pending-upload.model";
+import { ResourceItemModel } from "../model/resource-item.model";
 import { resourceIndexingService } from "../service/resource-indexing.service";
+import { cloudinaryService } from "../service/cloudinary.service";
 import { isPartnerAccount } from "../../shared/partner-account";
 
 /** Redirect URI cho OAuth Google Drive (khớp Google Cloud Console). */
@@ -492,19 +496,21 @@ export const authController = {
         companyCode = req.user?.companyCode;
       }
 
-      const requestedBranchId = typeof req.query.branchId === "string" ? req.query.branchId : "";
-      const filter = buildUserRosterFilter(companyCode, requestedBranchId);
-      if (requestedBranchId && companyCode) {
-        const { BranchModel } = await import("../model/branch.model");
-        const branch = await BranchModel.findOne({ _id: requestedBranchId, companyCode }).select("_id").lean();
-        if (!branch) return res.status(403).json({ status: "error", message: "Chi nhánh không thuộc công ty." });
-        filter.branchId = requestedBranchId;
-      }
+      const filter = req.user?.role === "superadmin" && !req.query.branchId && !req.user.branchId
+        ? buildUserRosterFilter(companyCode)
+        : { ...buildUserRosterFilter(companyCode), ...customerScopeFilter(await customerScopeFromRequest(req)) };
       const users = await authService.getUsers(filter);
+
+      const permissions = await getEffectivePermissions(req.user!.id, req.user!.role, req.user!.companyCode);
+      const canReadEmployeeDocuments = permissions.has("*") || permissions.has("access:manage");
 
       return res.status(200).json({
         status: "success",
-        data: users,
+        data: canReadEmployeeDocuments ? users : users.map((user) => {
+          const safeUser = user.toObject();
+          delete safeUser.employeeDocuments;
+          return safeUser;
+        }),
       });
     } catch (error: any) {
       console.error("[authController.getUsers] Error:", error);
@@ -661,7 +667,51 @@ export const authController = {
       const callerRole = req.user?.role;
       const callerCompanyCode = req.user?.companyCode;
 
+      const documents = req.body.employeeDocuments as Array<{
+        category: string; fileName: string; fileUrl: string; mimeType: string; size: number; uploadToken?: string;
+      }> | undefined;
+      let removedDocumentUrls: string[] = [];
+      if (documents) {
+        const currentUser = await UserModel.findById(id).select("companyCode employeeDocuments").lean();
+        if (!currentUser) return res.status(404).json({ status: "error", message: "Không tìm thấy nhân sự." });
+        const currentUrls = new Set((currentUser.employeeDocuments || []).map((item) => item.fileUrl));
+        const nextUrls = new Set(documents.map((item) => item.fileUrl));
+        removedDocumentUrls = [...currentUrls].filter((url) => !nextUrls.has(url));
+        const newDocuments = documents.filter((item) => !currentUrls.has(item.fileUrl));
+        if (new Set(newDocuments.map((item) => item.uploadToken)).size !== newDocuments.length) {
+          return res.status(400).json({ status: "error", message: "Tài liệu tải lên bị trùng." });
+        }
+        for (const item of newDocuments) {
+          const pending = item.uploadToken && await PendingUploadModel.findOne({
+            token: item.uploadToken, companyCode: currentUser.companyCode,
+            actorId: req.user!.id, sourceType: "hr.employee", status: "pending",
+            expiresAt: { $gt: new Date() },
+          }).lean();
+          if (!pending || pending.fileUrl !== item.fileUrl || pending.fileName !== item.fileName
+            || pending.mimeType !== item.mimeType || pending.size !== item.size) {
+            return res.status(400).json({ status: "error", message: "Tài liệu tải lên không hợp lệ hoặc đã hết hạn." });
+          }
+        }
+        req.body.employeeDocuments = documents.map(({ uploadToken: _token, ...item }) => item);
+      }
+
       const updatedUser = await authService.updateUser(id, req.body, callerCompanyCode!, callerRole!, req.user?.id);
+      if (updatedUser && documents) {
+        await employeeDocumentResourceService.finalizeDocuments({
+          companyCode: updatedUser.companyCode, branchId: updatedUser.branchId,
+          actorId: req.user!.id, actorName: req.user!.email,
+        }, updatedUser, documents);
+        for (const fileUrl of removedDocumentUrls) {
+          const resource = await ResourceItemModel.findOne({
+            companyCode: updatedUser.companyCode, sourceType: "hr.employee",
+            sourceRecordId: id,
+            ...(fileUrl.startsWith("private://")
+              ? { storagePublicId: fileUrl.slice("private://".length) }
+              : { fileUrl }),
+          }).select("_id").lean();
+          if (resource) await resourceIndexingService.trashResourceById(updatedUser.companyCode, String(resource._id));
+        }
+      }
       if (updatedUser && req.body.jobDescriptionUploadToken) {
         await employeeDocumentResourceService.finalizeJobDescription({
           companyCode: updatedUser.companyCode,
@@ -682,6 +732,29 @@ export const authController = {
         status: "error",
         message: error.message || "Không thể cập nhật thông tin nhân sự",
       });
+    }
+  },
+
+  async previewEmployeeDocument(req: AuthenticatedRequest, res: Response) {
+    try {
+      const user = await UserModel.findById(req.params.id).select("companyCode employeeDocuments").lean();
+      if (!user || (req.user?.role !== "superadmin" && user.companyCode !== req.user?.companyCode)) {
+        return res.status(404).json({ status: "error", message: "Không tìm thấy nhân sự." });
+      }
+      const fileUrl = String(req.query.fileUrl || "");
+      const document = user.employeeDocuments?.find((item) => item.fileUrl === fileUrl);
+      if (!document) return res.status(404).json({ status: "error", message: "Không tìm thấy giấy tờ." });
+      const prefix = `igen_erp/managed/${user.companyCode.toLowerCase()}/hr/employee/`;
+      const publicId = fileUrl.startsWith("private://") ? fileUrl.slice("private://".length) : "";
+      if (!publicId.startsWith(prefix)) {
+        return res.status(400).json({ status: "error", message: "Đường dẫn giấy tờ không hợp lệ." });
+      }
+      const url = cloudinaryService.createSignedRawUrl(publicId, new Date(Date.now() + 5 * 60 * 1000));
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(200).json({ status: "success", data: { url } });
+    } catch (error) {
+      console.error("[authController.previewEmployeeDocument] Error:", error);
+      return res.status(500).json({ status: "error", message: "Không thể xem trước giấy tờ." });
     }
   },
 

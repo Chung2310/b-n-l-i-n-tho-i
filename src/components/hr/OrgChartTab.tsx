@@ -25,12 +25,15 @@ import {
   Network,
   Crown
 } from "lucide-react";
-import { EmployeeNode, UserProfile, TrainingCourse, DepartmentRecord } from "../../types";
+import { EmployeeNode, UserProfile, TrainingCourse, DepartmentRecord, type EmployeeDocument } from "../../types";
+import { EmployeeDocumentsEditor, EmployeeDocumentsList } from "./EmployeeDocuments";
+import { HireDatePicker } from "../common/HireDatePicker";
 import { authService, getAccessToken } from "../../services/authService";
 import { departmentService } from "../../services/departmentService";
 import { toast } from "../../pages/Toast";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { getApiErrorMessage } from "../../utils/errorMessage";
+import { formatHireDate, hireDateInputValue, todayLocalDate } from "../../utils/employeeHireDate";
 import { filterOrgChartEmployees, getManagerForEmployee, getRootEmployees, getRootDirectReports } from "./orgChartUtils";
 import { useIsMobile } from "../../hooks/useMediaQuery";
 import "./OrgChartTree.css";
@@ -397,6 +400,7 @@ export default function OrgChartTab({
   const [addJobDescriptionLink, setAddJobDescriptionLink] = useState("");
   const [addJobDescriptionUploadToken, setAddJobDescriptionUploadToken] = useState("");
   const [addMonthlySalary, setAddMonthlySalary] = useState("");
+  const [addHireDate, setAddHireDate] = useState(todayLocalDate);
   const [uploadingAddJobDescription, setUploadingAddJobDescription] = useState(false);
   const addJobDescriptionFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -425,8 +429,11 @@ export default function OrgChartTab({
   const [editLevel, setEditLevel] = useState<number>(4);
   const [editParentId, setEditParentId] = useState("");
   const [editJobDescriptionLink, setEditJobDescriptionLink] = useState("");
+  const [editEmployeeDocuments, setEditEmployeeDocuments] = useState<EmployeeDocument[]>([]);
+  const [uploadingEmployeeDocument, setUploadingEmployeeDocument] = useState(false);
   const [editJobDescriptionUploadToken, setEditJobDescriptionUploadToken] = useState("");
   const [editMonthlySalary, setEditMonthlySalary] = useState("");
+  const [editHireDate, setEditHireDate] = useState("");
   const [uploadingEditJobDescription, setUploadingEditJobDescription] = useState(false);
   const [showJobDescriptionPreview, setShowJobDescriptionPreview] = useState(false);
   const editJobDescriptionFileInputRef = useRef<HTMLInputElement>(null);
@@ -444,11 +451,13 @@ export default function OrgChartTab({
     setEditQualification(selectedEmp.qualification || "");
     setEditDepartment(selectedEmp.department || "");
     setEditMonthlySalary(selectedEmp.monthlySalary == null ? "" : String(selectedEmp.monthlySalary));
+    setEditHireDate(hireDateInputValue(selectedEmp.hireDate));
     setEditEmail(selectedEmp.email || "");
     setEditPhone(selectedEmp.phone && selectedEmp.phone !== "Chưa cập nhật" ? selectedEmp.phone : "");
     setEditLevel(selectedEmp.level || 4);
     setEditParentId(selectedEmp.parentId || "");
     setEditJobDescriptionLink(selectedEmp.jobDescriptionLink || "");
+    setEditEmployeeDocuments(selectedEmp.employeeDocuments || []);
     setEditJobDescriptionUploadToken("");
     setIsEditing(true);
   };
@@ -533,7 +542,9 @@ export default function OrgChartTab({
         parentId: editParentId || null,
         jobDescriptionLink: editJobDescriptionLink.trim() || "",
         jobDescriptionUploadToken: editJobDescriptionUploadToken || undefined,
+        employeeDocuments: editEmployeeDocuments,
         monthlySalary: editMonthlySalary === "" ? undefined : Number(editMonthlySalary),
+        ...(["admin", "superadmin"].includes(userProfile?.role || "") ? { hireDate: editHireDate || null } : {}),
       };
 
       await authService.updateUser(selectedEmp.id, updateData);
@@ -550,6 +561,8 @@ export default function OrgChartTab({
         phone: updateData.phone || "Chưa cập nhật",
         parentId: updateData.parentId || undefined,
         jobDescriptionLink: updateData.jobDescriptionLink || "",
+        employeeDocuments: editEmployeeDocuments.map(({ uploadToken: _token, ...document }) => document),
+        hireDate: ["admin", "superadmin"].includes(userProfile?.role || "") ? editHireDate || undefined : selectedEmp.hireDate,
       };
       setSelectedEmp(updatedNode);
     } catch (err) {
@@ -789,6 +802,10 @@ export default function OrgChartTab({
   // Handle adding new employee user profile
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!addHireDate) {
+      toast.warning("Vui lòng chọn ngày vào làm.");
+      return;
+    }
     if (!addName.trim() || !addEmail.trim() || !addPassword.trim()) {
       toast.warning("Vui lòng nhập đầy đủ Họ tên, Email và Mật khẩu!");
       return;
@@ -863,6 +880,7 @@ export default function OrgChartTab({
         undefined,
         addMonthlySalary.trim() === "" ? undefined : Number(addMonthlySalary),
         addJobDescriptionUploadToken || undefined,
+        addHireDate,
       );
 
       toast.success(`Đã thêm nhân sự "${addName}" thành công!`);
@@ -883,6 +901,7 @@ export default function OrgChartTab({
       setAddJobDescriptionLink("");
       setAddJobDescriptionUploadToken("");
       setAddMonthlySalary("");
+      setAddHireDate(todayLocalDate());
 
       await fetchUsers();
       if (compCode) {
@@ -1324,7 +1343,7 @@ export default function OrgChartTab({
               <button
                 data-testid="org-chart-add-button"
                 type="button"
-                onClick={() => setIsAddModalOpen(true)}
+                onClick={() => { setAddHireDate(todayLocalDate()); setIsAddModalOpen(true); }}
                 className="col-span-full flex h-10 w-full cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-indigo-650 px-4 text-xs font-bold text-white shadow-xs transition-all hover:bg-indigo-700 active:scale-95 min-[768px]:col-span-1 min-[1200px]:w-auto min-[1200px]:shrink-0"
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -1699,6 +1718,12 @@ export default function OrgChartTab({
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="block font-bold text-gray-500 mb-1">Lương tháng (VND)</label><input type="number" min="0" step="1000" value={editMonthlySalary} onChange={(e) => setEditMonthlySalary(e.target.value)} className="w-full px-3.5 py-2 border border-gray-200 rounded-xl outline-none" placeholder="26000000" /></div>
                 </div>
+                {["admin", "superadmin"].includes(userProfile?.role || "") && (
+                  <div>
+                    <label htmlFor="employee-edit-hire-date" className="block text-gray-500 mb-1">Ngày vào làm</label>
+                    <HireDatePicker id="employee-edit-hire-date" label="Ngày vào làm" value={editHireDate} onChange={setEditHireDate} />
+                  </div>
+                )}
                 <div>
                   <label className="block font-bold text-gray-500 mb-1">Email liên lạc (Cố định)</label>
                   <input
@@ -1750,6 +1775,8 @@ export default function OrgChartTab({
                     )}
                   </div>
                 </div>
+
+                <EmployeeDocumentsEditor documents={editEmployeeDocuments} employeeId={selectedEmp.id} onChange={setEditEmployeeDocuments} companyCode={selectedCompanyCode || userProfile?.companyCode || ""} onUploadingChange={setUploadingEmployeeDocument} />
 
                 <div>
                   <label className="block font-bold text-gray-500 mb-1">Quản lý trực tiếp</label>
@@ -1803,7 +1830,7 @@ export default function OrgChartTab({
                 </button>
                 <button
                   type="button"
-                  disabled={isSaving}
+                  disabled={isSaving || uploadingEmployeeDocument}
                   onClick={handleEditEmployeeSave}
                   className="px-5 py-2 bg-indigo-650 hover:bg-indigo-700 text-white rounded-xl cursor-pointer transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
                 >
@@ -1848,6 +1875,10 @@ export default function OrgChartTab({
                 <div className="grid grid-cols-2 gap-3"><div><span className="block text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wider">Trạng thái</span><strong>{selectedEmp.status === "online" ? "Đang hoạt động" : "Ngoại tuyến"}</strong></div><div><span className="block text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wider">Cấp nhân sự</span><strong>Cấp {selectedEmp.level || missingValue}</strong></div></div>
                 <div><span className="block text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wider">Lương tháng</span><strong>{selectedEmp.monthlySalary != null ? new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(Number(selectedEmp.monthlySalary)) : missingValue}</strong></div>
                 <div className="flex items-center gap-3">
+                  <CalendarDays className="w-4.5 h-4.5 text-gray-400 shrink-0" />
+                  <div><span className="block text-[9.5px] text-slate-400">Ngày vào làm</span><span className="text-slate-800 text-xs">{formatHireDate(selectedEmp.hireDate)}</span></div>
+                </div>
+                <div className="flex items-center gap-3">
                   <Building2 className="w-4.5 h-4.5 text-gray-400 shrink-0" />
                   <div>
                     <span className="block text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wider">Phòng ban</span>
@@ -1890,6 +1921,10 @@ export default function OrgChartTab({
                     </div>
                   </div>
                 )}
+                <div className="space-y-2 border-t border-slate-100 pt-3">
+                  <div className="text-xs text-slate-700">Hồ sơ nhân sự</div>
+                  <EmployeeDocumentsList documents={selectedEmp.employeeDocuments || []} employeeId={selectedEmp.id} />
+                </div>
                 {selectedEmp.parentId && (() => {
                   const manager = employees.find(e => e.id === selectedEmp.parentId);
                   return (
@@ -2044,6 +2079,10 @@ export default function OrgChartTab({
                     className="w-full px-3.5 py-2 border border-gray-200 rounded-xl outline-none"
                     placeholder="26000000"
                   />
+                </div>
+                <div>
+                  <label htmlFor="employee-add-hire-date" className="block text-gray-500 mb-1">Ngày vào làm *</label>
+                  <HireDatePicker id="employee-add-hire-date" label="Ngày vào làm" value={addHireDate} onChange={setAddHireDate} />
                 </div>
                 <div>
                   <label className="block font-bold text-gray-500 mb-1">Email *</label>

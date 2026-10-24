@@ -5,6 +5,7 @@ import { BranchRecord } from "../../services/branchService";
 import { authService } from "../../services/authService";
 import { departmentService } from "../../services/departmentService";
 import { toast } from "../../pages/Toast";
+import { HireDatePicker } from "../common/HireDatePicker";
 
 export interface UserFormModalProps {
   open: boolean;
@@ -17,6 +18,8 @@ export interface UserFormModalProps {
   setUserPhone: (val: string) => void;
   userBirthDate: string;
   setUserBirthDate: (val: string) => void;
+  userHireDate?: string;
+  setUserHireDate?: (val: string) => void;
   setUserEmail: (val: string) => void;
   userPassword: string;
   setUserPassword: (val: string) => void;
@@ -62,6 +65,8 @@ export function UserFormModal({
   setUserPhone,
   userBirthDate,
   setUserBirthDate,
+  userHireDate,
+  setUserHireDate,
   userPassword,
   setUserPassword,
   userRole,
@@ -204,6 +209,13 @@ export function UserFormModal({
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Ngày sinh</label>
                 <input type="date" value={userBirthDate} onChange={(e) => setUserBirthDate(e.target.value)} className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
               </div>
+
+              {setUserHireDate && ["admin", "superadmin"].includes(userProfile?.role || "") && (
+                <div className="space-y-1.5 text-left">
+                  <label htmlFor="user-hire-date" className="block text-[10px] text-gray-500">Ngày vào làm{editingUser ? "" : " *"}</label>
+                  <HireDatePicker id="user-hire-date" label="Ngày vào làm" value={userHireDate || ""} onChange={setUserHireDate} />
+                </div>
+              )}
 
               {/* Mật khẩu */}
               <div className="space-y-1.5 text-left">

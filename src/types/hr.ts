@@ -91,8 +91,19 @@ export interface EmployeeNode {
   division: string;
   isLeader?: boolean;
   jobDescriptionLink?: string;
+  employeeDocuments?: EmployeeDocument[];
   qualification?: string;
   monthlySalary?: number;
+  hireDate?: string;
+}
+
+export interface EmployeeDocument {
+  category: "identity" | "certificate" | "degree" | "other";
+  fileName: string;
+  fileUrl: string;
+  mimeType: string;
+  size: number;
+  uploadToken?: string;
 }
 
 export interface Project {

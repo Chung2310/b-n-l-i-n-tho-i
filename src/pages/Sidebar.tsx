@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, FolderOpen, LayoutDashboard, LockKeyhole, MessageSquare, Package, Settings, Shield, Users, BookOpen, ShoppingCart, Landmark, Megaphone, Wrench, ContactRound, Headphones } from "lucide-react";
+import { ChevronLeft, ChevronRight, FolderOpen, LayoutDashboard, LockKeyhole, MessageSquare, Package, Settings, Shield, Users, ShoppingCart, Landmark, Megaphone, Wrench, ContactRound, Headphones } from "lucide-react";
 import { PRIVACY_POLICY_PATH, TERMS_OF_SERVICE_PATH, USER_DATA_DELETION_PATH } from "../config/brand";
 import { handleInternalNavigation } from "../utils/internalNavigation";
 import type { TabType } from "../types";
@@ -71,7 +71,6 @@ export default function Sidebar({ activeTab, setActiveTab, mobileOpen, onMobileC
   const menuItems: MenuItem[] = visibleBaseMenuItems.filter((item) => enabledTabs.has(item.label)).map((item) => { const requiredPerms = MODULE_READ_PERMISSIONS[item.label]; return { ...item, locked: item.label === "BÁN HÀNG" ? !canViewSalesManagement && !hasAssignedPosShift : requiredPerms ? !requiredPerms.some((code) => hasPermission(code)) : false }; });
   if (userProfile?.role === "superadmin" || userProfile?.role === "admin") menuItems.push({ label: "QUẢN TRỊ USER", title: "Quản lý người dùng", icon: Shield, group: "system" });
   menuItems.push({ label: "CÀI ĐẶT", title: "Cài đặt hệ thống", icon: Settings, group: "system" });
-  menuItems.push({ label: "HƯỚNG DẪN", title: "Hướng dẫn sử dụng", icon: BookOpen, group: "system" });
   const groups: MenuItem["group"][] = ["main", "operations", "tools", "system"];
   return <>
     {mobileOpen && <div className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs md:hidden" onClick={onMobileClose} aria-hidden="true" />}

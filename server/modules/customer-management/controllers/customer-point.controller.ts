@@ -1,3 +1,5 @@
+import { customerScopeFromRequest } from "../customer-branch-scope";
+import { CustomerService } from "../customer.service";
 import type { NextFunction, Request, Response } from "express";
 import { CustomerError } from "../customer-errors";
 import { CustomerPointService } from "../services/customer-point.service";
@@ -19,7 +21,7 @@ const handle = (action: (req: Request, res: Response) => Promise<Response>) => a
     if (error instanceof CustomerError) {
       return res.status(error.status).json({ success: false, code: error.code, message: error.message });
     }
-    const statusCode = (error as any)?.statusCode || 500;
+    const statusCode = (error as any)?.status || (error as any)?.statusCode || 500;
     const message = (error as any)?.message || "Đã xảy ra lỗi.";
     return res.status(statusCode).json({ success: false, message });
   }
@@ -29,6 +31,7 @@ export const customerPointController = {
   getLedger: handle(async (req, res) => {
     const companyCode = getCompanyCode(req);
     const customerId = String(req.params.id || "").trim();
+    await CustomerService.detail(await customerScopeFromRequest(req), customerId);
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 20;
     const type = req.query.type ? String(req.query.type) : undefined;
@@ -44,6 +47,7 @@ export const customerPointController = {
   adjust: handle(async (req, res) => {
     const companyCode = getCompanyCode(req);
     const customerId = String(req.params.id || "").trim();
+    await CustomerService.detail(await customerScopeFromRequest(req), customerId);
     const user = (req as any).user || {};
 
     const points = Number(req.body.points);

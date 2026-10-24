@@ -1,3 +1,4 @@
+import { useBranch } from "../../context/BranchContext";
 import React from "react";
 import { createPortal } from "react-dom";
 import "./partners.css";
@@ -1204,6 +1205,10 @@ function PolicyEditor({ partners }: { partners: Partner[] }) {
 // MAIN PARTNERS PAGE COMPONENT
 // ---------------------------------------------------------
 export default function PartnersPage({ portalOnly = false }: { portalOnly?: boolean } = {}) {
+  const { activeBranchId } = useBranch();
+  return <BranchPartnersPage key={activeBranchId} portalOnly={portalOnly} />;
+}
+function BranchPartnersPage({ portalOnly = false }: { portalOnly?: boolean } = {}) {
   const { hasPermission } = useAuth();
   const admin = !portalOnly && (hasPermission("partner:read") || hasPermission("partner:manage"));
 

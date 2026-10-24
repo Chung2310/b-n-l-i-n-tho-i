@@ -1,3 +1,4 @@
+import { migrateDepartmentBranchIndex } from "../model/department-branch-index-migration";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import { UserModel } from "../model/user.model";
@@ -140,6 +141,7 @@ export async function connectDB() {
     await mongoose.connect(connectionUri, { retryWrites: false });
     console.log(`[Backend Database] Kết nối MongoDB thành công. db=${mongoose.connection.name || "unknown"} host=${mongoose.connection.host || "unknown"} instance=${process.env.INSTANCE_ID || process.env.HOSTNAME || "local"} pid=${process.pid}`);
     // Chạy các seeder dữ liệu hệ thống
+    await migrateDepartmentBranchIndex();
     await allowMultipleSuperAdmins();
     await dropLegacyPayrollRunPeriodKeyUniqueIndex();
     const payrollStatusMigration = await migrateLegacyPayrollRunStatuses();

@@ -1,11 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import type { Server } from 'node:http';
 import { permissionRouteDiagnostics } from '../../config/permission-route-inventory';
 vi.mock('../../middleware/auth', () => ({
   requireAuth: (req: any, res: any, next: any) => {
     if (!req.headers['x-test-user']) return res.status(401).json({error:'unauthenticated'});
-    req.user = {id:req.headers['x-test-user'],companyCode:'ACME',role:'user'}; next();
+    req.user = {id:req.headers['x-test-user'],companyCode:'ACME',role:'user',branchId:'branch-cn2'}; next();
   },
   requirePermission: (permissions: string | string[]) => (req: any,res: any,next: any) => {
     if (!(Array.isArray(permissions) ? permissions : [permissions]).includes(String(req.headers['x-test-permission']))) return res.status(403).json({error:'forbidden'});
@@ -21,6 +21,11 @@ import { SupplierModel } from '../../model/supplier.model';
 import { GoodsReceiptModel } from '../../model/goods-receipt.model';
 import { FinanceDebtModel } from '../finance/models/financial-reporting.model';
 import { UserModel } from '../../model/user.model';
+import { BranchModel } from '../../model/branch.model';
+beforeEach(() => {
+  vi.spyOn(BranchModel, 'findOne').mockReturnValue({ select: () => ({ lean: async () => ({ code: 'CN2' }) }) } as any);
+  vi.spyOn(PartnerModel, 'exists').mockResolvedValue({ _id: '507f1f77bcf86cd799439011' } as any);
+});
 let server: Server | undefined;
 afterEach(async () => { vi.restoreAllMocks(); if (server) await new Promise<void>(resolve => server!.close(() => resolve())); });
 async function request(path: string, headers: Record<string,string> = {}, init: RequestInit = {}) {
@@ -134,3 +139,10 @@ describe('partner route isolation', () => {
   });
 });
 
+
+it('rejects an unknown or foreign-company partner before payout or mutation', async () => {
+  vi.mocked(PartnerModel.exists).mockResolvedValue(null);
+  const res = await request('/507f1f77bcf86cd799439011/payouts', { 'x-test-user': 'admin', 'x-test-permission': 'commission-payment:manage' }, { method: 'POST' });
+  expect(res.status).toBe(404);
+  expect(PartnerModel.exists).toHaveBeenCalledWith({ companyCode: 'ACME', _id: '507f1f77bcf86cd799439011' });
+});

@@ -1,14 +1,26 @@
+import mongoose from "mongoose";
+import { customerScopeFilter, resolveCustomerBranchScope } from "../modules/customer-management/customer-branch-scope";
 import { DepartmentModel } from "../model/department.model";
 import { UserModel } from "../model/user.model";
 import { IDepartmentInput, IDepartmentWithStats } from "../interface/department.interface";
 
+async function departmentScope(companyCode: string, branchId?: string) {
+  if (!branchId) throw new Error("Branch is required");
+  return customerScopeFilter(await resolveCustomerBranchScope({ companyCode, branchId }));
+}
+async function managerNameFor(scope: Record<string, unknown>, uid: string) {
+  if (!uid) return "";
+  const user = await UserModel.findOne({ ...scope, $or: [{ uid }, ...(mongoose.isValidObjectId(uid) ? [{ _id: uid }] : [])] }).lean();
+  if (!user) throw new Error("Manager must belong to the selected branch");
+  return user.displayName || "";
+}
 export class DepartmentService {
-  async list(companyCode: string): Promise<IDepartmentWithStats[]> {
-    const filter = companyCode && companyCode !== "SYSTEM" ? { companyCode } : {};
+  async list(companyCode: string, branchId?: string): Promise<IDepartmentWithStats[]> {
+    const filter = await departmentScope(companyCode, branchId);
     const departments = await DepartmentModel.find(filter).sort({ sortOrder: 1, createdAt: 1 }).lean();
 
     // Thống kê số lượng nhân sự theo phòng ban trong công ty
-    const userMatch = companyCode && companyCode !== "SYSTEM" ? { companyCode } : {};
+    const userMatch = filter;
     const counts = await UserModel.aggregate([
       { $match: userMatch },
       { $group: { _id: "$department", count: { $sum: 1 } } },
@@ -43,30 +55,24 @@ export class DepartmentService {
     });
   }
 
-  async create(companyCode: string, input: IDepartmentInput): Promise<IDepartmentWithStats> {
+  async create(companyCode: string, input: IDepartmentInput, branchId?: string): Promise<IDepartmentWithStats> {
+    const scope = await departmentScope(companyCode, branchId);
     const code = String(input.code || "").trim().toUpperCase();
     const name = String(input.name || "").trim();
 
     if (!code) throw new Error("Mã phòng ban không được để trống.");
     if (!name) throw new Error("Tên phòng ban không được để trống.");
 
-    const existing = await DepartmentModel.findOne({ companyCode, code }).lean();
+    const existing = await DepartmentModel.findOne({ ...scope, code }).lean();
     if (existing) {
       throw new Error(`Mã phòng ban "${code}" đã tồn tại trong doanh nghiệp.`);
     }
 
-    let managerName = input.managerName || "";
-    if (input.managerUid && !managerName) {
-      const managerUser = await UserModel.findOne({
-        $or: [{ uid: input.managerUid }, { _id: input.managerUid }],
-      }).lean();
-      if (managerUser) {
-        managerName = managerUser.displayName || "";
-      }
-    }
+    const managerName = await managerNameFor(scope, input.managerUid || "");
 
     const doc = await DepartmentModel.create({
       companyCode,
+      branchId,
       code,
       name,
       description: input.description || "",
@@ -96,9 +102,11 @@ export class DepartmentService {
     companyCode: string,
     id: string,
     input: Partial<IDepartmentInput>,
-    isSuperAdmin = false
+    isSuperAdmin = false,
+    branchId?: string
   ): Promise<IDepartmentWithStats> {
-    const filter = isSuperAdmin ? { _id: id } : { _id: id, companyCode };
+    const scope = await departmentScope(companyCode, branchId);
+    const filter = { _id: id, ...scope };
     const dept = await DepartmentModel.findOne(filter);
     if (!dept) {
       throw new Error("Không tìm thấy thông tin phòng ban.");
@@ -107,7 +115,7 @@ export class DepartmentService {
     if (input.code && input.code.trim().toUpperCase() !== dept.code) {
       const newCode = input.code.trim().toUpperCase();
       const existing = await DepartmentModel.findOne({
-        companyCode: dept.companyCode,
+        ...scope,
         code: newCode,
         _id: { $ne: id },
       }).lean();
@@ -124,25 +132,14 @@ export class DepartmentService {
 
     if (input.managerUid !== undefined) {
       dept.managerUid = input.managerUid.trim();
-      if (dept.managerUid) {
-        if (input.managerName) {
-          dept.managerName = input.managerName;
-        } else {
-          const managerUser = await UserModel.findOne({
-            $or: [{ uid: dept.managerUid }, { _id: dept.managerUid }],
-          }).lean();
-          dept.managerName = managerUser?.displayName || "";
-        }
-      } else {
-        dept.managerName = "";
-      }
+      dept.managerName = await managerNameFor(scope, dept.managerUid);
     }
 
     await dept.save();
 
     // Lấy số lượng nhân sự
     const count = await UserModel.countDocuments({
-      companyCode: dept.companyCode,
+      ...scope,
       department: dept.name,
     });
 
@@ -162,8 +159,9 @@ export class DepartmentService {
     };
   }
 
-  async delete(companyCode: string, id: string, isSuperAdmin = false): Promise<void> {
-    const filter = isSuperAdmin ? { _id: id } : { _id: id, companyCode };
+  async delete(companyCode: string, id: string, isSuperAdmin = false, branchId?: string): Promise<void> {
+    const scope = await departmentScope(companyCode, branchId);
+    const filter = { _id: id, ...scope };
     const dept = await DepartmentModel.findOne(filter);
     if (!dept) {
       throw new Error("Không tìm thấy thông tin phòng ban để xóa.");
@@ -171,7 +169,7 @@ export class DepartmentService {
 
     // Kiểm tra xem phòng ban có nhân sự hay không
     const userCount = await UserModel.countDocuments({
-      companyCode: dept.companyCode,
+      ...scope,
       department: dept.name,
     });
     if (userCount > 0) {

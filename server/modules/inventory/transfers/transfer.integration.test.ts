@@ -61,6 +61,33 @@ describe("transfer document invariants", () => {
   });
   afterAll(async () => { vi.restoreAllMocks(); await mongoose.disconnect(); await replica?.stop(); });
 
+  it("offers a new branch without a warehouse and transfers into its own empty stock", async () => {
+    await WarehouseModel.deleteOne({ _id: targetWarehouseId });
+    const destinations = await transferDestinations(companyCode);
+    const target = destinations.find(w => w.branchId === targetBranchId);
+    expect(target).toMatchObject({ code: "KHO-TARGET", isDefault: true });
+    expect(await InventoryBalanceModel.countDocuments({ branchId: targetBranchId })).toBe(0);
+    await transferDestinations(companyCode);
+    expect(await WarehouseModel.countDocuments({ companyCode, branchId: targetBranchId })).toBe(1);
+    const doc = await createTransfer(scope, input({ toWarehouseId: String(target!._id) }), actor);
+    await acceptTransfer(targetScope, String(doc._id), actor);
+    expect(await quantity()).toBe(1);
+    expect(await InventoryBalanceModel.findOne({ branchId: targetBranchId, warehouseId: String(target!._id), variantId }).lean()).toMatchObject({ productId, variantId, sku: "SKU-A", quantity: 1 });
+    // The company catalog is shared; only warehouse balances are branch-local.
+    expect(await ProductCatalogModel.countDocuments({ companyCode })).toBe(1);
+    expect(await ProductVariantModel.countDocuments({ companyCode, sku: "SKU-A" })).toBe(1);
+  });
+
+  it("does not provision other companies, inactive branches or reactivate disabled warehouses", async () => {
+    await WarehouseModel.updateOne({ _id: targetWarehouseId }, { isActive: false });
+    const inactive = await BranchModel.create({ companyCode, code: "CLOSED", name: "Closed", isActive: false });
+    const foreign = await BranchModel.create({ companyCode: "OTHER", code: "MAIN", name: "Other", isActive: true });
+    const destinations = await transferDestinations(companyCode);
+    expect(destinations.some(w => w.branchId === targetBranchId)).toBe(false);
+    expect(await WarehouseModel.countDocuments({ branchId: { $in: [String(inactive._id), String(foreign._id)] } })).toBe(0);
+    expect(await WarehouseModel.findById(targetWarehouseId).lean()).toMatchObject({ isActive: false });
+  });
+
   it("conserves quantity and value from source through transit into a different branch", async () => {
     const doc = await createTransfer(scope, input(), actor);
     expect(await quantity()).toBe(1);

@@ -1,3 +1,4 @@
+import { resolveCustomerBranchScope } from "../../customer-management/customer-branch-scope";
 import { GoodsReceiptModel } from "../../../model/goods-receipt.model";
 import { attachAfterSaleHistory } from "./retail-after-sale-history";
 import { RetailAfterSaleModel } from "../models/retail-after-sale.model";
@@ -329,7 +330,7 @@ export function customerLookupFilter(scope: RetailBranchScope, customerId: strin
 async function resolveOrderCustomer(scope: RetailBranchScope, customerId: unknown, session?: any) {
   const id = String(customerId || "").trim();
   if (!id) return null;
-  const customer = await getCustomerBrief({ companyCode: scope.companyCode }, id);
+  const customer = await getCustomerBrief(await resolveCustomerBranchScope(scope), id);
   if (!customer) throw new Error("Không tìm thấy khách hàng.");
   return { ...customer, _id: customer.customerId };
 }
@@ -338,7 +339,7 @@ async function resolveOrderCustomerSnapshots(scope: RetailBranchScope, customerI
   const customer = await resolveOrderCustomer(scope, customerId);
   if (!customer) return null;
   const profileId = String(billingProfileId || "").trim();
-  const billing = profileId ? await getBillingProfile({ companyCode: scope.companyCode }, customer.customerId, profileId) : null;
+  const billing = profileId ? await getBillingProfile(await resolveCustomerBranchScope(scope), customer.customerId, profileId) : null;
   if (profileId && !billing) throw new Error("Không tìm thấy hồ sơ xuất VAT đang hoạt động.");
   return buildRetailCustomerSnapshots(customer, billing);
 }
@@ -633,7 +634,7 @@ export const RetailOrderService = {
           const existing = await RetailIdempotencyModel.findOne(keyFilter).session(session).lean();
           if (existing) return replay(existing, session);
           await RetailIdempotencyModel.create([{ ...scope, key, operation: "create-draft", requestFingerprint, status: "processing" }], { session });
-          const collaborator = await resolveCollaborator(scope.companyCode, input.collaboratorId);
+          const collaborator = await resolveCollaborator(scope.companyCode, input.collaboratorId, undefined, scope.branchId);
           const used = await RetailOrderModel.find({ ...scope, status: "draft", createdBy: creator }).select("heldSlot").session(session).lean();
           assertHeldDraftCapacity(used.length);
           const occupied = new Set(used.map((item: any) => Number(item.heldSlot)));
@@ -680,7 +681,7 @@ export const RetailOrderService = {
         const existing: any = await RetailOrderModel.findOne({ _id: id, ...scope, status: "draft", version: expectedVersion }).session(session).lean();
         if (!existing) throw retailError("Đơn đã thay đổi hoặc không thể sửa.", "ORDER_VERSION_CONFLICT");
         assertHeldDraftAccess(String(existing.createdBy), actorId(actor), canManage);
-        const collaborator = await resolveCollaborator(scope.companyCode, input.collaboratorId === undefined ? existing.collaboratorId : input.collaboratorId);
+        const collaborator = await resolveCollaborator(scope.companyCode, input.collaboratorId === undefined ? existing.collaboratorId : input.collaboratorId, undefined, scope.branchId);
         const { pricing } = await priceInput(scope, input, session);
         const customerSnapshot = await resolveOrderCustomerSnapshots(scope, input.customerId, input.billingProfileId);
         const order = await RetailOrderModel.findOneAndUpdate({ _id: id, ...scope, status: "draft", version: expectedVersion }, { $set: { ...orderExtras(input), collaboratorId: collaborator ? String(collaborator._id) : null, couponCode: pricing.couponCode, couponSnapshot: pricing.couponSnapshot, items: pricing.lines, subtotal: pricing.subtotal, orderDiscount: pricing.orderDiscount, taxRate: pricing.taxRate, taxAmount: pricing.taxAmount, shippingFee: pricing.shippingFee, grandTotal: pricing.grandTotal, totalCost: pricing.totalCost, dueAmount: pricing.grandTotal, ...(customerSnapshot || { customerId: undefined, customerName: undefined, customerPhone: undefined, billingProfileId: undefined, customerSnapshot: undefined, billingSnapshot: undefined }), dueDate: input.dueDate }, $inc: { version: 1 } }, { returnDocument: "after", session });
@@ -730,7 +731,7 @@ export const RetailOrderService = {
         const customerSnapshots = await resolveOrderCustomerSnapshots(scope, orderInput.customerId, orderInput.billingProfileId);
         if (debtAmount > 0) requireRetailPaymentCustomer(customerSnapshots?.customerId);
         const customer: any = customerSnapshots ? { name: customerSnapshots.customerName, phone: customerSnapshots.customerPhone } : null;
-        const collaborator = await resolveCollaborator(scope.companyCode, orderInput.collaboratorId);
+        const collaborator = await resolveCollaborator(scope.companyCode, orderInput.collaboratorId, undefined, scope.branchId);
         const branch = await BranchModel.findOne({ _id: scope.branchId, companyCode: scope.companyCode, isActive: true }).session(session).lean();
         if (!branch) throw new Error("Chi nhánh bán hàng không hợp lệ.");
         const businessDate = shift.businessDate || businessDateInVietnam(new Date());

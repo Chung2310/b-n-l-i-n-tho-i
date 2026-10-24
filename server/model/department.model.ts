@@ -9,6 +9,7 @@ const DepartmentSchema = new Schema<IDepartment>(
       index: true,
       trim: true,
     },
+    branchId: { type: String, index: true },
     code: {
       type: String,
       required: true,
@@ -50,7 +51,7 @@ const DepartmentSchema = new Schema<IDepartment>(
 );
 
 // Đảm bảo mã phòng ban là duy nhất trong cùng một công ty
-DepartmentSchema.index({ companyCode: 1, code: 1 }, { unique: true });
+DepartmentSchema.index({ companyCode: 1, branchId: 1, code: 1 }, { unique: true });
 DepartmentSchema.index({ companyCode: 1, name: 1 });
 
 export const DepartmentModel = model<IDepartment>("Department", DepartmentSchema);

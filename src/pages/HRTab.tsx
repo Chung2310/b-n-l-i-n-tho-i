@@ -111,8 +111,12 @@ export default function HRTab() {
   }, [userProfile?.uid, userProfile?.role, userProfile?.companyCode]);
 
   // Fetch users list from Firestore based on company filter
+  const rosterRequest = useRef(0);
   const fetchUsers = async () => {
+    const requestId = ++rosterRequest.current;
+    setUsersList([]);
     if (!selectedCompanyCode) return;
+    if (!activeBranchId && userProfile?.role !== "superadmin") return;
     setLoading(true);
     try {
       let data: UserProfile[] = [];
@@ -124,18 +128,21 @@ export default function HRTab() {
           data = userProfile ? [userProfile] : [];
         }
       } else {
-        data = await authService.getUsersByCompany(selectedCompanyCode);
+        data = await authService.getUsersByCompany(selectedCompanyCode, activeBranchId || undefined);
       }
-      setUsersList(internalAccounts(data));
+      if (requestId === rosterRequest.current) setUsersList(internalAccounts(data));
     } catch (error) {
       console.error("Lỗi khi tải danh sách nhân sự:", error);
       toast.error(getApiErrorMessage(error, "Không thể tải sơ đồ nhân sự."));
     } finally {
-      setLoading(false);
+      if (requestId === rosterRequest.current) setLoading(false);
     }
   };
 
+  const courseRequest = useRef(0);
   const fetchCourses = async (companyCode: string) => {
+    const requestId = ++courseRequest.current;
+    setCourses([]);
     if (!companyCode) return;
     try {
       const res = await fetch("/api/v1/crud/training-courses", {
@@ -149,7 +156,7 @@ export default function HRTab() {
         ...item,
         id: item._id,
       }));
-      setCourses(list);
+      if (requestId === courseRequest.current) setCourses(list);
     } catch (err) {
       console.error("Lỗi tải khóa học:", err);
     }
@@ -190,7 +197,9 @@ export default function HRTab() {
     division: usr.division || "Khối Vận Hành",
     isLeader: usr.isLeader,
     jobDescriptionLink: usr.jobDescriptionLink || "",
+    employeeDocuments: usr.employeeDocuments || [],
     monthlySalary: usr.monthlySalary,
+    hireDate: usr.hireDate,
   }));
 
   return (
@@ -260,7 +269,7 @@ export default function HRTab() {
       </div>
 
       {/* Conditional Rendering of Modular Tab Components */}
-      <Suspense fallback={<TabLoader label="Đang tải dữ liệu nhân sự..." />}>
+      <Suspense key={`${selectedCompanyCode}:${activeBranchId}`} fallback={<TabLoader label="Đang tải dữ liệu nhân sự..." />}>
         {subTab === "SƠ ĐỒ TỔ CHỨC" && (
           <OrgChartTab
             userProfile={userProfile}

@@ -119,6 +119,7 @@ export interface IInventoryLedgerEntry extends Document {
 }
 
 export interface ISupplier extends Document {
+  branchId?: string;
   companyCode: string;
   code: string;
   name: string;

@@ -1,3 +1,4 @@
+import { customerScopeFilter, resolveCustomerBranchScope } from "../modules/customer-management/customer-branch-scope";
 import { createManualStockLog, updateManualStockLog, deleteManualStockLog } from "../modules/inventory/manual-stock-log.service";
 import type mongoose from "mongoose";
 import { ProductModel } from "../model/product.model";
@@ -211,6 +212,21 @@ const BRANCH_SCOPED_MODELS = new Set<string>([
   "hr-leave-applications",
 ]);
 
+export const HR_BRANCH_MODELS = new Set<string>(["training-courses", "training-enrollments", "workflows", "kanban-tasks"]);
+async function hrScope(companyCode: string, branchId?: string) {
+  if (!branchId) throw new Error("Branch is required");
+  return customerScopeFilter(await resolveCustomerBranchScope({ companyCode, branchId }));
+}
+async function validateEnrollment(scope: Record<string, unknown>, data: any) {
+  const course = await TrainingCourseModel.exists({ _id: data.courseId, ...scope });
+  const user = await UserModel.exists({ _id: data.uid, ...scope });
+  if (!course || !user) throw new Error("Course and employee must belong to the selected branch");
+}
+function assertPlainWrite(data: any) {
+  if (!data || typeof data !== "object" || Array.isArray(data) || Object.keys(data).some(key => key.startsWith("$") || key.includes("."))) {
+    throw new Error("Invalid update fields");
+  }
+}
 export const crudService = {
   /**
    * Lấy danh sách tài nguyên kèm phân trang, lọc và cô lập companyCode
@@ -248,6 +264,11 @@ export const crudService = {
     // Áp dụng tìm kiếm tương đối (Search)
     if (inventoryBranch) query.branchId = inventoryBranch;
 
+    if (HR_BRANCH_MODELS.has(modelName)) {
+      const scope = await hrScope(companyCode, typeof options.filters?.branchId === "string" ? options.filters.branchId : undefined);
+      delete query.branchId;
+      Object.assign(query, scope);
+    }
     if (options.search) {
       const searchRegex = new RegExp(options.search, "i");
       query.$or = [
@@ -296,6 +317,7 @@ export const crudService = {
     const inventoryBranch = requireInventoryBranch(modelName, branchId);
     if (inventoryBranch) query.branchId = inventoryBranch;
     if (BRANCH_SCOPED_MODELS.has(modelName) && branchId) query.branchId = branchId;
+    if (HR_BRANCH_MODELS.has(modelName)) Object.assign(query, await hrScope(companyCode, branchId));
 
     const item = await model.findOne(query).lean();
     if (!item) {
@@ -319,6 +341,7 @@ export const crudService = {
       throw new Error(`Model '${modelName}' không được hỗ trợ.`);
     }
     assertWritable(modelName);
+    assertPlainWrite(data);
     assertNoLegacyInventoryMutation(modelName, data);
 
     // Ép buộc gán companyCode để bảo mật dữ liệu doanh nghiệp
@@ -333,10 +356,16 @@ export const crudService = {
       ...(preparedData._id ? { _id: preparedData._id } : {}),
     };
 
-    if (BRANCH_SCOPED_MODELS.has(modelName) && (branchId || data.branchId)) {
-      payload.branchId = branchId || data.branchId;
+    if (BRANCH_SCOPED_MODELS.has(modelName)) {
+      if (!branchId) throw new Error("Branch is required");
+      payload.branchId = branchId;
     }
 
+    if (HR_BRANCH_MODELS.has(modelName)) {
+      const scope = await hrScope(companyCode, branchId);
+      payload.branchId = branchId;
+      if (modelName === "training-enrollments") await validateEnrollment(scope, payload);
+    }
     const newItem = new model(payload);
     await newItem.save();
 
@@ -390,6 +419,7 @@ export const crudService = {
     }
 
     assertWritable(modelName);
+    assertPlainWrite(data);
     assertNoLegacyInventoryMutation(modelName, data);
 
     const query: any = { _id: id };
@@ -399,14 +429,21 @@ export const crudService = {
     const inventoryBranch = requireInventoryBranch(modelName, branchId);
     if (inventoryBranch) query.branchId = inventoryBranch;
     if (BRANCH_SCOPED_MODELS.has(modelName) && branchId) query.branchId = branchId;
+    if (HR_BRANCH_MODELS.has(modelName)) Object.assign(query, await hrScope(companyCode, branchId));
 
     // Loại bỏ các trường nhạy cảm không cho phép đè trực tiếp
+    if (modelName === "training-enrollments") {
+      const existing = await model.findOne(query).lean();
+      if (!existing) throw new Error("Enrollment not found in selected branch");
+      await validateEnrollment(await hrScope(companyCode, branchId), { ...existing, ...data });
+    }
     const { companyCode: _cCode, branchId: _branchId, ownerId: _ownerId, _id: _itemId, id: _plainId, ...rawUpdatePayload } = data;
     let preparedUpdatePayload = rawUpdatePayload;
     if (modelName === "stock-logs") return sanitizeCrudResult(modelName, await updateManualStockLog({ companyCode, branchId: inventoryBranch! }, id, rawUpdatePayload, actor));
     const updatePayload = sanitizeInventoryPayload(modelName, preparedUpdatePayload);
     if ((modelName === "timekeeping-logs" || BRANCH_SCOPED_MODELS.has(modelName)) && data.branchId) {
-      updatePayload.branchId = data.branchId;
+      if (!branchId) throw new Error("Branch is required");
+      updatePayload.branchId = branchId;
     }
 
     // Enforce the planned start time for every task update entry point, not only
@@ -462,6 +499,7 @@ export const crudService = {
     const inventoryBranch = requireInventoryBranch(modelName, branchId);
     if (inventoryBranch) query.branchId = inventoryBranch;
     if (BRANCH_SCOPED_MODELS.has(modelName) && branchId) query.branchId = branchId;
+    if (HR_BRANCH_MODELS.has(modelName)) Object.assign(query, await hrScope(companyCode, branchId));
 
     if (modelName === "stock-logs") return deleteManualStockLog({ companyCode, branchId: inventoryBranch! }, id);
 

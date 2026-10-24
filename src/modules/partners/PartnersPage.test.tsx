@@ -9,6 +9,7 @@ import { toast } from '../../pages/Toast';
 vi.mock('../../pages/Toast', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } }));
 const auth = vi.hoisted(() => ({ permissions: ['partner-self:read'] }));
 vi.mock('../../context/AuthContext', () => ({ useAuth: () => ({ hasPermission: (p: string) => auth.permissions.includes(p) }) }));
+vi.mock('../../context/BranchContext', () => ({ useBranch: () => ({ activeBranchId: 'main' }) }));
 vi.mock('./partnerApi', () => ({ partnerRequest: vi.fn() }));
 afterEach(cleanup);
 beforeEach(() => { vi.clearAllMocks(); auth.permissions = ['partner-self:read']; });
