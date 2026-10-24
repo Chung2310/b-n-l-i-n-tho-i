@@ -1,3 +1,4 @@
+import { type CustomerScope } from "../../customer-management/customer-branch-scope";
 import { FinanceDebtModel } from "../../finance/models/financial-reporting.model";
 import { financeToday, validDay, moneyInput } from "../../finance/services/financial-calculations";
 ﻿import mongoose, { Types } from "mongoose";
@@ -80,7 +81,7 @@ async function ensureSupplierCode(company: string, name: string, requested?: unk
   return candidate;
 }
 
-export async function listSuppliers(scope: { companyCode: string; q?: unknown; status?: unknown }) {
+export async function listSuppliers(scope: CustomerScope & { q?: unknown; status?: unknown }) {
   const company = companyCode(scope.companyCode);
   const q = text(scope.q, "Từ khóa");
   const filter: Record<string, unknown> = { companyCode: company };
@@ -89,33 +90,33 @@ export async function listSuppliers(scope: { companyCode: string; q?: unknown; s
   return SupplierModel.find(filter).sort({ status: 1, name: 1 }).lean();
 }
 
-export async function createSupplier(scope: { companyCode: string }, input: any, actor: Actor) {
+export async function createSupplier(scope: CustomerScope, input: any, actor: Actor) {
   const company = companyCode(scope.companyCode);
   const name = text(input?.name, "Tên nhà cung cấp", true);
   const code = await ensureSupplierCode(company, name, input?.code);
   return SupplierModel.create({ companyCode: company, code, name, taxCode: text(input?.taxCode, "Mã số thuế") || undefined, phone: text(input?.phone, "Số điện thoại") || undefined, email: text(input?.email, "Email").toLowerCase() || undefined, address: text(input?.address, "Địa chỉ") || undefined, paymentTerms: text(input?.paymentTerms, "Điều khoản thanh toán") || undefined, notes: text(input?.notes, "Ghi chú") || undefined, status: input?.status === "inactive" ? "inactive" : "active", createdBy: actorId(actor), updatedBy: actorId(actor) });
 }
 
-export async function updateSupplier(scope: { companyCode: string }, id: string, input: any, actor: Actor) {
+export async function updateSupplier(scope: CustomerScope, id: string, input: any, actor: Actor) {
   if (!Types.ObjectId.isValid(id)) throw new ReceivingValidationError("Nhà cung cấp không hợp lệ.");
   const company = companyCode(scope.companyCode);
   const updates: Record<string, unknown> = {};
   for (const field of ["name", "taxCode", "phone", "email", "address", "paymentTerms", "notes"] as const) if (input?.[field] !== undefined) updates[field] = text(input[field], field) || undefined;
   if (input?.status !== undefined) { if (!["active", "inactive"].includes(input.status)) throw new ReceivingValidationError("Trạng thái nhà cung cấp không hợp lệ."); updates.status = input.status; }
   updates.updatedBy = actorId(actor);
-  const supplier = await SupplierModel.findOneAndUpdate({ _id: id, companyCode: company }, { $set: updates }, { returnDocument: 'after', runValidators: true }).lean();
+  const supplier = await SupplierModel.findOneAndUpdate({ _id: id, ...{ companyCode: company } }, { $set: updates }, { returnDocument: 'after', runValidators: true }).lean();
   if (!supplier) throw new ReceivingValidationError("Không tìm thấy nhà cung cấp.");
   return supplier;
 }
 
-export async function deleteSupplier(scope: { companyCode: string }, id: string) {
+export async function deleteSupplier(scope: CustomerScope, id: string) {
   if (!Types.ObjectId.isValid(id)) throw new ReceivingValidationError("Nhà cung cấp không hợp lệ.");
   const company = companyCode(scope.companyCode);
-  const supplier = await SupplierModel.findOne({ _id: id, companyCode: company }).lean();
+  const supplier = await SupplierModel.findOne({ _id: id, ...{ companyCode: company } }).lean();
   if (!supplier) throw new ReceivingValidationError("Không tìm thấy nhà cung cấp.");
   const hasReceipts = await GoodsReceiptModel.exists({ companyCode: company, supplierId: id });
   if (hasReceipts) throw new ReceivingValidationError("Nhà cung cấp đã có phiếu nhập và không thể xóa. Hãy chuyển sang trạng thái Ngừng dùng.");
-  await SupplierModel.deleteOne({ _id: id, companyCode: company });
+  await SupplierModel.deleteOne({ _id: id, ...{ companyCode: company } });
   return supplier;
 }
 

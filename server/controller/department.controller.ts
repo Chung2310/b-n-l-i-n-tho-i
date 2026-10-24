@@ -1,3 +1,4 @@
+import { customerScopeFromRequest } from "../modules/customer-management/customer-branch-scope";
 import { Response } from "express";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { departmentService } from "../service/department.service";
@@ -5,12 +6,13 @@ import { departmentService } from "../service/department.service";
 export class DepartmentController {
   async list(req: AuthenticatedRequest, res: Response) {
     try {
+      const scope = await customerScopeFromRequest(req);
       let companyCode = req.user?.companyCode || "";
       if (req.user?.role === "superadmin" && req.query.companyCode) {
         companyCode = String(req.query.companyCode);
       }
 
-      const departments = await departmentService.list(companyCode);
+      const departments = await departmentService.list(scope.companyCode, scope.branchId);
       return res.status(200).json({
         status: "success",
         data: departments,
@@ -26,6 +28,7 @@ export class DepartmentController {
 
   async create(req: AuthenticatedRequest, res: Response) {
     try {
+      const scope = await customerScopeFromRequest(req);
       let companyCode = req.user?.companyCode || "";
       if (req.user?.role === "superadmin" && req.body.companyCode) {
         companyCode = String(req.body.companyCode);
@@ -38,7 +41,7 @@ export class DepartmentController {
         });
       }
 
-      const department = await departmentService.create(companyCode, req.body);
+      const department = await departmentService.create(scope.companyCode, req.body, scope.branchId);
       return res.status(201).json({
         status: "success",
         data: department,
@@ -55,6 +58,7 @@ export class DepartmentController {
 
   async update(req: AuthenticatedRequest, res: Response) {
     try {
+      const scope = await customerScopeFromRequest(req);
       const { id } = req.params;
       const isSuperAdmin = req.user?.role === "superadmin";
       let companyCode = req.user?.companyCode || "";
@@ -64,10 +68,11 @@ export class DepartmentController {
       }
 
       const department = await departmentService.update(
-        companyCode,
+        scope.companyCode,
         id,
         req.body,
-        isSuperAdmin
+        isSuperAdmin,
+        scope.branchId
       );
 
       return res.status(200).json({
@@ -86,11 +91,12 @@ export class DepartmentController {
 
   async delete(req: AuthenticatedRequest, res: Response) {
     try {
+      const scope = await customerScopeFromRequest(req);
       const { id } = req.params;
       const isSuperAdmin = req.user?.role === "superadmin";
       const companyCode = req.user?.companyCode || "";
 
-      await departmentService.delete(companyCode, id, isSuperAdmin);
+      await departmentService.delete(scope.companyCode, id, isSuperAdmin, scope.branchId);
 
       return res.status(200).json({
         status: "success",

@@ -1,3 +1,4 @@
+import { customerScopeFromRequest, customerScopeFilter } from "../modules/customer-management/customer-branch-scope";
 import { Request, Response } from "express";
 import { authService } from "../service/auth.service";
 import { AuthenticatedRequest } from "../middleware/auth";
@@ -492,14 +493,9 @@ export const authController = {
         companyCode = req.user?.companyCode;
       }
 
-      const requestedBranchId = typeof req.query.branchId === "string" ? req.query.branchId : "";
-      const filter = buildUserRosterFilter(companyCode, requestedBranchId);
-      if (requestedBranchId && companyCode) {
-        const { BranchModel } = await import("../model/branch.model");
-        const branch = await BranchModel.findOne({ _id: requestedBranchId, companyCode }).select("_id").lean();
-        if (!branch) return res.status(403).json({ status: "error", message: "Chi nhánh không thuộc công ty." });
-        filter.branchId = requestedBranchId;
-      }
+      const filter = req.user?.role === "superadmin" && !req.query.branchId && !req.user.branchId
+        ? buildUserRosterFilter(companyCode)
+        : { ...buildUserRosterFilter(companyCode), ...customerScopeFilter(await customerScopeFromRequest(req)) };
       const users = await authService.getUsers(filter);
 
       return res.status(200).json({

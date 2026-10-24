@@ -31,7 +31,7 @@ export async function saveSupplierPartner(input: any, details: any, partnerId?: 
     const supplierId = partner.supplierId || input.supplierId;
     const supplier = supplierId
       ? await SupplierModel.findOne({ ...scope, _id: supplierId }).session(session || null)
-      : new SupplierModel({ ...scope, code: input.code, createdBy: input.updatedBy });
+      : new SupplierModel({ companyCode: input.companyCode, code: input.code, createdBy: input.updatedBy });
     if (!supplier) throw invalid("Không tìm thấy nhà cung cấp.", 404);
     const isNewSupplier = supplier.isNew;
     const previousSupplier = supplier.toObject();

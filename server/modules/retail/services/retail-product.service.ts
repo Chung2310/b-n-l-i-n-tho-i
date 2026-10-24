@@ -58,6 +58,7 @@ export const RetailProductService = {
       ? await SerialUnitModel.findOne({
           companyCode: scope.companyCode,
           branchId: scope.branchId,
+          warehouseId: String(defaultWarehouse._id),
           status: "in_stock",
           $or: [{ normalizedSerialNumber: barcode.toUpperCase() }, { normalizedInternalBarcode: barcode.toUpperCase() }, { normalizedBarcodeAliases: barcode.toUpperCase() }, { normalizedImeis: barcode.toUpperCase() }],
         }).lean()

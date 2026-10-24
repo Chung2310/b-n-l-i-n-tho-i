@@ -43,7 +43,8 @@ export function visibleMonthlyKpiRows<T extends { employeeId: string }>(rows: T[
 
 function companyFilter(req: AuthenticatedRequest) {
   const companyCode = req.user?.companyCode || "SYSTEM";
-  return req.user?.role === "superadmin" && companyCode === "SYSTEM" ? {} : { companyCode };
+  if (!req.user?.branchId) throw httpError(400, "Branch is required");
+  return { companyCode, branchId: req.user.branchId };
 }
 
 function correlationId(req: AuthenticatedRequest) {
@@ -60,13 +61,14 @@ function toClient(item: any) {
   return { ...plain, status: normalizeStatus(plain?.status), progress: taskProgress(plain) };
 }
 
-async function validateRelations(companyCode: string, assigneeUid?: string, projectId?: string) {
+async function validateRelations(companyCode: string, assigneeUid?: string, projectId?: string, branchId?: string) {
+  if (!branchId) throw httpError(400, "Branch is required");
   if (assigneeUid) {
-    const assignee = await UserModel.findOne({ _id: assigneeUid, companyCode }).select("_id displayName photoURL").lean();
+    const assignee = await UserModel.findOne({ _id: assigneeUid, companyCode, branchId }).select("_id displayName photoURL").lean();
     if (!assignee) throw httpError(400, "Người được giao việc không thuộc doanh nghiệp hiện tại.");
   }
   if (projectId) {
-    const project = await ProjectModel.findOne({ _id: projectId, companyCode }).select("_id").lean();
+    const project = await ProjectModel.findOne({ _id: projectId, companyCode, branchId }).select("_id").lean();
     if (!project) throw httpError(400, "Dự án không thuộc doanh nghiệp hiện tại.");
   }
 }
@@ -256,7 +258,7 @@ kanbanRouter.post("/tasks", requirePermission("work:manage") as any, async (req:
     const status = normalizeStatus(req.body.status);
     if (!VALID_STATUSES.includes(status as any)) throw httpError(400, "Trạng thái công việc không hợp lệ.");
     if (!VALID_PRIORITIES.includes(req.body.priority || "Medium")) throw httpError(400, "Độ ưu tiên không hợp lệ.");
-    await validateRelations(companyCode, req.body.assigneeUid, req.body.projectId);
+    await validateRelations(companyCode, req.body.assigneeUid, req.body.projectId, req.user?.branchId);
     validateTimeline(req.body);
     const assignee = await UserModel.findById(req.body.assigneeUid).select("displayName photoURL").lean();
     const now = new Date();
@@ -271,7 +273,7 @@ kanbanRouter.post("/tasks", requirePermission("work:manage") as any, async (req:
       status: status as any,
       category: req.body.category || "Onboarding",
       companyCode,
-      branchId: req.user?.branchId || req.body.branchId || "",
+      branchId: req.user?.branchId || "",
       creatorUid: req.user?.id,
       createdAt: now,
       projectId: req.body.projectId || "",
@@ -362,7 +364,7 @@ kanbanRouter.patch("/tasks/:id", async (req: AuthenticatedRequest, res: Response
       if (!manager && update.status === "Archived") throw httpError(403, "Nhân viên không được lưu trữ công việc.");
     }
     if (update.priority !== undefined && !VALID_PRIORITIES.includes(update.priority)) throw httpError(400, "Độ ưu tiên không hợp lệ.");
-    await validateRelations(task.companyCode, update.assigneeUid, update.projectId);
+    await validateRelations(task.companyCode, update.assigneeUid, update.projectId, req.user?.branchId);
     validateTimeline(update, task);
 
     if (update.assigneeUid && update.assigneeUid !== task.assigneeUid) {
@@ -482,7 +484,7 @@ kanbanRouter.get("/projects", requirePermission("work:read") as any, async (req:
 
 kanbanRouter.post("/projects", requirePermission("work:manage") as any, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const companyCode = req.user?.companyCode || "SYSTEM";
+    const { companyCode } = companyFilter(req);
     const name = String(req.body.name || "").trim();
     if (!name) throw httpError(400, "Tên dự án là bắt buộc.");
     const attachments = sanitizeAttachments(req.body.attachments) || [];
@@ -490,7 +492,7 @@ kanbanRouter.post("/projects", requirePermission("work:manage") as any, async (r
     const project = await ProjectModel.create({
       name,
       companyCode,
-      branchId: req.user?.branchId || req.body.branchId || "",
+      branchId: req.user?.branchId || "",
       creatorUid: req.user?.id,
       status: req.body.status || "not_started",
       priority: req.body.priority || "medium",

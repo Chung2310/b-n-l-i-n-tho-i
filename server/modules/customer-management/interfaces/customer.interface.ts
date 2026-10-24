@@ -16,6 +16,7 @@ export interface ICustomerTierState {
 
 export interface ICustomer {
   companyCode: string;
+  branchId?: string;
   customerCode: string;
   type: CustomerType;
   name: string;

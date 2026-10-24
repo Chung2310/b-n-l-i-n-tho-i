@@ -1,3 +1,4 @@
+import { resolveCustomerBranchScope } from "../customer-management/customer-branch-scope";
 import { RepairCreationRequestModel } from "./repair-creation-request.model";
 import { RepairPaymentRequestModel } from "./repair-payment-request.model";
 import { repairLines } from "../partners/commission-calculation";
@@ -94,8 +95,9 @@ export async function createRepairTicket(scope: RepairScope, input: Omit<RepairT
     const rawCustId = String(input.customerId || "").trim();
     let customerCode = (input as any).customerCode;
     if (/^[0-9a-fA-F]{24}$/.test(rawCustId)) {
-      const contact = await getCustomerContact({ companyCode: scope.companyCode }, rawCustId, { includeInactive: true }).catch(() => null);
-      if (contact?.customerCode) {
+      const contact = await getCustomerContact(await resolveCustomerBranchScope(scope), rawCustId, { includeInactive: true });
+      if (!contact) throw Object.assign(new Error("Customer is outside the selected branch."), { statusCode: 404 });
+      if (contact.customerCode) {
         customerCode = contact.customerCode;
       }
     }
@@ -131,7 +133,7 @@ export async function createRepairTicket(scope: RepairScope, input: Omit<RepairT
       }
     }
 
-    const collaborator = await resolveCollaborator(scope.companyCode, input.collaboratorId, session);
+    const collaborator = await resolveCollaborator(scope.companyCode, input.collaboratorId, session, scope.branchId);
     const ticket = new RepairTicketModel({
       ...input,
       creationFingerprint,
@@ -209,7 +211,7 @@ export async function transitionRepairTicket(scope: RepairScope, id: string, to:
       ticket.assignedBy = actor.id;
       assignedTech = true;
     }
-    if (ticket.collaboratorId && !ticket.commissionSnapshot && ["approved", "delivered"].includes(to)) ticket.commissionSnapshot = await snapshotPolicy(scope.companyCode, ticket.collaboratorId, session);
+    if (ticket.collaboratorId && !ticket.commissionSnapshot && ["approved", "delivered"].includes(to)) ticket.commissionSnapshot = await snapshotPolicy(scope.companyCode, ticket.collaboratorId, session, false, scope.branchId);
     if (to === "delivered" && ticket.commissionSnapshot) ticket.commissionSnapshot = { ...ticket.commissionSnapshot, lines: repairLines(ticket, ticket.commissionSnapshot.policy) };
     ticket.status = to; ticket.statusHistory.push({ from, to, at: new Date(), by: actor.id, byName: actor.name, note, customerNotified: to === "done" ? false : customerNotified, technicianId: ticket.technicianId, technicianName: ticket.technicianName });
     if (to === "done") {
@@ -260,7 +262,7 @@ export async function approveRepairQuote(scope: RepairScope, id: string, actor: 
     if (!ticket) throw Object.assign(new Error("Không tìm thấy phiếu sửa chữa."), { statusCode: 404 });
     if (ticket.status === "approved" && ticket.customerApprovedAt) return ticket.toObject();
     if (ticket.status !== "quoted" || !Number.isSafeInteger(ticket.quotedAmount) || ticket.quotedAmount < 0 || ticket.totalAmount !== ticket.quotedAmount) throw Object.assign(new Error("Phiếu hoặc báo giá đã thay đổi. Vui lòng tải lại."), { statusCode: 409, code: "REPAIR_QUOTE_CONFLICT" });
-    if (ticket.collaboratorId) ticket.commissionSnapshot = await snapshotPolicy(scope.companyCode, ticket.collaboratorId, session);
+    if (ticket.collaboratorId) ticket.commissionSnapshot = await snapshotPolicy(scope.companyCode, ticket.collaboratorId, session, false, scope.branchId);
     ticket.customerApprovedAt = new Date(); ticket.dueAmount = 0; ticket.status = "approved";
     ticket.statusHistory.push({ from: "quoted", to: "approved", at: new Date(), by: actor.id, byName: actor.name, customerNotified: false });
     await ticket.save({ session });

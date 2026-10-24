@@ -1,3 +1,4 @@
+import { customerScopeFilter } from "./customer-branch-scope";
 import { Types } from "mongoose";
 import { CustomerError } from "./customer-errors";
 import type { BillingProfileInput, BillingProfileSnapshot } from "./interfaces/customer-billing-profile.interface";
@@ -16,18 +17,18 @@ export function normalizeBillingProfileInput(input: BillingProfileInput | Record
 }
 type Repo = { customer(scope: CustomerScope, id: string): Promise<any>; list(scope: CustomerScope, id: string): Promise<any[]>; taxIdCustomers(scope: CustomerScope, taxId: string): Promise<string[]>; clearDefault(scope: CustomerScope, id: string): Promise<unknown>; create(values: any): Promise<any>; setCustomerVat(scope: CustomerScope, id: string): Promise<unknown> };
 export function createBillingProfileService(repo: Repo) { return {
-  async list(scope: CustomerScope, customerId: string) { return repo.list(scope, customerId); },
+  async list(scope: CustomerScope, customerId: string) { if (!Types.ObjectId.isValid(customerId) || !await repo.customer(scope, customerId)) throw new CustomerError("CUSTOMER_NOT_FOUND", "Không tìm thấy khách hàng.", 404); return repo.list(scope, customerId); },
   async create(scope: CustomerScope, customerId: string, input: BillingProfileInput, actor: CustomerActor) {
     if (!Types.ObjectId.isValid(customerId)) throw new CustomerError("CUSTOMER_ID_INVALID", "Mã khách hàng không hợp lệ.");
     const customer = await repo.customer(scope, customerId); if (!customer) throw new CustomerError("CUSTOMER_NOT_FOUND", "Không tìm thấy khách hàng.", 404); if (customer.status !== "active") throw new CustomerError("CUSTOMER_INACTIVE", "Khách hàng đã ngừng hoạt động.", 409);
     const values = normalizeBillingProfileInput(input); const existing = await repo.list(scope, customerId); const isDefault = existing.length === 0 || Boolean(input.isDefault);
     if (isDefault) await repo.clearDefault(scope, customerId);
     const reused = (await repo.taxIdCustomers(scope, values.taxId)).some((id) => id !== customerId);
-    const profile = await repo.create({ ...scope, customerId, ...values, isDefault, status: "active", createdBy: actor.id, createdByName: actor.name, version: 0 });
+    const profile = await repo.create({ companyCode: scope.companyCode, customerId, ...values, isDefault, status: "active", createdBy: actor.id, createdByName: actor.name, version: 0 });
     await repo.setCustomerVat(scope, customerId);
     return { profile, warnings: reused ? [{ code: "BILLING_TAX_ID_REUSED", message: "Mã số thuế đang được dùng bởi khách hàng khác." }] : [] };
   },
 }; }
-const repo: Repo = { customer: (scope, id) => CustomerModel.findOne({ _id: id, ...scope }).lean(), list: (scope, id) => CustomerBillingProfileModel.find({ ...scope, customerId: id }).sort({ isDefault: -1, createdAt: -1 }).lean(), taxIdCustomers: async (scope, taxId) => (await CustomerBillingProfileModel.distinct("customerId", { ...scope, taxId } as any)).map(String), clearDefault: (scope, id) => CustomerBillingProfileModel.updateMany({ ...scope, customerId: id, isDefault: true }, { $set: { isDefault: false } }), create: async (values) => (await CustomerBillingProfileModel.create(values)).toObject(), setCustomerVat: (scope, id) => CustomerModel.updateOne({ _id: id, ...scope }, { $set: { type: "vat" }, $inc: { version: 1 } }) };
+const repo: Repo = { customer: (scope, id) => CustomerModel.findOne({ _id: id, ...customerScopeFilter(scope) }).lean(), list: (scope, id) => CustomerBillingProfileModel.find({ companyCode: scope.companyCode, customerId: id }).sort({ isDefault: -1, createdAt: -1 }).lean(), taxIdCustomers: async (scope, taxId) => (await CustomerBillingProfileModel.distinct("customerId", { companyCode: scope.companyCode, taxId } as any)).map(String), clearDefault: (scope, id) => CustomerBillingProfileModel.updateMany({ companyCode: scope.companyCode, customerId: id, isDefault: true }, { $set: { isDefault: false } }), create: async (values) => (await CustomerBillingProfileModel.create(values)).toObject(), setCustomerVat: (scope, id) => CustomerModel.updateOne({ _id: id, ...customerScopeFilter(scope) }, { $set: { type: "vat" }, $inc: { version: 1 } }) };
 export const BillingProfileService = createBillingProfileService(repo);
-export async function getBillingProfile(scope: CustomerScope, customerId: string, profileId: string): Promise<(BillingProfileSnapshot & { profileId: string }) | null> { if (!Types.ObjectId.isValid(profileId)) return null; const value: any = await CustomerBillingProfileModel.findOne({ _id: profileId, ...scope, customerId, status: "active" }).lean(); return value ? { profileId: String(value._id), legalName: value.legalName, taxId: value.taxId, address: value.address, invoiceEmail: value.invoiceEmail, contactName: value.contactName } : null; }
+export async function getBillingProfile(scope: CustomerScope, customerId: string, profileId: string): Promise<(BillingProfileSnapshot & { profileId: string }) | null> { if (!Types.ObjectId.isValid(profileId) || !Types.ObjectId.isValid(customerId) || !await repo.customer(scope, customerId)) return null; const value: any = await CustomerBillingProfileModel.findOne({ _id: profileId, companyCode: scope.companyCode, customerId, status: "active" }).lean(); return value ? { profileId: String(value._id), legalName: value.legalName, taxId: value.taxId, address: value.address, invoiceEmail: value.invoiceEmail, contactName: value.contactName } : null; }

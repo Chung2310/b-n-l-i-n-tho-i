@@ -18,6 +18,11 @@ import "./customer-workspace.css";
 const emptyResult: PaginatedCustomers = { items: [], total: 0, page: 1, limit: 20 };
 
 export default function CustomerWorkspace() {
+  const { activeBranchId } = useBranch();
+  return <BranchCustomerWorkspace key={activeBranchId} />;
+}
+
+function BranchCustomerWorkspace() {
   const { userProfile } = useAuth();
   const { activeBranchId } = useBranch();
   const companyCode = userProfile?.companyCode?.trim().toUpperCase() || "";

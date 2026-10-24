@@ -2,6 +2,7 @@ import { Document } from "mongoose";
 
 export interface IDepartment extends Document {
   companyCode: string;
+  branchId?: string;
   code: string;
   name: string;
   description?: string;
@@ -26,6 +27,7 @@ export interface IDepartmentInput {
 export interface IDepartmentWithStats {
   _id: string;
   companyCode: string;
+  branchId?: string;
   code: string;
   name: string;
   description?: string;

@@ -28,7 +28,7 @@ describe("task activity persistence and scope", () => {
   beforeAll(async () => {
     mongo = await MongoMemoryServer.create();
     await mongoose.connect(mongo.getUri());
-    await UserModel.collection.insertMany([primary, colleague, manager].map((uid, i) => ({ _id: new mongoose.Types.ObjectId(uid), displayName: uid, companyCode: "TEST", branchId: "b1", role: i === 2 ? "manager" : "user" })) as any);
+    await UserModel.collection.insertMany([primary, colleague, manager].map((uid, i) => ({ _id: new mongoose.Types.ObjectId(uid), displayName: uid, email: `${uid}@test.invalid`, companyCode: "TEST", branchId: "b1", role: i === 2 ? "manager" : "user" })) as any);
     const app = express(); app.use(express.json()); app.use(kanbanRouter);
     server = await new Promise<Server>(resolve => { const running = app.listen(0, "127.0.0.1", () => resolve(running)); });
     url = `http://127.0.0.1:${(server.address() as any).port}`;
@@ -61,6 +61,27 @@ describe("task activity persistence and scope", () => {
     expect((await activity({ action: "help", note: "Help", revision: 0 })).status).toBe(404);
     state.user.companyCode = "TEST"; state.user.branchId = "b2";
     expect((await activity({ action: "help", note: "Help", revision: 0 })).status).toBe(404);
+  });
+  it("manager cannot delete a task belonging to another branch", async () => {
+    state.user.role = "admin";
+    state.user.branchId = "b2";
+    const response = await fetch(`${url}/tasks/${taskId}`, { method: "DELETE" });
+    expect(response.status).toBe(404);
+    expect(await KanbanTaskModel.findById(taskId).lean()).not.toBeNull();
+  });
+  it("requires selected branch to create a project, ignoring body branch", async () => {
+    state.user.role = "admin";
+    state.user.branchId = "";
+    const response = await fetch(`${url}/projects`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "Wrong scope", branchId: "b1" }) });
+    expect(response.status).toBe(400);
+  });
+  it("rejects assigning a task to another branch's employee", async () => {
+    state.user.role = "admin";
+    await UserModel.updateOne({ _id: colleague }, { branchId: "b2" });
+    const response = await fetch(`${url}/tasks/${taskId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ assigneeUid: colleague }) });
+    expect(response.status).toBe(400);
+    expect(await KanbanTaskModel.findById(taskId).lean()).toMatchObject({ assigneeUid: primary });
+    await UserModel.updateOne({ _id: colleague }, { branchId: "b1" });
   });
   it("atomically rejects competing reports instead of losing history", async () => {
     const reports = await Promise.all([25, 75].map(progress => activity({ action: "progress", progress, note: "Report", revision: 0 })));

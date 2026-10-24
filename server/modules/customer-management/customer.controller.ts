@@ -7,13 +7,7 @@ import { CustomerPurchaseHistoryService } from "./customer-purchase-history.serv
 import { requireRetailBranch, retailScopeFromRequest, RetailScopeError, type RetailBranchScope } from "../retail/contracts";
 import { getEffectivePermissions } from "../../middleware/auth";
 
-function scopeFromRequest(req: Request): CustomerScope {
-  const user = (req as any).user || {};
-  const rawCompanyCode = user.role === "superadmin" ? req.query.companyCode : user.companyCode;
-  const companyCode = String(rawCompanyCode || "").trim().toUpperCase();
-  if (!companyCode) throw new CustomerError("CUSTOMER_COMPANY_REQUIRED", "Phạm vi công ty là bắt buộc.", 400);
-  return { companyCode };
-}
+import { customerScopeFromRequest as scopeFromRequest } from "./customer-branch-scope";
 
 export function purchaseHistoryScopeFromRequest(req: Request): RetailBranchScope {
   return requireRetailBranch(retailScopeFromRequest((req as any).user || {}, {
@@ -61,7 +55,7 @@ export const customerController = {
   list: handle(async (req, res) => {
     const user = (req as any).user || {};
     const permissions = await getEffectivePermissions(String(user.id || ""), String(user.role || ""), String(user.companyCode || ""));
-    const scope = scopeFromRequest(req);
+    const scope = await scopeFromRequest(req);
     const posOnly = permissions.has("pos:manage") && !permissions.has("customer:read") && !permissions.has("customer:manage") && !permissions.has("*");
     if (posOnly) {
       const query = String(req.query.q || "").trim();
@@ -75,17 +69,19 @@ export const customerController = {
     }
     return res.json({ success: true, data: await CustomerService.list(scope, req.query as any) });
   }),
-  search: handle(async (req, res) => res.json({ success: true, data: await searchActiveCustomers(scopeFromRequest(req), String(req.query.q || ""), Number(req.query.limit) || 10) })),
-  create: handle(async (req, res) => res.status(201).json({ success: true, data: await CustomerService.create(scopeFromRequest(req), req.body || {}, actorFromRequest(req)) })),
-  quickCreate: handle(async (req, res) => res.status(201).json({ success: true, data: await quickCreateCustomer(scopeFromRequest(req), req.body || {}, actorFromRequest(req)) })),
-  detail: handle(async (req, res) => res.json({ success: true, data: await CustomerService.detail(scopeFromRequest(req), req.params.id) })),
+  search: handle(async (req, res) => res.json({ success: true, data: await searchActiveCustomers(await scopeFromRequest(req), String(req.query.q || ""), Number(req.query.limit) || 10) })),
+  create: handle(async (req, res) => res.status(201).json({ success: true, data: await CustomerService.create(await scopeFromRequest(req), req.body || {}, actorFromRequest(req)) })),
+  quickCreate: handle(async (req, res) => res.status(201).json({ success: true, data: await quickCreateCustomer(await scopeFromRequest(req), req.body || {}, actorFromRequest(req)) })),
+  detail: handle(async (req, res) => res.json({ success: true, data: await CustomerService.detail(await scopeFromRequest(req), req.params.id) })),
   purchaseHistory: handle(async (req, res) => {
-    const { customerScope, branchId } = purchaseHistoryServiceInput(req);
+    const { branchId } = purchaseHistoryServiceInput(req);
+    const customerScope = await scopeFromRequest(req);
+    await CustomerService.detail(customerScope, req.params.id);
     return res.json({ success: true, data: await CustomerPurchaseHistoryService.get(customerScope, req.params.id, branchId) });
   }),
-  update: handle(async (req, res) => res.json({ success: true, data: await CustomerService.update(scopeFromRequest(req), req.params.id, req.body || {}, versionFromRequest(req)) })),
-  activate: handle(async (req, res) => res.json({ success: true, data: await CustomerService.setStatus(scopeFromRequest(req), req.params.id, "active", versionFromRequest(req)) })),
-  deactivate: handle(async (req, res) => res.json({ success: true, data: await CustomerService.setStatus(scopeFromRequest(req), req.params.id, "inactive", versionFromRequest(req)) })),
-  billingProfiles: handle(async (req, res) => res.json({ success: true, data: await BillingProfileService.list(scopeFromRequest(req), req.params.id) })),
-  createBillingProfile: handle(async (req, res) => res.status(201).json({ success: true, data: await BillingProfileService.create(scopeFromRequest(req), req.params.id, req.body || {}, actorFromRequest(req)) })),
+  update: handle(async (req, res) => res.json({ success: true, data: await CustomerService.update(await scopeFromRequest(req), req.params.id, req.body || {}, versionFromRequest(req)) })),
+  activate: handle(async (req, res) => res.json({ success: true, data: await CustomerService.setStatus(await scopeFromRequest(req), req.params.id, "active", versionFromRequest(req)) })),
+  deactivate: handle(async (req, res) => res.json({ success: true, data: await CustomerService.setStatus(await scopeFromRequest(req), req.params.id, "inactive", versionFromRequest(req)) })),
+  billingProfiles: handle(async (req, res) => res.json({ success: true, data: await BillingProfileService.list(await scopeFromRequest(req), req.params.id) })),
+  createBillingProfile: handle(async (req, res) => res.status(201).json({ success: true, data: await BillingProfileService.create(await scopeFromRequest(req), req.params.id, req.body || {}, actorFromRequest(req)) })),
 };

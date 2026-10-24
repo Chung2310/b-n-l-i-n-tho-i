@@ -47,7 +47,25 @@ describe("CustomerWorkspace purchase history", () => {
 });
 
 describe("CustomerWorkspace", () => {
-  it("loads company-wide active customers and offers management actions", async () => {
+  it("clears MAIN customers immediately on branch switch and ignores late MAIN responses", async () => {
+    let finishMain: (value: any) => void = () => {};
+    vi.mocked(customerApi.list).mockImplementationOnce(() => new Promise(resolve => { finishMain = resolve; }));
+    const view = render(<CustomerWorkspace />);
+    await waitFor(() => expect(customerApi.list).toHaveBeenCalledTimes(1));
+    activeBranchId = "cn2";
+    vi.mocked(customerApi.list).mockResolvedValue({ items: [], total: 0, page: 1, limit: 20 });
+    view.rerender(<CustomerWorkspace />);
+    await waitFor(() => expect(customerApi.list).toHaveBeenCalledTimes(2));
+    finishMain({ items: [customer], total: 1, page: 1, limit: 20 });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(screen.queryByText(customer.name)).toBeNull();
+    activeBranchId = "b1";
+    vi.mocked(customerApi.list).mockResolvedValue({ items: [customer], total: 1, page: 1, limit: 20 });
+    view.rerender(<CustomerWorkspace />);
+    expect(await screen.findByText(customer.name)).toBeTruthy();
+  });
+
+  it("loads active customers and offers management actions", async () => {
     render(<CustomerWorkspace />);
     expect(await screen.findByText("Nguyễn Văn An")).toBeTruthy();
     expect(customerApi.list).toHaveBeenCalledWith(expect.objectContaining({ companyCode: "IGEN", status: "active" }));

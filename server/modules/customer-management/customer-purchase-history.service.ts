@@ -1,3 +1,4 @@
+import { customerScopeFilter } from "./customer-branch-scope";
 import { CustomerError } from "./customer-errors";
 import { Types, type SortOrder } from "mongoose";
 import type { CustomerScope } from "./customer.service";
@@ -343,7 +344,7 @@ export function createCustomerPurchaseHistoryService(repository: CustomerPurchas
 }
 
 const repository: CustomerPurchaseHistoryRepository = {
-  customer: (scope, customerId) => CustomerModel.findOne({ _id: customerId, ...scope }).lean(),
+  customer: (scope, customerId) => CustomerModel.findOne({ _id: customerId, ...customerScopeFilter(scope) }).lean(),
   orders: async (filter: any, sort: any) => {
     const { companyCode, branchId, customerId } = filter || {};
     if (!companyCode || !customerId) return [];
@@ -366,7 +367,7 @@ const repository: CustomerPurchaseHistoryRepository = {
     return RetailOrderModel.find(query).sort(sort).lean() as any;
   },
   repairs: async (filter: any, sort: any) => {
-    const { companyCode, customerId } = filter || {};
+    const { companyCode, branchId, customerId } = filter || {};
     if (!companyCode || !customerId) return [];
     const customer: any = await CustomerModel.findOne({ _id: customerId, companyCode }).lean();
     const customerIds = [
@@ -383,6 +384,7 @@ const repository: CustomerPurchaseHistoryRepository = {
 
     const query: Record<string, unknown> = {
       companyCode,
+      ...(branchId ? { branchId } : {}),
       $or: [
         { customerId: { $in: customerIds } },
         { customerCode: { $in: customerIds } },
@@ -397,7 +399,7 @@ const repository: CustomerPurchaseHistoryRepository = {
     return RepairTicketModel.find(query).sort(sort).lean() as any;
   },
   warranties: async (filter: any, sort: any) => {
-    const { companyCode, customerId } = filter || {};
+    const { companyCode, branchId, customerId } = filter || {};
     if (!companyCode || !customerId) return [];
     const customer: any = await CustomerModel.findOne({ _id: customerId, companyCode }).lean();
     const customerIds = [
@@ -409,6 +411,7 @@ const repository: CustomerPurchaseHistoryRepository = {
 
     const query: Record<string, unknown> = {
       companyCode,
+      ...(branchId ? { branchId } : {}),
       customerId: { $in: customerIds },
       customerWarranty: { $exists: true },
     };
