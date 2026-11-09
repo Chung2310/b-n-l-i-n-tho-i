@@ -9,7 +9,9 @@ COPY package.json yarn.lock ./
 # Install ALL dependencies (including devDependencies needed for build)
 # NODE_ENV must NOT be "production" here so devDeps are installed
 ENV NODE_ENV=development
-RUN --mount=type=cache,target=/root/.cache/yarn yarn install --frozen-lockfile
+# Keep Yarn's cache in the mount instead of the image layer.
+RUN --mount=type=cache,target=/root/.cache/yarn \
+    yarn install --frozen-lockfile --cache-folder /root/.cache/yarn
 
 # Copy the entire workspace (excluding files in .dockerignore)
 COPY . .
@@ -33,27 +35,31 @@ RUN apk add --no-cache ca-certificates tzdata
 
 WORKDIR /app
 
+# Set ownership before dependencies or cache mounts create any files.
+RUN mkdir -p /home/node/.cache/yarn \
+    && chown node:node /app /home/node/.cache /home/node/.cache/yarn
+
 ENV NODE_ENV=production
 ENV PORT=3011
 
 # Copy package files first to leverage Docker build cache for node_modules
-COPY --from=builder /app/package.json /app/yarn.lock ./
+COPY --from=builder --chown=node:node /app/package.json /app/yarn.lock ./
 
-# Install only production dependencies
-RUN --mount=type=cache,target=/root/.cache/yarn yarn install --production --frozen-lockfile
+# Install as the runtime user so node_modules needs no later recursive chown.
+USER node
+RUN --mount=type=cache,target=/home/node/.cache/yarn,uid=1000,gid=1000 \
+    yarn install --production --frozen-lockfile --cache-folder /home/node/.cache/yarn
 
 # Copy only the compiled output directories from builder.
 # dist/ = static frontend assets (publicly served via express.static)
 # dist-server/ = bundled Express server (must stay outside the publicly served
 # directory — it is never served over HTTP)
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/dist-server ./dist-server
-COPY --from=builder /app/server/assets/fonts ./server/assets/fonts
+COPY --from=builder --chown=node:node /app/dist ./dist
+COPY --from=builder --chown=node:node /app/dist-server ./dist-server
+COPY --from=builder --chown=node:node /app/server/assets/fonts ./server/assets/fonts
 
-# Tạo thư mục logs và gán quyền cho user node
-RUN mkdir -p /app/logs && chown -R node:node /app
-
-USER node
+# Create runtime directories as their owner without copying earlier layers.
+RUN mkdir -p /app/logs /app/uploads
 
 # Expose Express server port
 EXPOSE 3011
